@@ -1,0 +1,26 @@
+# Easypanel Configuration
+# Cole este conteúdo no seu Easypanel para deploy automático
+
+name: agente-financeiro
+services:
+  - name: app
+    source:
+      type: git
+      url: # SUA_URL_DO_REPOSITORIO
+      branch: main
+    build:
+      type: dockerfile
+      dockerfile: Dockerfile
+    deploy:
+      type: static
+      outputDir: dist
+      buildCommand: npm install --legacy-peer-deps && npm run build
+    domains:
+      - name: # SEU_DOMINIO.com
+    env:
+      - name: NODE_ENV
+        value: production
+      - name: VITE_SUPABASE_URL
+        value: https://alqzqapccyclmffdfmlc.supabase.co
+      - name: VITE_SUPABASE_ANON_KEY
+        value: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFscXpxYXBjY3ljbG1mZmRmbWxjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDYyMTY4OTIsImV4cCI6MjA2MTc5Mjg5Mn0.WAG002hANNqMuqN2BOnvAMG5SsM2T4Wttz9dKrTj2GY
