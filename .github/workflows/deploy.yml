@@ -1,0 +1,67 @@
+name: Deploy Finance App
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout código
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '18'
+        cache: 'npm'
+        
+    - name: Instalar dependências
+      run: npm ci --legacy-peer-deps
+      
+    - name: Build da aplicação
+      run: npm run build
+      env:
+        NODE_ENV: production
+        VITE_SUPABASE_URL: https://finance-app-supabase-finance-app.rcnehy.easypanel.host
+        VITE_SUPABASE_ANON_KEY: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyAgCiAgICAicm9sZSI6ICJhbm9uIiwKICAgICJpc3MiOiAic3VwYWJhc2UtZGVtbyIsCiAgICAiaWF0IjogMTY0MTc2OTIwMCwKICAgICJleHAiOiAxNzk5NTM1NjAwCn0.dc_X5iR_VP_qT0zsiyj_I_OZ2T9FtRU2BBNWN8Bu4GE
+        
+    - name: Deploy via SSH
+      uses: appleboy/ssh-action@v1.0.3
+      with:
+        host: ${{ secrets.VPS_HOST }}
+        username: ${{ secrets.VPS_USER }}
+        key: ${{ secrets.VPS_SSH_KEY }}
+        script: |
+          # Navegar para diretório da aplicação
+          cd /var/www/finance-app || mkdir -p /var/www/finance-app && cd /var/www/finance-app
+          
+          # Fazer backup da versão atual
+          if [ -d "current" ]; then
+            mv current backup-$(date +%Y%m%d-%H%M%S)
+          fi
+          
+          # Clone/Pull do repositório
+          if [ ! -d "repo" ]; then
+            git clone https://github.com/lincoolngomes/Finance-App.git repo
+          else
+            cd repo && git pull origin main && cd ..
+          fi
+          
+          # Copiar arquivos buildados
+          cp -r repo/dist current
+          
+          # Configurar nginx (se necessário)
+          sudo systemctl reload nginx || echo "Nginx não configurado ainda"
+          
+          echo "Deploy concluído com sucesso!"
+          
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: build-files
+        path: dist/
