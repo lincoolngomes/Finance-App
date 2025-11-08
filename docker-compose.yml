@@ -1,11 +1,8 @@
 services:
   agente-financeiro:
     build: .
-    ports:
-      - "3000:80"
+    expose:
+      - "80"
     restart: unless-stopped
     environment:
       - NODE_ENV=production
-    labels:
-      # Labels para Easypanel
-      - "easypanel.app=agente-financeiro"
