@@ -17,7 +17,7 @@ import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
 import { useCategories } from '@/hooks/useCategories'
 import { toast } from '@/hooks/use-toast'
-import { Plus, Edit, Trash2, TrendingUp, TrendingDown } from 'lucide-react'
+import { Plus, Edit, Trash2, TrendingUp, TrendingDown, ArrowUpDown } from 'lucide-react'
 import { formatCurrency } from '@/utils/currency'
 
 interface Transacao {
@@ -48,6 +48,9 @@ export default function Transacoes() {
   const [searchTerm, setSearchTerm] = useState('')
   const [typeFilter, setTypeFilter] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('')
+  
+  // Ordenação
+  const [sortOrder, setSortOrder] = useState('created_desc') // created_desc, created_asc, date_desc, date_asc
 
   const [formData, setFormData] = useState({
     quando: '',
@@ -64,17 +67,52 @@ export default function Transacoes() {
     }
   }, [user])
 
-  // Transações filtradas
+  // Transações filtradas e ordenadas
   const filteredTransacoes = useMemo(() => {
-    return transacoes.filter(transacao => {
-      const matchesSearch = !searchTerm || 
-        (transacao.estabelecimento?.toLowerCase().includes(searchTerm.toLowerCase()) ?? false)
-      const matchesType = !typeFilter || transacao.tipo === typeFilter
-      const matchesCategory = !categoryFilter || transacao.category_id === categoryFilter
+    let filtered = transacoes.filter(transacao => {
+      if (!searchTerm) return true
       
-      return matchesSearch && matchesType && matchesCategory
+      const searchLower = searchTerm.toLowerCase()
+      
+      // Busca em múltiplos campos
+      const matchesEstabelecimento = transacao.estabelecimento?.toLowerCase().includes(searchLower) ?? false
+      const matchesCategoria = transacao.categorias?.nome?.toLowerCase().includes(searchLower) ?? false
+      const matchesDetalhes = transacao.detalhes?.toLowerCase().includes(searchLower) ?? false
+      const matchesData = transacao.quando?.includes(searchTerm) ?? false
+      const matchesValor = transacao.valor?.toString().includes(searchTerm) ?? false
+      
+      return matchesEstabelecimento || matchesCategoria || matchesDetalhes || matchesData || matchesValor
     })
-  }, [transacoes, searchTerm, typeFilter, categoryFilter])
+    
+    // Aplicar filtros de tipo e categoria
+    if (typeFilter) {
+      filtered = filtered.filter(transacao => transacao.tipo === typeFilter)
+    }
+    
+    if (categoryFilter) {
+      filtered = filtered.filter(transacao => transacao.category_id === categoryFilter)
+    }
+    
+    // Aplicar ordenação
+    return filtered.sort((a, b) => {
+      switch (sortOrder) {
+        case 'created_asc':
+          return new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+        case 'created_desc':
+          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+        case 'date_asc':
+          const dateA = a.quando ? new Date(a.quando) : new Date(a.created_at)
+          const dateB = b.quando ? new Date(b.quando) : new Date(b.created_at)
+          return dateA.getTime() - dateB.getTime()
+        case 'date_desc':
+          const dateA2 = a.quando ? new Date(a.quando) : new Date(a.created_at)
+          const dateB2 = b.quando ? new Date(b.quando) : new Date(b.created_at)
+          return dateB2.getTime() - dateA2.getTime()
+        default:
+          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      }
+    })
+  }, [transacoes, searchTerm, typeFilter, categoryFilter, sortOrder])
 
   // Cálculo dos totais
   const { receitas, despesas, saldo } = useMemo(() => {
@@ -124,6 +162,7 @@ export default function Transacoes() {
     setSearchTerm('')
     setTypeFilter('')
     setCategoryFilter('')
+    setSortOrder('created_desc')
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -377,6 +416,8 @@ export default function Transacoes() {
         onTypeFilterChange={setTypeFilter}
         categoryFilter={categoryFilter}
         onCategoryFilterChange={setCategoryFilter}
+        sortOrder={sortOrder}
+        onSortOrderChange={setSortOrder}
         onClearFilters={clearFilters}
       />
 
