@@ -68,13 +68,16 @@ async function tryWebhook(url: string, phoneNumber: string, authHeaders: Record<
     // Converter exists para boolean (N8N retorna como string)
     const exists = data.exists === 'true' || data.exists === true;
     
-    // Extrair número limpo do jid (remove @s.whatsapp.net ou @c.us)
+    // Manter o WhatsApp ID completo (incluindo @s.whatsapp.net ou @c.us)
+    // Isso é necessário para identificação posterior em mensagens via WhatsApp
     let whatsappId = data.whatsapp;
-    if (whatsappId && whatsappId.includes('@')) {
-      whatsappId = whatsappId.split('@')[0];
+    
+    // Se não tiver o sufixo, adicionar o padrão @s.whatsapp.net
+    if (whatsappId && !whatsappId.includes('@')) {
+      whatsappId = whatsappId + '@s.whatsapp.net';
     }
     
-    console.log('✅ Webhook funcionou! exists:', exists, 'whatsappId:', whatsappId);
+    console.log('✅ Webhook funcionou! exists:', exists, 'whatsappId completo:', whatsappId);
     
     return {
       exists: exists,

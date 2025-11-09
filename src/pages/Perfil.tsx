@@ -145,34 +145,33 @@ export default function Perfil() {
           fullPhone = currentCountryCode + cleanNumber
         }
         
-        // Se o telefone mudou, validar o WhatsApp
-        if (fullPhone !== profile.phone) {
-          console.log('Validando WhatsApp para número alterado:', fullPhone)
-          console.log('Número limpo para validação:', fullPhone.replace('+', ''))
+        // Sempre validar o WhatsApp para garantir que o sufixo esteja correto
+        console.log('Validando WhatsApp para número:', fullPhone)
+        console.log('Número limpo para validação:', fullPhone.replace('+', ''))
+        
+        try {
+          const whatsappValidation = await validateWhatsAppNumber(fullPhone.replace('+', ''))
           
-          try {
-            const whatsappValidation = await validateWhatsAppNumber(fullPhone.replace('+', ''))
-            
-            if (!whatsappValidation.exists) {
-              toast({
-                title: "Erro",
-                description: "Este número não possui WhatsApp ativo",
-                variant: "destructive",
-              })
-              setSaving(false)
-              return
-            }
-            
-            whatsappId = whatsappValidation.whatsappId
-          } catch (error: any) {
+          if (!whatsappValidation.exists) {
             toast({
-              title: "Erro na validação do WhatsApp",
-              description: error.message,
+              title: "Erro",
+              description: "Este número não possui WhatsApp ativo",
               variant: "destructive",
             })
             setSaving(false)
             return
           }
+          
+          whatsappId = whatsappValidation.whatsappId
+          console.log('WhatsApp ID obtido:', whatsappId)
+        } catch (error: any) {
+          toast({
+            title: "Erro na validação do WhatsApp",
+            description: error.message,
+            variant: "destructive",
+          })
+          setSaving(false)
+          return
         }
       }
 
