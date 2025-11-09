@@ -1,5 +1,5 @@
 import { NavLink, useLocation } from 'react-router-dom'
-import { Home, CreditCard, Calendar, User, LogOut, Tag, FileText } from 'lucide-react'
+import { Home, CreditCard, Calendar, User, LogOut, Tag, FileText, Shield } from 'lucide-react'
 import {
   Sidebar,
   SidebarContent,
@@ -14,27 +14,37 @@ import {
   useSidebar,
 } from '@/components/ui/sidebar'
 import { useAuth } from '@/hooks/useAuth'
+import { useAdmin } from '@/hooks/useAdmin'
 import { Button } from '@/components/ui/button'
 import { UserProfile } from './UserProfile'
 import { useTheme } from '@/hooks/useTheme'
 
-const items = [
-  { title: 'Dashboard', url: '/dashboard', icon: Home },
-  { title: 'Transações', url: '/transacoes', icon: CreditCard },
-  { title: 'Categorias', url: '/categorias', icon: Tag },
-  { title: 'Relatórios', url: '/relatorios', icon: FileText },
-  { title: 'Lembretes', url: '/lembretes', icon: Calendar },
-  { title: 'Perfil', url: '/perfil', icon: User },
-]
+
 
 export function AppSidebar() {
   const { state } = useSidebar()
   const location = useLocation()
   const { signOut } = useAuth()
   const { theme } = useTheme()
+  const { isAdmin } = useAdmin()
   const currentPath = location.pathname
 
   const isActive = (path: string) => currentPath === path
+
+  // Items do menu normal
+  const normalItems = [
+    { title: 'Dashboard', url: '/dashboard', icon: Home },
+    { title: 'Transações', url: '/transacoes', icon: CreditCard },
+    { title: 'Categorias', url: '/categorias', icon: Tag },
+    { title: 'Relatórios', url: '/relatorios', icon: FileText },
+    { title: 'Lembretes', url: '/lembretes', icon: Calendar },
+    { title: 'Perfil', url: '/perfil', icon: User },
+  ]
+
+  // Items apenas para admin
+  const adminItems = [
+    { title: 'Administração', url: '/admin', icon: Shield },
+  ]
   const isCollapsed = state === "collapsed"
 
   // Determine which logo to use based on theme
@@ -81,7 +91,7 @@ export function AppSidebar() {
           </SidebarGroupLabel>
           <SidebarGroupContent className="dark:bg-slate-950">
             <SidebarMenu className="dark:bg-slate-950">
-              {items.map((item) => (
+              {normalItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton
                     asChild
@@ -89,6 +99,25 @@ export function AppSidebar() {
                       isActive(item.url)
                         ? 'bg-primary text-primary-foreground hover:bg-primary/90 dark:bg-blue-600 dark:text-white'
                         : 'hover:bg-accent dark:hover:bg-slate-800'
+                    }`}
+                  >
+                    <NavLink to={item.url} end>
+                      <item.icon className="h-4 w-4" />
+                      <span>{item.title}</span>
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+              
+              {/* Menu Admin - só aparece se for admin */}
+              {isAdmin && adminItems.map((item) => (
+                <SidebarMenuItem key={item.title}>
+                  <SidebarMenuButton
+                    asChild
+                    className={`${
+                      isActive(item.url)
+                        ? 'bg-red-600 text-white hover:bg-red-700'
+                        : 'hover:bg-red-50 dark:hover:bg-red-900/20 text-red-600 dark:text-red-400'
                     }`}
                   >
                     <NavLink to={item.url} end>

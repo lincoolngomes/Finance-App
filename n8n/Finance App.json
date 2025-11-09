@@ -1,25 +1,25 @@
 {
-  "name": "Aulão | AgenteFinanceiro",
+  "name": "Finance App",
   "nodes": [
     {
       "parameters": {
         "resource": "messages-api",
-        "instanceName": "={{ $('Organiza Dados').item.json.instancia }}",
+        "instanceName": "FinanceApp",
         "remoteJid": "={{ $('Organiza Dados').item.json.whatsapp }}",
-        "messageText": "={{ $json.output }}",
+        "messageText": "=✅ *Assistente Financeiro | FinanceApp*\n\nFeito, {{ $('Verifica Usuario').item.json.firstname }}!\n\n{{ $json.output }}\n\n🔵 Precisa de mais alguma coisa? Estou aqui para te ajudar com suas finanças!",
         "options_message": {}
       },
       "type": "n8n-nodes-evolution-api.evolutionApi",
       "typeVersion": 1,
       "position": [
-        5500,
-        180
+        6064,
+        -112
       ],
-      "id": "5fb11175-bc49-4672-8069-296f85694bfd",
+      "id": "d89abe44-cd91-4858-989e-16051f7b2581",
       "name": "Responde o Cliente",
       "credentials": {
         "evolutionApi": {
-          "id": "R6zo5aCXbaUInzr8",
+          "id": "3kyIcxiyPWbQboBL",
           "name": "Evolution account"
         }
       }
@@ -109,10 +109,10 @@
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3.2,
       "position": [
-        1020,
-        1140
+        1584,
+        848
       ],
-      "id": "14c5851b-5f28-4f5c-b828-9a375770eae1",
+      "id": "b1fd311d-36fb-4e5b-8af5-f16900f2e7b0",
       "name": "Verifica o Tipo de mensagem"
     },
     {
@@ -122,10 +122,10 @@
       "type": "n8n-nodes-base.wait",
       "typeVersion": 1.1,
       "position": [
-        1580,
-        1140
+        2144,
+        848
       ],
-      "id": "5cb2fc23-49b1-49ad-a044-deb30f4e80dd",
+      "id": "16bb2ffc-3ffa-4f77-b5f4-3832ac2ddeb9",
       "name": "Wait",
       "webhookId": "7ade20f6-0cd0-4310-b46a-a7e0db015845"
     },
@@ -134,10 +134,10 @@
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
       "position": [
-        2220,
-        1260
+        2784,
+        976
       ],
-      "id": "9c016397-5590-4d81-ba46-95a3a0fe8323",
+      "id": "9cda0452-7f8a-44c1-b1cb-52e6687f2c92",
       "name": "No Operation, do nothing"
     },
     {
@@ -148,15 +148,15 @@
       "type": "n8n-nodes-base.redis",
       "typeVersion": 1,
       "position": [
-        2440,
-        1040
+        3008,
+        752
       ],
-      "id": "3f5cda7e-0136-40b0-8d02-ba2b85e3b53e",
+      "id": "959b1abc-e55a-4334-ad2c-6be6962f9d18",
       "name": "Redis",
       "credentials": {
         "redis": {
-          "id": "RslzBxZ9nILfEtKO",
-          "name": "Redis account"
+          "id": "LLbD3U6rhQqfE91N",
+          "name": "evolution-api-redis"
         }
       }
     },
@@ -198,10 +198,10 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        1980,
-        1140
+        2544,
+        848
       ],
-      "id": "a31a044e-7cf8-465f-9457-c34cb07a97b7",
+      "id": "c52bbff5-9efa-451c-aed4-c372c6c412fc",
       "name": "If1"
     },
     {
@@ -221,14 +221,14 @@
       "type": "@n8n/n8n-nodes-langchain.openAi",
       "typeVersion": 1.8,
       "position": [
-        2440,
-        800
+        3008,
+        512
       ],
-      "id": "c6dbd2c0-db93-406a-8f4f-31d123f4ab94",
+      "id": "72ed16d0-9254-4535-9eb9-9a1ddd2ab15f",
       "name": "Analiza a Imagem",
       "credentials": {
         "openAiApi": {
-          "id": "4yTOFqPLWPMB98Nk",
+          "id": "ipy1c8ijBGJzZg4Z",
           "name": "OpenAi account"
         }
       }
@@ -242,10 +242,10 @@
       "type": "n8n-nodes-base.convertToFile",
       "typeVersion": 1.1,
       "position": [
-        1880,
-        800
+        2448,
+        512
       ],
-      "id": "194012ad-9faa-45b3-81ba-99973154f9a3",
+      "id": "2587803e-0ac5-48a6-9a98-34f4dea48212",
       "name": "Converte o base64 em imagem"
     },
     {
@@ -260,10 +260,10 @@
       "type": "n8n-nodes-base.convertToFile",
       "typeVersion": 1.1,
       "position": [
-        1900,
-        1520
+        2464,
+        1232
       ],
-      "id": "7c6698e9-75d5-4af5-a83e-d57c9d0c4fd2",
+      "id": "53e5c5c6-3a38-4dfd-a38e-ad940e5309f1",
       "name": "Converte o base64 em áudio"
     },
     {
@@ -275,14 +275,14 @@
       "type": "@n8n/n8n-nodes-langchain.openAi",
       "typeVersion": 1.8,
       "position": [
-        2440,
-        1520
+        3008,
+        1232
       ],
-      "id": "dc3f5ed3-2666-481a-b2f0-333c00cdfe69",
+      "id": "9cd4b9d0-d284-4d5f-a9a6-5650acefff9e",
       "name": "Transcreve o audio",
       "credentials": {
         "openAiApi": {
-          "id": "4yTOFqPLWPMB98Nk",
+          "id": "ipy1c8ijBGJzZg4Z",
           "name": "OpenAi account"
         }
       }
@@ -291,44 +291,20 @@
       "parameters": {
         "resource": "chat-api",
         "operation": "get-media-base64",
-        "instanceName": "={{ $('Organiza Dados').item.json.instancia }}",
-        "messageId": "={{ $('InicioChat').item.json.body.data.key.id }}",
-        "convertToMp4": true
+        "instanceName": "FinanceApp",
+        "messageId": "=  {{ $('InicioChat').item.json.body.data.key.id }}"
       },
       "type": "n8n-nodes-evolution-api.evolutionApi",
       "typeVersion": 1,
       "position": [
-        1380,
-        1520
+        1968,
+        512
       ],
-      "id": "1c863fad-710e-4d00-9ee9-635ae6204016",
-      "name": "Caso não recebemos o Base64 consultamos no EVOAPI",
-      "credentials": {
-        "evolutionApi": {
-          "id": "R6zo5aCXbaUInzr8",
-          "name": "Evolution account"
-        }
-      }
-    },
-    {
-      "parameters": {
-        "resource": "chat-api",
-        "operation": "get-media-base64",
-        "instanceName": "={{ $('Organiza Dados').item.json.instancia }}",
-        "messageId": "={{ $('InicioChat').item.json.body.data.key.id }}",
-        "convertToMp4": true
-      },
-      "type": "n8n-nodes-evolution-api.evolutionApi",
-      "typeVersion": 1,
-      "position": [
-        1400,
-        800
-      ],
-      "id": "d101c573-555f-4b94-878d-7536e8368041",
+      "id": "0e43a30f-cf98-4f63-8b88-5ad29ec0236c",
       "name": "Caso não recebemos o Base64 consultamos no EVOAPI1",
       "credentials": {
         "evolutionApi": {
-          "id": "R6zo5aCXbaUInzr8",
+          "id": "3kyIcxiyPWbQboBL",
           "name": "Evolution account"
         }
       }
@@ -353,17 +329,17 @@
       "type": "n8n-nodes-base.supabase",
       "typeVersion": 1,
       "position": [
-        340,
-        1160
+        912,
+        880
       ],
-      "id": "789e6235-176b-43c0-ae50-0712cffb7aea",
+      "id": "afd0846c-9e12-4209-820c-493bf662eeaa",
       "name": "Auth",
       "notesInFlow": true,
       "alwaysOutputData": true,
       "credentials": {
         "supabaseApi": {
-          "id": "xr6s7mi32REuM3aA",
-          "name": "Supabase - Finzap"
+          "id": "pLSlTAliGnTEMfL9",
+          "name": "Supabase account"
         }
       },
       "notes": "Verifica se o usuário existe ou está ativo."
@@ -396,10 +372,10 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        780,
-        1160
+        1344,
+        880
       ],
-      "id": "fb17e4bf-77c8-4730-9a97-f738d6bf58bf",
+      "id": "a59d5291-faae-4cd8-aaaf-8b72a7d0582d",
       "name": "Verifica Usuario"
     },
     {
@@ -451,7 +427,7 @@
             {
               "id": "ab5560d5-f8db-4d20-8378-34ed8394cb97",
               "name": "instancia",
-              "value": "zanini",
+              "value": "FinanceApp",
               "type": "string"
             }
           ]
@@ -461,31 +437,31 @@
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
       "position": [
-        560,
-        1160
+        1136,
+        880
       ],
-      "id": "1e990c3a-9e24-4585-933a-633a6f127e30",
+      "id": "c6c9c1d5-eb67-4b94-91cf-37c76068d773",
       "name": "Organiza Dados"
     },
     {
       "parameters": {
         "resource": "messages-api",
-        "instanceName": "={{ $('Organiza Dados').item.json.instancia }}",
+        "instanceName": "FinanceApp",
         "remoteJid": "={{ $json.whatsapp }}",
-        "messageText": "=Notamos que você ainda não possui cadastro. Acesso o link para adquirir um plano:\nhttps://finflow.ninelabs.blog/plano",
+        "messageText": "Notamos que você ainda não possui cadastro. Acesse o link para adquiri um plano: https://finance-app-finance-app.rcnehy.easypanel.host/plano",
         "options_message": {}
       },
       "type": "n8n-nodes-evolution-api.evolutionApi",
       "typeVersion": 1,
       "position": [
-        1020,
-        1380
+        1584,
+        1088
       ],
-      "id": "a4e28e95-6cb6-40d5-976a-7437c32579b3",
+      "id": "a53deca6-2b1d-453d-9014-33ff6bffda54",
       "name": "Evolution API",
       "credentials": {
         "evolutionApi": {
-          "id": "R6zo5aCXbaUInzr8",
+          "id": "3kyIcxiyPWbQboBL",
           "name": "Evolution account"
         }
       }
@@ -499,10 +475,10 @@
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
       "position": [
-        -40,
-        2320
+        528,
+        2032
       ],
-      "id": "9e10160e-0da7-46fd-af3d-522152ee7142",
+      "id": "dfa5aafb-a8b3-454f-ab27-d97bf0a1a55d",
       "name": "ConfirmaPagamento",
       "webhookId": "1a643f5c-49e7-41a6-b41c-5fd8f7093585"
     },
@@ -529,55 +505,30 @@
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
       "position": [
-        200,
-        2320
+        768,
+        2032
       ],
-      "id": "cd943f5b-bf97-45c9-aa12-d77a0166cf5f",
+      "id": "d6fbf8b8-e998-42c1-85cd-61a1922494c7",
       "name": "FiltraDados"
     },
     {
       "parameters": {
-        "url": "=https://api-sandbox.asaas.com/v3/customers/{{ $json.customerId }}",
-        "authentication": "genericCredentialType",
-        "genericAuthType": "httpHeaderAuth",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
-            {
-              "name": "accept",
-              "value": "application/json"
-            }
-          ]
-        },
-        "options": {}
-      },
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [
-        420,
-        2320
-      ],
-      "id": "46be25d8-bc68-4975-8afa-abcb015af883",
-      "name": "DadosCliente",
-      "credentials": {
-        "httpHeaderAuth": {
-          "id": "vCD3ufsqdlJ4YsAX",
-          "name": "Asaas - Dev"
-        }
-      }
-    },
-    {
-      "parameters": {
         "method": "POST",
-        "url": "https://vgpklawlsjcesklmezme.supabase.co/auth/v1/signup",
-        "authentication": "genericCredentialType",
-        "genericAuthType": "httpBearerAuth",
+        "url": "https://finance-app-supabase-finance-app.rcnehy.easypanel.host/auth/v1/admin/users",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
             {
-              "name": "apiKey",
-              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZncGtsYXdsc2pjZXNrbG1lem1lIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc0OTA4MDY3MiwiZXhwIjoyMDY0NjU2NjcyfQ.z1WPoJBs6_Y21ueJ56CS4TfoDzGzOA3_2-R2VdTnRPI"
+              "name": "Authorization",
+              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyAgCiAgICAicm9sZSI6ICJzZXJ2aWNlX3JvbGUiLAogICAgImlzcyI6ICJzdXBhYmFzZS1kZW1vIiwKICAgICJpYXQiOiAxNjQxNzY5MjAwLAogICAgImV4cCI6IDE3OTk1MzU2MDAKfQ.DaYlNEoUrrEn2Ig7tqibS-PHK5vgusbcbo7X36XVt4Q"
+            },
+            {
+              "name": "apikey",
+              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyAgCiAgICAicm9sZSI6ICJzZXJ2aWNlX3JvbGUiLAogICAgImlzcyI6ICJzdXBhYmFzZS1kZW1vIiwKICAgICJpYXQiOiAxNjQxNzY5MjAwLAogICAgImV4cCI6IDE3OTk1MzU2MDAKfQ.DaYlNEoUrrEn2Ig7tqibS-PHK5vgusbcbo7X36XVt4Q"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
             }
           ]
         },
@@ -591,6 +542,10 @@
             {
               "name": "password",
               "value": "={{ $json.senhaAleatoria }}"
+            },
+            {
+              "name": "email_confirm",
+              "value": "={{ true }}"
             }
           ]
         },
@@ -599,17 +554,11 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        1080,
-        2320
+        1648,
+        2032
       ],
-      "id": "67b9d3c1-8d8b-42f5-8e18-f81be78911d4",
-      "name": "CriaConta",
-      "credentials": {
-        "httpBearerAuth": {
-          "id": "oBbz8xdnfdXjubJl",
-          "name": "Bearer Auth Supabase"
-        }
-      }
+      "id": "d47eee94-3eaf-4c51-9447-56c0197713f9",
+      "name": "CriaConta"
     },
     {
       "parameters": {
@@ -645,6 +594,38 @@
             {
               "fieldId": "assinaturaid",
               "fieldValue": "={{ $('ConfirmaPagamento').item.json.body.payment.subscription }}"
+            },
+            {
+              "fieldId": "cpf",
+              "fieldValue": "={{ $('DadosCliente').item.json.cpfCnpj }}"
+            },
+            {
+              "fieldId": "endereco",
+              "fieldValue": "={{ $('DadosCliente').item.json.address }}"
+            },
+            {
+              "fieldId": "n_endereco",
+              "fieldValue": "={{ $('DadosCliente').item.json.addressNumber }}"
+            },
+            {
+              "fieldId": "cep",
+              "fieldValue": "={{ $('DadosCliente').item.json.postalCode }}"
+            },
+            {
+              "fieldId": "bairro",
+              "fieldValue": "={{ $('DadosCliente').item.json.province }}"
+            },
+            {
+              "fieldId": "cidade",
+              "fieldValue": "={{ $('DadosCliente').item.json.cityName }}"
+            },
+            {
+              "fieldId": "estado",
+              "fieldValue": "={{ $('DadosCliente').item.json.state }}"
+            },
+            {
+              "fieldId": "pais",
+              "fieldValue": "={{ $('DadosCliente').item.json.country }}"
             }
           ]
         }
@@ -652,35 +633,35 @@
       "type": "n8n-nodes-base.supabase",
       "typeVersion": 1,
       "position": [
-        1300,
-        2320
+        1872,
+        2032
       ],
-      "id": "58faab39-946b-4dae-bdbc-b593fac15cba",
+      "id": "eea94c06-218d-4211-8f17-d203f22b9da5",
       "name": "AtualizaInfoUser",
       "credentials": {
         "supabaseApi": {
-          "id": "U75izXxWNaQ4rK6a",
-          "name": "Supabase DinDin"
+          "id": "pLSlTAliGnTEMfL9",
+          "name": "Supabase account"
         }
       }
     },
     {
       "parameters": {
         "resource": "chat-api",
-        "instanceName": "zanini",
+        "instanceName": "FinanceApp",
         "numbers": "=55{{ $json.mobilePhone }}"
       },
       "type": "n8n-nodes-evolution-api.evolutionApi",
       "typeVersion": 1,
       "position": [
-        640,
-        2320
+        1216,
+        2032
       ],
-      "id": "c9b664c5-4fd8-4c28-8f9c-a435a343e124",
+      "id": "01cffc59-4902-4259-916b-23f4b77a57c3",
       "name": "VerificaNumeroWhats",
       "credentials": {
         "evolutionApi": {
-          "id": "R6zo5aCXbaUInzr8",
+          "id": "3kyIcxiyPWbQboBL",
           "name": "Evolution account"
         }
       }
@@ -695,10 +676,10 @@
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
       "position": [
-        -100,
-        2180
+        464,
+        1888
       ],
-      "id": "149796f3-6971-4f6b-8832-f32e06c1bc64",
+      "id": "46cdfb33-fe5a-47ac-a0b2-1c57dda523fb",
       "name": "Sticky Note1"
     },
     {
@@ -710,10 +691,10 @@
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
       "position": [
-        100,
-        1160
+        672,
+        880
       ],
-      "id": "2d5e6287-3450-4347-a635-ef2ed1a9cc11",
+      "id": "1c4cc742-6baf-4603-9df3-250332da1b49",
       "name": "InicioChat",
       "webhookId": "23bb92a9-41a4-4b1b-9fb8-f028c324b367"
     },
@@ -727,15 +708,15 @@
       "type": "n8n-nodes-base.redis",
       "typeVersion": 1,
       "position": [
-        1380,
-        1140
+        1952,
+        848
       ],
-      "id": "6153dbd8-fdfd-4e66-9b66-84c4e2b45068",
+      "id": "0e0bcf67-9bd2-4006-b982-c2ae44d26dd4",
       "name": "InsereMSG",
       "credentials": {
         "redis": {
-          "id": "RslzBxZ9nILfEtKO",
-          "name": "Redis account"
+          "id": "LLbD3U6rhQqfE91N",
+          "name": "evolution-api-redis"
         }
       }
     },
@@ -750,15 +731,15 @@
       "type": "n8n-nodes-base.redis",
       "typeVersion": 1,
       "position": [
-        1780,
-        1140
+        2352,
+        848
       ],
-      "id": "9abb522b-562e-4d81-b0fb-b8ee70416245",
+      "id": "46e419ec-b961-42de-8bec-61cf05f41c60",
       "name": "ListaMSGs",
       "credentials": {
         "redis": {
-          "id": "RslzBxZ9nILfEtKO",
-          "name": "Redis account"
+          "id": "LLbD3U6rhQqfE91N",
+          "name": "evolution-api-redis"
         }
       }
     },
@@ -785,10 +766,10 @@
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
       "position": [
-        2220,
-        1040
+        2784,
+        752
       ],
-      "id": "dc34a2ec-ee58-4910-9f88-d66034f960fd",
+      "id": "3df7cd9a-0502-41c2-bb8f-650bde3f88c4",
       "name": "MontaMSG"
     },
     {
@@ -807,10 +788,10 @@
       "type": "@n8n/n8n-nodes-langchain.chainLlm",
       "typeVersion": 1.6,
       "position": [
-        3440,
-        1220
+        4016,
+        928
       ],
-      "id": "60a1de86-3b9f-4d70-b615-dcffbda82831",
+      "id": "3794dfff-7a43-4815-aafc-dbebb57b403c",
       "name": "IdentificaIntencao",
       "notesInFlow": false,
       "notes": "Ajuda a identificar a intenção do usuário."
@@ -832,10 +813,10 @@
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
       "position": [
-        2800,
-        1120
+        3376,
+        832
       ],
-      "id": "373c296f-3412-45f0-887e-899ffb4789e4",
+      "id": "d23ae21c-cca8-4fd6-a764-36ba185416b3",
       "name": "CentralizaDados"
     },
     {
@@ -948,10 +929,10 @@
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3.2,
       "position": [
-        4420,
-        1100
+        4992,
+        816
       ],
-      "id": "5cfb3584-2cf6-48f2-9b1d-7ae3bf20995b",
+      "id": "d20209bc-dbd4-4d4b-b2e1-71aa6d77b385",
       "name": "RedirecionaUsuario"
     },
     {
@@ -965,15 +946,15 @@
       "type": "n8n-nodes-base.redis",
       "typeVersion": 1,
       "position": [
-        3780,
-        1220
+        4352,
+        928
       ],
-      "id": "60bab5f7-69a6-4b6d-ad9d-5307a3c4d229",
+      "id": "6c05e5fe-d6cd-47ed-ba17-6fdf29910b86",
       "name": "RegistraIntencao",
       "credentials": {
         "redis": {
-          "id": "RslzBxZ9nILfEtKO",
-          "name": "Redis account"
+          "id": "LLbD3U6rhQqfE91N",
+          "name": "evolution-api-redis"
         }
       }
     },
@@ -987,15 +968,15 @@
       "type": "n8n-nodes-base.redis",
       "typeVersion": 1,
       "position": [
-        3000,
-        1120
+        3568,
+        832
       ],
-      "id": "6c501b9b-f72d-4a1c-a79e-dd68adaa7170",
+      "id": "f1551647-6a6c-47f0-9e71-31cd8a74824e",
       "name": "IntencaoEmAberto",
       "credentials": {
         "redis": {
-          "id": "RslzBxZ9nILfEtKO",
-          "name": "Redis account"
+          "id": "LLbD3U6rhQqfE91N",
+          "name": "evolution-api-redis"
         }
       }
     },
@@ -1027,10 +1008,10 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.2,
       "position": [
-        3200,
-        1120
+        3776,
+        832
       ],
-      "id": "76629a2c-a35c-44cc-a63e-223e86c9610f",
+      "id": "295ed0d8-987a-4d99-beee-9b6e077e5809",
       "name": "ExisteIntencao"
     },
     {
@@ -1038,10 +1019,10 @@
       "type": "n8n-nodes-base.merge",
       "typeVersion": 3.1,
       "position": [
-        4180,
-        1120
+        4752,
+        832
       ],
-      "id": "1b940e52-7dae-47af-b54a-f400c273f075",
+      "id": "73ef122b-5b16-40a6-b990-1de2c183a432",
       "name": "Merge"
     },
     {
@@ -1061,10 +1042,10 @@
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
       "position": [
-        3980,
-        1220
+        4544,
+        928
       ],
-      "id": "58da4c0c-892f-444a-9572-acd221021f39",
+      "id": "f859b1e3-211f-42f6-999b-0edd7918b075",
       "name": "AjustaDadoIntencao"
     },
     {
@@ -1074,10 +1055,10 @@
       "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
       "typeVersion": 1.2,
       "position": [
-        3640,
-        1400
+        4208,
+        1120
       ],
-      "id": "ef93f7d6-b4e6-436c-b809-4095d202d2a5",
+      "id": "db353145-4228-4549-b862-3f77549884d7",
       "name": "EstruturaResposta"
     },
     {
@@ -1092,14 +1073,14 @@
       "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
       "typeVersion": 1.2,
       "position": [
-        3420,
-        1400
+        3984,
+        1120
       ],
-      "id": "29708acd-41da-4474-bf09-22286c3f978b",
+      "id": "32e18a2e-a81d-4696-ad02-a245a68315ee",
       "name": "ModeloIA",
       "credentials": {
         "openAiApi": {
-          "id": "4yTOFqPLWPMB98Nk",
+          "id": "ipy1c8ijBGJzZg4Z",
           "name": "OpenAi account"
         }
       }
@@ -1107,22 +1088,22 @@
     {
       "parameters": {
         "resource": "messages-api",
-        "instanceName": "={{ $('Organiza Dados').item.json.instancia }}",
+        "instanceName": "FinanceApp",
         "remoteJid": "={{ $('Organiza Dados').item.json.whatsapp }}",
-        "messageText": "Oops! Não consegui entender, tente novamente.",
+        "messageText": "=👋 *Olá {{ $('Organiza Dados').item.json.firstname }}! Como posso ajudar?*\n\nSou seu assistente financeiro do FinanceApp e estou aqui para te ajudar com:\n\n💰 Consultas sobre suas finanças\n📊 Análises de gastos e receitas  \n📅 Lembretes de pagamentos\n💡 Dicas financeiras personalizadas\n\nComo posso te auxiliar hoje?\n\n---\n*FinanceApp - Seu assistente financeiro*",
         "options_message": {}
       },
       "type": "n8n-nodes-evolution-api.evolutionApi",
       "typeVersion": 1,
       "position": [
-        5060,
-        1640
+        5632,
+        1360
       ],
-      "id": "b80152d6-d6c2-4789-8d9f-62b1c685f573",
+      "id": "eec7b489-6a23-4751-a42f-5c717257daba",
       "name": "MensagemErro",
       "credentials": {
         "evolutionApi": {
-          "id": "R6zo5aCXbaUInzr8",
+          "id": "3kyIcxiyPWbQboBL",
           "name": "Evolution account"
         }
       }
@@ -1135,15 +1116,15 @@
       "type": "n8n-nodes-base.redis",
       "typeVersion": 1,
       "position": [
-        5240,
-        1640
+        5808,
+        1360
       ],
-      "id": "fc5ffbab-c25d-4ba3-8f91-b5df31ab4586",
+      "id": "3a399748-eabc-4ae8-8806-53635f4f47f0",
       "name": "LimpaIntencao",
       "credentials": {
         "redis": {
-          "id": "RslzBxZ9nILfEtKO",
-          "name": "Redis account"
+          "id": "LLbD3U6rhQqfE91N",
+          "name": "evolution-api-redis"
         }
       }
     },
@@ -1152,10 +1133,10 @@
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
       "position": [
-        5400,
-        1640
+        5968,
+        1360
       ],
-      "id": "75b0018d-0972-4938-a3fb-b2dd347c4008",
+      "id": "5b9e3ae6-6442-44c0-997d-6651d5adab4e",
       "name": "Finaliza"
     },
     {
@@ -1170,14 +1151,14 @@
       "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
       "typeVersion": 1.2,
       "position": [
-        4960,
-        940
+        5536,
+        656
       ],
-      "id": "e114377c-c5ab-4487-9e2a-1a7af0e20378",
+      "id": "286e7d8f-c90b-4b14-aaaa-0a6307b67054",
       "name": "OpenAI Chat Model1",
       "credentials": {
         "openAiApi": {
-          "id": "4yTOFqPLWPMB98Nk",
+          "id": "ipy1c8ijBGJzZg4Z",
           "name": "OpenAi account"
         }
       }
@@ -1187,10 +1168,10 @@
       "type": "@n8n/n8n-nodes-langchain.toolCalculator",
       "typeVersion": 1,
       "position": [
-        5520,
-        940
+        6096,
+        656
       ],
-      "id": "4eb486bc-42ba-4ab8-98e5-34971c20305b",
+      "id": "ce04c0ca-245c-480a-92bb-deae55fe1e90",
       "name": "calculadora"
     },
     {
@@ -1205,14 +1186,14 @@
       "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
       "typeVersion": 1.2,
       "position": [
-        4940,
-        1400
+        5504,
+        1120
       ],
-      "id": "bafb8602-6366-427f-bff8-1d5da682b744",
+      "id": "1cf846aa-7450-47ce-aeca-cb47c9f219e0",
       "name": "Model",
       "credentials": {
         "openAiApi": {
-          "id": "4yTOFqPLWPMB98Nk",
+          "id": "ipy1c8ijBGJzZg4Z",
           "name": "OpenAi account"
         }
       }
@@ -1226,15 +1207,15 @@
       "type": "@n8n/n8n-nodes-langchain.memoryRedisChat",
       "typeVersion": 1.5,
       "position": [
-        5060,
-        1400
+        5632,
+        1120
       ],
-      "id": "e50687f4-08d5-4ace-b376-1d978b2959b2",
+      "id": "c43d6849-3cbd-4b3a-9648-fc934e584941",
       "name": "Memory",
       "credentials": {
         "redis": {
-          "id": "RslzBxZ9nILfEtKO",
-          "name": "Redis account"
+          "id": "LLbD3U6rhQqfE91N",
+          "name": "evolution-api-redis"
         }
       }
     },
@@ -1247,7 +1228,7 @@
         "fieldsUi": {
           "fieldValues": [
             {
-              "fieldId": "userId",
+              "fieldId": "userid",
               "fieldValue": "={{ $fromAI('userId') }}"
             },
             {
@@ -1268,15 +1249,15 @@
       "type": "n8n-nodes-base.supabaseTool",
       "typeVersion": 1,
       "position": [
-        5180,
-        1400
+        5744,
+        1120
       ],
-      "id": "b89d8d34-1460-4602-b193-8c60a92f1d1e",
+      "id": "5c3724c7-c880-442e-af74-e2949722ffca",
       "name": "salvaLembrete",
       "credentials": {
         "supabaseApi": {
-          "id": "U75izXxWNaQ4rK6a",
-          "name": "Supabase DinDin"
+          "id": "pLSlTAliGnTEMfL9",
+          "name": "Supabase account"
         }
       }
     },
@@ -1290,37 +1271,37 @@
       "type": "n8n-nodes-base.redisTool",
       "typeVersion": 1,
       "position": [
-        5460,
-        1400
+        6032,
+        1120
       ],
-      "id": "21e02f45-6feb-4262-b84c-e560dd5c48d2",
+      "id": "50437c25-ff3f-495d-b395-151e24f991ed",
       "name": "apagaIntencao",
       "credentials": {
         "redis": {
-          "id": "RslzBxZ9nILfEtKO",
-          "name": "Redis account"
+          "id": "LLbD3U6rhQqfE91N",
+          "name": "evolution-api-redis"
         }
       }
     },
     {
       "parameters": {
         "resource": "messages-api",
-        "instanceName": "={{ $('Organiza Dados').item.json.instancia }}",
+        "instanceName": "FinanceApp",
         "remoteJid": "={{ $('Organiza Dados').item.json.whatsapp }}",
-        "messageText": "={{ $json.output }}",
+        "messageText": "=📅 *Seus Compromissos | FinanceApp*\n\n{{ $('Organiza Dados').item.json.firstname }}, segue o resumo dos seus compromissos financeiros:\n\n{{ $json.output }}\n\n💡 *Dicas importantes:*\n• Configure alertas para datas próximas\n• Mantenha uma reserva para imprevistos\n• Revise seus compromissos mensalmente\n\nPrecisa de mais alguma informação? Estou aqui para ajudar!\n",
         "options_message": {}
       },
       "type": "n8n-nodes-evolution-api.evolutionApi",
       "typeVersion": 1,
       "position": [
-        5500,
-        1140
+        6064,
+        848
       ],
-      "id": "62f60910-7924-49f8-bd6a-8e2e37c25bf7",
+      "id": "4e7ae538-602a-4ccf-adba-3409f12a1e85",
       "name": "RespondeCliente",
       "credentials": {
         "evolutionApi": {
-          "id": "R6zo5aCXbaUInzr8",
+          "id": "3kyIcxiyPWbQboBL",
           "name": "Evolution account"
         }
       }
@@ -1330,16 +1311,16 @@
         "promptType": "define",
         "text": "={{ $('CentralizaDados').item.json.content }}",
         "options": {
-          "systemMessage": "=**Hora Atual:** `{{ $now }}`\n\n## Sua Tarefa como Assessor Financeiro IA\n\nVocê deve analisar a **Mensagem\\_Cliente** e fornecer **respostas, análises financeiras detalhadas e insights úteis**, como um assessor financeiro faria.\n\nInclua:\n\n* Maiores despesas\n* Resumos de gastos e receitas\n* Tendências financeiras\n* Respostas a perguntas específicas sobre finanças do usuário\n\n---\n\n## Guia de Utilização de Ferramentas\n\n### `transacoes`\n\n* **Use para:** Acessar o histórico completo de transações financeiras (despesas, receitas).\n* **Como usar:** Obtenha os dados brutos. Você é responsável por realizar as análises, como:\n\n  * Identificar a \"maior despesa\"\n  * Calcular totais por período ou categoria\n  * Comparar gastos entre períodos\n\n---\n\n### `lembrete`\n\n* **Use para:** Consultar lembretes financeiros registrados.\n* **Como usar:** Utilize esta ferramenta se a **Mensagem\\_Cliente** tratar de:\n\n  * Datas de pagamento\n  * Lembretes financeiros\n  * Compromissos financeiros agendados\n\n---\n\n### `consultaCategorias`\n\n* **Use para:** Obter informações sobre categorias de transações.\n* **Como usar:** Ative esta ferramenta se a **Mensagem\\_Cliente**:\n\n  * Pedir detalhes sobre categorias disponíveis\n  * Solicitar um resumo por categoria\n  * Tiver dúvidas sobre como categorizar transações\n\n---\n\n### `calculadora`\n\n* **Use para:** Realizar cálculos matemáticos precisos.\n* **Como usar:** Aplique quando precisar:\n\n  * Somar valores\n  * Calcular médias, percentuais ou projeções\n  * Analisar variações com base nos dados obtidos\n\n---\n\n### `apagaIntencaoConsulta`\n\n* **Use para:** Encerrar a consulta atual.\n* **Como usar:** Utilize quando a **Mensagem\\_Cliente** indicar:\n\n  * Que a dúvida foi resolvida\n  * Que não há mais solicitações abertas\n\n---\n\n## Processo Recomendado\n\n1. **Analise a Mensagem\\_Cliente**\n   Identifique a dúvida ou análise solicitada.\n\n2. **Selecione Ferramenta(s)**\n   Determine quais ferramentas utilizar para obter os dados necessários.\n\n3. **Execute e Processe**\n   Use as ferramentas e analise os dados retornados por conta própria.\n\n4. **Formule a Resposta**\n   Redija uma resposta clara, útil e precisa com base nos dados.\n\n5. **Gerencie a Conversa**\n   Se aplicável, utilize `apagaIntencaoConsulta` para encerrar o tópico.\n\n---\n\nSe quiser, posso transformar esse conteúdo em um bloco de markdown exportável para documentação ou sistemas externos. Deseja isso também?\n"
+          "systemMessage": "=**Hora Atual:** `{{ $now }}`\n\n## Sua Tarefa como Assessor Financeiro IA\n\nVocê deve analisar a **Mensagem\\_Cliente** e fornecer **respostas, análises financeiras detalhadas e insights úteis**, como um assessor financeiro faria.\n\nInclua:\n\n* Maiores despesas\n* Resumos de gastos e receitas\n* Tendências financeiras\n* Respostas a perguntas específicas sobre finanças do usuário\n\n---\n\n## Guia de Utilização de Ferramentas\n\n### `transacoes`\n\n* **Use para:** Acessar o histórico completo de transações financeiras (despesas, receitas).\n* **Como usar:** Obtenha os dados brutos. Você é responsável por realizar as análises, como:\n\n  * Identificar a \"maior despesa\"\n  * Calcular totais por período ou categoria\n  * Comparar gastos entre períodos\n\n---\n\n### `lembrete`\n\n* **Use para:** Consultar lembretes financeiros registrados.\n* **Como usar:** Utilize esta ferramenta se a **Mensagem\\_Cliente** tratar de:\n\n  * Datas de pagamento\n  * Lembretes financeiros\n  * Compromissos financeiros agendados\n\n---\n\n### `consultaCategorias`\n\n* **Use para:** Obter informações sobre categorias de transações.\n* **Como usar:** Ative esta ferramenta se a **Mensagem\\_Cliente**:\n\n  * Pedir detalhes sobre categorias disponíveis\n  * Solicitar um resumo por categoria\n  * Tiver dúvidas sobre como categorizar transações\n\n---\n\n### `calculadora`\n\n* **Use para:** Realizar cálculos matemáticos precisos.\n* **Como usar:** Aplique quando precisar:\n\n  * Somar valores\n  * Calcular médias, percentuais ou projeções\n  * Analisar variações com base nos dados obtidos\n\n---\n\n### `apagaIntencaoConsulta`\n\n* **Use para:** Encerrar a consulta atual.\n* **Como usar:** Utilize quando a **Mensagem\\_Cliente** indicar:\n\n  * Que a dúvida foi resolvida\n  * Que não há mais solicitações abertas\n\n---\n\n## Processo Recomendado\n\n1. **Analise a Mensagem\\_Cliente**\n   Identifique a dúvida ou análise solicitada.\n\n2. **Selecione Ferramenta(s)**\n   Determine quais ferramentas utilizar para obter os dados necessários.\n\n3. **Execute e Processe**\n   Use as ferramentas e analise os dados retornados por conta própria.\n\n4. **Formule a Resposta**\n   Redija uma resposta clara, útil e precisa com base nos dados.\n\n5. **Gerencie a Conversa**\n   Se aplicável, utilize `apagaIntencaoConsulta` para encerrar o tópico.\n\n---\n\n### Importante - Formatação da Resposta\n- Mantenha formatação simples e profissional\n- Evite excesso de **, use * no texto\n- Evite usar ### no texto\n- Use listas claras com \"-\" \n- Formate valores monetários como \"R$ 1.000,00\"\n- Seja direto e objetivo nas análises\n\nSe quiser, posso transformar esse conteúdo em um bloco de markdown exportável para documentação ou sistemas externos. Deseja isso também?\n"
         }
       },
       "type": "@n8n/n8n-nodes-langchain.agent",
       "typeVersion": 1.9,
       "position": [
-        5100,
-        700
+        5664,
+        416
       ],
-      "id": "64b2c563-0690-4db6-aef8-c6eb1c555fa8",
+      "id": "e5452563-5667-4bfc-a87e-2b481c2c9213",
       "name": "Agente de Consulta"
     },
     {
@@ -1350,7 +1331,7 @@
         "filters": {
           "conditions": [
             {
-              "keyName": "userId",
+              "keyName": "userid",
               "condition": "eq",
               "keyValue": "={{ $('Auth').item.json.id }}"
             }
@@ -1360,15 +1341,15 @@
       "type": "n8n-nodes-base.supabaseTool",
       "typeVersion": 1,
       "position": [
-        5120,
-        940
+        5696,
+        656
       ],
-      "id": "c65ab417-93e0-452f-9398-928d9ccc2636",
+      "id": "8717a192-e1eb-4cc1-b555-b5ad531d265a",
       "name": "transacoes",
       "credentials": {
         "supabaseApi": {
-          "id": "xr6s7mi32REuM3aA",
-          "name": "Supabase - Finzap"
+          "id": "pLSlTAliGnTEMfL9",
+          "name": "Supabase account"
         }
       }
     },
@@ -1390,15 +1371,15 @@
       "type": "n8n-nodes-base.supabaseTool",
       "typeVersion": 1,
       "position": [
-        5260,
-        940
+        5824,
+        656
       ],
-      "id": "aca532db-d9a1-4da5-a16d-3a3f530bb1c2",
+      "id": "7af54f6d-c9ec-4835-8750-c933384241ab",
       "name": "lembretes",
       "credentials": {
         "supabaseApi": {
-          "id": "xr6s7mi32REuM3aA",
-          "name": "Supabase - Finzap"
+          "id": "pLSlTAliGnTEMfL9",
+          "name": "Supabase account"
         }
       }
     },
@@ -1407,10 +1388,10 @@
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
       "position": [
-        5760,
-        1140
+        6336,
+        848
       ],
-      "id": "66d1cd48-16a9-430c-a61f-e131367cbcb1",
+      "id": "a3c8f064-2703-4945-9ce6-82df9021c432",
       "name": "FinalizaLembrete"
     },
     {
@@ -1418,10 +1399,10 @@
       "type": "n8n-nodes-base.noOp",
       "typeVersion": 1,
       "position": [
-        5720,
-        180
+        6288,
+        -112
       ],
-      "id": "fa90b428-1c11-4d96-951a-895f9a272527",
+      "id": "a4930b07-912d-44a4-92e1-e9a6d453c58b",
       "name": "FinalizaTransacao"
     },
     {
@@ -1434,37 +1415,37 @@
       "type": "n8n-nodes-base.redisTool",
       "typeVersion": 1,
       "position": [
-        5660,
-        940
+        6224,
+        656
       ],
-      "id": "af1c14e5-b410-474a-897d-8042a0d9e81e",
+      "id": "59b6f681-26e7-4af0-875f-6755b1528b49",
       "name": "apagaIntencaoConsulta",
       "credentials": {
         "redis": {
-          "id": "RslzBxZ9nILfEtKO",
-          "name": "Redis account"
+          "id": "LLbD3U6rhQqfE91N",
+          "name": "evolution-api-redis"
         }
       }
     },
     {
       "parameters": {
         "resource": "messages-api",
-        "instanceName": "={{ $('Organiza Dados').item.json.instancia }}",
+        "instanceName": "FinanceApp",
         "remoteJid": "={{ $('Organiza Dados').item.json.whatsapp }}",
-        "messageText": "={{ $json.output }}",
+        "messageText": "=🔍 *Consulta Financeira | FinanceApp*\n\nVeja {{ $('Verifica Usuario').item.json.firstname }}, segue abaixo as informações solicitadas:\n\n📊 {{ $json.output }}\n\nSe precisar de alguma ajuda, estou aqui.",
         "options_message": {}
       },
       "type": "n8n-nodes-evolution-api.evolutionApi",
       "typeVersion": 1,
       "position": [
-        5500,
-        700
+        6064,
+        416
       ],
-      "id": "d151a680-df5a-4886-8110-7fd9054a1f3b",
+      "id": "7814f9f9-91fc-42b9-98a3-08958d9d34b5",
       "name": "RespondeClienteConsulta",
       "credentials": {
         "evolutionApi": {
-          "id": "R6zo5aCXbaUInzr8",
+          "id": "3kyIcxiyPWbQboBL",
           "name": "Evolution account"
         }
       }
@@ -1508,15 +1489,15 @@
       "type": "n8n-nodes-base.supabaseTool",
       "typeVersion": 1,
       "position": [
-        5260,
-        480
+        5824,
+        192
       ],
-      "id": "62c57856-64fa-49ee-97da-c68ff42d9ba5",
+      "id": "e20be55f-a55f-4a9d-9314-fd96cba2ea90",
       "name": "add",
       "credentials": {
         "supabaseApi": {
-          "id": "xr6s7mi32REuM3aA",
-          "name": "Supabase - Finzap"
+          "id": "pLSlTAliGnTEMfL9",
+          "name": "Supabase account"
         }
       }
     },
@@ -1544,15 +1525,15 @@
       "type": "n8n-nodes-base.supabaseTool",
       "typeVersion": 1,
       "position": [
-        5760,
-        480
+        6336,
+        192
       ],
-      "id": "b32d3778-ab1c-4016-8770-2e561f0fd39f",
+      "id": "811dc3ab-c14a-4deb-90a5-26f5b4f0d416",
       "name": "categorias",
       "credentials": {
         "supabaseApi": {
-          "id": "xr6s7mi32REuM3aA",
-          "name": "Supabase - Finzap"
+          "id": "pLSlTAliGnTEMfL9",
+          "name": "Supabase account"
         }
       }
     },
@@ -1566,15 +1547,15 @@
       "type": "n8n-nodes-base.redisTool",
       "typeVersion": 1,
       "position": [
-        6040,
-        480
+        6608,
+        192
       ],
-      "id": "b4c88e91-9810-4760-9b4c-30c3a0138845",
+      "id": "381e041e-b5aa-46e8-92aa-71acfa82bdb3",
       "name": "limparIntencaoTransacao",
       "credentials": {
         "redis": {
-          "id": "RslzBxZ9nILfEtKO",
-          "name": "Redis account"
+          "id": "LLbD3U6rhQqfE91N",
+          "name": "evolution-api-redis"
         }
       }
     },
@@ -1589,28 +1570,11 @@
       "type": "@n8n/n8n-nodes-langchain.agent",
       "typeVersion": 1.9,
       "position": [
-        5100,
-        180
+        5664,
+        -112
       ],
-      "id": "c7cbed77-9c76-49f6-b7f5-57c85dd32908",
+      "id": "308d8247-dfe9-4efb-b68e-a7da08b7a54b",
       "name": "Assistente Financeiro"
-    },
-    {
-      "parameters": {
-        "promptType": "define",
-        "text": "={{ $('CentralizaDados').item.json.content }}",
-        "options": {
-          "systemMessage": "=Hora atual: {{ $now }}\n\nSua tarefa é identificar as informações do lembrete com o usuário e registrar na tool **salvaLembrete**. Após salvar o lembrete, execute a tool **apagaIntencao** para concluir a tarefa.\n\nCaso precise consultar algum lembrete, utilize a tool 'consultaLembretes'\n\nCampos a serem salvos:\n\n- **userId**: {{ $('Auth').item.json.id }}\n- **descricao**: Detalhes do lembrete.\n- **valor**: Preencha este campo apenas se o usuário informar um valor (esse campo deve ser no formato de número).\n- **data**: Use o formato **yyyy/mm/dd**. Se a data não estiver clara, pergunte ao usuário.\n\n**ATENÇÃO**:\n- Se faltarem informações obrigatórias como **data** ou **descrição**, pergunte ao usuário de forma direta e amigável.\n- Não repita ferramentas. Após salvar com sucesso, execute **apagaIntencao** apenas uma vez e siga com o fluxo.\n"
-        }
-      },
-      "type": "@n8n/n8n-nodes-langchain.agent",
-      "typeVersion": 1.9,
-      "position": [
-        5080,
-        1140
-      ],
-      "id": "d8095f43-e917-41c0-8d23-f3937c811c6d",
-      "name": "Assistente de Comrpomissos"
     },
     {
       "parameters": {
@@ -1622,15 +1586,15 @@
       "type": "@n8n/n8n-nodes-langchain.memoryRedisChat",
       "typeVersion": 1.5,
       "position": [
-        5120,
-        480
+        5696,
+        192
       ],
-      "id": "eff38140-81f1-4f69-8d54-235a47bfed1f",
+      "id": "d8f16c38-6ed5-4420-a43c-3fb7e8cd5d23",
       "name": "memoriaTransacao",
       "credentials": {
         "redis": {
-          "id": "RslzBxZ9nILfEtKO",
-          "name": "Redis account"
+          "id": "LLbD3U6rhQqfE91N",
+          "name": "evolution-api-redis"
         }
       }
     },
@@ -1646,14 +1610,14 @@
       "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
       "typeVersion": 1.2,
       "position": [
-        4960,
-        480
+        5536,
+        192
       ],
-      "id": "39da81b7-c839-4a87-b71b-dc1bc0ca1e24",
+      "id": "ea96865e-d0fb-44b3-b6a9-01eb7a07fab0",
       "name": "ModeloTransacao",
       "credentials": {
         "openAiApi": {
-          "id": "4yTOFqPLWPMB98Nk",
+          "id": "ipy1c8ijBGJzZg4Z",
           "name": "OpenAi account"
         }
       }
@@ -1707,15 +1671,15 @@
       "type": "n8n-nodes-base.supabaseTool",
       "typeVersion": 1,
       "position": [
-        5380,
-        480
+        5952,
+        192
       ],
-      "id": "827dd331-a40f-4d9d-81aa-a0e865baf8cf",
+      "id": "5b00efd0-b142-464e-a226-2df2d18e4e7a",
       "name": "edit",
       "credentials": {
         "supabaseApi": {
-          "id": "xr6s7mi32REuM3aA",
-          "name": "Supabase - Finzap"
+          "id": "pLSlTAliGnTEMfL9",
+          "name": "Supabase account"
         }
       }
     },
@@ -1729,15 +1693,15 @@
       "type": "n8n-nodes-base.supabaseTool",
       "typeVersion": 1,
       "position": [
-        5620,
-        480
+        6192,
+        192
       ],
-      "id": "8f25c378-feb9-409c-8a17-6b428d9b9447",
+      "id": "e2f33824-44da-4d7f-bb4b-552b5b13c990",
       "name": "infoTransacoes",
       "credentials": {
         "supabaseApi": {
-          "id": "xr6s7mi32REuM3aA",
-          "name": "Supabase - Finzap"
+          "id": "pLSlTAliGnTEMfL9",
+          "name": "Supabase account"
         }
       }
     },
@@ -1758,15 +1722,15 @@
       "type": "n8n-nodes-base.supabaseTool",
       "typeVersion": 1,
       "position": [
-        5500,
-        480
+        6064,
+        192
       ],
-      "id": "40edc033-3f71-45a0-bfbe-4836f9e41846",
+      "id": "941893e5-8218-4ee8-a7c1-16b35bfc598d",
       "name": "delete",
       "credentials": {
         "supabaseApi": {
-          "id": "xr6s7mi32REuM3aA",
-          "name": "Supabase - Finzap"
+          "id": "pLSlTAliGnTEMfL9",
+          "name": "Supabase account"
         }
       }
     },
@@ -1788,15 +1752,15 @@
       "type": "n8n-nodes-base.supabaseTool",
       "typeVersion": 1,
       "position": [
-        5380,
-        940
+        5952,
+        656
       ],
-      "id": "f415594d-4a2d-4d9f-9bc3-cb2281ca93dd",
+      "id": "ae9389d4-ac6a-4e7e-bd36-6c0202c5179b",
       "name": "consultaCategorias",
       "credentials": {
         "supabaseApi": {
-          "id": "xr6s7mi32REuM3aA",
-          "name": "Supabase - Finzap"
+          "id": "pLSlTAliGnTEMfL9",
+          "name": "Supabase account"
         }
       }
     },
@@ -1819,15 +1783,15 @@
       "type": "n8n-nodes-base.supabaseTool",
       "typeVersion": 1,
       "position": [
-        5880,
-        480
+        6448,
+        192
       ],
-      "id": "e799874a-4a5d-4a7b-bf84-0d18f0cb05fd",
+      "id": "4f298190-7287-4760-9cd4-9f4a4f3595e5",
       "name": "addCategoria",
       "credentials": {
         "supabaseApi": {
-          "id": "xr6s7mi32REuM3aA",
-          "name": "Supabase - Finzap"
+          "id": "pLSlTAliGnTEMfL9",
+          "name": "Supabase account"
         }
       }
     },
@@ -1839,7 +1803,7 @@
         "filters": {
           "conditions": [
             {
-              "keyName": "userId",
+              "keyName": "userid",
               "condition": "eq",
               "keyValue": "={{ $('Auth').item.json.id }}"
             }
@@ -1849,15 +1813,15 @@
       "type": "n8n-nodes-base.supabaseTool",
       "typeVersion": 1,
       "position": [
-        5320,
-        1400
+        5888,
+        1120
       ],
-      "id": "748326f3-274a-4fd2-8cdb-160e4eef437e",
+      "id": "32b2b25f-f83a-4d0a-a229-305e6cc0c06d",
       "name": "consultaLembretes",
       "credentials": {
         "supabaseApi": {
-          "id": "U75izXxWNaQ4rK6a",
-          "name": "Supabase DinDin"
+          "id": "pLSlTAliGnTEMfL9",
+          "name": "Supabase account"
         }
       }
     },
@@ -1872,16 +1836,16 @@
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
       "position": [
-        3220,
-        2340
+        3792,
+        2048
       ],
-      "id": "01495ba9-c4fa-407a-9a8c-858f78297c21",
+      "id": "cbdce9d8-9fc0-4517-a629-cc5574136b77",
       "name": "Webhook",
       "webhookId": "4533000b-25ba-425a-935f-d4c16cfbac37",
       "credentials": {
         "httpHeaderAuth": {
-          "id": "ZwT34yXjfsKsCaSZ",
-          "name": "Webhook Asass Token - Dev"
+          "id": "ckbF1AJmgIzR6EnG",
+          "name": "Asaas API Teste"
         }
       },
       "disabled": true
@@ -1909,10 +1873,10 @@
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
       "position": [
-        3660,
-        2340
+        4224,
+        2048
       ],
-      "id": "738410a4-c519-48fe-8421-596ee24c98b5",
+      "id": "8e2671a3-42a5-4a24-ae5a-85f0d2ea2515",
       "name": "Edit Fields"
     },
     {
@@ -1924,29 +1888,29 @@
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.2,
       "position": [
-        3880,
-        2340
+        4448,
+        2048
       ],
-      "id": "fbc8546f-f578-4dc6-a7bd-835c55fcfe95",
+      "id": "ab3ff3a2-8992-4850-91f4-e16a6a7f070d",
       "name": "Respond to Webhook"
     },
     {
       "parameters": {
         "resource": "chat-api",
-        "instanceName": "zanini",
-        "numbers": "={{ $json.body.number }}"
+        "instanceName": "FinanceApp",
+        "numbers": "={{ $json.whatsapp }}"
       },
       "type": "n8n-nodes-evolution-api.evolutionApi",
       "typeVersion": 1,
       "position": [
-        3440,
-        2340
+        4016,
+        2048
       ],
-      "id": "15f9d53e-676b-4793-8b83-829a29fa14f4",
+      "id": "1c790ce4-e28d-4b84-8e41-d4eab245da21",
       "name": "Evolution API1",
       "credentials": {
         "evolutionApi": {
-          "id": "R6zo5aCXbaUInzr8",
+          "id": "3kyIcxiyPWbQboBL",
           "name": "Evolution account"
         }
       }
@@ -1961,10 +1925,10 @@
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
       "position": [
-        3160,
-        2180
+        3728,
+        1888
       ],
-      "id": "e39570c3-d592-4bc0-b625-b88673b99acf",
+      "id": "0c942f25-03dd-4e6a-ada4-8a8b92144d83",
       "name": "Sticky Note"
     },
     {
@@ -1974,17 +1938,17 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        860,
-        2320
+        1424,
+        2032
       ],
-      "id": "4af3c9ba-b51b-47ea-80ae-27d8cebd0430",
+      "id": "7902ec61-d9ac-43a5-af5c-e9ece3a3a36d",
       "name": "GeraSenhaAleatoria"
     },
     {
       "parameters": {
         "sendTo": "={{ $json.email }}",
-        "subject": "Conta Criada com Sucesso!",
-        "message": "=<table width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\" bgcolor=\"#f5f7fa\" style=\"font-family: Arial, sans-serif; padding: 40px 0;\">\n  <tr>\n    <td align=\"center\">\n      <table width=\"600\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\" bgcolor=\"#ffffff\" style=\"border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.05);\">\n        <tr>\n          <td align=\"center\" style=\"padding: 30px 20px 10px;\">\n            <img src=\"https://finflow.ninelabs.blog/lovable-uploads/b679a5ba-8a42-42cc-bc36-ccf4569fa05f.png\" alt=\"Finflow Logo\" width=\"180\" style=\"display: block;\" />\n          </td>\n        </tr>\n        <tr>\n          <td style=\"padding: 20px 30px; color: #333333;\">\n            <h1 style=\"font-size: 24px; margin: 0 0 15px;\">🎉 Bem-vindo(a), {{ $json.nome }}!</h1>\n            <p style=\"font-size: 16px; line-height: 1.6; margin: 0 0 15px;\">\n              Estamos felizes em ter você com a gente! A partir de agora, você conta com uma plataforma completa para organizar suas finanças de forma prática e inteligente.\n            </p>\n\n            <table width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\" bgcolor=\"#f0f8ff\" style=\"border-radius: 6px; padding: 15px; margin: 20px 0;\">\n              <tr>\n                <td style=\"font-size: 16px; line-height: 1.6;\">\n                  <strong>💼 Com o seu plano Agente Financeiro, você poderá:</strong><br/>\n                  ✅ Registrar receitas e despesas automaticamente<br/>\n                  ✅ Receber lembretes de contas e metas<br/>\n                  ✅ Contar com um assistente financeiro sempre disponível\n                </td>\n              </tr>\n            </table>\n\n            <p style=\"font-size: 16px; line-height: 1.6; margin: 25px 0 10px;\">\n              🔐 <strong>Dados de Acesso:</strong>\n            </p>\n            <p style=\"font-size: 16px; background-color: #f8f8f8; padding: 12px 20px; border-radius: 6px; border: 1px solid #ddd;\">\n              <strong>Email:</strong> {{ $json.email }}<br/>\n              <strong>Senha:</strong> {{ $('GeraSenhaAleatoria').item.json.senhaAleatoria }}\n            </p>\n\n            <p style=\"font-size: 14px; color: #cc0000; margin: 10px 0 20px;\">\n              ⚠️ Por segurança, recomendamos que você altere sua senha assim que acessar a plataforma pela primeira vez.\n            </p>\n\n            <p style=\"font-size: 16px; line-height: 1.6;\">\n              Se precisar de ajuda, estamos por aqui para o que for necessário.\n            </p>\n\n            <p style=\"font-size: 16px; line-height: 1.6; margin-top: 30px;\">\n              Forte abraço,<br/>\n              <strong>Equipe Finflow</strong>\n            </p>\n          </td>\n        </tr>\n        <tr>\n          <td align=\"center\" style=\"font-size: 14px; color: #777777; padding: 20px;\">\n            © {{$now.format('yyyy')}} Finflow. Todos os direitos reservados.\n          </td>\n        </tr>\n      </table>\n    </td>\n  </tr>\n</table>\n",
+        "subject": "FinanceApp | Conta Criada com Sucesso!",
+        "message": "=<table width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\" bgcolor=\"#f5f7fa\" style=\"font-family: Arial, sans-serif; padding: 40px 0;\">\n  <tr>\n    <td align=\"center\">\n      <table width=\"600\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\" bgcolor=\"#ffffff\" style=\"border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.05);\">\n        <!-- LOGO FINANCEAPP -->\n        <tr>\n          <td align=\"center\" style=\"padding: 30px 20px 10px;\">\n            <img src=\"https://finance-app-finance-app.rcnehy.easypanel.host/lovable-uploads/finance-logo-full.png\" alt=\"FinanceApp Logo\" width=\"180\" style=\"display: block; max-width: 100%; height: auto;\" onerror=\"this.style.display='none'\" />\n          </td>\n        </tr>\n        \n        <!-- CONTEÚDO PRINCIPAL -->\n        <tr>\n          <td style=\"padding: 20px 30px; color: #333333;\">\n            <h1 style=\"font-size: 24px; margin: 0 0 15px;\">🎉 Bem-vindo(a), {{ $json.nome.split(' ')[0] }}!</h1>\n            \n            <p style=\"font-size: 16px; line-height: 1.6; margin: 0 0 15px;\">\n              Estamos felizes em ter você com a gente! A partir de agora, você conta com uma plataforma completa para organizar suas finanças de forma prática e inteligente.\n            </p>\n\n            <!-- BENEFÍCIOS DO PLANO -->\n            <table width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" border=\"0\" bgcolor=\"#f0f8ff\" style=\"border-radius: 6px; padding: 15px; margin: 20px 0;\">\n              <tr>\n                <td style=\"font-size: 16px; line-height: 1.6;\">\n                  <strong>💼 Com o seu plano FinanceApp, você poderá:</strong><br/>\n                  ✅ Registrar receitas e despesas automaticamente<br/>\n                  ✅ Receber lembretes de contas e metas<br/>\n                  ✅ Contar com um assistente financeiro sempre disponível\n                </td>\n              </tr>\n            </table>\n\n            <!-- DADOS DE ACESSO -->\n            <p style=\"font-size: 16px; line-height: 1.6; margin: 25px 0 10px;\">\n              🔐 <strong>Dados de Acesso:</strong>\n            </p>\n            <p style=\"font-size: 16px; background-color: #f8f8f8; padding: 12px 20px; border-radius: 6px; border: 1px solid #ddd;\">\n              <strong>Email:</strong> {{ $json.email }}<br/>\n              <strong>Senha:</strong> {{ $('GeraSenhaAleatoria').item.json.senhaAleatoria }}\n            </p>\n\n            <!-- LINK DE ACESSO -->\n            <p style=\"text-align: center; margin: 25px 0;\">\n              <a href=\"https://finance-app-finance-app.rcnehy.easypanel.host/auth\" style=\"background-color: #4f46e5; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;\">\n                🚀 Acessar FinanceApp\n              </a>\n            </p>\n\n            <!-- AVISO DE SEGURANÇA -->\n            <p style=\"font-size: 14px; color: #cc0000; margin: 10px 0 20px;\">\n              ⚠️ Por segurança, altere sua senha em: <strong>Perfil > Segurança > Alterar Senha</strong>\n            </p>\n\n            <!-- MENSAGEM DE SUPORTE -->\n            <p style=\"font-size: 16px; line-height: 1.6;\">\n              Se precisar de ajuda, estamos por aqui para o que for necessário.\n            </p>\n\n            <!-- ASSINATURA -->\n            <p style=\"font-size: 16px; line-height: 1.6; margin-top: 30px;\">\n              Forte abraço,<br/>\n              <strong>Equipe FinanceApp</strong>\n            </p>\n          </td>\n        </tr>\n        \n        <!-- RODAPÉ -->\n        <tr>\n          <td align=\"center\" style=\"font-size: 14px; color: #777777; padding: 20px;\">\n            © {{$now.format('yyyy')}} FinanceApp. Todos os direitos reservados.\n          </td>\n        </tr>\n      </table>\n    </td>\n  </tr>\n</table>",
         "options": {
           "appendAttribution": false
         }
@@ -1992,15 +1956,15 @@
       "type": "n8n-nodes-base.gmail",
       "typeVersion": 2.1,
       "position": [
-        1540,
-        2440
+        2112,
+        2160
       ],
-      "id": "2a34aa8a-a473-4643-9ffa-3e5f89400c25",
+      "id": "17feb588-c73f-4467-b447-a9e01e9ec6bf",
       "name": "EnviaEmail",
       "webhookId": "e641ec5c-6b92-42ed-9ba3-3f33f8d9ec0f",
       "credentials": {
         "gmailOAuth2": {
-          "id": "oFTgi0DTIZAeEZfQ",
+          "id": "dDTVtQGSAQ7wty9s",
           "name": "Gmail account"
         }
       }
@@ -2008,22 +1972,22 @@
     {
       "parameters": {
         "resource": "messages-api",
-        "instanceName": "zanini",
+        "instanceName": "FinanceApp",
         "remoteJid": "={{ $json.whatsapp }}",
-        "messageText": "={{ $json.nome.split(' ').first() }} Parabéns! 🎉\nSua conta foi criada com sucesso. Agora confira a caixa de entrada do e-mail {{ $json.username }} e verifique sua senha de acesso.",
+        "messageText": "={{ $json.nome.split(' ').first() }}, bem-vindo(a) ao *FinanceApp*!\n\n✅ Conta criada com sucesso!\n\n🔑 *Acesso:*\nE-mail: {{ $json.email }}\nSenha: {{ $('GeraSenhaAleatoria').item.json.senhaAleatoria }}\nAcesse: https://finance-app-finance-app.rcnehy.easypanel.host\n\n⚠️ *Importante:* Por segurança, altere sua senha em:\n*Perfil > Segurança > Alterar Senha*\n\n--\n\n*Organize suas finanças com inteligência* 💡\n",
         "options_message": {}
       },
       "type": "n8n-nodes-evolution-api.evolutionApi",
       "typeVersion": 1,
       "position": [
-        1540,
-        2240
+        2112,
+        1952
       ],
-      "id": "a56abfb3-5fa1-4d67-ac53-1bcb5d4fb2c0",
+      "id": "33adf50f-1b9f-4c0b-9dca-9b7e7f4b137a",
       "name": "EnviaWhatsapp",
       "credentials": {
         "evolutionApi": {
-          "id": "R6zo5aCXbaUInzr8",
+          "id": "3kyIcxiyPWbQboBL",
           "name": "Evolution account"
         }
       }
@@ -2032,25 +1996,18 @@
       "parameters": {
         "httpMethod": "POST",
         "path": "assinatura/info",
-        "authentication": "basicAuth",
         "responseMode": "responseNode",
         "options": {}
       },
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
       "position": [
-        1920,
-        2340
+        2496,
+        2048
       ],
-      "id": "f1cb6230-7d8a-45af-8fc2-d89acfb4ed6e",
+      "id": "299664c1-31e5-4531-832f-16f3ed6210ac",
       "name": "InfoAssinatura",
       "webhookId": "6355fb13-e13b-448a-a72b-456aa343f6c8",
-      "credentials": {
-        "httpBasicAuth": {
-          "id": "u50eATXO9UMcFmqN",
-          "name": "Basic Auth"
-        }
-      },
       "disabled": true
     },
     {
@@ -2072,15 +2029,15 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        2360,
-        2340
+        2928,
+        2048
       ],
-      "id": "b929d370-49a7-4abf-ab73-ad7e375fdb1f",
+      "id": "a1544fdf-5281-4fdf-8919-e44416429d49",
       "name": "RecuperadadosAssinatura",
       "credentials": {
         "httpHeaderAuth": {
-          "id": "vCD3ufsqdlJ4YsAX",
-          "name": "Asaas - Dev"
+          "id": "xg1DOClhy0DEB6PF",
+          "name": "Asaas API - Producao"
         }
       }
     },
@@ -2137,10 +2094,10 @@
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
       "position": [
-        2600,
-        2340
+        3168,
+        2048
       ],
-      "id": "38e70f2d-9dd9-403a-aade-3eaa2a2ab7a0",
+      "id": "187fdeb1-3865-413a-b3a2-e1050560ec95",
       "name": "OrganizaInfoAssinatura"
     },
     {
@@ -2150,10 +2107,10 @@
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.2,
       "position": [
-        2820,
-        2340
+        3392,
+        2048
       ],
-      "id": "510fb851-c7de-44ad-98e5-1d19b1bc30b3",
+      "id": "acaedae9-4f66-4416-8dbe-d2f3b4214dea",
       "name": "RespostaInfoAssinatura"
     },
     {
@@ -2173,10 +2130,10 @@
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
       "position": [
-        2120,
-        2340
+        2688,
+        2048
       ],
-      "id": "11935fc3-0e35-4b82-9e94-4b212c4a9c07",
+      "id": "035f97f6-21ea-40c2-aee3-b0f6fa938678",
       "name": "OrganizaDadosRequisicao"
     },
     {
@@ -2189,10 +2146,10 @@
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
       "position": [
-        1820,
-        2180
+        2384,
+        1888
       ],
-      "id": "5beb8ba6-9b19-48cc-ac79-2082352e9e10",
+      "id": "e3909eea-656c-4160-9019-eb9d0a6794f4",
       "name": "Sticky Note2"
     },
     {
@@ -2204,10 +2161,10 @@
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
       "position": [
-        -100,
-        20
+        144,
+        -4256
       ],
-      "id": "73e3f28b-4317-48b5-af7c-1c7c5499d4aa",
+      "id": "9c7d1551-639a-4056-b2e7-c27f8a8165ba",
       "name": "Sticky Note3"
     },
     {
@@ -2223,10 +2180,10 @@
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.2,
       "position": [
-        4260,
-        2300
+        4832,
+        2016
       ],
-      "id": "ac5c615d-c371-4f47-9a9a-45f9e97e8ad9",
+      "id": "5af89d7b-4649-47ed-87c5-61ea8c8738ea",
       "name": "Schedule Trigger"
     },
     {
@@ -2247,15 +2204,15 @@
       "type": "n8n-nodes-base.supabase",
       "typeVersion": 1,
       "position": [
-        4480,
-        2300
+        5056,
+        2016
       ],
-      "id": "14c591e5-0695-41b2-9a4d-476381cfd8f3",
+      "id": "d0c965b9-3c91-4a6b-ba29-7836e27dd4b8",
       "name": "ConsultaLembretes",
       "credentials": {
         "supabaseApi": {
-          "id": "U75izXxWNaQ4rK6a",
-          "name": "Supabase DinDin"
+          "id": "pLSlTAliGnTEMfL9",
+          "name": "Supabase account"
         }
       }
     },
@@ -2275,15 +2232,15 @@
       "type": "n8n-nodes-base.supabase",
       "typeVersion": 1,
       "position": [
-        5000,
-        2320
+        5568,
+        2032
       ],
-      "id": "0163d4c1-de0e-43f8-a28d-405857963c13",
+      "id": "ddd8b430-0af7-47f1-a223-cac6c5a1eda1",
       "name": "DadosUsuario",
       "credentials": {
         "supabaseApi": {
-          "id": "U75izXxWNaQ4rK6a",
-          "name": "Supabase DinDin"
+          "id": "pLSlTAliGnTEMfL9",
+          "name": "Supabase account"
         }
       }
     },
@@ -2294,10 +2251,10 @@
       "type": "n8n-nodes-base.splitInBatches",
       "typeVersion": 3,
       "position": [
-        4720,
-        2300
+        5296,
+        2016
       ],
-      "id": "52a8bfd6-a085-46f7-8461-0e6ade0757aa",
+      "id": "b85df042-c980-45d3-9847-536cccee072c",
       "name": "Loop Over Items"
     },
     {
@@ -2307,32 +2264,32 @@
       "type": "n8n-nodes-base.wait",
       "typeVersion": 1.1,
       "position": [
-        5180,
-        2320
+        5744,
+        2032
       ],
-      "id": "f09ad85c-050c-44b1-bb76-2702185b71a1",
+      "id": "77ccfc1e-fb29-44a8-ba62-89877feb1f58",
       "name": "Wait1",
       "webhookId": "f2fc0bc7-36de-4aa1-803a-ab64f49c1730"
     },
     {
       "parameters": {
         "resource": "messages-api",
-        "instanceName": "tidi",
+        "instanceName": "FinanceApp",
         "remoteJid": "={{ $json.whatsapp }}",
-        "messageText": "=Você tem um lembrete para hoje:\n{{ $('ConsultaLembretes').item.json.descricao }}\nno valor de {{ $('ConsultaLembretes').item.json.valor }}",
+        "messageText": "={{ $json.output }}",
         "options_message": {}
       },
       "type": "n8n-nodes-evolution-api.evolutionApi",
       "typeVersion": 1,
       "position": [
-        5340,
-        2320
+        5904,
+        2032
       ],
-      "id": "128eceaa-1982-4986-bb69-72900c40bdb7",
+      "id": "d24db850-bf5e-4a77-b154-6c675925c135",
       "name": "Evolution API2",
       "credentials": {
         "evolutionApi": {
-          "id": "R6zo5aCXbaUInzr8",
+          "id": "3kyIcxiyPWbQboBL",
           "name": "Evolution account"
         }
       }
@@ -2347,14 +2304,307 @@
       "type": "n8n-nodes-base.stickyNote",
       "typeVersion": 1,
       "position": [
-        4180,
-        2180
+        4752,
+        1888
       ],
-      "id": "064d0261-d8d7-461e-9452-778189917254",
+      "id": "ded4bb7f-02db-4adb-8798-d97ddcc7575e",
       "name": "Sticky Note4"
+    },
+    {
+      "parameters": {
+        "resource": "chat-api",
+        "operation": "get-media-base64",
+        "instanceName": "FinanceApp",
+        "messageId": "=  {{ $('InicioChat').item.json.body.data.key.id }}"
+      },
+      "type": "n8n-nodes-evolution-api.evolutionApi",
+      "typeVersion": 1,
+      "position": [
+        1952,
+        1232
+      ],
+      "id": "c6bcdb67-3cbc-4bd3-8e62-460c1bf91c98",
+      "name": "Caso não recebemos o Base64 consultamos no EVOAPI",
+      "credentials": {
+        "evolutionApi": {
+          "id": "3kyIcxiyPWbQboBL",
+          "name": "Evolution account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "customerId": "={{ $json.customerId }}"
+      },
+      "type": "n8n-nodes-asaas-pagamentos.asaas",
+      "typeVersion": 1,
+      "position": [
+        976,
+        2032
+      ],
+      "id": "f95a1ce9-9c30-42d3-bd4a-0877a1656877",
+      "name": "DadosCliente",
+      "credentials": {
+        "asaasCredentialsApi": {
+          "id": "R0LWfqnCggzFd5Cx",
+          "name": "Asaas Sandbox"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        6240,
+        416
+      ],
+      "id": "c09cfbd9-eb57-4a28-be90-4283d0912bf4",
+      "name": "FinalizaConsulta"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $('CentralizaDados').item.json.content }}",
+        "options": {
+          "systemMessage": "=Hora atual: {{ $now }}\n\nSua tarefa é identificar as informações do lembrete com o usuário e registrar na tool **salvaLembrete**. Após salvar o lembrete, execute a tool **apagaIntencao** para concluir a tarefa.\n\nCaso precise consultar algum lembrete, utilize a tool 'consultaLembretes'\n\nCampos a serem salvos:\n\n- **userId**: {{ $('Auth').item.json.id }}\n- **descricao**: Detalhes do lembrete.\n- **valor**: Preencha este campo apenas se o usuário informar um valor (esse campo deve ser no formato de número).\n- **data**: Use o formato **yyyy/mm/dd**. Se a data não estiver clara, pergunte ao usuário.\n\n**ATENÇÃO**:\n- Se faltarem informações obrigatórias como **data** ou **descrição**, pergunte ao usuário de forma direta e amigável.\n- Não repita ferramentas. Após salvar com sucesso, execute **apagaIntencao** apenas uma vez e siga com o fluxo.\n\n### Importante - Formatação da Resposta\n- Mantenha formatação simples e profissional\n- Evite excesso de **, use * no texto\n- Evite usar ### no texto\n- Use listas claras com \"-\" \n- Formate valores monetários como \"R$ 1.000,00\"\n- Seja direto e objetivo nas análises"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.9,
+      "position": [
+        5648,
+        848
+      ],
+      "id": "32fb7934-6b21-41fb-96fe-bcbdd056c3f9",
+      "name": "Assistente de Compromissos"
     }
   ],
-  "pinData": {},
+  "pinData": {
+    "ConfirmaPagamento": [
+      {
+        "json": {
+          "headers": {
+            "host": "finance-app-n8n-finance-app.rcnehy.easypanel.host",
+            "user-agent": "Asaas_Hmlg/3.0",
+            "content-length": "1391",
+            "accept": "application/json",
+            "accept-encoding": "gzip",
+            "cache-control": "no-cache",
+            "content-type": "application/json",
+            "pragma": "no-cache",
+            "traceparent": "00-690ff7590000000027b8eecbcc86ab4b-07d2d61d35f7e155-00",
+            "tracestate": "dd=s:0;p:07d2d61d35f7e155;t.tid:690ff75900000000",
+            "x-datadog-parent-id": "563748324322566485",
+            "x-datadog-sampling-priority": "0",
+            "x-datadog-tags": "_dd.p.tid=690ff75900000000",
+            "x-datadog-trace-id": "2862300122271099723",
+            "x-forwarded-for": "54.232.48.115",
+            "x-forwarded-host": "finance-app-n8n-finance-app.rcnehy.easypanel.host",
+            "x-forwarded-port": "443",
+            "x-forwarded-proto": "https",
+            "x-forwarded-server": "e07b9cbb0116",
+            "x-real-ip": "54.232.48.115"
+          },
+          "params": {},
+          "query": {},
+          "body": {
+            "id": "evt_05b708f961d739ea7eba7e4db318f621&12509517",
+            "event": "PAYMENT_CREATED",
+            "dateCreated": "2025-11-08 23:07:20",
+            "payment": {
+              "object": "payment",
+              "id": "pay_su1scsy69q6bkllf",
+              "dateCreated": "2025-11-08",
+              "customer": "cus_000007204195",
+              "subscription": "sub_vpcse0r36xqq8dk1",
+              "checkoutSession": null,
+              "paymentLink": "wd9ab0oz9zwiorci",
+              "value": 29.99,
+              "netValue": 28.91,
+              "originalValue": null,
+              "interestValue": null,
+              "description": "",
+              "billingType": "CREDIT_CARD",
+              "confirmedDate": "2025-11-08",
+              "creditCard": {
+                "creditCardNumber": "4242",
+                "creditCardBrand": "VISA",
+                "creditCardToken": "73e4923d-8b7a-4dd9-b92c-58cd861cb2f2"
+              },
+              "pixTransaction": null,
+              "status": "CONFIRMED",
+              "dueDate": "2025-11-08",
+              "originalDueDate": "2025-11-08",
+              "paymentDate": null,
+              "clientPaymentDate": "2025-11-08",
+              "installmentNumber": null,
+              "invoiceUrl": "https://sandbox.asaas.com/i/su1scsy69q6bkllf",
+              "invoiceNumber": "11900387",
+              "externalReference": null,
+              "deleted": false,
+              "anticipated": false,
+              "anticipable": false,
+              "creditDate": "2025-12-10",
+              "estimatedCreditDate": "2025-12-10",
+              "transactionReceiptUrl": "https://sandbox.asaas.com/comprovantes/2617210049308594",
+              "nossoNumero": null,
+              "bankSlipUrl": null,
+              "lastInvoiceViewedDate": null,
+              "lastBankSlipViewedDate": null,
+              "discount": {
+                "value": 0,
+                "limitDate": null,
+                "dueDateLimitDays": 0,
+                "type": "FIXED"
+              },
+              "fine": {
+                "value": 0,
+                "type": "FIXED"
+              },
+              "interest": {
+                "value": 0,
+                "type": "PERCENTAGE"
+              },
+              "postalService": false,
+              "escrow": null,
+              "refunds": null
+            }
+          },
+          "webhookUrl": "https://finance-app-n8n-finance-app.rcnehy.easypanel.host/webhook-test/confirma-pagamento",
+          "executionMode": "test"
+        }
+      }
+    ],
+    "InicioChat": [
+      {
+        "json": {
+          "headers": {
+            "host": "finance-app-n8n-finance-app.rcnehy.easypanel.host",
+            "user-agent": "axios/1.12.2",
+            "content-length": "1460",
+            "accept": "application/json, text/plain, */*",
+            "accept-encoding": "gzip, compress, deflate, br",
+            "content-type": "application/json",
+            "x-forwarded-for": "172.18.0.1",
+            "x-forwarded-host": "finance-app-n8n-finance-app.rcnehy.easypanel.host",
+            "x-forwarded-port": "443",
+            "x-forwarded-proto": "https",
+            "x-forwarded-server": "e07b9cbb0116",
+            "x-real-ip": "172.18.0.1"
+          },
+          "params": {},
+          "query": {},
+          "body": {
+            "event": "messages.upsert",
+            "instance": "FinanceApp",
+            "data": {
+              "key": {
+                "remoteJid": "5513991357933@s.whatsapp.net",
+                "remoteJidAlt": "270741886992471@lid",
+                "fromMe": false,
+                "id": "AC7092C43A046B08EBA6235D124FD120",
+                "participant": "",
+                "addressingMode": "pn"
+              },
+              "pushName": "Lincoln Gomes",
+              "status": "DELIVERY_ACK",
+              "message": {
+                "conversation": "Oi",
+                "messageContextInfo": {
+                  "deviceListMetadata": {
+                    "senderKeyIndexes": [],
+                    "recipientKeyIndexes": [],
+                    "senderKeyHash": {
+                      "0": 205,
+                      "1": 62,
+                      "2": 150,
+                      "3": 68,
+                      "4": 121,
+                      "5": 121,
+                      "6": 195,
+                      "7": 181,
+                      "8": 50,
+                      "9": 50
+                    },
+                    "senderTimestamp": {
+                      "low": 1761686590,
+                      "high": 0,
+                      "unsigned": true
+                    },
+                    "recipientKeyHash": {
+                      "0": 27,
+                      "1": 215,
+                      "2": 97,
+                      "3": 202,
+                      "4": 77,
+                      "5": 34,
+                      "6": 220,
+                      "7": 51,
+                      "8": 177,
+                      "9": 253
+                    },
+                    "recipientTimestamp": {
+                      "low": 1762637135,
+                      "high": 0,
+                      "unsigned": true
+                    }
+                  },
+                  "deviceListMetadataVersion": 2,
+                  "messageSecret": {
+                    "0": 0,
+                    "1": 22,
+                    "2": 249,
+                    "3": 29,
+                    "4": 174,
+                    "5": 182,
+                    "6": 95,
+                    "7": 211,
+                    "8": 45,
+                    "9": 179,
+                    "10": 149,
+                    "11": 158,
+                    "12": 186,
+                    "13": 31,
+                    "14": 14,
+                    "15": 186,
+                    "16": 28,
+                    "17": 177,
+                    "18": 1,
+                    "19": 222,
+                    "20": 230,
+                    "21": 57,
+                    "22": 50,
+                    "23": 255,
+                    "24": 107,
+                    "25": 15,
+                    "26": 67,
+                    "27": 37,
+                    "28": 114,
+                    "29": 49,
+                    "30": 103,
+                    "31": 247
+                  }
+                }
+              },
+              "messageType": "conversation",
+              "messageTimestamp": 1762695822,
+              "instanceId": "ea1385ac-6798-449b-bdd9-d37f9e3f6b92",
+              "source": "android"
+            },
+            "destination": "https://finance-app-n8n-finance-app.rcnehy.easypanel.host/webhook-test/agente-financeiro",
+            "date_time": "2025-11-09T10:43:43.029Z",
+            "sender": "5511919570594@s.whatsapp.net",
+            "server_url": "https://evolution.rcnehy.easypanel.host",
+            "apikey": "AACA6FBC4D32-4F52-9329-321E8044F6F3"
+          },
+          "webhookUrl": "https://finance-app-n8n-finance-app.rcnehy.easypanel.host/webhook-test/agente-financeiro",
+          "executionMode": "test"
+        }
+      }
+    ]
+  },
   "connections": {
     "Verifica o Tipo de mensagem": {
       "main": [
@@ -2465,17 +2715,6 @@
         ]
       ]
     },
-    "Caso não recebemos o Base64 consultamos no EVOAPI": {
-      "main": [
-        [
-          {
-            "node": "Converte o base64 em áudio",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
     "Caso não recebemos o Base64 consultamos no EVOAPI1": {
       "main": [
         [
@@ -2543,17 +2782,6 @@
         [
           {
             "node": "DadosCliente",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "DadosCliente": {
-      "main": [
-        [
-          {
-            "node": "VerificaNumeroWhats",
             "type": "main",
             "index": 0
           }
@@ -2722,7 +2950,7 @@
         ],
         [
           {
-            "node": "Assistente de Comrpomissos",
+            "node": "Assistente de Compromissos",
             "type": "main",
             "index": 0
           }
@@ -2839,7 +3067,7 @@
       "ai_languageModel": [
         [
           {
-            "node": "Assistente de Comrpomissos",
+            "node": "Assistente de Compromissos",
             "type": "ai_languageModel",
             "index": 0
           }
@@ -2850,7 +3078,7 @@
       "ai_memory": [
         [
           {
-            "node": "Assistente de Comrpomissos",
+            "node": "Assistente de Compromissos",
             "type": "ai_memory",
             "index": 0
           }
@@ -2861,7 +3089,7 @@
       "ai_tool": [
         [
           {
-            "node": "Assistente de Comrpomissos",
+            "node": "Assistente de Compromissos",
             "type": "ai_tool",
             "index": 0
           }
@@ -2872,7 +3100,7 @@
       "ai_tool": [
         [
           {
-            "node": "Assistente de Comrpomissos",
+            "node": "Assistente de Compromissos",
             "type": "ai_tool",
             "index": 0
           }
@@ -2978,17 +3206,6 @@
         ]
       ]
     },
-    "Assistente de Comrpomissos": {
-      "main": [
-        [
-          {
-            "node": "RespondeCliente",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
     "memoriaTransacao": {
       "ai_memory": [
         [
@@ -3070,7 +3287,7 @@
       "ai_tool": [
         [
           {
-            "node": "Assistente de Comrpomissos",
+            "node": "Assistente de Compromissos",
             "type": "ai_tool",
             "index": 0
           }
@@ -3231,17 +3448,61 @@
           }
         ]
       ]
+    },
+    "Caso não recebemos o Base64 consultamos no EVOAPI": {
+      "main": [
+        [
+          {
+            "node": "Converte o base64 em áudio",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DadosCliente": {
+      "main": [
+        [
+          {
+            "node": "VerificaNumeroWhats",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "RespondeClienteConsulta": {
+      "main": [
+        [
+          {
+            "node": "FinalizaConsulta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Assistente de Compromissos": {
+      "main": [
+        [
+          {
+            "node": "RespondeCliente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "active": false,
   "settings": {
     "executionOrder": "v1"
   },
-  "versionId": "aa72c18e-b78a-4982-a651-15b875c1adfc",
+  "versionId": "87d97470-9f5a-40c6-87cb-e588892a6838",
   "meta": {
     "templateCredsSetupCompleted": true,
-    "instanceId": "d4d1ceec701949723b29e7c100719b110a45b9a03d615471e037644a9a80c0f6"
+    "instanceId": "4e07e50cb3236592827143df3d4d99970f802c127aa310fd175b7fa02898a0c6"
   },
-  "id": "f6Sw2uq9SpvhPoLQ",
+  "id": "LRmPAfCDMFI73nGg",
   "tags": []
 }
