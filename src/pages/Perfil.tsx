@@ -10,7 +10,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ChangePasswordForm } from '@/components/profile/ChangePasswordForm'
 import { SubscriptionInfo } from '@/components/profile/SubscriptionInfo'
-import { supabase } from '@/integrations/supabase/client'
+import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
 import { toast } from '@/hooks/use-toast'
 import { Camera, User, Trash2, Settings, CreditCard, Shield } from 'lucide-react'
