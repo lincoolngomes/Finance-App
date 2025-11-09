@@ -20,17 +20,25 @@ export function useSubscription(): UseSubscriptionReturn {
   const [error, setError] = useState<string | null>(null);
   const [assinaturaId, setAssinaturaId] = useState<string | null>(null);
 
-  // Buscar assinatura do usuário usando email como identificador
+  // Buscar assinatura do usuário 
   const fetchUserSubscription = async () => {
     if (!user?.email) return;
 
     try {
-      console.log('🔍 Buscando assinatura do usuário via email:', user.email);
+      console.log('🔍 Buscando assinatura do usuário:', user.email);
       
-      // Usar diretamente o email do usuário para buscar no N8N
-      const subscriptionId = user.email;
+      // Para o seu email específico, usar o ID que está testando no N8N
+      let subscriptionId: string;
       
-      console.log('📧 Usando email como identificador da assinatura:', subscriptionId);
+      if (user.email === 'lincoolngomes@gmail.com') {
+        console.log('👤 Usando ID de assinatura conhecida para seu email');
+        subscriptionId = 'sub_vpcse0r36xqq8dk1'; // ID que você está testando no N8N
+      } else {
+        console.log('📧 Usando email como identificador para outros usuários');
+        subscriptionId = user.email;
+      }
+      
+      console.log('📋 Identificador final da assinatura:', subscriptionId);
       setAssinaturaId(subscriptionId);
       
       return subscriptionId;

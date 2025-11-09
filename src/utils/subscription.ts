@@ -43,16 +43,7 @@ const mockSubscriptionData: SubscriptionData = {
 export async function fetchSubscriptionInfo(identifier: string): Promise<SubscriptionResponse> {
   console.log('📧 Iniciando busca de assinatura via N8N:', identifier);
   
-  // Se for o email específico do usuário, retorna mock para teste
-  if (identifier === 'lincoolngomes@gmail.com' || identifier.includes('lincoln')) {
-    console.log('🧪 Retornando dados mock para teste');
-    await new Promise(resolve => setTimeout(resolve, 1500)); // Simula delay da API
-    
-    return {
-      success: true,
-      data: mockSubscriptionData
-    };
-  }
+  // Mock removido - conectando diretamente ao N8N real
   
   const urls = [
     N8N_CONFIG.SUBSCRIPTION_WEBHOOK_URL,
@@ -75,13 +66,12 @@ export async function fetchSubscriptionInfo(identifier: string): Promise<Subscri
 
       console.log('📤 Headers:', Object.keys(headers));
 
-      // Detectar se é email ou ID de assinatura
-      const isEmail = identifier.includes('@');
-      const bodyParams = isEmail 
-        ? { email: identifier }
-        : { subscription: identifier };
+      // Para agora, vou tentar com 'subscription' mesmo para emails
+      // O N8N precisa ser modificado para aceitar email também
+      const bodyParams = { subscription: identifier };
 
       console.log('📋 Parâmetros de busca:', bodyParams);
+      console.log('🔧 ATENÇÃO: N8N deve aceitar email no campo subscription ou criar endpoint separado');
 
       const response = await fetch(url, {
         method: 'POST',

@@ -46,10 +46,8 @@ export function AppSidebar() {
     { title: 'Administração', url: '/admin', icon: Shield },
   ]
 
-  // Items de desenvolvimento/teste
-  const devItems = [
-    { title: 'Teste Assinatura', url: '/teste', icon: TestTube },
-  ]
+  // Items de desenvolvimento/teste - removidos após correção
+  const devItems: any[] = []
   const isCollapsed = state === "collapsed"
 
   // Determine which logo to use based on theme
@@ -133,24 +131,7 @@ export function AppSidebar() {
                 </SidebarMenuItem>
               ))}
 
-              {/* Menu Dev/Teste - só em desenvolvimento */}
-              {import.meta.env.DEV && devItems.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton
-                    asChild
-                    className={`${
-                      isActive(item.url)
-                        ? 'bg-purple-600 text-white hover:bg-purple-700'
-                        : 'hover:bg-purple-50 dark:hover:bg-purple-900/20 text-purple-600 dark:text-purple-400'
-                    }`}
-                  >
-                    <NavLink to={item.url} end>
-                      <item.icon className="h-4 w-4" />
-                      <span>{item.title}</span>
-                    </NavLink>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
+
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
