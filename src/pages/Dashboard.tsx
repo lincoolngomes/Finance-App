@@ -38,18 +38,34 @@ export default function Dashboard() {
   const [transacoes, setTransacoes] = useState<Transacao[]>([])
   const [lembretes, setLembretes] = useState<Lembrete[]>([])
   const [loading, setLoading] = useState(true)
+  const [userProfile, setUserProfile] = useState<any>(null)
   
   // Estados dos filtros
   const [filterMonth, setFilterMonth] = useState(new Date().getMonth().toString())
   const [filterYear, setFilterYear] = useState(new Date().getFullYear().toString())
 
   useEffect(() => {
-    if (user) {
-      fetchData()
-    }
-  }, [user])
+    if (!user) return
 
-  const fetchData = async () => {
+    const carregarPerfil = async () => {
+      try {
+        const { data: profile, error } = await supabase
+          .from('profiles')
+          .select('nome')
+          .eq('id', user.id)
+          .single()
+        
+        if (!error && profile) {
+          setUserProfile(profile)
+        }
+      } catch (error) {
+        console.error('Erro ao carregar perfil:', error)
+      }
+    }
+
+    carregarPerfil()
+
+    const fetchData = async () => {
     try {
       setLoading(true)
       
@@ -89,6 +105,9 @@ export default function Dashboard() {
       setLoading(false)
     }
   }
+
+  fetchData()
+}, [user])
 
   // Filtrar transações por mês e ano
   const filteredTransacoes = useMemo(() => {
@@ -156,6 +175,7 @@ export default function Dashboard() {
         setFilterMonth={setFilterMonth}
         setFilterYear={setFilterYear}
         transactionCount={filteredTransacoes.length}
+        userName={userProfile?.nome}
       />
       
       <DashboardStats stats={stats} />

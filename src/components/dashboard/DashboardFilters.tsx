@@ -8,6 +8,7 @@ interface DashboardFiltersProps {
   setFilterMonth: (month: string) => void
   setFilterYear: (year: string) => void
   transactionCount: number
+  userName?: string
 }
 
 export function DashboardFilters({ 
@@ -15,14 +16,33 @@ export function DashboardFilters({
   filterYear, 
   setFilterMonth, 
   setFilterYear, 
-  transactionCount 
+  transactionCount,
+  userName 
 }: DashboardFiltersProps) {
+  const getGreeting = () => {
+    const hour = new Date().getHours()
+    let greeting = ''
+    
+    if (hour >= 5 && hour < 12) {
+      greeting = 'Bom dia'
+    } else if (hour >= 12 && hour < 18) {
+      greeting = 'Boa tarde'
+    } else {
+      greeting = 'Boa noite'
+    }
+    
+    if (userName) {
+      return `${greeting}, ${userName}!`
+    }
+    return `${greeting}!`
+  }
+
   return (
     <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
       <div>
-        <h2 className="text-3xl font-bold tracking-tight">Dashboard</h2>
+        <h2 className="text-3xl font-bold tracking-tight">{getGreeting()}</h2>
         <p className="text-muted-foreground">
-          Visão geral das suas finanças pessoais
+          Bem-vindo ao seu painel financeiro do FinanceApp
           {transactionCount > 0 && ` • ${transactionCount} transações encontradas`}
         </p>
       </div>

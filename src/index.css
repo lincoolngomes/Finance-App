@@ -56,13 +56,13 @@
     --border: 217.2 32.6% 17.5%;
     --input: 217.2 32.6% 17.5%;
     --ring: 229 84% 59%; /* #4361ee */
-    --sidebar-background: 240 5.9% 10%;
+    --sidebar-background: 215.4 16.3% 6.9%; /* Azul escuro consistente */
     --sidebar-foreground: 240 4.8% 95.9%;
     --sidebar-primary: 229 84% 59%; /* #4361ee */
     --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 240 3.7% 15.9%;
+    --sidebar-accent: 215.4 16.3% 12.9%; /* Azul escuro para hover */
     --sidebar-accent-foreground: 240 4.8% 95.9%;
-    --sidebar-border: 240 3.7% 15.9%;
+    --sidebar-border: 215.4 16.3% 12.9%;
     --sidebar-ring: 229 84% 59%; /* #4361ee */
     --title-color: 210 40% 98%; /* White for dark theme */
   }

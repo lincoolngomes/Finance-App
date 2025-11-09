@@ -39,52 +39,56 @@ export function AppSidebar() {
 
   // Determine which logo to use based on theme
   const getLogoSrc = () => {
-    // Usar o logo completo quando expandido
-    return '/lovable-uploads/finance-logo-full.png' // novo logo FinanceApp
+    if (theme === 'dark') {
+      return '/lovable-uploads/finance-logo-white.png' // logo branco para tema escuro
+    }
+    return '/lovable-uploads/finance-logo-dark.png' // logo escuro para tema claro
   }
 
   const getIconSrc = () => {
-    // Usar o ícone quando colapsado
-    return '/lovable-uploads/finance-logo-icon.png' // novo ícone FinanceApp
+    if (theme === 'dark') {
+      return '/lovable-uploads/finance-logo-white.png' // ícone branco para tema escuro
+    }
+    return '/lovable-uploads/finance-logo-dark.png' // ícone escuro para tema claro
   }
 
   return (
-    <Sidebar collapsible="icon">
-      <SidebarHeader className="p-4">
+    <Sidebar collapsible="icon" className="border-r border-border/40 dark:bg-slate-950">
+      <SidebarHeader className="p-4 dark:bg-slate-950">
         <div className="flex items-center justify-center">
           {isCollapsed ? (
             <div className="min-w-8">
               <img 
                 src={getIconSrc()}
                 alt="FinanceApp Icon" 
-                className="h-8 w-8"
+                className="h-10 w-10"
               />
             </div>
           ) : (
             <img 
               src={getLogoSrc()} 
               alt="FinanceApp" 
-              className="h-8 w-auto"
+              className="h-10 w-auto"
             />
           )}
         </div>
       </SidebarHeader>
 
-      <SidebarContent>
-        <SidebarGroup>
-          <SidebarGroupLabel className="text-xs uppercase tracking-wider text-muted-foreground">
+      <SidebarContent className="dark:bg-slate-950">
+        <SidebarGroup className="dark:bg-slate-950">
+          <SidebarGroupLabel className="text-xs uppercase tracking-wider text-muted-foreground dark:text-slate-400">
             Menu
           </SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>
+          <SidebarGroupContent className="dark:bg-slate-950">
+            <SidebarMenu className="dark:bg-slate-950">
               {items.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton
                     asChild
                     className={`${
                       isActive(item.url)
-                        ? 'bg-primary text-primary-foreground hover:bg-primary/90'
-                        : 'hover:bg-accent'
+                        ? 'bg-primary text-primary-foreground hover:bg-primary/90 dark:bg-blue-600 dark:text-white'
+                        : 'hover:bg-accent dark:hover:bg-slate-800'
                     }`}
                   >
                     <NavLink to={item.url} end>
@@ -99,7 +103,7 @@ export function AppSidebar() {
         </SidebarGroup>
       </SidebarContent>
 
-      <SidebarFooter className="p-4 space-y-4">
+      <SidebarFooter className="p-4 space-y-4 dark:bg-slate-950">
         <UserProfile />
         
         <Button
