@@ -6,19 +6,29 @@ interface WhatsAppValidationResponse {
   whatsapp: string;
 }
 
-export async function validateWhatsAppNumber(phoneNumber: string): Promise<{ exists: boolean; whatsappId?: string }> {
+// URLs dos webhooks para tentar (em ordem de prioridade)
+const getWebhookURLs = () => {
+  if (import.meta.env.DEV) {
+    return [
+      '/api/webhook-test/verifica-zap',
+      '/api/webhook/verifica-zap'
+    ];
+  } else {
+    return [
+      'https://finance-app-n8n-finance-app.rcnehy.easypanel.host/webhook-test/verifica-zap',
+      'https://finance-app-n8n-finance-app.rcnehy.easypanel.host/webhook/verifica-zap'
+    ];
+  }
+};
+
+async function tryWebhook(url: string, phoneNumber: string, authHeaders: Record<string, string>): Promise<{ exists: boolean; whatsappId?: string }> {
+  console.log('Tentando webhook:', url);
+  
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), N8N_CONFIG.TIMEOUT);
+  
   try {
-    const webhookURL = getWebhookURL();
-    const authHeaders = getAuthHeaders();
-    
-    console.log('Validando WhatsApp para número:', phoneNumber);
-    console.log('URL do webhook:', webhookURL);
-    
-    // Configurar timeout
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), N8N_CONFIG.TIMEOUT);
-    
-    const response = await fetch(webhookURL, {
+    const response = await fetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -32,31 +42,76 @@ export async function validateWhatsAppNumber(phoneNumber: string): Promise<{ exi
     });
     
     clearTimeout(timeoutId);
-
-    console.log('Response status:', response.status);
+    console.log('Response status:', response.status, 'para', url);
     
     if (!response.ok) {
-      console.error('Erro na resposta:', response.status, response.statusText);
-      throw new Error(`Erro HTTP: ${response.status}`);
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     }
 
-    const data: WhatsAppValidationResponse = await response.json();
-    console.log('Resposta do webhook:', data);
+    // Tratar resposta JSON com cuidado
+    const responseText = await response.text();
+    console.log('Response text bruto:', responseText, 'de', url);
     
-    // Converter exists para boolean se vier como string
-    const exists = typeof data.exists === 'string' ? data.exists === 'true' : !!data.exists;
+    let data: WhatsAppValidationResponse;
+    try {
+      if (!responseText.trim()) {
+        throw new Error('Resposta vazia do N8N');
+      }
+      data = JSON.parse(responseText);
+    } catch (jsonError) {
+      console.error('Erro ao parsear JSON:', jsonError, 'responseText:', responseText);
+      throw new Error('N8N retornou resposta inválida');
+    }
+    
+    console.log('Resposta do webhook parseada:', data, 'de', url);
+    
+    // Converter exists para boolean (N8N retorna como string)
+    const exists = data.exists === 'true' || data.exists === true;
+    
+    // Extrair número limpo do jid (remove @s.whatsapp.net ou @c.us)
+    let whatsappId = data.whatsapp;
+    if (whatsappId && whatsappId.includes('@')) {
+      whatsappId = whatsappId.split('@')[0];
+    }
+    
+    console.log('✅ Webhook funcionou! exists:', exists, 'whatsappId:', whatsappId);
     
     return {
       exists: exists,
-      whatsappId: exists ? data.whatsapp : undefined
+      whatsappId: exists ? whatsappId : undefined
     };
-  } catch (error) {
-    console.error('Erro na validação do WhatsApp:', error);
-    
-    // Para desenvolvimento/teste, você pode comentar essa linha e retornar sempre true
-    throw new Error('Não foi possível validar o número do WhatsApp. Verifique a conexão com o N8N.');
-    
-    // Para desabilitar temporariamente a validação (apenas para teste):
-    // return { exists: true, whatsappId: phoneNumber + '@c.us' };
+  } finally {
+    clearTimeout(timeoutId);
   }
+}
+
+export async function validateWhatsAppNumber(phoneNumber: string): Promise<{ exists: boolean; whatsappId?: string }> {
+  console.log('🔍 Validando WhatsApp para número:', phoneNumber);
+  
+  const webhookURLs = getWebhookURLs();
+  const authHeaders = getAuthHeaders();
+  
+  // Tentar cada webhook em ordem
+  for (let i = 0; i < webhookURLs.length; i++) {
+    const url = webhookURLs[i];
+    try {
+      const result = await tryWebhook(url, phoneNumber, authHeaders);
+      console.log(`✅ Sucesso com webhook ${i + 1}/${webhookURLs.length}:`, url);
+      return result;
+    } catch (error) {
+      console.log(`❌ Falha no webhook ${i + 1}/${webhookURLs.length} (${url}):`, error);
+      
+      // Se for o último webhook, lançar o erro
+      if (i === webhookURLs.length - 1) {
+        console.error('❌ Todos os webhooks falharam!');
+        throw new Error('Não foi possível validar o WhatsApp. Tente novamente em alguns instantes.');
+      }
+      
+      // Caso contrário, tentar o próximo
+      console.log(`🔄 Tentando próximo webhook...`);
+    }
+  }
+  
+  // Este código nunca deveria ser alcançado, mas está aqui por segurança
+  throw new Error('Erro inesperado na validação do WhatsApp.');
 }

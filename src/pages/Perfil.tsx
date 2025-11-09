@@ -91,9 +91,22 @@ export default function Perfil() {
               setCurrentPhoneNumber(phone)
             }
           } else {
-            // If no + sign, assume it's just the number with default country code
-            setCurrentCountryCode('+55')
-            setCurrentPhoneNumber(phone)
+            // Se não tem +, verificar se já começa com código do país
+            const cleanPhone = phone.replace(/\D/g, '')
+            
+            if (cleanPhone.startsWith('55') && cleanPhone.length >= 12) {
+              // Número brasileiro com código 55 já incluído
+              setCurrentCountryCode('+55')
+              setCurrentPhoneNumber(cleanPhone.substring(2)) // Remove os primeiros 2 dígitos (55)
+            } else if (cleanPhone.startsWith('1') && cleanPhone.length >= 10) {
+              // Número americano
+              setCurrentCountryCode('+1')
+              setCurrentPhoneNumber(cleanPhone.substring(1))
+            } else {
+              // Assumir Brasil por padrão
+              setCurrentCountryCode('+55')
+              setCurrentPhoneNumber(cleanPhone)
+            }
           }
         } else {
           setCurrentCountryCode('+55')
@@ -121,11 +134,21 @@ export default function Perfil() {
       let whatsappId = profile.whatsapp
       
       if (currentPhoneNumber.trim()) {
-        fullPhone = currentCountryCode + currentPhoneNumber.replace(/\D/g, '')
+        // Remove todos os caracteres não numéricos e o + do código do país
+        const cleanNumber = currentPhoneNumber.replace(/\D/g, '')
+        const cleanCountryCode = currentCountryCode.replace('+', '')
+        
+        // Se o número já começar com o código do país, não duplicar
+        if (cleanNumber.startsWith(cleanCountryCode)) {
+          fullPhone = '+' + cleanNumber
+        } else {
+          fullPhone = currentCountryCode + cleanNumber
+        }
         
         // Se o telefone mudou, validar o WhatsApp
         if (fullPhone !== profile.phone) {
           console.log('Validando WhatsApp para número alterado:', fullPhone)
+          console.log('Número limpo para validação:', fullPhone.replace('+', ''))
           
           try {
             const whatsappValidation = await validateWhatsAppNumber(fullPhone.replace('+', ''))
