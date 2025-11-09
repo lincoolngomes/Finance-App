@@ -86,7 +86,7 @@ export function DashboardCharts({ transacoes }: DashboardChartsProps) {
                   cx="50%"
                   cy="50%"
                   labelLine={false}
-                  label={false}
+                  label={({ value, percent }) => `${(percent * 100).toFixed(0)}%`}
                   outerRadius={120}
                   innerRadius={60}
                   paddingAngle={2}
@@ -97,7 +97,7 @@ export function DashboardCharts({ transacoes }: DashboardChartsProps) {
                     <Cell 
                       key={`cell-${index}`} 
                       fill={COLORS[index % COLORS.length]}
-                      stroke="rgba(255,255,255,0.1)"
+                      stroke="rgba(255,255,255,0.2)"
                       strokeWidth={2}
                     />
                   ))}
@@ -170,7 +170,7 @@ export function DashboardCharts({ transacoes }: DashboardChartsProps) {
                   axisLine={false}
                 />
                 <Tooltip 
-                  formatter={(value, name) => [formatCurrency(Number(value)), name]}
+                  formatter={(value) => [formatCurrency(Number(value)), 'Valor']}
                   labelStyle={{ color: '#e2e8f0', fontWeight: 'bold' }}
                   contentStyle={{ 
                     backgroundColor: 'rgba(15, 23, 42, 0.95)', 
@@ -179,6 +179,7 @@ export function DashboardCharts({ transacoes }: DashboardChartsProps) {
                     boxShadow: '0 8px 32px rgba(0, 0, 0, 0.3)',
                     backdropFilter: 'blur(16px)'
                   }}
+                  cursor={false}
                 />
                 <Bar 
                   dataKey="value" 
@@ -267,6 +268,62 @@ export function DashboardCharts({ transacoes }: DashboardChartsProps) {
                 </div>
               </div>
             </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Últimos Lançamentos */}
+      <Card className="md:col-span-2 shadow-lg border border-slate-500/20 bg-gradient-to-br from-slate-900/80 to-slate-800/60 backdrop-blur-sm">
+        <CardHeader className="pb-4">
+          <CardTitle className="text-xl font-bold bg-gradient-to-r from-slate-300 to-slate-100 bg-clip-text text-transparent">
+            📋 Últimos Lançamentos
+          </CardTitle>
+          <CardDescription className="text-sm text-slate-400">
+            Os 5 lançamentos mais recentes
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-3">
+            {transacoes
+              .slice()
+              .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+              .slice(0, 5)
+              .map((transacao) => (
+                <div 
+                  key={transacao.id} 
+                  className="flex items-center justify-between p-4 rounded-xl bg-slate-800/50 border border-slate-700/50 hover:bg-slate-700/50 transition-colors"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className={`w-3 h-3 rounded-full ${
+                      transacao.tipo === 'receita' ? 'bg-green-500' : 'bg-red-500'
+                    }`} />
+                    <div>
+                      <div className="font-medium text-slate-200">
+                        {transacao.estabelecimento || 'Sem estabelecimento'}
+                      </div>
+                      <div className="text-sm text-slate-400">
+                        {transacao.categorias?.nome || 'Sem categoria'} • {
+                          transacao.quando 
+                            ? new Date(transacao.quando).toLocaleDateString('pt-BR')
+                            : new Date(transacao.created_at).toLocaleDateString('pt-BR')
+                        }
+                      </div>
+                    </div>
+                  </div>
+                  <div className={`font-bold ${
+                    transacao.tipo === 'receita' ? 'text-green-400' : 'text-red-400'
+                  }`}>
+                    {transacao.tipo === 'receita' ? '+' : '-'}
+                    {formatCurrency(Math.abs(transacao.valor || 0))}
+                  </div>
+                </div>
+              ))
+            }
+            {transacoes.length === 0 && (
+              <div className="text-center py-8 text-slate-400">
+                Nenhuma transação encontrada
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>
