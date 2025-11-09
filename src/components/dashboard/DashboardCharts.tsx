@@ -231,7 +231,6 @@ export function DashboardCharts({ transacoes }: DashboardChartsProps) {
               <div className="absolute top-0 right-0 w-20 h-20 bg-white/10 rounded-full -translate-y-10 translate-x-10"></div>
               <div className="relative">
                 <div className="text-green-100 text-sm font-medium mb-1">💰 Receitas</div>
-                </div>
                 <div className="text-2xl font-bold text-white">
                   {formatCurrency(stats.totalReceitas)}
                 </div>
@@ -242,7 +241,6 @@ export function DashboardCharts({ transacoes }: DashboardChartsProps) {
               <div className="absolute top-0 right-0 w-20 h-20 bg-white/10 rounded-full -translate-y-10 translate-x-10"></div>
               <div className="relative">
                 <div className="text-red-100 text-sm font-medium mb-1">💸 Despesas</div>
-                </div>
                 <div className="text-2xl font-bold text-white">
                   {formatCurrency(Math.abs(stats.totalDespesas))}
                 </div>
@@ -257,7 +255,6 @@ export function DashboardCharts({ transacoes }: DashboardChartsProps) {
                 <div className={`${stats.saldo >= 0 ? 'text-blue-100' : 'text-yellow-100'} text-sm font-medium mb-1`}>
                   {stats.saldo >= 0 ? '📊 Saldo' : '⚠️ Déficit'}
                 </div>
-                </div>
                 <div className="text-2xl font-bold text-white">
                   {formatCurrency(stats.saldo)}
                 </div>
@@ -268,7 +265,6 @@ export function DashboardCharts({ transacoes }: DashboardChartsProps) {
               <div className="absolute top-0 right-0 w-20 h-20 bg-white/10 rounded-full -translate-y-10 translate-x-10"></div>
               <div className="relative">
                 <div className="text-purple-100 text-sm font-medium mb-1">🔄 Transações</div>
-                </div>
                 <div className="text-2xl font-bold text-white">
                   {stats.transacoesCount}
                 </div>
