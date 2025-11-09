@@ -22,36 +22,16 @@ export function useSubscription(): UseSubscriptionReturn {
 
   // Buscar assinatura do usuário usando email como identificador
   const fetchUserSubscription = async () => {
-    if (!user?.id || !user?.email) return;
+    if (!user?.email) return;
 
     try {
-      console.log('🔍 Buscando assinatura do usuário:', user.email);
+      console.log('🔍 Buscando assinatura do usuário via email:', user.email);
       
-      // Primeiro tenta buscar pelo assinaturaId salvo no perfil
-      const { data: profile, error: profileError } = await supabase
-        .from('profiles')
-        .select('assinaturaId, email, nome')
-        .eq('id', user.id)
-        .single();
-
-      if (profileError && profileError.code !== 'PGRST116') {
-        console.error('❌ Erro ao buscar perfil:', profileError);
-        throw profileError;
-      }
-
-      let subscriptionId = profile?.assinaturaId;
+      // Usar diretamente o email do usuário para buscar no N8N
+      const subscriptionId = user.email;
       
-      // Se não tem assinaturaId salvo, busca via N8N usando email
-      if (!subscriptionId) {
-        console.log('📧 Tentando buscar assinatura via email:', user.email);
-        
-        // Aqui você pode implementar uma chamada ao N8N para buscar por email
-        // Por enquanto, vamos usar o email como fallback
-        subscriptionId = user.email; // Temporário - substituir pela lógica do N8N
-      }
-
-      console.log('📋 Identificador da assinatura:', subscriptionId);
-      setAssinaturaId(subscriptionId || null);
+      console.log('📧 Usando email como identificador da assinatura:', subscriptionId);
+      setAssinaturaId(subscriptionId);
       
       return subscriptionId;
     } catch (error: any) {

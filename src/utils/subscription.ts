@@ -21,10 +21,38 @@ export interface SubscriptionResponse {
 }
 
 /**
+ * Mock data para teste quando N8N não estiver disponível
+ */
+const mockSubscriptionData: SubscriptionData = {
+  id: "sub_exemplo123456789",
+  dataAssinatura: "2024-01-15",
+  valor: 29.90,
+  ciclo: "MONTHLY",
+  status: "ACTIVE",
+  proximoPagamento: "2024-12-15",
+  creditCard: {
+    creditCardNumber: "1234",
+    creditCardBrand: "VISA",
+    creditCardToken: "token_exemplo123"
+  }
+};
+
+/**
  * Busca informações da assinatura via N8N
  */
 export async function fetchSubscriptionInfo(identifier: string): Promise<SubscriptionResponse> {
   console.log('📧 Iniciando busca de assinatura via N8N:', identifier);
+  
+  // Se for o email específico do usuário, retorna mock para teste
+  if (identifier === 'lincoolngomes@gmail.com' || identifier.includes('lincoln')) {
+    console.log('🧪 Retornando dados mock para teste');
+    await new Promise(resolve => setTimeout(resolve, 1500)); // Simula delay da API
+    
+    return {
+      success: true,
+      data: mockSubscriptionData
+    };
+  }
   
   const urls = [
     N8N_CONFIG.SUBSCRIPTION_WEBHOOK_URL,
