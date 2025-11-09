@@ -227,11 +227,11 @@ export function DashboardCharts({ transacoes }: DashboardChartsProps) {
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-            <div className="relative overflow-hidden bg-gradient-to-br from-green-800 to-emerald-900 dark:from-green-500 dark:to-emerald-600 p-6 rounded-2xl shadow-lg">
+            <div className="relative overflow-hidden bg-gradient-to-br from-green-900 to-emerald-950 dark:from-green-500 dark:to-emerald-600 p-6 rounded-2xl shadow-lg">
               <div className="absolute top-0 right-0 w-20 h-20 bg-white/10 rounded-full -translate-y-10 translate-x-10 z-0"></div>
               <div className="relative z-30">
                 <div className="text-green-100 text-sm font-medium mb-1 z-40 relative">
-                  <span className="relative z-50 bg-black/40 px-3 py-2 rounded-lg backdrop-blur-sm shadow-lg border border-white/10">💰 Receitas</span>
+                  <span className="relative z-50 bg-white/90 text-gray-800 px-3 py-2 rounded-xl backdrop-blur-sm shadow-xl border-2 border-white font-bold">💰 Receitas</span>
                 </div>
                 <div className="text-2xl font-bold text-white">
                   {formatCurrency(stats.totalReceitas)}
@@ -239,11 +239,11 @@ export function DashboardCharts({ transacoes }: DashboardChartsProps) {
               </div>
             </div>
             
-            <div className="relative overflow-hidden bg-gradient-to-br from-red-800 to-rose-900 dark:from-red-500 dark:to-rose-600 p-6 rounded-2xl shadow-lg">
+            <div className="relative overflow-hidden bg-gradient-to-br from-red-900 to-rose-950 dark:from-red-500 dark:to-rose-600 p-6 rounded-2xl shadow-lg">
               <div className="absolute top-0 right-0 w-20 h-20 bg-white/10 rounded-full -translate-y-10 translate-x-10 z-0"></div>
               <div className="relative z-30">
                 <div className="text-red-100 text-sm font-medium mb-1 z-40 relative">
-                  <span className="relative z-50 bg-black/40 px-3 py-2 rounded-lg backdrop-blur-sm shadow-lg border border-white/10">💸 Despesas</span>
+                  <span className="relative z-50 bg-white/90 text-gray-800 px-3 py-2 rounded-xl backdrop-blur-sm shadow-xl border-2 border-white font-bold">💸 Despesas</span>
                 </div>
                 <div className="text-2xl font-bold text-white">
                   {formatCurrency(Math.abs(stats.totalDespesas))}
@@ -252,12 +252,12 @@ export function DashboardCharts({ transacoes }: DashboardChartsProps) {
             </div>
             
             <div className={`relative overflow-hidden ${stats.saldo >= 0 
-              ? 'bg-gradient-to-br from-blue-800 to-indigo-900 dark:from-blue-500 dark:to-indigo-600' 
-              : 'bg-gradient-to-br from-yellow-800 to-orange-900 dark:from-yellow-500 dark:to-orange-600'} p-6 rounded-2xl shadow-lg`}>
+              ? 'bg-gradient-to-br from-blue-900 to-indigo-950 dark:from-blue-500 dark:to-indigo-600' 
+              : 'bg-gradient-to-br from-yellow-900 to-orange-950 dark:from-yellow-500 dark:to-orange-600'} p-6 rounded-2xl shadow-lg`}>
               <div className="absolute top-0 right-0 w-20 h-20 bg-white/10 rounded-full -translate-y-10 translate-x-10 z-0"></div>
               <div className="relative z-30">
                 <div className={`${stats.saldo >= 0 ? 'text-blue-100' : 'text-yellow-100'} text-sm font-medium mb-1 z-40 relative`}>
-                  <span className="relative z-50 bg-black/40 px-3 py-2 rounded-lg backdrop-blur-sm shadow-lg border border-white/10">
+                  <span className="relative z-50 bg-white/90 text-gray-800 px-3 py-2 rounded-xl backdrop-blur-sm shadow-xl border-2 border-white font-bold">
                     {stats.saldo >= 0 ? '📊 Saldo' : '⚠️ Déficit'}
                   </span>
                 </div>
@@ -267,11 +267,11 @@ export function DashboardCharts({ transacoes }: DashboardChartsProps) {
               </div>
             </div>
             
-            <div className="relative overflow-hidden bg-gradient-to-br from-purple-800 to-violet-900 dark:from-purple-500 dark:to-violet-600 p-6 rounded-2xl shadow-lg">
+            <div className="relative overflow-hidden bg-gradient-to-br from-purple-900 to-violet-950 dark:from-purple-500 dark:to-violet-600 p-6 rounded-2xl shadow-lg">
               <div className="absolute top-0 right-0 w-20 h-20 bg-white/10 rounded-full -translate-y-10 translate-x-10 z-0"></div>
               <div className="relative z-30">
                 <div className="text-purple-100 text-sm font-medium mb-1 z-40 relative">
-                  <span className="relative z-50 bg-black/40 px-3 py-2 rounded-lg backdrop-blur-sm shadow-lg border border-white/10">🔄 Transações</span>
+                  <span className="relative z-50 bg-white/90 text-gray-800 px-3 py-2 rounded-xl backdrop-blur-sm shadow-xl border-2 border-white font-bold">🔄 Transações</span>
                 </div>
                 <div className="text-2xl font-bold text-white">
                   {stats.transacoesCount}
