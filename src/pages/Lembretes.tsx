@@ -194,8 +194,8 @@ export default function Lembretes() {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <div>
-          <h2 className="text-3xl font-bold tracking-tight text-gray-900">Lembretes</h2>
-          <p className="text-gray-600">Gerencie seus lembretes de pagamentos e compromissos</p>
+          <h2 className="text-3xl font-bold tracking-tight">Lembretes</h2>
+          <p className="text-muted-foreground">Gerencie seus lembretes de pagamentos e compromissos</p>
         </div>
         <div className="flex gap-2">
           {lembretes.length > 0 && (
@@ -291,10 +291,10 @@ export default function Lembretes() {
                 <CardContent className="p-6">
                   <div className="flex items-center justify-between">
                     <div className="space-y-2">
-                      <div className="h-4 bg-gray-200 rounded w-32"></div>
-                      <div className="h-3 bg-gray-200 rounded w-20"></div>
+                      <div className="h-4 bg-muted rounded w-32"></div>
+                      <div className="h-3 bg-muted rounded w-20"></div>
                     </div>
-                    <div className="h-6 bg-gray-200 rounded w-20"></div>
+                    <div className="h-6 bg-muted rounded w-20"></div>
                   </div>
                 </CardContent>
               </Card>
@@ -303,8 +303,8 @@ export default function Lembretes() {
         ) : lembretes.length === 0 ? (
           <Card>
             <CardContent className="p-8 text-center">
-              <Calendar className="mx-auto h-12 w-12 text-gray-400 mb-4" />
-              <p className="text-gray-500 mb-4">Nenhum lembrete encontrado</p>
+              <Calendar className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
+              <p className="text-muted-foreground mb-4">Nenhum lembrete encontrado</p>
               <Button onClick={() => setDialogOpen(true)} className="bg-primary hover:bg-primary/90">
                 Adicionar primeiro lembrete
               </Button>
@@ -315,13 +315,13 @@ export default function Lembretes() {
             const dateStatus = lembrete.data ? getDateStatus(lembrete.data) : null
             return (
               <Card key={lembrete.id} className={`hover:shadow-md transition-shadow ${
-                lembrete.data && isOverdue(lembrete.data) ? 'border-red-200 bg-red-50' : ''
+                lembrete.data && isOverdue(lembrete.data) ? 'border-destructive/50 bg-destructive/5 dark:border-destructive/30 dark:bg-destructive/10' : ''
               }`}>
                 <CardContent className="p-6">
                   <div className="flex items-center justify-between">
                     <div className="flex-1">
                       <div className="flex items-center gap-3 mb-2">
-                        <Calendar className="h-5 w-5 text-blue-600" />
+                        <Calendar className="h-5 w-5 text-primary" />
                         <h3 className="font-semibold">{lembrete.descricao}</h3>
                         {dateStatus && (
                           <Badge variant={dateStatus.variant}>
@@ -329,7 +329,7 @@ export default function Lembretes() {
                           </Badge>
                         )}
                       </div>
-                      <div className="text-sm text-gray-600 space-y-1">
+                      <div className="text-sm text-muted-foreground space-y-1">
                         {lembrete.data && (
                           <div className="flex items-center gap-2">
                             <Clock className="h-4 w-4" />
