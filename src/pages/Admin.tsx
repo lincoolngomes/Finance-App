@@ -37,6 +37,7 @@ interface User {
   cidade?: string
   estado?: string
   pais?: string
+  assinaturaId?: string
   role: 'admin' | 'user' | 'premium'
   subscription_status: 'free' | 'premium' | 'cancelled' | 'expired'
   created_at: string
@@ -161,6 +162,7 @@ export default function Admin() {
           cidade: userData.cidade,
           estado: userData.estado,
           pais: userData.pais,
+          assinaturaId: userData.assinaturaId,
           role: userData.role,
           subscription_status: userData.subscription_status,
           is_active: userData.is_active
@@ -612,6 +614,17 @@ export default function Admin() {
                     onChange={(e) => setSelectedUser({...selectedUser, pais: e.target.value})}
                     className="col-span-3"
                     placeholder="Brasil"
+                  />
+                </div>
+
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="assinaturaId" className="text-right font-medium">ID Assinatura</Label>
+                  <Input
+                    id="assinaturaId"
+                    value={selectedUser.assinaturaId || ''}
+                    onChange={(e) => setSelectedUser({...selectedUser, assinaturaId: e.target.value})}
+                    className="col-span-3"
+                    placeholder="sub_xxxxxxxxxxxxxxxxxx"
                   />
                 </div>
               </div>

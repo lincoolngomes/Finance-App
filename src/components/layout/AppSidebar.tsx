@@ -1,5 +1,5 @@
 import { NavLink, useLocation } from 'react-router-dom'
-import { Home, CreditCard, Calendar, User, LogOut, Tag, FileText, Shield } from 'lucide-react'
+import { Home, CreditCard, Calendar, User, LogOut, Tag, FileText, Shield, TestTube } from 'lucide-react'
 import {
   Sidebar,
   SidebarContent,
@@ -44,6 +44,11 @@ export function AppSidebar() {
   // Items apenas para admin
   const adminItems = [
     { title: 'Administração', url: '/admin', icon: Shield },
+  ]
+
+  // Items de desenvolvimento/teste
+  const devItems = [
+    { title: 'Teste Assinatura', url: '/teste', icon: TestTube },
   ]
   const isCollapsed = state === "collapsed"
 
@@ -118,6 +123,25 @@ export function AppSidebar() {
                       isActive(item.url)
                         ? 'bg-red-600 text-white hover:bg-red-700'
                         : 'hover:bg-red-50 dark:hover:bg-red-900/20 text-red-600 dark:text-red-400'
+                    }`}
+                  >
+                    <NavLink to={item.url} end>
+                      <item.icon className="h-4 w-4" />
+                      <span>{item.title}</span>
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+
+              {/* Menu Dev/Teste - só em desenvolvimento */}
+              {import.meta.env.DEV && devItems.map((item) => (
+                <SidebarMenuItem key={item.title}>
+                  <SidebarMenuButton
+                    asChild
+                    className={`${
+                      isActive(item.url)
+                        ? 'bg-purple-600 text-white hover:bg-purple-700'
+                        : 'hover:bg-purple-50 dark:hover:bg-purple-900/20 text-purple-600 dark:text-purple-400'
                     }`}
                   >
                     <NavLink to={item.url} end>

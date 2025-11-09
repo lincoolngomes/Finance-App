@@ -18,6 +18,7 @@ import Perfil from "./pages/Perfil";
 import NotFound from "./pages/NotFound";
 import Plano from "./pages/Plano";
 import Admin from "./pages/Admin";
+import Teste from "./pages/Teste";
 
 const queryClient = new QueryClient();
 
@@ -153,6 +154,14 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <Admin />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/teste"
+        element={
+          <ProtectedRoute>
+            <Teste />
           </ProtectedRoute>
         }
       />

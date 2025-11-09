@@ -8,6 +8,16 @@ export const N8N_CONFIG = {
   // URLs alternativas para fallback
   WEBHOOK_URL_BACKUP: 'https://finance-app-n8n-finance-app.rcnehy.easypanel.host/webhook/verifica-zap',
   
+  // URLs para informações de assinatura
+  SUBSCRIPTION_WEBHOOK_URL: import.meta.env.DEV
+    ? '/api/webhook-test/assinatura/info'
+    : 'https://finance-app-n8n-finance-app.rcnehy.easypanel.host/webhook-test/assinatura/info',
+  
+  // URL backup para assinatura
+  SUBSCRIPTION_WEBHOOK_URL_BACKUP: import.meta.env.DEV
+    ? '/api/webhook/assinatura/info'
+    : 'https://finance-app-n8n-finance-app.rcnehy.easypanel.host/webhook/assinatura/info',
+  
   // Token do Asaas para autenticação (usado no N8N)
   // CONFIGURE AQUI com seu token do Asaas
   ASAAS_TOKEN: 'SEU_TOKEN_ASAAS_AQUI',

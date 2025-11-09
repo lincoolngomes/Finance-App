@@ -1,133 +1,42 @@
 
-import { useState, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { Separator } from '@/components/ui/separator'
-import { supabase } from '@/lib/supabase'
-import { useAuth } from '@/hooks/useAuth'
-import { toast } from '@/hooks/use-toast'
+import { useSubscription } from '@/hooks/useSubscription'
+import { formatCurrency, formatDate, getCycleLabel, isSubscriptionActive } from '@/utils/subscription'
 import { CreditCard, Calendar, DollarSign, RefreshCw, Clock } from 'lucide-react'
 
-interface SubscriptionData {
-  id: string
-  dataAssinatura: string
-  valor: number
-  ciclo: string
-  status: string
-  proimoPagamento: string
-  creditCard: {
-    creditCardNumber: string
-    creditCardBrand: string
-    creditCardToken: string
-  }
-}
-
 export function SubscriptionInfo() {
-  const { user } = useAuth()
-  const [subscriptionData, setSubscriptionData] = useState<SubscriptionData | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [assinaturaId, setAssinaturaId] = useState<string | null>(null)
-
-  useEffect(() => {
-    if (user) {
-      fetchUserProfile()
-    }
-  }, [user])
-
-  useEffect(() => {
-    if (assinaturaId) {
-      fetchSubscriptionInfo()
-    }
-  }, [assinaturaId])
-
-  const fetchUserProfile = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('assinaturaId')
-        .eq('id', user?.id)
-        .single()
-
-      if (error) throw error
-      
-      if (data?.assinaturaId) {
-        setAssinaturaId(data.assinaturaId)
-      } else {
-        setLoading(false)
-      }
-    } catch (error: any) {
-      console.error('Erro ao buscar perfil:', error)
-      setLoading(false)
-    }
-  }
-
-  const fetchSubscriptionInfo = async () => {
-    try {
-      const response = await fetch('https://n8n.za9.com.br/webhook-test/assinatura/info', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-          'Authorization': 'Basic bmluZWxhYnM6bmluZWxhYnMxMjMxMjM='
-        },
-        body: new URLSearchParams({
-          subscription: assinaturaId!
-        })
-      })
-
-      if (!response.ok) {
-        throw new Error('Erro ao buscar informações da assinatura')
-      }
-
-      const data = await response.json()
-      setSubscriptionData(data)
-    } catch (error: any) {
-      console.error('Erro ao buscar assinatura:', error)
-      toast({
-        title: "Erro ao carregar assinatura",
-        description: error.message,
-        variant: "destructive",
-      })
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('pt-BR')
-  }
-
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('pt-BR', {
-      style: 'currency',
-      currency: 'BRL'
-    }).format(value)
-  }
-
-  const getCycleLabel = (cycle: string) => {
-    switch (cycle) {
-      case 'MONTHLY':
-        return 'Mensal'
-      case 'YEARLY':
-        return 'Anual'
-      case 'QUARTERLY':
-        return 'Trimestral'
-      default:
-        return cycle
-    }
-  }
+  const { 
+    subscriptionData, 
+    loading, 
+    error, 
+    hasSubscription, 
+    isActive,
+    refreshSubscription
+  } = useSubscription()
 
   const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'ACTIVE':
-        return <Badge className="bg-green-100 text-green-800 hover:bg-green-100">Ativo</Badge>
-      case 'INACTIVE':
-        return <Badge variant="secondary">Inativo</Badge>
-      case 'CANCELLED':
-        return <Badge variant="destructive">Cancelado</Badge>
-      case 'SUSPENDED':
-        return <Badge className="bg-yellow-100 text-yellow-800 hover:bg-yellow-100">Suspenso</Badge>
+    const isActiveStatus = isSubscriptionActive(status)
+    
+    if (isActiveStatus) {
+      return <Badge className="bg-green-500 text-white hover:bg-green-600 font-semibold">✓ Ativo</Badge>
+    }
+
+    switch (status.toLowerCase()) {
+      case 'inactive':
+        return <Badge className="bg-gray-100 text-gray-800 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-200">Inativo</Badge>
+      case 'cancelled':
+        return <Badge className="bg-red-500 text-white hover:bg-red-600">✗ Cancelado</Badge>
+      case 'suspended':
+        return <Badge className="bg-yellow-500 text-white hover:bg-yellow-600">⚠ Suspenso</Badge>
+      case 'overdue':
+        return <Badge className="bg-orange-500 text-white hover:bg-orange-600">⏰ Em Atraso</Badge>
+      case 'pending':
+        return <Badge className="bg-blue-500 text-white hover:bg-blue-600">⏳ Pendente</Badge>
       default:
-        return <Badge variant="outline">{status}</Badge>
+        return <Badge className="bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200">{status}</Badge>
     }
   }
 
@@ -142,53 +51,60 @@ export function SubscriptionInfo() {
   if (loading) {
     return (
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
           <CardTitle className="flex items-center gap-2">
             <CreditCard className="h-5 w-5" />
             Informações da Assinatura
           </CardTitle>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={refreshSubscription}
+            disabled={loading}
+          >
+            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+          </Button>
         </CardHeader>
         <CardContent>
           <div className="flex items-center justify-center py-8">
             <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground" />
-            <span className="ml-2 text-muted-foreground">Carregando...</span>
+            <span className="ml-2 text-muted-foreground">Carregando informações da assinatura...</span>
           </div>
         </CardContent>
       </Card>
     )
   }
 
-  if (!assinaturaId) {
+  if (!hasSubscription || error) {
     return (
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
           <CardTitle className="flex items-center gap-2">
             <CreditCard className="h-5 w-5" />
             Informações da Assinatura
           </CardTitle>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={refreshSubscription}
+            disabled={loading}
+          >
+            <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+          </Button>
         </CardHeader>
         <CardContent>
           <div className="text-center py-8">
             <CreditCard className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-            <p className="text-muted-foreground">Você não possui uma assinatura ativa</p>
-          </div>
-        </CardContent>
-      </Card>
-    )
-  }
-
-  if (!subscriptionData) {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <CreditCard className="h-5 w-5" />
-            Informações da Assinatura
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="text-center py-8">
-            <p className="text-destructive">Erro ao carregar informações da assinatura</p>
+            <h3 className="text-lg font-medium mb-2">
+              {error ? 'Erro ao carregar assinatura' : 'Assinatura não encontrada'}
+            </h3>
+            <p className="text-muted-foreground mb-4">
+              {error || 'Não foi possível localizar sua assinatura. Entre em contato com o suporte se você possui uma assinatura ativa.'}
+            </p>
+            <Button onClick={refreshSubscription} variant="outline">
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Tentar Novamente
+            </Button>
           </div>
         </CardContent>
       </Card>
@@ -197,60 +113,93 @@ export function SubscriptionInfo() {
 
   return (
     <Card>
-      <CardHeader>
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
         <CardTitle className="flex items-center gap-2">
           <CreditCard className="h-5 w-5" />
           Informações da Assinatura
         </CardTitle>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={refreshSubscription}
+          disabled={loading}
+        >
+          <RefreshCw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+        </Button>
       </CardHeader>
       <CardContent className="space-y-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="space-y-4">
+        {/* Status Overview */}
+        <div className={`p-6 rounded-xl ${isActive ? 'bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200' : 'bg-gradient-to-r from-red-50 to-rose-50 border border-red-200'}`}>
+          <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-3">
-              <Calendar className="h-5 w-5 text-muted-foreground" />
+              <div className={`h-4 w-4 rounded-full ${isActive ? 'bg-green-500 shadow-green-200 shadow-lg' : 'bg-red-500 shadow-red-200 shadow-lg'}`}></div>
               <div>
-                <p className="text-sm text-muted-foreground">Data da Assinatura</p>
-                <p className="font-medium">{formatDate(subscriptionData.dataAssinatura)}</p>
+                <p className="text-xl font-semibold">
+                  {isActive ? 'Plano Ativo' : 'Plano Inativo'}
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  {subscriptionData && `${formatCurrency(subscriptionData.valor)} • Cobrança ${getCycleLabel(subscriptionData?.ciclo || '').toLowerCase()}`}
+                </p>
               </div>
             </div>
+            {getStatusBadge(subscriptionData?.status || '')}
+          </div>
+          
+          {/* Próximo pagamento destacado */}
+          {subscriptionData?.proximoPagamento && isActive && (
+            <div className="bg-white/50 rounded-lg p-3 border border-green-100">
+              <div className="flex items-center gap-2">
+                <Clock className="h-4 w-4 text-green-600" />
+                <span className="text-sm font-medium text-green-800">
+                  Próxima cobrança em {formatDate(subscriptionData.proximoPagamento)}
+                </span>
+              </div>
+            </div>
+          )}
+        </div>
 
-            <div className="flex items-center gap-3">
-              <DollarSign className="h-5 w-5 text-muted-foreground" />
-              <div>
-                <p className="text-sm text-muted-foreground">Valor</p>
-                <p className="font-medium text-lg">{formatCurrency(subscriptionData.valor)}</p>
-              </div>
+        {/* Detalhes da Assinatura em Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          {/* Valor do Plano */}
+          <div className="bg-blue-50 dark:bg-blue-950/20 rounded-lg p-4 border border-blue-200 dark:border-blue-800">
+            <div className="flex items-center gap-2 mb-2">
+              <DollarSign className="h-4 w-4 text-blue-600" />
+              <span className="text-sm font-medium text-blue-800 dark:text-blue-400">Valor do Plano</span>
             </div>
-
-            <div className="flex items-center gap-3">
-              <Clock className="h-5 w-5 text-muted-foreground" />
-              <div>
-                <p className="text-sm text-muted-foreground">Próximo Pagamento</p>
-                <p className="font-medium">{formatDate(subscriptionData.proimoPagamento)}</p>
-              </div>
-            </div>
+            <p className="text-2xl font-bold text-blue-900 dark:text-blue-300">
+              {subscriptionData && formatCurrency(subscriptionData.valor)}
+            </p>
           </div>
 
-          <div className="space-y-4">
-            <div className="flex items-center gap-3">
-              <RefreshCw className="h-5 w-5 text-muted-foreground" />
-              <div>
-                <p className="text-sm text-muted-foreground">Ciclo</p>
-                <p className="font-medium">{getCycleLabel(subscriptionData.ciclo)}</p>
-              </div>
+          {/* Frequência */}
+          <div className="bg-purple-50 dark:bg-purple-950/20 rounded-lg p-4 border border-purple-200 dark:border-purple-800">
+            <div className="flex items-center gap-2 mb-2">
+              <RefreshCw className="h-4 w-4 text-purple-600" />
+              <span className="text-sm font-medium text-purple-800 dark:text-purple-400">Cobrança</span>
             </div>
+            <p className="text-lg font-semibold text-purple-900 dark:text-purple-300">
+              {subscriptionData && getCycleLabel(subscriptionData.ciclo)}
+            </p>
+          </div>
 
-            <div className="flex items-center gap-3">
-              <div className="h-5 w-5 flex items-center justify-center">
-                <div className="h-2 w-2 rounded-full bg-current"></div>
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Status</p>
-                <div className="mt-1">
-                  {getStatusBadge(subscriptionData.status)}
-                </div>
-              </div>
+          {/* Data de Início */}
+          <div className="bg-orange-50 dark:bg-orange-950/20 rounded-lg p-4 border border-orange-200 dark:border-orange-800">
+            <div className="flex items-center gap-2 mb-2">
+              <Calendar className="h-4 w-4 text-orange-600" />
+              <span className="text-sm font-medium text-orange-800 dark:text-orange-400">Início</span>
             </div>
+            <p className="text-lg font-semibold text-orange-900 dark:text-orange-300">
+              {subscriptionData && formatDate(subscriptionData.dataAssinatura)}
+            </p>
+          </div>
+
+          {/* Status */}
+          <div className={`rounded-lg p-4 border ${isActive ? 'bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-800' : 'bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-800'}`}>
+            <div className="flex items-center gap-2 mb-2">
+              <div className={`h-3 w-3 rounded-full ${isActive ? 'bg-green-500' : 'bg-red-500'}`}></div>
+              <span className={`text-sm font-medium ${isActive ? 'text-green-800 dark:text-green-400' : 'text-red-800 dark:text-red-400'}`}>Status</span>
+            </div>
+            {subscriptionData && getStatusBadge(subscriptionData.status)}
           </div>
         </div>
 
@@ -261,23 +210,29 @@ export function SubscriptionInfo() {
             <CreditCard className="h-4 w-4" />
             Método de Pagamento
           </h4>
-          <div className="bg-muted/50 rounded-lg p-4">
-            <div className="flex items-center gap-3">
-              <span className="text-lg">{getBrandIcon(subscriptionData.creditCard.creditCardBrand)}</span>
-              <div>
-                <p className="font-medium">
-                  {subscriptionData.creditCard.creditCardBrand} •••• {subscriptionData.creditCard.creditCardNumber}
-                </p>
-                <p className="text-sm text-muted-foreground">
-                  Cartão terminado em {subscriptionData.creditCard.creditCardNumber}
-                </p>
+          {subscriptionData?.creditCard ? (
+            <div className="bg-muted/50 rounded-lg p-4">
+              <div className="flex items-center gap-3">
+                <span className="text-lg">{getBrandIcon(subscriptionData.creditCard.creditCardBrand)}</span>
+                <div>
+                  <p className="font-medium">
+                    {subscriptionData.creditCard.creditCardBrand} •••• {subscriptionData.creditCard.creditCardNumber}
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    Cartão terminado em {subscriptionData.creditCard.creditCardNumber}
+                  </p>
+                </div>
               </div>
             </div>
-          </div>
+          ) : (
+            <div className="bg-muted/50 rounded-lg p-4 text-center">
+              <p className="text-muted-foreground">Informações de pagamento não disponíveis</p>
+            </div>
+          )}
         </div>
 
         <div className="text-xs text-muted-foreground">
-          ID da Assinatura: {subscriptionData.id}
+          ID da Assinatura: {subscriptionData?.id}
         </div>
       </CardContent>
     </Card>
