@@ -40,7 +40,7 @@ export function AppLayout({ children, userName }: AppLayoutProps) {
           <header className="h-16 flex items-center justify-between px-6 bg-card border-b shadow-sm sticky top-0 z-40">
             <div className="flex items-center gap-4">
               <SidebarTrigger />
-              <h1 className="text-lg font-semibold title-color hidden sm:block">
+              <h1 className="text-sm sm:text-lg font-semibold title-color">
                 {getGreeting()}
               </h1>
             </div>

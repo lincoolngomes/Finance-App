@@ -64,11 +64,11 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
     return <Navigate to="/auth" replace />;
   }
 
-  const userName = userProfile?.nome || userProfile?.name || userProfile?.full_name || user?.email?.split('@')[0] || 'Lincoln Cesar Gomes';
-  console.log('Passando userName para AppLayout:', userName); // Debug
-  console.log('User data:', user); // Debug
-  console.log('UserProfile data:', userProfile); // Debug
-  return <AppLayout userName={userName}>{children}</AppLayout>;
+  const fullName = userProfile?.nome || userProfile?.name || userProfile?.full_name || user?.email?.split('@')[0] || 'Lincoln Cesar Gomes';
+  const firstName = fullName?.split(' ')[0] || 'Lincoln';
+  console.log('Nome completo:', fullName); // Debug
+  console.log('Primeiro nome:', firstName); // Debug
+  return <AppLayout userName={firstName}>{children}</AppLayout>;
 }
 
 function AppRoutes() {
