@@ -47,7 +47,9 @@ export async function fetchSubscriptionInfo(identifier: string): Promise<Subscri
   
   const urls = [
     N8N_CONFIG.SUBSCRIPTION_WEBHOOK_URL,
-    N8N_CONFIG.SUBSCRIPTION_WEBHOOK_URL_BACKUP
+    N8N_CONFIG.SUBSCRIPTION_WEBHOOK_URL_BACKUP,
+    // URL direta para teste
+    'https://finance-app-n8n-finance-app.rcnehy.easypanel.host/webhook-test/assinatura/info'
   ];
 
   for (const url of urls) {
@@ -88,7 +90,8 @@ export async function fetchSubscriptionInfo(identifier: string): Promise<Subscri
       }
 
       const responseText = await response.text();
-      console.log('📄 Resposta bruta:', responseText.substring(0, 200));
+      console.log('📄 Resposta bruta completa:', responseText);
+      console.log('📏 Tamanho da resposta:', responseText.length);
 
       if (!responseText || responseText.trim() === '') {
         console.log('⚠️ Resposta vazia, tentando próxima URL...');
@@ -116,7 +119,7 @@ export async function fetchSubscriptionInfo(identifier: string): Promise<Subscri
             valor: data.valor,
             ciclo: data.ciclo || 'MONTHLY',
             status: data.status || 'UNKNOWN',
-            proximoPagamento: data.proximoPagamento || data.proimoPagamento || '',
+            proximoPagamento: data.proimoPagamento || data.proximoPagamento || '', // Corrigido: N8N retorna proimoPagamento
             creditCard: {
               creditCardNumber: data.creditCard?.creditCardNumber || '****',
               creditCardBrand: data.creditCard?.creditCardBrand || 'Desconhecido',
