@@ -5,9 +5,27 @@ import { ThemeToggle } from '@/components/ui/theme-toggle'
 
 interface AppLayoutProps {
   children: React.ReactNode
+  userName?: string
 }
 
-export function AppLayout({ children }: AppLayoutProps) {
+export function AppLayout({ children, userName }: AppLayoutProps) {
+  const getGreeting = () => {
+    const hour = new Date().getHours()
+    let greeting = ''
+    
+    if (hour >= 5 && hour < 12) {
+      greeting = 'Bom dia'
+    } else if (hour >= 12 && hour < 18) {
+      greeting = 'Boa tarde'
+    } else {
+      greeting = 'Boa noite'
+    }
+    
+    if (userName) {
+      return `${greeting}, ${userName}!`
+    }
+    return `${greeting}!`
+  }
   return (
     <SidebarProvider>
       <div className="min-h-screen flex w-full bg-background">
@@ -17,7 +35,7 @@ export function AppLayout({ children }: AppLayoutProps) {
             <div className="flex items-center gap-4">
               <SidebarTrigger />
               <h1 className="text-lg font-semibold title-color hidden sm:block">
-                FinanceApp
+                {getGreeting()}
               </h1>
             </div>
             <ThemeToggle />

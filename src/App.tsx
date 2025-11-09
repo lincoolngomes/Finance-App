@@ -6,6 +6,8 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import { ThemeProvider } from "@/hooks/useTheme";
 import { AppLayout } from "@/components/layout/AppLayout";
+import { useState, useEffect } from "react";
+import { supabase } from "@/lib/supabase";
 import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
 import Transacoes from "./pages/Transacoes";
@@ -20,6 +22,29 @@ const queryClient = new QueryClient();
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
+  const [userProfile, setUserProfile] = useState<any>(null);
+
+  useEffect(() => {
+    if (!user) return;
+
+    const carregarPerfil = async () => {
+      try {
+        const { data: profile, error } = await supabase
+          .from('profiles')
+          .select('nome')
+          .eq('id', user.id)
+          .single();
+        
+        if (!error && profile) {
+          setUserProfile(profile);
+        }
+      } catch (error) {
+        console.error('Erro ao carregar perfil:', error);
+      }
+    };
+
+    carregarPerfil();
+  }, [user]);
 
   if (loading) {
     return (
@@ -36,7 +61,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
     return <Navigate to="/auth" replace />;
   }
 
-  return <AppLayout>{children}</AppLayout>;
+  return <AppLayout userName={userProfile?.nome}>{children}</AppLayout>;
 }
 
 function AppRoutes() {
