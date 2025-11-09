@@ -105,13 +105,14 @@ export function DashboardCharts({ transacoes }: DashboardChartsProps) {
                 </Pie>
                 <Tooltip 
                   formatter={(value) => [formatCurrency(Number(value)), 'Valor']}
-                  labelStyle={{ color: '#e2e8f0' }}
+                  labelStyle={{ color: '#ffffff', fontWeight: 'bold' }}
                   contentStyle={{ 
                     backgroundColor: 'rgba(15, 23, 42, 0.95)', 
                     border: '1px solid rgba(239, 68, 68, 0.3)',
                     borderRadius: '12px',
                     boxShadow: '0 8px 32px rgba(0, 0, 0, 0.3)',
-                    backdropFilter: 'blur(16px)'
+                    backdropFilter: 'blur(16px)',
+                    color: '#ffffff'
                   }}
                 />
               </PieChart>
@@ -226,11 +227,11 @@ export function DashboardCharts({ transacoes }: DashboardChartsProps) {
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-            <div className="relative overflow-hidden bg-gradient-to-br from-green-700 to-emerald-800 dark:from-green-500 dark:to-emerald-600 p-6 rounded-2xl shadow-lg">
+            <div className="relative overflow-hidden bg-gradient-to-br from-green-800 to-emerald-900 dark:from-green-500 dark:to-emerald-600 p-6 rounded-2xl shadow-lg">
               <div className="absolute top-0 right-0 w-20 h-20 bg-white/10 rounded-full -translate-y-10 translate-x-10 z-0"></div>
               <div className="relative z-30">
                 <div className="text-green-100 text-sm font-medium mb-1 z-40 relative">
-                  <span className="relative z-50 bg-black/20 px-2 py-1 rounded backdrop-blur-sm">💰 Receitas</span>
+                  <span className="relative z-50 bg-black/40 px-3 py-2 rounded-lg backdrop-blur-sm shadow-lg border border-white/10">💰 Receitas</span>
                 </div>
                 <div className="text-2xl font-bold text-white">
                   {formatCurrency(stats.totalReceitas)}
@@ -238,11 +239,11 @@ export function DashboardCharts({ transacoes }: DashboardChartsProps) {
               </div>
             </div>
             
-            <div className="relative overflow-hidden bg-gradient-to-br from-red-700 to-rose-800 dark:from-red-500 dark:to-rose-600 p-6 rounded-2xl shadow-lg">
+            <div className="relative overflow-hidden bg-gradient-to-br from-red-800 to-rose-900 dark:from-red-500 dark:to-rose-600 p-6 rounded-2xl shadow-lg">
               <div className="absolute top-0 right-0 w-20 h-20 bg-white/10 rounded-full -translate-y-10 translate-x-10 z-0"></div>
               <div className="relative z-30">
                 <div className="text-red-100 text-sm font-medium mb-1 z-40 relative">
-                  <span className="relative z-50 bg-black/20 px-2 py-1 rounded backdrop-blur-sm">💸 Despesas</span>
+                  <span className="relative z-50 bg-black/40 px-3 py-2 rounded-lg backdrop-blur-sm shadow-lg border border-white/10">💸 Despesas</span>
                 </div>
                 <div className="text-2xl font-bold text-white">
                   {formatCurrency(Math.abs(stats.totalDespesas))}
@@ -251,12 +252,12 @@ export function DashboardCharts({ transacoes }: DashboardChartsProps) {
             </div>
             
             <div className={`relative overflow-hidden ${stats.saldo >= 0 
-              ? 'bg-gradient-to-br from-blue-700 to-indigo-800 dark:from-blue-500 dark:to-indigo-600' 
-              : 'bg-gradient-to-br from-yellow-700 to-orange-800 dark:from-yellow-500 dark:to-orange-600'} p-6 rounded-2xl shadow-lg`}>
+              ? 'bg-gradient-to-br from-blue-800 to-indigo-900 dark:from-blue-500 dark:to-indigo-600' 
+              : 'bg-gradient-to-br from-yellow-800 to-orange-900 dark:from-yellow-500 dark:to-orange-600'} p-6 rounded-2xl shadow-lg`}>
               <div className="absolute top-0 right-0 w-20 h-20 bg-white/10 rounded-full -translate-y-10 translate-x-10 z-0"></div>
               <div className="relative z-30">
                 <div className={`${stats.saldo >= 0 ? 'text-blue-100' : 'text-yellow-100'} text-sm font-medium mb-1 z-40 relative`}>
-                  <span className="relative z-50 bg-black/20 px-2 py-1 rounded backdrop-blur-sm">
+                  <span className="relative z-50 bg-black/40 px-3 py-2 rounded-lg backdrop-blur-sm shadow-lg border border-white/10">
                     {stats.saldo >= 0 ? '📊 Saldo' : '⚠️ Déficit'}
                   </span>
                 </div>
@@ -266,11 +267,11 @@ export function DashboardCharts({ transacoes }: DashboardChartsProps) {
               </div>
             </div>
             
-            <div className="relative overflow-hidden bg-gradient-to-br from-purple-700 to-violet-800 dark:from-purple-500 dark:to-violet-600 p-6 rounded-2xl shadow-lg">
+            <div className="relative overflow-hidden bg-gradient-to-br from-purple-800 to-violet-900 dark:from-purple-500 dark:to-violet-600 p-6 rounded-2xl shadow-lg">
               <div className="absolute top-0 right-0 w-20 h-20 bg-white/10 rounded-full -translate-y-10 translate-x-10 z-0"></div>
               <div className="relative z-30">
                 <div className="text-purple-100 text-sm font-medium mb-1 z-40 relative">
-                  <span className="relative z-50 bg-black/20 px-2 py-1 rounded backdrop-blur-sm">🔄 Transações</span>
+                  <span className="relative z-50 bg-black/40 px-3 py-2 rounded-lg backdrop-blur-sm shadow-lg border border-white/10">🔄 Transações</span>
                 </div>
                 <div className="text-2xl font-bold text-white">
                   {stats.transacoesCount}
