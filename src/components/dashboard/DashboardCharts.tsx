@@ -226,20 +226,24 @@ export function DashboardCharts({ transacoes }: DashboardChartsProps) {
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-            <div className="relative overflow-hidden bg-gradient-to-br from-green-600 to-emerald-700 dark:from-green-500 dark:to-emerald-600 p-6 rounded-2xl shadow-lg">
-              <div className="absolute top-0 right-0 w-20 h-20 bg-white/10 rounded-full -translate-y-10 translate-x-10"></div>
-              <div className="relative z-10">
-                <div className="text-green-100 text-sm font-medium mb-1 relative z-20">💰 Receitas</div>
+            <div className="relative overflow-hidden bg-gradient-to-br from-green-700 to-emerald-800 dark:from-green-500 dark:to-emerald-600 p-6 rounded-2xl shadow-lg">
+              <div className="absolute top-0 right-0 w-20 h-20 bg-white/10 rounded-full -translate-y-10 translate-x-10 z-0"></div>
+              <div className="relative z-30">
+                <div className="text-green-100 text-sm font-medium mb-1 z-40 relative">
+                  <span className="relative z-50 bg-black/20 px-2 py-1 rounded backdrop-blur-sm">💰 Receitas</span>
+                </div>
                 <div className="text-2xl font-bold text-white">
                   {formatCurrency(stats.totalReceitas)}
                 </div>
               </div>
             </div>
             
-            <div className="relative overflow-hidden bg-gradient-to-br from-red-600 to-rose-700 dark:from-red-500 dark:to-rose-600 p-6 rounded-2xl shadow-lg">
-              <div className="absolute top-0 right-0 w-20 h-20 bg-white/10 rounded-full -translate-y-10 translate-x-10"></div>
-              <div className="relative z-10">
-                <div className="text-red-100 text-sm font-medium mb-1 relative z-20">💸 Despesas</div>
+            <div className="relative overflow-hidden bg-gradient-to-br from-red-700 to-rose-800 dark:from-red-500 dark:to-rose-600 p-6 rounded-2xl shadow-lg">
+              <div className="absolute top-0 right-0 w-20 h-20 bg-white/10 rounded-full -translate-y-10 translate-x-10 z-0"></div>
+              <div className="relative z-30">
+                <div className="text-red-100 text-sm font-medium mb-1 z-40 relative">
+                  <span className="relative z-50 bg-black/20 px-2 py-1 rounded backdrop-blur-sm">💸 Despesas</span>
+                </div>
                 <div className="text-2xl font-bold text-white">
                   {formatCurrency(Math.abs(stats.totalDespesas))}
                 </div>
@@ -247,12 +251,14 @@ export function DashboardCharts({ transacoes }: DashboardChartsProps) {
             </div>
             
             <div className={`relative overflow-hidden ${stats.saldo >= 0 
-              ? 'bg-gradient-to-br from-blue-600 to-indigo-700 dark:from-blue-500 dark:to-indigo-600' 
-              : 'bg-gradient-to-br from-yellow-600 to-orange-700 dark:from-yellow-500 dark:to-orange-600'} p-6 rounded-2xl shadow-lg`}>
-              <div className="absolute top-0 right-0 w-20 h-20 bg-white/10 rounded-full -translate-y-10 translate-x-10"></div>
-              <div className="relative z-10">
-                <div className={`${stats.saldo >= 0 ? 'text-blue-100' : 'text-yellow-100'} text-sm font-medium mb-1 relative z-20`}>
-                  {stats.saldo >= 0 ? '📊 Saldo' : '⚠️ Déficit'}
+              ? 'bg-gradient-to-br from-blue-700 to-indigo-800 dark:from-blue-500 dark:to-indigo-600' 
+              : 'bg-gradient-to-br from-yellow-700 to-orange-800 dark:from-yellow-500 dark:to-orange-600'} p-6 rounded-2xl shadow-lg`}>
+              <div className="absolute top-0 right-0 w-20 h-20 bg-white/10 rounded-full -translate-y-10 translate-x-10 z-0"></div>
+              <div className="relative z-30">
+                <div className={`${stats.saldo >= 0 ? 'text-blue-100' : 'text-yellow-100'} text-sm font-medium mb-1 z-40 relative`}>
+                  <span className="relative z-50 bg-black/20 px-2 py-1 rounded backdrop-blur-sm">
+                    {stats.saldo >= 0 ? '📊 Saldo' : '⚠️ Déficit'}
+                  </span>
                 </div>
                 <div className="text-2xl font-bold text-white">
                   {formatCurrency(stats.saldo)}
@@ -260,10 +266,12 @@ export function DashboardCharts({ transacoes }: DashboardChartsProps) {
               </div>
             </div>
             
-            <div className="relative overflow-hidden bg-gradient-to-br from-purple-600 to-violet-700 dark:from-purple-500 dark:to-violet-600 p-6 rounded-2xl shadow-lg">
-              <div className="absolute top-0 right-0 w-20 h-20 bg-white/10 rounded-full -translate-y-10 translate-x-10"></div>
-              <div className="relative z-10">
-                <div className="text-purple-100 text-sm font-medium mb-1 relative z-20">🔄 Transações</div>
+            <div className="relative overflow-hidden bg-gradient-to-br from-purple-700 to-violet-800 dark:from-purple-500 dark:to-violet-600 p-6 rounded-2xl shadow-lg">
+              <div className="absolute top-0 right-0 w-20 h-20 bg-white/10 rounded-full -translate-y-10 translate-x-10 z-0"></div>
+              <div className="relative z-30">
+                <div className="text-purple-100 text-sm font-medium mb-1 z-40 relative">
+                  <span className="relative z-50 bg-black/20 px-2 py-1 rounded backdrop-blur-sm">🔄 Transações</span>
+                </div>
                 <div className="text-2xl font-bold text-white">
                   {stats.transacoesCount}
                 </div>
