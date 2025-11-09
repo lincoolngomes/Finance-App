@@ -55,7 +55,7 @@ export default function Auth() {
           <div>
             <img 
               src={getLogoSrc()} 
-              alt="FinanceFlow" 
+              alt="FinanceApp" 
               className="h-8 w-auto"
             />
           </div>

@@ -61,7 +61,7 @@ export default function Plano() {
           <div>
             <img 
               src={getLogoSrc()} 
-              alt="FinanceFlow" 
+              alt="FinanceApp" 
               className="h-8 w-auto"
             />
           </div>
