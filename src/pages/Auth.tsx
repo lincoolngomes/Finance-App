@@ -21,7 +21,7 @@ export default function Auth() {
     if (theme === 'dark') {
       return '/lovable-uploads/finance-logo-white.png' // logo branco para tema escuro
     }
-    return '/lovable-uploads/finance-logo-dark.png' // logo escuro para tema claro
+    return '/lovable-uploads/finance-logo-full.png' // logo completo para tema claro
   }
 
   return (

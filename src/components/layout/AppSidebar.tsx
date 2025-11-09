@@ -55,14 +55,14 @@ export function AppSidebar() {
     if (theme === 'dark') {
       return '/lovable-uploads/finance-logo-white.png' // logo branco para tema escuro
     }
-    return '/lovable-uploads/finance-logo-dark.png' // logo escuro para tema claro
+    return '/lovable-uploads/finance-logo-full.png' // logo completo para tema claro
   }
 
   const getIconSrc = () => {
     if (theme === 'dark') {
       return '/lovable-uploads/finance-logo-white.png' // ícone branco para tema escuro
     }
-    return '/lovable-uploads/finance-logo-dark.png' // ícone escuro para tema claro
+    return '/lovable-uploads/finance-logo-full.png' // ícone completo para tema claro
   }
 
   return (
