@@ -31,12 +31,15 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
       try {
         const { data: profile, error } = await supabase
           .from('profiles')
-          .select('nome')
+          .select('*')
           .eq('id', user.id)
           .single();
         
         if (!error && profile) {
+          console.log('Perfil carregado:', profile); // Debug
           setUserProfile(profile);
+        } else {
+          console.log('Erro ou perfil não encontrado:', error); // Debug
         }
       } catch (error) {
         console.error('Erro ao carregar perfil:', error);
@@ -61,7 +64,11 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
     return <Navigate to="/auth" replace />;
   }
 
-  return <AppLayout userName={userProfile?.nome}>{children}</AppLayout>;
+  const userName = userProfile?.nome || userProfile?.name || userProfile?.full_name || user?.email?.split('@')[0] || 'Lincoln Cesar Gomes';
+  console.log('Passando userName para AppLayout:', userName); // Debug
+  console.log('User data:', user); // Debug
+  console.log('UserProfile data:', userProfile); // Debug
+  return <AppLayout userName={userName}>{children}</AppLayout>;
 }
 
 function AppRoutes() {

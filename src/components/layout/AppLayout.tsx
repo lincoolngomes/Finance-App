@@ -12,19 +12,25 @@ export function AppLayout({ children, userName }: AppLayoutProps) {
   const getGreeting = () => {
     const hour = new Date().getHours()
     let greeting = ''
+    let emoji = ''
     
     if (hour >= 5 && hour < 12) {
       greeting = 'Bom dia'
+      emoji = '🌅'
     } else if (hour >= 12 && hour < 18) {
       greeting = 'Boa tarde'
+      emoji = '☀️'
     } else {
       greeting = 'Boa noite'
+      emoji = '🌙'
     }
     
+    console.log('userName recebido:', userName) // Debug
+    
     if (userName) {
-      return `${greeting}, ${userName}!`
+      return `${emoji} ${greeting}, ${userName}!`
     }
-    return `${greeting}!`
+    return `${emoji} ${greeting}!`
   }
   return (
     <SidebarProvider>
