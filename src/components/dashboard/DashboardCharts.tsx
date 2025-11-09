@@ -68,12 +68,12 @@ export function DashboardCharts({ transacoes }: DashboardChartsProps) {
 
   return (
     <div className="grid gap-6 md:grid-cols-2">
-      <Card className="shadow-lg border-0 bg-gradient-to-br from-white to-gray-50 dark:from-gray-900 dark:to-gray-800">
+      <Card className="shadow-lg border border-indigo-500/20 bg-gradient-to-br from-indigo-950/50 to-purple-950/50 backdrop-blur-sm">
         <CardHeader className="pb-4">
-          <CardTitle className="text-xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
+          <CardTitle className="text-xl font-bold bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent">
             💰 Gastos por Categoria
           </CardTitle>
-          <CardDescription className="text-sm text-muted-foreground">
+          <CardDescription className="text-sm text-indigo-300/70">
             Distribuição dos seus gastos no período selecionado
           </CardDescription>
         </CardHeader>
@@ -104,12 +104,13 @@ export function DashboardCharts({ transacoes }: DashboardChartsProps) {
                 </Pie>
                 <Tooltip 
                   formatter={(value) => [formatCurrency(Number(value)), 'Valor']}
-                  labelStyle={{ color: '#374151' }}
+                  labelStyle={{ color: '#e2e8f0' }}
                   contentStyle={{ 
-                    backgroundColor: 'rgba(255, 255, 255, 0.95)', 
-                    border: 'none',
-                    borderRadius: '8px',
-                    boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)'
+                    backgroundColor: 'rgba(15, 23, 42, 0.95)', 
+                    border: '1px solid rgba(99, 102, 241, 0.3)',
+                    borderRadius: '12px',
+                    boxShadow: '0 8px 32px rgba(0, 0, 0, 0.3)',
+                    backdropFilter: 'blur(16px)'
                   }}
                 />
               </PieChart>
@@ -120,10 +121,10 @@ export function DashboardCharts({ transacoes }: DashboardChartsProps) {
               {categoriesData.slice(0, 4).map((entry, index) => (
                 <div key={entry.name} className="flex items-center gap-2">
                   <div 
-                    className="w-3 h-3 rounded-full" 
+                    className="w-3 h-3 rounded-full shadow-lg" 
                     style={{ backgroundColor: COLORS[index % COLORS.length] }}
                   />
-                  <span className="text-muted-foreground truncate max-w-[100px]">
+                  <span className="text-slate-300 font-medium truncate max-w-[100px]">
                     {entry.name}
                   </span>
                 </div>
@@ -133,12 +134,12 @@ export function DashboardCharts({ transacoes }: DashboardChartsProps) {
         </CardContent>
       </Card>
 
-      <Card className="shadow-lg border-0 bg-gradient-to-br from-white to-gray-50 dark:from-gray-900 dark:to-gray-800">
+      <Card className="shadow-lg border border-emerald-500/20 bg-gradient-to-br from-emerald-950/50 to-red-950/50 backdrop-blur-sm">
         <CardHeader className="pb-4">
-          <CardTitle className="text-xl font-bold bg-gradient-to-r from-green-600 to-red-600 bg-clip-text text-transparent">
+          <CardTitle className="text-xl font-bold bg-gradient-to-r from-emerald-400 to-red-400 bg-clip-text text-transparent">
             📊 Receitas vs Despesas
           </CardTitle>
-          <CardDescription className="text-sm text-muted-foreground">
+          <CardDescription className="text-sm text-emerald-300/70">
             Comparação entre receitas e despesas do período
           </CardDescription>
         </CardHeader>
@@ -152,31 +153,31 @@ export function DashboardCharts({ transacoes }: DashboardChartsProps) {
               >
                 <CartesianGrid 
                   strokeDasharray="3 3" 
-                  stroke="rgba(156, 163, 175, 0.2)"
+                  stroke="rgba(34, 197, 94, 0.2)"
                   horizontal={true}
                   vertical={false}
                 />
                 <XAxis 
                   dataKey="name" 
-                  tick={{ fontSize: 14, fontWeight: 500 }}
+                  tick={{ fontSize: 14, fontWeight: 500, fill: '#e2e8f0' }}
                   tickLine={false}
                   axisLine={false}
                 />
                 <YAxis 
                   tickFormatter={(value) => formatCurrency(value).replace('R$', 'R$')}
-                  tick={{ fontSize: 12 }}
+                  tick={{ fontSize: 12, fill: '#cbd5e1' }}
                   tickLine={false}
                   axisLine={false}
                 />
                 <Tooltip 
                   formatter={(value, name) => [formatCurrency(Number(value)), name]}
-                  labelStyle={{ color: '#374151', fontWeight: 'bold' }}
+                  labelStyle={{ color: '#e2e8f0', fontWeight: 'bold' }}
                   contentStyle={{ 
-                    backgroundColor: 'rgba(255, 255, 255, 0.95)', 
-                    border: 'none',
+                    backgroundColor: 'rgba(15, 23, 42, 0.95)', 
+                    border: '1px solid rgba(34, 197, 94, 0.3)',
                     borderRadius: '12px',
-                    boxShadow: '0 8px 32px rgba(0, 0, 0, 0.1)',
-                    backdropFilter: 'blur(8px)'
+                    boxShadow: '0 8px 32px rgba(0, 0, 0, 0.3)',
+                    backdropFilter: 'blur(16px)'
                   }}
                 />
                 <Bar 
@@ -212,12 +213,12 @@ export function DashboardCharts({ transacoes }: DashboardChartsProps) {
         </CardContent>
       </Card>
 
-      <Card className="md:col-span-2 shadow-lg border-0 bg-gradient-to-br from-white to-gray-50 dark:from-gray-900 dark:to-gray-800">
+      <Card className="md:col-span-2 shadow-lg border border-blue-500/20 bg-gradient-to-br from-blue-950/50 to-slate-950/50 backdrop-blur-sm">
         <CardHeader className="pb-6">
-          <CardTitle className="text-xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+          <CardTitle className="text-xl font-bold bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent">
             📈 Resumo do Período
           </CardTitle>
-          <CardDescription className="text-sm text-muted-foreground">
+          <CardDescription className="text-sm text-blue-300/70">
             Estatísticas detalhadas do período selecionado
           </CardDescription>
         </CardHeader>
