@@ -68,12 +68,12 @@ export function DashboardCharts({ transacoes }: DashboardChartsProps) {
 
   return (
     <div className="grid gap-6 md:grid-cols-2">
-      <Card className="shadow-lg border border-slate-500/20 bg-gradient-to-br from-slate-900/80 to-slate-800/60 backdrop-blur-sm">
+      <Card className="shadow-lg border border-red-500/20 bg-gradient-to-br from-red-950/50 to-rose-950/50 backdrop-blur-sm">
         <CardHeader className="pb-4">
-          <CardTitle className="text-xl font-bold bg-gradient-to-r from-slate-300 to-slate-100 bg-clip-text text-transparent">
+          <CardTitle className="text-xl font-bold bg-gradient-to-r from-red-400 to-rose-400 bg-clip-text text-transparent">
             💰 Gastos por Categoria
           </CardTitle>
-          <CardDescription className="text-sm text-slate-400">
+          <CardDescription className="text-sm text-red-300/70">
             Distribuição dos seus gastos no período selecionado
           </CardDescription>
         </CardHeader>
@@ -107,7 +107,7 @@ export function DashboardCharts({ transacoes }: DashboardChartsProps) {
                   labelStyle={{ color: '#e2e8f0' }}
                   contentStyle={{ 
                     backgroundColor: 'rgba(15, 23, 42, 0.95)', 
-                    border: '1px solid rgba(148, 163, 184, 0.3)',
+                    border: '1px solid rgba(239, 68, 68, 0.3)',
                     borderRadius: '12px',
                     boxShadow: '0 8px 32px rgba(0, 0, 0, 0.3)',
                     backdropFilter: 'blur(16px)'
