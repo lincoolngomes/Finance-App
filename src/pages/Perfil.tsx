@@ -10,7 +10,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { ChangePasswordForm } from '@/components/profile/ChangePasswordForm'
 import { SubscriptionInfo } from '@/components/profile/SubscriptionInfo'
-import { supabase } from '@/lib/supabase'
+import { supabase } from '@/integrations/supabase/client'
 import { useAuth } from '@/hooks/useAuth'
 import { toast } from '@/hooks/use-toast'
 import { Camera, User, Trash2, Settings, CreditCard, Shield } from 'lucide-react'
@@ -124,6 +124,36 @@ export default function Perfil() {
     }
   }
 
+  // Função de teste para debug
+  const testSupabaseConnection = async () => {
+    console.log('🧪 Testando conexão Supabase...')
+    
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .limit(1)
+      
+      console.log('✅ Conexão Supabase OK:', { data, error })
+      
+      if (user) {
+        const { data: userProfile, error: userError } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', user.id)
+          .single()
+        
+        console.log('👤 Perfil do usuário atual:', { userProfile, userError })
+      }
+      
+    } catch (err) {
+      console.error('❌ Erro na conexão Supabase:', err)
+    }
+  }
+
+  // Expor função de teste globalmente para debug
+  ;(window as any).testSupabaseConnection = testSupabaseConnection
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setSaving(true)
@@ -145,60 +175,140 @@ export default function Perfil() {
           fullPhone = currentCountryCode + cleanNumber
         }
         
-        // Sempre validar o WhatsApp para garantir que o sufixo esteja correto
+        // Tentar validar o WhatsApp para garantir que o sufixo esteja correto
         console.log('Validando WhatsApp para número:', fullPhone)
         console.log('Número limpo para validação:', fullPhone.replace('+', ''))
         
         try {
           const whatsappValidation = await validateWhatsAppNumber(fullPhone.replace('+', ''))
           
-          if (!whatsappValidation.exists) {
+          if (whatsappValidation.exists) {
+            whatsappId = whatsappValidation.whatsappId
+            console.log('WhatsApp ID obtido:', whatsappId)
+          } else {
+            // Se WhatsApp não existe, criar ID genérico com sufixo
+            whatsappId = fullPhone.replace('+', '') + '@s.whatsapp.net'
+            console.log('WhatsApp não encontrado, usando ID genérico:', whatsappId)
+            
             toast({
-              title: "Erro",
-              description: "Este número não possui WhatsApp ativo",
-              variant: "destructive",
+              title: "Aviso",
+              description: "Número salvo, mas não foi possível validar WhatsApp. Você pode tentar novamente mais tarde.",
+              variant: "default",
             })
-            setSaving(false)
-            return
           }
-          
-          whatsappId = whatsappValidation.whatsappId
-          console.log('WhatsApp ID obtido:', whatsappId)
         } catch (error: any) {
+          // Se a validação falhar, criar ID genérico com sufixo
+          whatsappId = fullPhone.replace('+', '') + '@s.whatsapp.net'
+          console.log('Erro na validação WhatsApp, usando ID genérico:', whatsappId)
+          console.error('Erro na validação:', error)
+          
           toast({
-            title: "Erro na validação do WhatsApp",
-            description: error.message,
-            variant: "destructive",
+            title: "Aviso", 
+            description: "Número salvo, mas houve problema na validação WhatsApp. Você pode tentar validar novamente mais tarde.",
+            variant: "default",
           })
-          setSaving(false)
-          return
         }
+      } else {
+        // Se não há número de telefone, limpar o WhatsApp ID
+        whatsappId = undefined
       }
 
       console.log('Saving profile with phone:', fullPhone)
       console.log('Saving profile with whatsapp:', whatsappId)
+      console.log('User ID:', user?.id)
 
-      const { error } = await supabase
+      const updateData = {
+        id: user?.id,
+        nome: profile.nome,
+        phone: fullPhone,
+        whatsapp: whatsappId,
+        avatar_url: profile.avatar_url,
+        updated_at: new Date().toISOString(),
+      }
+      
+      console.log('Dados para atualização:', updateData)
+
+      // Primeiro tentar verificar se o perfil existe
+      const { data: existingProfile } = await supabase
         .from('profiles')
-        .upsert({
-          id: user?.id,
-          nome: profile.nome,
-          phone: fullPhone,
-          whatsapp: whatsappId,
-          avatar_url: profile.avatar_url,
-          updated_at: new Date().toISOString(),
-        })
+        .select('id')
+        .eq('id', user?.id)
+        .single()
+      
+      console.log('Perfil existente:', existingProfile)
+      
+      let data, error
+      
+      if (existingProfile) {
+        // Perfil existe, fazer UPDATE
+        console.log('Fazendo UPDATE do perfil existente...')
+        const result = await supabase
+          .from('profiles')
+          .update({
+            nome: updateData.nome,
+            phone: updateData.phone,
+            whatsapp: updateData.whatsapp,
+            avatar_url: updateData.avatar_url,
+            updated_at: updateData.updated_at,
+          })
+          .eq('id', user?.id)
+          .select()
+        
+        data = result.data
+        error = result.error
+      } else {
+        // Perfil não existe, fazer INSERT
+        console.log('Fazendo INSERT de novo perfil...')
+        const result = await supabase
+          .from('profiles')
+          .insert(updateData)
+          .select()
+        
+        data = result.data
+        error = result.error
+      }
 
-      if (error) throw error
+      console.log('Resposta do Supabase - data:', data)
+      console.log('Resposta do Supabase - error:', error)
+
+      if (error) {
+        console.error('Erro detalhado do Supabase:', error)
+        console.error('Código do erro:', error.code)
+        console.error('Mensagem do erro:', error.message)
+        console.error('Detalhes do erro:', error.details)
+        throw error
+      }
+      
+      console.log('✅ Perfil salvo com sucesso no Supabase!')
       
       // Update local state
       setProfile(prev => ({ ...prev, phone: fullPhone, whatsapp: whatsappId }))
       
-      toast({ title: "Perfil atualizado com sucesso!" })
+      toast({ 
+        title: "Perfil atualizado com sucesso!",
+        description: `Telefone: ${fullPhone} | WhatsApp: ${whatsappId}`
+      })
     } catch (error: any) {
+      console.error('❌ Erro completo ao atualizar perfil:', error)
+      
+      // Detectar tipo de erro específico
+      let errorMessage = error.message || 'Erro desconhecido'
+      let errorDetails = ''
+      
+      if (error.code === 'PGRST301') {
+        errorMessage = 'Problema de permissão no banco de dados'
+        errorDetails = 'Verifique se as políticas RLS estão configuradas corretamente'
+      } else if (error.message?.includes('row-level security')) {
+        errorMessage = 'Problema de segurança no banco de dados'
+        errorDetails = 'Execute a migração SQL para corrigir as políticas RLS'
+      } else if (error.message?.includes('network')) {
+        errorMessage = 'Problema de conexão'
+        errorDetails = 'Verifique sua conexão com a internet'
+      }
+      
       toast({
         title: "Erro ao atualizar perfil",
-        description: error.message,
+        description: `${errorMessage}. ${errorDetails}`,
         variant: "destructive",
       })
     } finally {
