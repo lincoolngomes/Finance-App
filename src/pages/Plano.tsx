@@ -1,5 +1,6 @@
 
 import { Button } from '@/components/ui/button'
+import { Card, CardContent } from '@/components/ui/card'
 import { ThemeToggle } from '@/components/ui/theme-toggle'
 import { useTheme } from '@/hooks/useTheme'
 import { Check } from 'lucide-react'
@@ -11,8 +12,10 @@ export default function Plano() {
 
   // Determine which logo to use based on theme
   const getLogoSrc = () => {
-    // Usar o mesmo logo para todos os temas
-    return '/lovable-uploads/finance-logo-full.png' // novo logo FinanceApp
+    if (theme === 'dark') {
+      return '/lovable-uploads/finance-logo-white.png' // logo branco para tema escuro
+    }
+    return '/lovable-uploads/finance-logo-dark.png' // logo escuro para tema claro
   }
 
   const handleSubscribe = () => {
@@ -30,9 +33,9 @@ export default function Plano() {
   ]
 
   return (
-    <div className="h-screen flex bg-background p-6">
-      {/* Left side - Image */}
-      <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden rounded-3xl">
+    <div className="min-h-screen bg-background flex">
+      {/* Left side - Image (Desktop only) */}
+      <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden">
         <img
           src="/lovable-uploads/7a9a766e-0b47-43d5-9605-b2ec2dcd0803.png"
           alt="Finance Management"
@@ -40,65 +43,62 @@ export default function Plano() {
         />
         <div className="absolute inset-0 bg-primary/20" />
         <div className="absolute bottom-8 left-8 text-white">
-          <div className="flex items-center gap-3 mb-4">
-            <h2 className="text-3xl font-bold text-white">Agora ficou fácil!</h2>
-          </div>
+          <h2 className="text-3xl font-bold text-white mb-4">Agora ficou fácil!</h2>
           <p className="text-lg opacity-90">
             Gerencie suas finanças de forma simples e inteligente
           </p>
         </div>
       </div>
 
-      {/* Right side - Plan Info */}
-      <div className="w-full lg:w-1/2 flex items-center justify-center p-8 relative">
-        {/* Header with Logo and Theme Toggle */}
-        <div className="absolute top-4 left-4 right-4 flex justify-end items-center">
-          {/* Theme Toggle */}
-          <ThemeToggle />
-        </div>
-
-        <div className="grid w-full min-w-[480px] mt-16 justify-center gap-4">
-          <div>
-            <img 
-              src={getLogoSrc()} 
-              alt="FinanceApp" 
-              className="h-8 w-auto"
+      {/* Right side - Content */}
+      <div className="w-full lg:w-1/2 flex items-center justify-center p-4 lg:p-8">
+        <div className="w-full max-w-md">
+          {/* Logo */}
+          <div className="text-center mb-8">
+            <img
+              src={getLogoSrc()}
+              alt="FinanceApp Logo"
+              className="h-12 lg:h-16 mx-auto mb-6"
             />
           </div>
-          
-          <div className="w-full lg:min-w-[470px] mx-auto">
-            <div className="text-start py-8">
-              <h1 className="text-2xl font-bold text-slate-800 mb-2 dark:text-slate-300">
-                Plano Agente Financeiro – R$29,99/mês
-              </h1>
-              <p className="text-lg text-muted-foreground mb-8">
-                Organize suas finanças de forma simples e inteligente!
-              </p>
+
+          {/* Content Card */}
+          <Card className="shadow-xl">
+            <CardContent className="p-6 lg:p-8">
+              {/* Header */}
+              <div className="text-center mb-6">
+                <h1 className="text-xl lg:text-2xl font-bold text-foreground mb-2">
+                  R$29,99/mês
+                </h1>
+                <p className="text-sm lg:text-base text-muted-foreground">
+                  Organize suas finanças de forma simples e inteligente!
+                </p>
+              </div>
 
               {/* Benefits List */}
-              <div className="space-y-4 mb-8">
+              <div className="space-y-3 mb-6">
                 {benefits.map((benefit, index) => (
                   <div key={index} className="flex items-start gap-3">
-                    <div className="bg-primary rounded-full p-1 mt-0.5">
+                    <div className="bg-primary rounded-full p-1 mt-1 flex-shrink-0">
                       <Check className="h-3 w-3 text-white" />
                     </div>
-                    <p className="text-base text-foreground">{benefit}</p>
+                    <p className="text-sm lg:text-base text-foreground leading-relaxed">{benefit}</p>
                   </div>
                 ))}
               </div>
 
               {/* Impact Message */}
-              <div className="bg-primary/10 rounded-lg p-4 mb-8">
-                <p className="text-lg font-semibold text-primary text-center">
+              <div className="bg-primary/10 rounded-lg p-4 mb-6">
+                <p className="text-sm lg:text-base font-semibold text-primary text-center">
                   Invista no controle da sua vida financeira por menos de R$1 por dia!
                 </p>
               </div>
 
               {/* Action Buttons */}
-              <div className="space-y-4">
+              <div className="space-y-3">
                 <Button
                   onClick={handleSubscribe}
-                  className="w-full h-11 bg-primary hover:bg-primary/90 text-lg font-semibold"
+                  className="w-full h-12 lg:h-11 bg-primary hover:bg-primary/90 text-base font-semibold"
                 >
                   Assinar agora
                 </Button>
@@ -106,13 +106,13 @@ export default function Plano() {
                 <Button
                   variant="outline"
                   onClick={handleBackToLogin}
-                  className="w-full h-11 border-primary text-primary hover:bg-primary hover:text-primary-foreground"
+                  className="w-full h-12 lg:h-11 border-primary text-primary hover:bg-primary hover:text-primary-foreground"
                 >
                   Voltar ao login
                 </Button>
               </div>
-            </div>
-          </div>
+            </CardContent>
+          </Card>
         </div>
       </div>
     </div>

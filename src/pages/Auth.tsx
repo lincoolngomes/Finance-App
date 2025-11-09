@@ -18,8 +18,10 @@ export default function Auth() {
 
   // Determine which logo to use based on theme
   const getLogoSrc = () => {
-    // Usar o mesmo logo para todos os temas
-    return '/lovable-uploads/finance-logo-full.png' // novo logo FinanceApp
+    if (theme === 'dark') {
+      return '/lovable-uploads/finance-logo-white.png' // logo branco para tema escuro
+    }
+    return '/lovable-uploads/finance-logo-dark.png' // logo escuro para tema claro
   }
 
   return (
@@ -56,7 +58,7 @@ export default function Auth() {
             <img 
               src={getLogoSrc()} 
               alt="FinanceApp" 
-              className="h-8 w-auto"
+              className="h-16 w-auto mb-4"
             />
           </div>
           
