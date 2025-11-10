@@ -108,10 +108,27 @@ export default function Calendario() {
 
   // Filtrar transações por data
   const getTransactionsForDate = (date: Date) => {
-    return transacoes.filter(t => {
-      const transactionDate = new Date(t.quando || t.created_at)
-      return isSameDay(transactionDate, date)
+    // Converter a data para string no formato YYYY-MM-DD para comparação direta
+    const targetDateString = format(date, 'yyyy-MM-dd')
+    
+    const filteredTransactions = transacoes.filter(t => {
+      // Comparar diretamente as strings de data para evitar problemas de timezone
+      const transactionDateString = t.quando || format(new Date(t.created_at), 'yyyy-MM-dd')
+      const isMatch = transactionDateString === targetDateString
+      
+      // Log apenas para transações que têm 'quando' definido (movidas via drag & drop)
+      if (t.quando && isMatch) {
+        console.log('=== TRANSAÇÃO ENCONTRADA ===')
+        console.log('Data do calendário:', format(date, 'dd/MM/yyyy'))
+        console.log('String de busca:', targetDateString)
+        console.log('String da transação:', transactionDateString)
+        console.log('Match:', isMatch)
+      }
+      
+      return isMatch
     })
+    
+    return filteredTransactions
   }
 
   // Obter período de visualização
