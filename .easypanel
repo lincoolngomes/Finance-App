@@ -18,5 +18,6 @@ VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFz
 - **Dockerfile**: Use Dockerfile (root directory)
 
 ## Deploy Status
-Last successful commit: 7e57a91
-Date: 2025-11-10T12:44:00Z
+Last successful commit: 7ad360b
+Date: 2025-11-10T14:50:00Z
+Force deployment: true
