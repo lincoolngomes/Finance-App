@@ -588,12 +588,8 @@ export default function Calendario() {
                     {editingTransaction ? 'Atualizar' : 'Salvar'}
                   </Button>
                 </div>
-              </div>
-                </div>
-              </div>
-            </div>
-          </DialogContent>
-        </Dialog>
+            </DialogContent>
+          </Dialog>
       </div>
 
       {/* Controls */}
