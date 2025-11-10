@@ -231,8 +231,11 @@ export default function Transacoes() {
 
   const handleEdit = (transacao: Transacao) => {
     setEditingTransaction(transacao)
+    // Se não tem data específica (quando), usa a data de criação no formato YYYY-MM-DD
+    const dateForInput = transacao.quando || new Date(transacao.created_at).toISOString().split('T')[0]
+    
     setFormData({
-      quando: transacao.quando || '',
+      quando: dateForInput,
       estabelecimento: transacao.estabelecimento || '',
       valor: transacao.valor || 0,
       detalhes: transacao.detalhes || '',
@@ -472,9 +475,7 @@ export default function Transacoes() {
                       {transacao.categorias && (
                         <p>Categoria: {transacao.categorias.nome}</p>
                       )}
-                      {transacao.quando && (
-                        <p>Data: {formatDate(transacao.quando)}</p>
-                      )}
+                      <p>Data: {formatDate(transacao.quando || transacao.created_at)}</p>
                       {transacao.detalhes && (
                         <p>Detalhes: {transacao.detalhes}</p>
                       )}
