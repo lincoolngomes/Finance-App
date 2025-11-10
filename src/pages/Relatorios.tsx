@@ -74,10 +74,10 @@ export default function Relatorios() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
-        <div>
-          <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">Relatórios Financeiros</h2>
+    <div className="space-y-4 sm:space-y-6 p-3 sm:p-6">
+      <div className="flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-center sm:gap-4">
+        <div className="space-y-1">
+          <h2 className="text-xl sm:text-2xl md:text-3xl font-bold tracking-tight">Relatórios Financeiros</h2>
           <p className="text-muted-foreground text-sm sm:text-base">
             Análises personalizadas das suas transações
           </p>
@@ -98,25 +98,25 @@ export default function Relatorios() {
       />
 
       {isLoading ? (
-        <div className="space-y-4">
+        <div className="space-y-3 sm:space-y-4">
           {[...Array(3)].map((_, i) => (
             <Card key={i} className="animate-pulse">
-              <CardContent className="p-6">
-                <div className="h-20 bg-gray-200 rounded"></div>
+              <CardContent className="p-4 sm:p-6">
+                <div className="h-16 sm:h-20 bg-gray-200 rounded"></div>
               </CardContent>
             </Card>
           ))}
         </div>
       ) : (
-        <>
+        <div className="space-y-4 sm:space-y-6">
           <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <FileText className="h-5 w-5" />
-                Resumo do Período: {getPeriodLabel()}
+            <CardHeader className="p-4 sm:p-6">
+              <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+                <FileText className="h-4 w-4 sm:h-5 sm:w-5" />
+                <span className="line-clamp-1">Resumo: {getPeriodLabel()}</span>
               </CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="p-4 sm:p-6">
               <ReportSummary
                 receitas={summaryData.receitas}
                 despesas={summaryData.despesas}
@@ -139,17 +139,17 @@ export default function Relatorios() {
 
           {transactions.length === 0 && (
             <Card>
-              <CardContent className="p-8 text-center">
-                <p className="text-muted-foreground mb-4">
+              <CardContent className="p-6 sm:p-8 text-center">
+                <p className="text-muted-foreground mb-4 text-sm sm:text-base">
                   Nenhuma transação encontrada para o período selecionado.
                 </p>
-                <p className="text-sm text-muted-foreground">
+                <p className="text-xs sm:text-sm text-muted-foreground">
                   Ajuste os filtros acima para visualizar diferentes períodos ou categorias.
                 </p>
               </CardContent>
             </Card>
           )}
-        </>
+        </div>
       )}
     </div>
   )

@@ -19,7 +19,7 @@ export function ReportTable({ transactions }: ReportTableProps) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Detalhes das Transações</CardTitle>
+        <CardTitle className="text-base sm:text-lg">Detalhes das Transações</CardTitle>
       </CardHeader>
       <CardContent>
         {transactions.length === 0 ? (
@@ -27,48 +27,92 @@ export function ReportTable({ transactions }: ReportTableProps) {
             Nenhuma transação encontrada com os filtros aplicados.
           </div>
         ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Data</TableHead>
-                <TableHead>Estabelecimento</TableHead>
-                <TableHead>Categoria</TableHead>
-                <TableHead>Tipo</TableHead>
-                <TableHead className="text-right">Valor</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
+          <>
+            {/* Visualização mobile - cards empilhados */}
+            <div className="space-y-3 sm:hidden">
               {transactions.map((transaction) => (
-                <TableRow key={transaction.id}>
-                  <TableCell>{formatDate(transaction.quando || '')}</TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-2">
-                      {transaction.tipo === 'receita' ? (
-                        <TrendingUp className="h-4 w-4 text-green-600" />
-                      ) : (
-                        <TrendingDown className="h-4 w-4 text-red-600" />
-                      )}
-                      {transaction.estabelecimento || 'Sem estabelecimento'}
+                <div key={transaction.id} className="border rounded-lg p-3 space-y-2">
+                  <div className="flex justify-between items-start">
+                    <div className="space-y-1 flex-1">
+                      <div className="flex items-center gap-2">
+                        {transaction.tipo === 'receita' ? (
+                          <TrendingUp className="h-3 w-3 text-green-600" />
+                        ) : (
+                          <TrendingDown className="h-3 w-3 text-red-600" />
+                        )}
+                        <p className="font-medium text-sm line-clamp-1">
+                          {transaction.estabelecimento || 'Sem estabelecimento'}
+                        </p>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        {transaction.categorias?.nome || 'Sem categoria'}
+                      </p>
                     </div>
-                  </TableCell>
-                  <TableCell>
-                    {transaction.categorias?.nome || 'Sem categoria'}
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant={transaction.tipo === 'receita' ? 'default' : 'destructive'}>
+                    <Badge variant={transaction.tipo === 'receita' ? 'default' : 'destructive'} className="text-xs">
                       {transaction.tipo}
                     </Badge>
-                  </TableCell>
-                  <TableCell className={`text-right font-medium ${
-                    transaction.tipo === 'receita' ? 'text-green-600' : 'text-red-600'
-                  }`}>
-                    {transaction.tipo === 'receita' ? '+' : '-'}
-                    {formatCurrency(Math.abs(transaction.valor || 0))}
-                  </TableCell>
-                </TableRow>
+                  </div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-xs text-muted-foreground">
+                      {formatDate(transaction.quando || '')}
+                    </span>
+                    <span className={`font-medium text-sm ${
+                      transaction.tipo === 'receita' ? 'text-green-600' : 'text-red-600'
+                    }`}>
+                      {transaction.tipo === 'receita' ? '+' : '-'}
+                      {formatCurrency(Math.abs(transaction.valor || 0))}
+                    </span>
+                  </div>
+                </div>
               ))}
-            </TableBody>
-          </Table>
+            </div>
+
+            {/* Visualização desktop - tabela original */}
+            <div className="hidden sm:block">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Data</TableHead>
+                    <TableHead>Estabelecimento</TableHead>
+                    <TableHead>Categoria</TableHead>
+                    <TableHead>Tipo</TableHead>
+                    <TableHead className="text-right">Valor</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {transactions.map((transaction) => (
+                    <TableRow key={transaction.id}>
+                      <TableCell>{formatDate(transaction.quando || '')}</TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          {transaction.tipo === 'receita' ? (
+                            <TrendingUp className="h-4 w-4 text-green-600" />
+                          ) : (
+                            <TrendingDown className="h-4 w-4 text-red-600" />
+                          )}
+                          {transaction.estabelecimento || 'Sem estabelecimento'}
+                        </div>
+                      </TableCell>
+                      <TableCell>
+                        {transaction.categorias?.nome || 'Sem categoria'}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant={transaction.tipo === 'receita' ? 'default' : 'destructive'}>
+                          {transaction.tipo}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className={`text-right font-medium ${
+                        transaction.tipo === 'receita' ? 'text-green-600' : 'text-red-600'
+                      }`}>
+                        {transaction.tipo === 'receita' ? '+' : '-'}
+                        {formatCurrency(Math.abs(transaction.valor || 0))}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </>
         )}
       </CardContent>
     </Card>

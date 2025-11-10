@@ -2,6 +2,7 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart'
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis } from 'recharts'
+import { useState, useEffect } from 'react'
 
 interface ChartData {
   name: string
@@ -34,6 +35,23 @@ const chartConfig = {
 }
 
 export function ReportChart({ chartData, categoryData }: ReportChartProps) {
+  const [isMobile, setIsMobile] = useState(false)
+
+  useEffect(() => {
+    const checkScreenSize = () => {
+      setIsMobile(window.innerWidth < 640)
+    }
+
+    // Check on mount
+    checkScreenSize()
+
+    // Add event listener
+    window.addEventListener('resize', checkScreenSize)
+
+    // Cleanup
+    return () => window.removeEventListener('resize', checkScreenSize)
+  }, [])
+
   // Prepare category chart data
   const categoryChartData = Object.entries(categoryData).map(([name, data]) => ({
     category: name,
@@ -41,11 +59,105 @@ export function ReportChart({ chartData, categoryData }: ReportChartProps) {
     despesas: data.despesas,
   }))
 
+  // Mobile: Stack charts vertically, Desktop: Side by side
+  if (isMobile) {
+    return (
+      <div className="space-y-4">
+        <Card>
+          <CardHeader className="p-4">
+            <CardTitle className="text-base">Distribuição por Tipo</CardTitle>
+          </CardHeader>
+          <CardContent className="p-4 pt-0">
+            <ChartContainer config={chartConfig} className="h-[220px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={chartData}
+                    cx="50%"
+                    cy="50%"
+                    labelLine={false}
+                    label={false}
+                    outerRadius="65%"
+                    fill="#8884d8"
+                    dataKey="value"
+                  >
+                    {chartData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <ChartTooltip 
+                    content={<ChartTooltipContent />}
+                    labelStyle={{ fontSize: '12px' }}
+                    contentStyle={{ fontSize: '12px' }}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+            </ChartContainer>
+            {/* Legend mobile */}
+            <div className="flex justify-center gap-4 mt-2">
+              {chartData.map((entry, index) => (
+                <div key={index} className="flex items-center gap-1">
+                  <div 
+                    className="w-3 h-3 rounded-full" 
+                    style={{ backgroundColor: entry.color }}
+                  />
+                  <span className="text-xs text-muted-foreground">{entry.name}</span>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="p-4">
+            <CardTitle className="text-base">Receitas vs Despesas</CardTitle>
+          </CardHeader>
+          <CardContent className="p-4 pt-0">
+            <ChartContainer config={chartConfig} className="h-[250px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <BarChart 
+                  data={categoryChartData} 
+                  margin={{ 
+                    top: 15, 
+                    right: 10, 
+                    left: 5, 
+                    bottom: 80 
+                  }}
+                >
+                  <XAxis 
+                    dataKey="category" 
+                    tick={{ fontSize: 9 }}
+                    angle={-45}
+                    textAnchor="end"
+                    height={70}
+                    interval={0}
+                  />
+                  <YAxis 
+                    tick={{ fontSize: 9 }}
+                    width={35}
+                  />
+                  <ChartTooltip 
+                    content={<ChartTooltipContent />}
+                    labelStyle={{ fontSize: '12px' }}
+                    contentStyle={{ fontSize: '12px' }}
+                  />
+                  <Bar dataKey="receitas" fill="#22c55e" radius={[2, 2, 0, 0]} />
+                  <Bar dataKey="despesas" fill="#ef4444" radius={[2, 2, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </ChartContainer>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
+  // Desktop version
   return (
     <div className="grid gap-4 md:grid-cols-2">
       <Card>
         <CardHeader>
-          <CardTitle>Distribuição por Tipo</CardTitle>
+          <CardTitle className="text-lg">Distribuição por Tipo</CardTitle>
         </CardHeader>
         <CardContent>
           <ChartContainer config={chartConfig} className="h-[300px]">
@@ -57,7 +169,7 @@ export function ReportChart({ chartData, categoryData }: ReportChartProps) {
                   cy="50%"
                   labelLine={false}
                   label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                  outerRadius={80}
+                  outerRadius="70%"
                   fill="#8884d8"
                   dataKey="value"
                 >
@@ -74,23 +186,31 @@ export function ReportChart({ chartData, categoryData }: ReportChartProps) {
 
       <Card>
         <CardHeader>
-          <CardTitle>Receitas vs Despesas por Categoria</CardTitle>
+          <CardTitle className="text-lg">Receitas vs Despesas por Categoria</CardTitle>
         </CardHeader>
         <CardContent>
           <ChartContainer config={chartConfig} className="h-[300px]">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={categoryChartData} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
+              <BarChart 
+                data={categoryChartData} 
+                margin={{ 
+                  top: 20, 
+                  right: 10, 
+                  left: 10, 
+                  bottom: 40 
+                }}
+              >
                 <XAxis 
                   dataKey="category" 
                   tick={{ fontSize: 12 }}
                   angle={-45}
                   textAnchor="end"
-                  height={80}
+                  height={60}
                 />
                 <YAxis tick={{ fontSize: 12 }} />
                 <ChartTooltip content={<ChartTooltipContent />} />
-                <Bar dataKey="receitas" fill="#22c55e" />
-                <Bar dataKey="despesas" fill="#ef4444" />
+                <Bar dataKey="receitas" fill="#22c55e" radius={[2, 2, 0, 0]} />
+                <Bar dataKey="despesas" fill="#ef4444" radius={[2, 2, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </ChartContainer>

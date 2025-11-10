@@ -327,32 +327,31 @@ export default function Transacoes() {
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
-        <div>
-          <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">Transações</h2>
+    <div className="space-y-4 sm:space-y-6 p-3 sm:p-6">
+      <div className="flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-center sm:gap-4">
+        <div className="space-y-1">
+          <h2 className="text-xl sm:text-2xl md:text-3xl font-bold tracking-tight">Transações</h2>
           <p className="text-muted-foreground text-sm sm:text-base">Gerencie suas receitas e despesas</p>
         </div>
-        <div className="flex flex-col sm:flex-row gap-2">
+        <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
           {transacoes.length > 0 && (
             <AlertDialog>
               <AlertDialogTrigger asChild>
-                <Button variant="destructive" className="w-full sm:w-auto">
-                  <Trash2 className="mr-2 h-4 w-4" />
-                  <span className="hidden sm:inline">Remover Todas</span>
-                  <span className="sm:hidden">Remover</span>
+                <Button variant="destructive" size="sm" className="w-full sm:w-auto">
+                  <Trash2 className="mr-2 h-3 w-3 sm:h-4 sm:w-4" />
+                  <span className="text-xs sm:text-sm">Remover Todas</span>
                 </Button>
               </AlertDialogTrigger>
-              <AlertDialogContent>
+              <AlertDialogContent className="mx-4 sm:mx-0 max-w-sm sm:max-w-md">
                 <AlertDialogHeader>
-                  <AlertDialogTitle>Remover todas as transações</AlertDialogTitle>
-                  <AlertDialogDescription>
+                  <AlertDialogTitle className="text-base sm:text-lg">Remover todas as transações</AlertDialogTitle>
+                  <AlertDialogDescription className="text-sm">
                     Esta ação não pode ser desfeita. Isso irá remover permanentemente todas as suas transações.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                  <AlertDialogAction onClick={handleDeleteAll} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                <AlertDialogFooter className="flex-col sm:flex-row gap-2">
+                  <AlertDialogCancel className="w-full sm:w-auto">Cancelar</AlertDialogCancel>
+                  <AlertDialogAction onClick={handleDeleteAll} className="w-full sm:w-auto bg-destructive text-destructive-foreground hover:bg-destructive/90">
                     Remover Todas
                   </AlertDialogAction>
                 </AlertDialogFooter>
@@ -361,29 +360,28 @@ export default function Transacoes() {
           )}
           <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
             <DialogTrigger asChild>
-              <Button className="bg-primary hover:bg-primary/90 w-full sm:w-auto">
-                <Plus className="mr-2 h-4 w-4" />
-                <span className="hidden sm:inline">Nova Transação</span>
-                <span className="sm:hidden">Nova</span>
+              <Button size="sm" className="bg-primary hover:bg-primary/90 w-full sm:w-auto">
+                <Plus className="mr-2 h-3 w-3 sm:h-4 sm:w-4" />
+                <span className="text-xs sm:text-sm">Nova Transação</span>
               </Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-[425px]">
-              <DialogHeader>
-                <DialogTitle>
+            <DialogContent className="mx-4 sm:mx-0 max-w-sm sm:max-w-[425px] max-h-[90vh] overflow-y-auto">
+              <DialogHeader className="space-y-2">
+                <DialogTitle className="text-base sm:text-lg">
                   {editingTransaction ? 'Editar Transação' : 'Nova Transação'}
                 </DialogTitle>
-                <DialogDescription>
+                <DialogDescription className="text-sm">
                   {editingTransaction 
                     ? 'Faça as alterações necessárias na transação.' 
                     : 'Adicione uma nova receita ou despesa.'}
                 </DialogDescription>
               </DialogHeader>
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
+              <form onSubmit={handleSubmit} className="space-y-3 sm:space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="tipo">Tipo</Label>
+                    <Label htmlFor="tipo" className="text-sm">Tipo</Label>
                     <Select value={formData.tipo} onValueChange={(value) => setFormData({...formData, tipo: value})}>
-                      <SelectTrigger>
+                      <SelectTrigger className="h-9 text-sm">
                         <SelectValue placeholder="Selecione o tipo" />
                       </SelectTrigger>
                       <SelectContent>
@@ -393,25 +391,27 @@ export default function Transacoes() {
                     </Select>
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="valor">Valor</Label>
+                    <Label htmlFor="valor" className="text-sm">Valor</Label>
                     <CurrencyInput
                       value={formData.valor}
                       onChange={(value) => setFormData({...formData, valor: value})}
                       required
+                      className="h-9 text-sm"
                     />
                   </div>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="estabelecimento">Estabelecimento</Label>
+                  <Label htmlFor="estabelecimento" className="text-sm">Estabelecimento</Label>
                   <Input
                     id="estabelecimento"
                     placeholder="Ex: Supermercado, Salário, etc."
                     value={formData.estabelecimento}
                     onChange={(e) => setFormData({...formData, estabelecimento: e.target.value})}
+                    className="h-9 text-sm"
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="categoria">Categoria</Label>
+                  <Label htmlFor="categoria" className="text-sm">Categoria</Label>
                   <CategorySelector
                     value={formData.category_id}
                     onValueChange={(value) => setFormData({...formData, category_id: value})}
@@ -419,24 +419,26 @@ export default function Transacoes() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="quando">Data</Label>
+                  <Label htmlFor="quando" className="text-sm">Data</Label>
                   <Input
                     id="quando"
                     type="date"
                     value={formData.quando}
                     onChange={(e) => setFormData({...formData, quando: e.target.value})}
+                    className="h-9 text-sm"
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="detalhes">Detalhes</Label>
+                  <Label htmlFor="detalhes" className="text-sm">Detalhes</Label>
                   <Textarea
                     id="detalhes"
                     placeholder="Informações adicionais..."
                     value={formData.detalhes}
                     onChange={(e) => setFormData({...formData, detalhes: e.target.value})}
+                    className="min-h-[60px] text-sm resize-none"
                   />
                 </div>
-                <Button type="submit" className="w-full bg-primary hover:bg-primary/90">
+                <Button type="submit" className="w-full bg-primary hover:bg-primary/90 h-9 text-sm">
                   {editingTransaction ? 'Atualizar' : 'Adicionar'} Transação
                 </Button>
               </form>
@@ -463,18 +465,18 @@ export default function Transacoes() {
         onClearFilters={clearFilters}
       />
 
-      <div className="grid gap-4">
+      <div className="grid gap-3 sm:gap-4">
         {loading ? (
-          <div className="space-y-4">
+          <div className="space-y-3 sm:space-y-4">
             {[...Array(5)].map((_, i) => (
               <Card key={i} className="animate-pulse">
-                <CardContent className="p-6">
+                <CardContent className="p-4 sm:p-6">
                   <div className="flex items-center justify-between">
                     <div className="space-y-2">
-                      <div className="h-4 bg-gray-200 rounded w-32"></div>
-                      <div className="h-3 bg-gray-200 rounded w-20"></div>
+                      <div className="h-3 sm:h-4 bg-gray-200 rounded w-24 sm:w-32"></div>
+                      <div className="h-2 sm:h-3 bg-gray-200 rounded w-16 sm:w-20"></div>
                     </div>
-                    <div className="h-6 bg-gray-200 rounded w-20"></div>
+                    <div className="h-5 sm:h-6 bg-gray-200 rounded w-16 sm:w-20"></div>
                   </div>
                 </CardContent>
               </Card>
@@ -482,11 +484,11 @@ export default function Transacoes() {
           </div>
         ) : filteredTransacoes.length === 0 ? (
           <Card>
-            <CardContent className="p-8 text-center">
-              <p className="text-muted-foreground mb-4">
+            <CardContent className="p-6 sm:p-8 text-center">
+              <p className="text-muted-foreground mb-4 text-sm sm:text-base">
                 {transacoes.length === 0 ? 'Nenhuma transação encontrada' : 'Nenhuma transação encontrada com os filtros aplicados'}
               </p>
-              <Button onClick={() => setDialogOpen(true)} className="bg-primary hover:bg-primary/90">
+              <Button onClick={() => setDialogOpen(true)} size="sm" className="bg-primary hover:bg-primary/90">
                 Adicionar primeira transação
               </Button>
             </CardContent>
@@ -494,36 +496,36 @@ export default function Transacoes() {
         ) : (
           filteredTransacoes.map((transacao) => (
             <Card key={transacao.id} className="hover:shadow-md transition-shadow">
-              <CardContent className="p-4 md:p-6">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                  <div className="flex-1">
-                    <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 mb-2">
-                      <div className="flex items-center gap-3">
+              <CardContent className="p-3 sm:p-4 md:p-6">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3 mb-2">
+                      <div className="flex items-center gap-2 min-w-0 flex-1">
                         {transacao.tipo === 'receita' ? (
-                          <TrendingUp className="h-5 w-5 text-green-600" />
+                          <TrendingUp className="h-4 w-4 sm:h-5 sm:w-5 text-green-600 flex-shrink-0" />
                         ) : (
-                          <TrendingDown className="h-5 w-5 text-red-600" />
+                          <TrendingDown className="h-4 w-4 sm:h-5 sm:w-5 text-red-600 flex-shrink-0" />
                         )}
-                        <h3 className="font-semibold text-sm sm:text-base">
+                        <h3 className="font-semibold text-sm sm:text-base line-clamp-1">
                           {transacao.estabelecimento || 'Sem estabelecimento'}
                         </h3>
                       </div>
-                      <Badge variant={transacao.tipo === 'receita' ? 'default' : 'destructive'} className="self-start">
+                      <Badge variant={transacao.tipo === 'receita' ? 'default' : 'destructive'} className="self-start text-xs">
                         {transacao.tipo}
                       </Badge>
                     </div>
                     <div className="text-xs sm:text-sm text-muted-foreground space-y-1">
                       {transacao.categorias && (
-                        <p>Categoria: {transacao.categorias.nome}</p>
+                        <p className="line-clamp-1">Categoria: {transacao.categorias.nome}</p>
                       )}
                       <p>Data: {formatDate(transacao.quando || transacao.created_at)}</p>
                       {transacao.detalhes && (
-                        <p className="truncate sm:whitespace-normal">Detalhes: {transacao.detalhes}</p>
+                        <p className="line-clamp-2 sm:line-clamp-1">Detalhes: {transacao.detalhes}</p>
                       )}
                     </div>
                   </div>
-                  <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
-                    <div className={`text-lg sm:text-xl font-bold text-center sm:text-right ${
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
+                    <div className={`text-base sm:text-lg md:text-xl font-bold text-center sm:text-right ${
                       transacao.tipo === 'receita' ? 'text-green-600' : 'text-red-600'
                     }`}>
                       {transacao.tipo === 'receita' ? '+' : '-'}
@@ -534,17 +536,17 @@ export default function Transacoes() {
                         size="sm"
                         variant="outline"
                         onClick={() => handleEdit(transacao)}
-                        className="border-primary text-primary hover:bg-primary hover:text-primary-foreground"
+                        className="h-8 w-8 p-0 border-primary text-primary hover:bg-primary hover:text-primary-foreground"
                       >
-                        <Edit className="h-4 w-4" />
+                        <Edit className="h-3 w-3 sm:h-4 sm:w-4" />
                       </Button>
                       <Button
                         size="sm"
                         variant="outline"
                         onClick={() => handleDelete(transacao.id)}
-                        className="border-destructive text-destructive hover:bg-destructive hover:text-destructive-foreground"
+                        className="h-8 w-8 p-0 border-destructive text-destructive hover:bg-destructive hover:text-destructive-foreground"
                       >
-                        <Trash2 className="h-4 w-4" />
+                        <Trash2 className="h-3 w-3 sm:h-4 sm:w-4" />
                       </Button>
                     </div>
                   </div>
