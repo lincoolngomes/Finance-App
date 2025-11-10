@@ -1,8 +1,18 @@
-# Welcome to your Lovable project
+# Agente Financeiro - Finance App
 
-## Project info
+## 🏦 Aplicativo de Gestão Financeira Pessoal
 
-**URL**: https://lovable.dev/projects/c78c9faa-5179-4a8f-afa8-6937bd916b8d
+### ✨ Versão 1.1.0 - Responsividade Mobile Completa
+
+**URL Lovable**: https://lovable.dev/projects/c78c9faa-5179-4a8f-afa8-6937bd916b8d
+
+### 🚀 Funcionalidades Implementadas:
+- ✅ **Gráficos Responsivos** - Visualizações otimizadas para mobile e desktop
+- ✅ **Páginas Mobile-First** - Relatórios e Transações totalmente responsivas  
+- ✅ **Interface Adaptativa** - Design que se ajusta perfeitamente a qualquer tela
+- ✅ **Performance Otimizada** - Hooks React para detecção inteligente de tela
+
+**Último Deploy**: 2025-11-10 - Build 816c044
 
 ## How can I edit this code?
 
