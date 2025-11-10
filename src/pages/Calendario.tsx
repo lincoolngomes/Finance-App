@@ -580,23 +580,7 @@ export default function Calendario() {
                     </Button>
                   )}
                 </div>
-                <div className="flex justify-between items-center">
-                  {/* Botão de excluir - só aparece quando editando */}
-                  {editingTransaction && (
-                    <Button 
-                      variant="destructive" 
-                      onClick={() => {
-                        handleDelete(editingTransaction.id, editingTransaction.estabelecimento)
-                        setDialogOpen(false)
-                      }}
-                      className="gap-2"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                      Excluir
-                    </Button>
-                  )}
-                  
-                  <div className="flex gap-2 ml-auto">
+                <div className="flex justify-end gap-2">
                     <Button variant="outline" onClick={() => setDialogOpen(false)}>
                       Cancelar
                     </Button>
