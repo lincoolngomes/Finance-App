@@ -1,0 +1,27 @@
+{
+  "name": "finance-app",
+  "description": "Aplicação de controle financeiro",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/lincoolngomes/Finance-App.git",
+    "branch": "main"
+  },
+  "build": {
+    "commands": [
+      "npm ci",
+      "npm run build"
+    ],
+    "output": "dist"
+  },
+  "deploy": {
+    "dockerfile": "Dockerfile",
+    "port": 80,
+    "environment": {
+      "NODE_ENV": "production"
+    }
+  },
+  "healthcheck": {
+    "path": "/",
+    "timeout": 30
+  }
+}
