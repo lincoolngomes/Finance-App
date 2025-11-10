@@ -580,14 +580,15 @@ export default function Calendario() {
                     </Button>
                   )}
                 </div>
-                <div className="flex justify-end gap-2">
-                    <Button variant="outline" onClick={() => setDialogOpen(false)}>
-                      Cancelar
-                    </Button>
-                    <Button onClick={handleSave}>
-                      {editingTransaction ? 'Atualizar' : 'Salvar'}
-                    </Button>
-                  </div>
+                <div className="flex gap-2">
+                  <Button variant="outline" onClick={() => setDialogOpen(false)}>
+                    Cancelar
+                  </Button>
+                  <Button onClick={handleSave}>
+                    {editingTransaction ? 'Atualizar' : 'Salvar'}
+                  </Button>
+                </div>
+              </div>
                 </div>
               </div>
             </div>
