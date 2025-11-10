@@ -454,25 +454,28 @@ export default function Perfil() {
   }
 
   return (
-    <div className="max-w-6xl mx-auto p-6 space-y-8">
+    <div className="max-w-6xl mx-auto p-4 sm:p-6 space-y-6 sm:space-y-8">
       <div className="text-center md:text-left">
-        <h1 className="text-4xl font-bold tracking-tight">Meu Perfil</h1>
-        <p className="text-muted-foreground mt-2">Gerencie suas informações pessoais, assinatura e configurações de segurança</p>
+        <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold tracking-tight">Meu Perfil</h1>
+        <p className="text-muted-foreground mt-2 text-sm sm:text-base">Gerencie suas informações pessoais, assinatura e configurações de segurança</p>
       </div>
 
       <Tabs defaultValue="profile" className="w-full">
-        <TabsList className="grid w-full grid-cols-3 lg:w-[400px]">
-          <TabsTrigger value="profile" className="flex items-center gap-2">
-            <User className="h-4 w-4" />
-            Perfil
+        <TabsList className="grid w-full grid-cols-3 text-xs sm:text-sm lg:w-[400px]">
+          <TabsTrigger value="profile" className="flex items-center gap-1 sm:gap-2">
+            <User className="h-3 w-3 sm:h-4 sm:w-4" />
+            <span className="hidden sm:inline">Perfil</span>
+            <span className="sm:hidden">Info</span>
           </TabsTrigger>
-          <TabsTrigger value="subscription" className="flex items-center gap-2">
-            <CreditCard className="h-4 w-4" />
-            Assinatura
+          <TabsTrigger value="subscription" className="flex items-center gap-1 sm:gap-2">
+            <CreditCard className="h-3 w-3 sm:h-4 sm:w-4" />
+            <span className="hidden sm:inline">Assinatura</span>
+            <span className="sm:hidden">Plano</span>
           </TabsTrigger>
-          <TabsTrigger value="security" className="flex items-center gap-2">
-            <Shield className="h-4 w-4" />
-            Segurança
+          <TabsTrigger value="security" className="flex items-center gap-1 sm:gap-2">
+            <Shield className="h-3 w-3 sm:h-4 sm:w-4" />
+            <span className="hidden sm:inline">Segurança</span>
+            <span className="sm:hidden">Seg.</span>
           </TabsTrigger>
         </TabsList>
 

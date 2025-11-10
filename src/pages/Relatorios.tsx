@@ -75,18 +75,20 @@ export default function Relatorios() {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
         <div>
-          <h2 className="text-3xl font-bold tracking-tight">Relatórios Financeiros</h2>
-          <p className="text-muted-foreground">
+          <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">Relatórios Financeiros</h2>
+          <p className="text-muted-foreground text-sm sm:text-base">
             Análises personalizadas das suas transações
           </p>
         </div>
-        <PDFExportOptions
-          onExport={generatePDF}
-          isGenerating={isGeneratingPDF}
-          disabled={transactions.length === 0}
-        />
+        <div className="w-full sm:w-auto">
+          <PDFExportOptions
+            onExport={generatePDF}
+            isGenerating={isGeneratingPDF}
+            disabled={transactions.length === 0}
+          />
+        </div>
       </div>
 
       <ReportFiltersComponent

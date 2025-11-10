@@ -328,18 +328,19 @@ export default function Transacoes() {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
         <div>
-          <h2 className="text-3xl font-bold tracking-tight">Transações</h2>
-          <p className="text-muted-foreground">Gerencie suas receitas e despesas</p>
+          <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">Transações</h2>
+          <p className="text-muted-foreground text-sm sm:text-base">Gerencie suas receitas e despesas</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-col sm:flex-row gap-2">
           {transacoes.length > 0 && (
             <AlertDialog>
               <AlertDialogTrigger asChild>
-                <Button variant="destructive">
+                <Button variant="destructive" className="w-full sm:w-auto">
                   <Trash2 className="mr-2 h-4 w-4" />
-                  Remover Todas
+                  <span className="hidden sm:inline">Remover Todas</span>
+                  <span className="sm:hidden">Remover</span>
                 </Button>
               </AlertDialogTrigger>
               <AlertDialogContent>
@@ -360,9 +361,10 @@ export default function Transacoes() {
           )}
           <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
             <DialogTrigger asChild>
-              <Button className="bg-primary hover:bg-primary/90">
+              <Button className="bg-primary hover:bg-primary/90 w-full sm:w-auto">
                 <Plus className="mr-2 h-4 w-4" />
-                Nova Transação
+                <span className="hidden sm:inline">Nova Transação</span>
+                <span className="sm:hidden">Nova</span>
               </Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-[425px]">
@@ -492,40 +494,42 @@ export default function Transacoes() {
         ) : (
           filteredTransacoes.map((transacao) => (
             <Card key={transacao.id} className="hover:shadow-md transition-shadow">
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
+              <CardContent className="p-4 md:p-6">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                   <div className="flex-1">
-                    <div className="flex items-center gap-3 mb-2">
-                      {transacao.tipo === 'receita' ? (
-                        <TrendingUp className="h-5 w-5 text-green-600" />
-                      ) : (
-                        <TrendingDown className="h-5 w-5 text-red-600" />
-                      )}
-                      <h3 className="font-semibold">
-                        {transacao.estabelecimento || 'Sem estabelecimento'}
-                      </h3>
-                      <Badge variant={transacao.tipo === 'receita' ? 'default' : 'destructive'}>
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 mb-2">
+                      <div className="flex items-center gap-3">
+                        {transacao.tipo === 'receita' ? (
+                          <TrendingUp className="h-5 w-5 text-green-600" />
+                        ) : (
+                          <TrendingDown className="h-5 w-5 text-red-600" />
+                        )}
+                        <h3 className="font-semibold text-sm sm:text-base">
+                          {transacao.estabelecimento || 'Sem estabelecimento'}
+                        </h3>
+                      </div>
+                      <Badge variant={transacao.tipo === 'receita' ? 'default' : 'destructive'} className="self-start">
                         {transacao.tipo}
                       </Badge>
                     </div>
-                    <div className="text-sm text-muted-foreground space-y-1">
+                    <div className="text-xs sm:text-sm text-muted-foreground space-y-1">
                       {transacao.categorias && (
                         <p>Categoria: {transacao.categorias.nome}</p>
                       )}
                       <p>Data: {formatDate(transacao.quando || transacao.created_at)}</p>
                       {transacao.detalhes && (
-                        <p>Detalhes: {transacao.detalhes}</p>
+                        <p className="truncate sm:whitespace-normal">Detalhes: {transacao.detalhes}</p>
                       )}
                     </div>
                   </div>
-                  <div className="flex items-center gap-4">
-                    <div className={`text-xl font-bold ${
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4">
+                    <div className={`text-lg sm:text-xl font-bold text-center sm:text-right ${
                       transacao.tipo === 'receita' ? 'text-green-600' : 'text-red-600'
                     }`}>
                       {transacao.tipo === 'receita' ? '+' : '-'}
                       {formatCurrency(Math.abs(transacao.valor || 0))}
                     </div>
-                    <div className="flex gap-2">
+                    <div className="flex justify-center sm:justify-start gap-2">
                       <Button
                         size="sm"
                         variant="outline"

@@ -81,7 +81,7 @@ export function DashboardCharts({ transacoes }: DashboardChartsProps) {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="h-[400px] relative">
+          <div className="h-[300px] md:h-[400px] relative">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie
@@ -153,7 +153,7 @@ export function DashboardCharts({ transacoes }: DashboardChartsProps) {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="h-[400px]">
+          <div className="h-[300px] md:h-[400px]">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart 
                 data={receitasDespesasData} 
@@ -236,7 +236,7 @@ export function DashboardCharts({ transacoes }: DashboardChartsProps) {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
             <div className="relative overflow-hidden bg-gradient-to-br from-green-500 to-emerald-600 p-6 rounded-2xl shadow-lg">
               <div className="absolute top-0 right-0 w-20 h-20 bg-white/10 rounded-full -translate-y-10 translate-x-10"></div>
               <div className="relative">

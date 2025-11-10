@@ -51,7 +51,7 @@ export default function Plano() {
       </div>
 
       {/* Right side - Content */}
-      <div className="w-full lg:w-1/2 flex items-center justify-center p-4 lg:p-8">
+      <div className="w-full lg:w-1/2 flex items-center justify-center p-4 sm:p-6 lg:p-8">
         <div className="w-full max-w-md">
           {/* Logo */}
           <div className="text-center mb-8">

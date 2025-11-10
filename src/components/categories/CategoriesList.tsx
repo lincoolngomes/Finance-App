@@ -27,10 +27,10 @@ export function CategoriesList({ categories, onEdit }: CategoriesListProps) {
   if (categories.length === 0) {
     return (
       <Card>
-        <CardContent className="flex flex-col items-center justify-center py-12">
-          <Tag className="h-12 w-12 text-muted-foreground mb-4" />
-          <h3 className="text-lg font-medium mb-2">Nenhuma categoria encontrada</h3>
-          <p className="text-sm text-muted-foreground text-center">
+        <CardContent className="flex flex-col items-center justify-center py-8 sm:py-12 px-4">
+          <Tag className="h-8 w-8 sm:h-12 sm:w-12 text-muted-foreground mb-4" />
+          <h3 className="text-base sm:text-lg font-medium mb-2 text-center">Nenhuma categoria encontrada</h3>
+          <p className="text-xs sm:text-sm text-muted-foreground text-center">
             Crie sua primeira categoria para começar a organizar suas transações
           </p>
         </CardContent>
@@ -42,10 +42,10 @@ export function CategoriesList({ categories, onEdit }: CategoriesListProps) {
     <div className="grid gap-4">
       {categories.map((category) => (
         <Card key={category.id} className="hover:shadow-sm transition-shadow">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
+          <CardContent className="p-3 sm:p-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div className="flex-1">
-                <h3 className="font-medium text-sm">{category.nome}</h3>
+                <h3 className="font-medium text-sm sm:text-base">{category.nome}</h3>
                 {category.tags && (
                   <div className="flex flex-wrap gap-1 mt-2">
                     {category.tags.split(',').map((tag, index) => (
@@ -57,7 +57,7 @@ export function CategoriesList({ categories, onEdit }: CategoriesListProps) {
                 )}
               </div>
               
-              <div className="flex items-center gap-1">
+              <div className="flex items-center justify-end gap-1 sm:gap-2">
                 <Button
                   variant="ghost"
                   size="sm"

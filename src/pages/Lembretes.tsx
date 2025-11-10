@@ -192,18 +192,19 @@ export default function Lembretes() {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
         <div>
-          <h2 className="text-3xl font-bold tracking-tight">Lembretes</h2>
-          <p className="text-muted-foreground">Gerencie seus lembretes de pagamentos e compromissos</p>
+          <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">Lembretes</h2>
+          <p className="text-muted-foreground text-sm sm:text-base">Gerencie seus lembretes de pagamentos e compromissos</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-col sm:flex-row gap-2">
           {lembretes.length > 0 && (
             <AlertDialog>
               <AlertDialogTrigger asChild>
-                <Button variant="destructive">
+                <Button variant="destructive" className="w-full sm:w-auto">
                   <Trash2 className="mr-2 h-4 w-4" />
-                  Remover Todos
+                  <span className="hidden sm:inline">Remover Todos</span>
+                  <span className="sm:hidden">Remover</span>
                 </Button>
               </AlertDialogTrigger>
               <AlertDialogContent>
@@ -224,9 +225,10 @@ export default function Lembretes() {
           )}
           <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
             <DialogTrigger asChild>
-              <Button className="bg-primary hover:bg-primary/90">
+              <Button className="bg-primary hover:bg-primary/90 w-full sm:w-auto">
                 <Plus className="mr-2 h-4 w-4" />
-                Novo Lembrete
+                <span className="hidden sm:inline">Novo Lembrete</span>
+                <span className="sm:hidden">Novo</span>
               </Button>
             </DialogTrigger>
             <DialogContent className="sm:max-w-[425px]">
@@ -317,19 +319,21 @@ export default function Lembretes() {
               <Card key={lembrete.id} className={`hover:shadow-md transition-shadow ${
                 lembrete.data && isOverdue(lembrete.data) ? 'border-destructive/50 bg-destructive/5 dark:border-destructive/30 dark:bg-destructive/10' : ''
               }`}>
-                <CardContent className="p-6">
-                  <div className="flex items-center justify-between">
+                <CardContent className="p-4 md:p-6">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-2">
-                        <Calendar className="h-5 w-5 text-primary" />
-                        <h3 className="font-semibold">{lembrete.descricao}</h3>
+                      <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 mb-2">
+                        <div className="flex items-center gap-3">
+                          <Calendar className="h-5 w-5 text-primary" />
+                          <h3 className="font-semibold text-sm sm:text-base">{lembrete.descricao}</h3>
+                        </div>
                         {dateStatus && (
-                          <Badge variant={dateStatus.variant}>
+                          <Badge variant={dateStatus.variant} className="self-start">
                             {dateStatus.label}
                           </Badge>
                         )}
                       </div>
-                      <div className="text-sm text-muted-foreground space-y-1">
+                      <div className="text-xs sm:text-sm text-muted-foreground space-y-1">
                         {lembrete.data && (
                           <div className="flex items-center gap-2">
                             <Clock className="h-4 w-4" />
@@ -341,7 +345,7 @@ export default function Lembretes() {
                         )}
                       </div>
                     </div>
-                    <div className="flex gap-2">
+                    <div className="flex justify-center sm:justify-end gap-2">
                       <Button
                         size="sm"
                         variant="outline"

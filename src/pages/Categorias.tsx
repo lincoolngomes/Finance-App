@@ -31,16 +31,17 @@ export default function Categorias() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Categorias</h1>
-          <p className="text-sm text-muted-foreground mt-1">
+          <h1 className="text-xl sm:text-2xl font-semibold tracking-tight">Categorias</h1>
+          <p className="text-xs sm:text-sm text-muted-foreground mt-1">
             Organize suas transações com categorias personalizadas
           </p>
         </div>
-        <Button onClick={() => setIsFormOpen(true)} className="gap-2">
+        <Button onClick={() => setIsFormOpen(true)} className="gap-2 w-full sm:w-auto">
           <Plus className="h-4 w-4" />
-          Nova Categoria
+          <span className="hidden sm:inline">Nova Categoria</span>
+          <span className="sm:hidden">Nova</span>
         </Button>
       </div>
 
