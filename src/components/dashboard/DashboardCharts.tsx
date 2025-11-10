@@ -90,8 +90,8 @@ export function DashboardCharts({ transacoes }: DashboardChartsProps) {
                   cy="50%"
                   labelLine={false}
                   label={false}
-                  outerRadius={120}
-                  innerRadius={60}
+                  outerRadius="75%"
+                  innerRadius="35%"
                   paddingAngle={2}
                   fill="#8884d8"
                   dataKey="value"
@@ -230,21 +230,21 @@ export function DashboardCharts({ transacoes }: DashboardChartsProps) {
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
-            <div className="relative overflow-hidden bg-gradient-to-br from-green-500 to-emerald-600 p-6 rounded-2xl shadow-lg">
+            <div className="relative overflow-hidden bg-gradient-to-br from-green-500 to-emerald-600 p-4 sm:p-6 rounded-2xl shadow-lg">
               <div className="absolute top-0 right-0 w-20 h-20 bg-white/10 rounded-full -translate-y-10 translate-x-10"></div>
               <div className="relative">
                 <div className="text-green-100 text-sm font-medium mb-1">💰 Receitas</div>
-                <div className="text-2xl font-bold text-white">
+                <div className="text-xl sm:text-2xl font-bold text-white truncate">
                   {formatCurrency(stats.totalReceitas)}
                 </div>
               </div>
             </div>
             
-            <div className="relative overflow-hidden bg-gradient-to-br from-red-500 to-rose-600 p-6 rounded-2xl shadow-lg">
+            <div className="relative overflow-hidden bg-gradient-to-br from-red-500 to-rose-600 p-4 sm:p-6 rounded-2xl shadow-lg">
               <div className="absolute top-0 right-0 w-20 h-20 bg-white/10 rounded-full -translate-y-10 translate-x-10"></div>
               <div className="relative">
                 <div className="text-red-100 text-sm font-medium mb-1">💸 Despesas</div>
-                <div className="text-2xl font-bold text-white">
+                <div className="text-xl sm:text-2xl font-bold text-white truncate">
                   {formatCurrency(Math.abs(stats.totalDespesas))}
                 </div>
               </div>
@@ -252,23 +252,23 @@ export function DashboardCharts({ transacoes }: DashboardChartsProps) {
             
             <div className={`relative overflow-hidden ${stats.saldo >= 0 
               ? 'bg-gradient-to-br from-blue-500 to-indigo-600' 
-              : 'bg-gradient-to-br from-yellow-500 to-orange-600'} p-6 rounded-2xl shadow-lg`}>
+              : 'bg-gradient-to-br from-yellow-500 to-orange-600'} p-4 sm:p-6 rounded-2xl shadow-lg`}>
               <div className="absolute top-0 right-0 w-20 h-20 bg-white/10 rounded-full -translate-y-10 translate-x-10"></div>
               <div className="relative">
                 <div className={`${stats.saldo >= 0 ? 'text-blue-100' : 'text-yellow-100'} text-sm font-medium mb-1`}>
                   {stats.saldo >= 0 ? '📊 Saldo' : '⚠️ Déficit'}
                 </div>
-                <div className="text-2xl font-bold text-white">
+                <div className="text-xl sm:text-2xl font-bold text-white truncate">
                   {formatCurrency(stats.saldo)}
                 </div>
               </div>
             </div>
             
-            <div className="relative overflow-hidden bg-gradient-to-br from-purple-500 to-violet-600 p-6 rounded-2xl shadow-lg">
+            <div className="relative overflow-hidden bg-gradient-to-br from-purple-500 to-violet-600 p-4 sm:p-6 rounded-2xl shadow-lg">
               <div className="absolute top-0 right-0 w-20 h-20 bg-white/10 rounded-full -translate-y-10 translate-x-10"></div>
               <div className="relative">
                 <div className="text-purple-100 text-sm font-medium mb-1">🔄 Transações</div>
-                <div className="text-2xl font-bold text-white">
+                <div className="text-xl sm:text-2xl font-bold text-white truncate">
                   {stats.transacoesCount}
                 </div>
               </div>
