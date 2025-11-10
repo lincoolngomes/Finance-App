@@ -39,17 +39,19 @@ export function PDFExportOptions({ onExport, isGenerating, disabled }: PDFExport
       <DialogTrigger asChild>
         <Button 
           disabled={disabled || isGenerating}
-          className="bg-primary hover:bg-primary/90"
+          className="bg-primary hover:bg-primary/90 w-full sm:w-auto"
         >
           {isGenerating ? (
             <>
               <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-              Gerando...
+              <span className="hidden sm:inline">Gerando...</span>
+              <span className="sm:hidden">...</span>
             </>
           ) : (
             <>
               <Download className="mr-2 h-4 w-4" />
-              Gerar PDF
+              <span className="hidden sm:inline">Gerar PDF</span>
+              <span className="sm:hidden">PDF</span>
             </>
           )}
         </Button>
@@ -116,11 +118,11 @@ export function PDFExportOptions({ onExport, isGenerating, disabled }: PDFExport
           </div>
         </div>
 
-        <div className="flex justify-end space-x-2">
-          <Button variant="outline" onClick={() => setOpen(false)}>
+        <div className="flex flex-col sm:flex-row justify-end gap-2 sm:space-x-2">
+          <Button variant="outline" onClick={() => setOpen(false)} className="w-full sm:w-auto">
             Cancelar
           </Button>
-          <Button onClick={handleExport}>
+          <Button onClick={handleExport} className="w-full sm:w-auto">
             Gerar PDF
           </Button>
         </div>

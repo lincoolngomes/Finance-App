@@ -22,7 +22,7 @@ import { useTheme } from '@/hooks/useTheme'
 
 
 export function AppSidebar() {
-  const { state } = useSidebar()
+  const { state, setOpenMobile } = useSidebar()
   const location = useLocation()
   const { signOut } = useAuth()
   const { theme } = useTheme()
@@ -30,6 +30,14 @@ export function AppSidebar() {
   const currentPath = location.pathname
 
   const isActive = (path: string) => currentPath === path
+
+  // Função para fechar o sidebar no mobile quando clica em um item
+  const handleMobileItemClick = () => {
+    // Verifica se está no mobile (largura < 768px)
+    if (window.innerWidth < 768) {
+      setOpenMobile(false)
+    }
+  }
 
   // Items do menu normal
   const normalItems = [
@@ -104,7 +112,7 @@ export function AppSidebar() {
                         : 'hover:bg-accent dark:hover:bg-slate-800'
                     }`}
                   >
-                    <NavLink to={item.url} end>
+                    <NavLink to={item.url} end onClick={handleMobileItemClick}>
                       <item.icon className="h-4 w-4" />
                       <span>{item.title}</span>
                     </NavLink>
@@ -123,7 +131,7 @@ export function AppSidebar() {
                         : 'hover:bg-red-50 dark:hover:bg-red-900/20 text-red-600 dark:text-red-400'
                     }`}
                   >
-                    <NavLink to={item.url} end>
+                    <NavLink to={item.url} end onClick={handleMobileItemClick}>
                       <item.icon className="h-4 w-4" />
                       <span>{item.title}</span>
                     </NavLink>

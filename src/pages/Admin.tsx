@@ -282,15 +282,15 @@ export default function Admin() {
   return (
     <div className="space-y-6">
       {/* Header - Mesmo padrão das outras páginas */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4">
         <div>
-          <h2 className="text-3xl font-bold tracking-tight">Administração</h2>
-          <p className="text-muted-foreground">
+          <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">Administração</h2>
+          <p className="text-muted-foreground text-sm sm:text-base">
             Gerencie usuários e configurações do sistema
           </p>
         </div>
         
-        <div className="flex gap-2 items-center">
+        <div className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center">
           <Filter className="h-4 w-4 text-muted-foreground" />
           <Select value={statusFilter} onValueChange={setStatusFilter}>
             <SelectTrigger className="w-[180px]">
@@ -305,13 +305,13 @@ export default function Admin() {
             </SelectContent>
           </Select>
           
-          <div className="relative">
+          <div className="relative w-full sm:w-auto">
             <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
               placeholder="Buscar usuário..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-8 w-[250px]"
+              className="pl-8 w-full sm:w-[250px]"
             />
           </div>
           
@@ -337,53 +337,54 @@ export default function Admin() {
               })
               setIsEditDialogOpen(true)
             }}
-            className="bg-primary hover:bg-primary/90"
+            className="bg-primary hover:bg-primary/90 w-full sm:w-auto"
           >
             <UserPlus className="h-4 w-4 mr-2" />
-            Novo Usuário
+            <span className="hidden sm:inline">Novo Usuário</span>
+            <span className="sm:hidden">Novo</span>
           </Button>
         </div>
       </div>
 
       {/* Stats Cards - Compacto */}
-      <div className="grid gap-4 md:grid-cols-4">
-        <div className="bg-gradient-to-r from-blue-500 to-blue-600 rounded-lg p-4 text-white">
+      <div className="grid gap-4 grid-cols-2 sm:grid-cols-2 md:grid-cols-4">
+        <div className="bg-gradient-to-r from-blue-500 to-blue-600 rounded-lg p-3 sm:p-4 text-white">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-blue-100 text-sm">Total Usuários</p>
-              <p className="text-2xl font-bold">{users.length}</p>
+              <p className="text-blue-100 text-xs sm:text-sm">Total Usuários</p>
+              <p className="text-xl sm:text-2xl font-bold">{users.length}</p>
             </div>
-            <Users className="h-8 w-8 text-blue-200" />
+            <Users className="h-6 w-6 sm:h-8 sm:w-8 text-blue-200" />
           </div>
         </div>
         
-        <div className="bg-gradient-to-r from-green-500 to-green-600 rounded-lg p-4 text-white">
+        <div className="bg-gradient-to-r from-green-500 to-green-600 rounded-lg p-3 sm:p-4 text-white">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-green-100 text-sm">Premium</p>
-              <p className="text-2xl font-bold">{users.filter(u => u.subscription_status === 'premium').length}</p>
+              <p className="text-green-100 text-xs sm:text-sm">Premium</p>
+              <p className="text-xl sm:text-2xl font-bold">{users.filter(u => u.subscription_status === 'premium').length}</p>
             </div>
-            <Shield className="h-8 w-8 text-green-200" />
+            <Shield className="h-6 w-6 sm:h-8 sm:w-8 text-green-200" />
           </div>
         </div>
         
-        <div className="bg-gradient-to-r from-purple-500 to-purple-600 rounded-lg p-4 text-white">
+        <div className="bg-gradient-to-r from-purple-500 to-purple-600 rounded-lg p-3 sm:p-4 text-white">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-purple-100 text-sm">Ativos</p>
-              <p className="text-2xl font-bold">{users.filter(u => u.is_active).length}</p>
+              <p className="text-purple-100 text-xs sm:text-sm">Ativos</p>
+              <p className="text-xl sm:text-2xl font-bold">{users.filter(u => u.is_active).length}</p>
             </div>
-            <Users className="h-8 w-8 text-purple-200" />
+            <Users className="h-6 w-6 sm:h-8 sm:w-8 text-purple-200" />
           </div>
         </div>
         
-        <div className="bg-gradient-to-r from-red-500 to-red-600 rounded-lg p-4 text-white">
+        <div className="bg-gradient-to-r from-red-500 to-red-600 rounded-lg p-3 sm:p-4 text-white">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-red-100 text-sm">Admins</p>
-              <p className="text-2xl font-bold">{users.filter(u => u.role === 'admin').length}</p>
+              <p className="text-red-100 text-xs sm:text-sm">Admins</p>
+              <p className="text-xl sm:text-2xl font-bold">{users.filter(u => u.role === 'admin').length}</p>
             </div>
-            <Shield className="h-8 w-8 text-red-200" />
+            <Shield className="h-6 w-6 sm:h-8 sm:w-8 text-red-200" />
           </div>
         </div>
       </div>
@@ -420,13 +421,13 @@ export default function Admin() {
                   filteredUsers.map((user) => (
                     <TableRow key={user.id} className="hover:bg-muted/50">
                       <TableCell>
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 bg-gradient-to-br from-primary to-primary/80 rounded-full flex items-center justify-center text-white font-semibold">
+                        <div className="flex items-center gap-2 sm:gap-3">
+                          <div className="w-8 h-8 sm:w-10 sm:h-10 bg-gradient-to-br from-primary to-primary/80 rounded-full flex items-center justify-center text-white font-semibold text-xs sm:text-sm">
                             {(user.nome || user.email || 'U').charAt(0).toUpperCase()}
                           </div>
-                          <div>
-                            <div className="font-medium">{user.nome || 'Nome não informado'}</div>
-                            <div className="text-sm text-muted-foreground">{user.email}</div>
+                          <div className="min-w-0 flex-1">
+                            <div className="font-medium text-xs sm:text-sm truncate">{user.nome || 'Nome não informado'}</div>
+                            <div className="text-xs sm:text-sm text-muted-foreground truncate">{user.email}</div>
                           </div>
                         </div>
                       </TableCell>

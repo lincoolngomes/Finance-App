@@ -57,7 +57,7 @@ export function ReportFiltersComponent({ filters, onFiltersChange, onClearFilter
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <div className="space-y-2">
             <Label>Período</Label>
             <Select value={filters.period} onValueChange={handlePeriodChange}>
@@ -138,8 +138,8 @@ export function ReportFiltersComponent({ filters, onFiltersChange, onClearFilter
         </div>
 
         {hasFilters && (
-          <div className="flex justify-end">
-            <Button variant="outline" onClick={onClearFilters}>
+          <div className="flex justify-center sm:justify-end">
+            <Button variant="outline" onClick={onClearFilters} className="w-full sm:w-auto">
               Limpar Filtros
             </Button>
           </div>
