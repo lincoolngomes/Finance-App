@@ -11,6 +11,7 @@ import { supabase } from "@/lib/supabase";
 import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
 import Transacoes from "./pages/Transacoes";
+import Calendario from "./pages/Calendario";
 import Lembretes from "./pages/Lembretes";
 import Categorias from "./pages/Categorias";
 import Relatorios from "./pages/Relatorios";
@@ -114,6 +115,14 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <Transacoes />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/calendario"
+        element={
+          <ProtectedRoute>
+            <Calendario />
           </ProtectedRoute>
         }
       />
