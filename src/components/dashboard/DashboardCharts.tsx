@@ -81,7 +81,7 @@ export function DashboardCharts({ transacoes }: DashboardChartsProps) {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="h-[300px] md:h-[400px] relative">
+          <div className="h-[250px] md:h-[300px] relative">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie
@@ -90,8 +90,8 @@ export function DashboardCharts({ transacoes }: DashboardChartsProps) {
                   cy="50%"
                   labelLine={false}
                   label={false}
-                  outerRadius="75%"
-                  innerRadius="35%"
+                  outerRadius="70%"
+                  innerRadius="30%"
                   paddingAngle={2}
                   fill="#8884d8"
                   dataKey="value"
@@ -146,7 +146,7 @@ export function DashboardCharts({ transacoes }: DashboardChartsProps) {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="h-[300px] md:h-[400px]">
+          <div className="h-[250px] md:h-[300px]">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart 
                 data={receitasDespesasData} 
@@ -234,7 +234,7 @@ export function DashboardCharts({ transacoes }: DashboardChartsProps) {
               <div className="absolute top-0 right-0 w-20 h-20 bg-white/10 rounded-full -translate-y-10 translate-x-10"></div>
               <div className="relative">
                 <div className="text-green-100 text-sm font-medium mb-1">💰 Receitas</div>
-                <div className="text-xl sm:text-2xl font-bold text-white truncate">
+                <div className="text-lg sm:text-xl font-bold text-white break-words">
                   {formatCurrency(stats.totalReceitas)}
                 </div>
               </div>
@@ -244,7 +244,7 @@ export function DashboardCharts({ transacoes }: DashboardChartsProps) {
               <div className="absolute top-0 right-0 w-20 h-20 bg-white/10 rounded-full -translate-y-10 translate-x-10"></div>
               <div className="relative">
                 <div className="text-red-100 text-sm font-medium mb-1">💸 Despesas</div>
-                <div className="text-xl sm:text-2xl font-bold text-white truncate">
+                <div className="text-lg sm:text-xl font-bold text-white break-words">
                   {formatCurrency(Math.abs(stats.totalDespesas))}
                 </div>
               </div>
@@ -258,7 +258,7 @@ export function DashboardCharts({ transacoes }: DashboardChartsProps) {
                 <div className={`${stats.saldo >= 0 ? 'text-blue-100' : 'text-yellow-100'} text-sm font-medium mb-1`}>
                   {stats.saldo >= 0 ? '📊 Saldo' : '⚠️ Déficit'}
                 </div>
-                <div className="text-xl sm:text-2xl font-bold text-white truncate">
+                <div className="text-lg sm:text-xl font-bold text-white break-words">
                   {formatCurrency(stats.saldo)}
                 </div>
               </div>
@@ -268,7 +268,7 @@ export function DashboardCharts({ transacoes }: DashboardChartsProps) {
               <div className="absolute top-0 right-0 w-20 h-20 bg-white/10 rounded-full -translate-y-10 translate-x-10"></div>
               <div className="relative">
                 <div className="text-purple-100 text-sm font-medium mb-1">🔄 Transações</div>
-                <div className="text-xl sm:text-2xl font-bold text-white truncate">
+                <div className="text-lg sm:text-xl font-bold text-white break-words">
                   {stats.transacoesCount}
                 </div>
               </div>
