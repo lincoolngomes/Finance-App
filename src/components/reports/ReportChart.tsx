@@ -86,42 +86,40 @@ export function ReportChart({ chartData, categoryData }: ReportChartProps) {
                     ))}
                   </Pie>
                   <ChartTooltip 
-                    content={<ChartTooltipContent />}
-                    labelStyle={{ fontSize: '12px' }}
-                    contentStyle={{ fontSize: '12px' }}
+                    content={({ active, payload }) => {
+                      if (active && payload && payload.length) {
+                        const data = payload[0].payload
+                        const totalValue = chartData.reduce((sum, item) => sum + item.value, 0)
+                        const percentage = totalValue > 0 ? ((data.value / totalValue) * 100).toFixed(1) : 0
+                        
+                        return (
+                          <div className="bg-white p-3 rounded-lg shadow-lg border border-gray-200">
+                            <div className="flex items-center gap-2 mb-2">
+                              <div 
+                                className="w-3 h-3 rounded-full" 
+                                style={{ backgroundColor: data.color }}
+                              />
+                              <span className="font-medium text-gray-900 text-sm">
+                                {data.name}
+                              </span>
+                            </div>
+                            <div className="space-y-1">
+                              <div className="text-lg font-bold text-gray-900">
+                                {percentage}%
+                              </div>
+                              <div className="text-sm text-gray-600">
+                                R$ {data.value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                              </div>
+                            </div>
+                          </div>
+                        )
+                      }
+                      return null
+                    }}
                   />
                 </PieChart>
               </ResponsiveContainer>
             </ChartContainer>
-            {/* Legend mobile - Melhorada */}
-            <div className="space-y-2 mt-3">
-              {chartData.map((entry, index) => {
-                const totalValue = chartData.reduce((sum, item) => sum + item.value, 0)
-                const percentage = totalValue > 0 ? ((entry.value / totalValue) * 100).toFixed(1) : 0
-                
-                return (
-                  <div key={index} className="flex items-center justify-between p-2 bg-gray-50 rounded-lg">
-                    <div className="flex items-center gap-2">
-                      <div 
-                        className="w-4 h-4 rounded-full flex-shrink-0" 
-                        style={{ backgroundColor: entry.color }}
-                      />
-                      <span className="text-sm font-medium text-gray-700 line-clamp-1">
-                        {entry.name}
-                      </span>
-                    </div>
-                    <div className="flex flex-col items-end">
-                      <span className="text-sm font-semibold text-gray-900">
-                        {percentage}%
-                      </span>
-                      <span className="text-xs text-gray-500">
-                        R$ {entry.value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                      </span>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
           </CardContent>
         </Card>
 
