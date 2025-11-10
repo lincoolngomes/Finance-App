@@ -231,8 +231,16 @@ export default function Transacoes() {
 
   const handleEdit = (transacao: Transacao) => {
     setEditingTransaction(transacao)
-    // Se não tem data específica (quando), usa a data de criação no formato YYYY-MM-DD
-    const dateForInput = transacao.quando || new Date(transacao.created_at).toISOString().split('T')[0]
+    
+    // Normaliza a data para o formato do input
+    let dateForInput = ''
+    if (transacao.quando) {
+      dateForInput = normalizeDate(transacao.quando)
+    }
+    // Se não conseguiu normalizar ou não tem data específica, usa created_at
+    if (!dateForInput) {
+      dateForInput = normalizeDate(transacao.created_at)
+    }
     
     setFormData({
       quando: dateForInput,
@@ -287,6 +295,35 @@ export default function Transacoes() {
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('pt-BR')
+  }
+
+  // Função para normalizar data para formato input (YYYY-MM-DD)
+  const normalizeDate = (dateString: string | null): string => {
+    if (!dateString) return ''
+    
+    try {
+      // Tenta diferentes formatos de data
+      let date: Date
+      
+      // Se já está no formato YYYY-MM-DD
+      if (/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
+        return dateString
+      }
+      
+      // Para outros formatos (ISO, timestamp, etc)
+      date = new Date(dateString)
+      
+      // Verifica se a data é válida
+      if (isNaN(date.getTime())) {
+        return ''
+      }
+      
+      // Retorna no formato YYYY-MM-DD
+      return date.toISOString().split('T')[0]
+    } catch (error) {
+      console.error('Erro ao normalizar data:', error)
+      return ''
+    }
   }
 
   return (
