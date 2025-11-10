@@ -107,7 +107,14 @@ export function DashboardCharts({ transacoes }: DashboardChartsProps) {
                   ))}
                 </Pie>
                 <Tooltip 
-                  formatter={(value) => [formatCurrency(Number(value)), 'Valor']}
+                  formatter={(value, name, props) => {
+                    const totalValue = categoriesData.reduce((sum, item) => sum + item.value, 0)
+                    const percentage = totalValue > 0 ? ((Number(value) / totalValue) * 100).toFixed(1) : 0
+                    return [
+                      `${formatCurrency(Number(value))} (${percentage}%)`, 
+                      props.payload.name
+                    ]
+                  }}
                   labelStyle={{ color: '#ffffff', fontWeight: 'bold' }}
                   contentStyle={{ 
                     backgroundColor: 'rgba(15, 23, 42, 0.95)', 
@@ -122,8 +129,8 @@ export function DashboardCharts({ transacoes }: DashboardChartsProps) {
               </PieChart>
             </ResponsiveContainer>
             
-            {/* Legenda personalizada */}
-            <div className="absolute top-0 right-0 space-y-2 text-xs">
+            {/* Legenda personalizada - apenas desktop */}
+            <div className="absolute top-0 right-0 space-y-2 text-xs hidden sm:block">
               {categoriesData.slice(0, 4).map((entry, index) => (
                 <div key={entry.name} className="flex items-center gap-2">
                   <div 
