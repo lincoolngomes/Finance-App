@@ -56,20 +56,20 @@ export function PDFExportOptions({ onExport, isGenerating, disabled }: PDFExport
           )}
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent className="mx-4 sm:mx-0 sm:max-w-[425px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Opções de Exportação PDF</DialogTitle>
+          <DialogTitle className="text-base sm:text-lg">Opções de Exportação PDF</DialogTitle>
         </DialogHeader>
-        <div className="grid gap-4 py-4">
+        <div className="grid gap-3 sm:gap-4 py-4">
           <div className="space-y-2">
-            <Label>Tipo de Transações</Label>
+            <Label className="text-sm">Tipo de Transações</Label>
             <Select 
               value={options.transactionType} 
               onValueChange={(value: 'all' | 'receita' | 'despesa') => 
                 setOptions({ ...options, transactionType: value })
               }
             >
-              <SelectTrigger>
+              <SelectTrigger className="h-9 text-sm">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -81,7 +81,7 @@ export function PDFExportOptions({ onExport, isGenerating, disabled }: PDFExport
           </div>
 
           <div className="space-y-3">
-            <Label>Conteúdo do Relatório</Label>
+            <Label className="text-sm">Conteúdo do Relatório</Label>
             
             <div className="flex items-center space-x-2">
               <Checkbox 
@@ -90,8 +90,9 @@ export function PDFExportOptions({ onExport, isGenerating, disabled }: PDFExport
                 onCheckedChange={(checked) => 
                   setOptions({ ...options, includeSummary: checked as boolean })
                 }
+                className="h-4 w-4"
               />
-              <Label htmlFor="summary">Incluir resumo financeiro</Label>
+              <Label htmlFor="summary" className="text-sm line-clamp-1">Incluir resumo financeiro</Label>
             </div>
 
             <div className="flex items-center space-x-2">
@@ -101,8 +102,9 @@ export function PDFExportOptions({ onExport, isGenerating, disabled }: PDFExport
                 onCheckedChange={(checked) => 
                   setOptions({ ...options, includeDetails: checked as boolean })
                 }
+                className="h-4 w-4"
               />
-              <Label htmlFor="details">Incluir detalhes das transações</Label>
+              <Label htmlFor="details" className="text-sm line-clamp-1">Incluir detalhes das transações</Label>
             </div>
 
             <div className="flex items-center space-x-2">
@@ -112,17 +114,18 @@ export function PDFExportOptions({ onExport, isGenerating, disabled }: PDFExport
                 onCheckedChange={(checked) => 
                   setOptions({ ...options, includeCharts: checked as boolean })
                 }
+                className="h-4 w-4"
               />
-              <Label htmlFor="charts">Incluir gráficos</Label>
+              <Label htmlFor="charts" className="text-sm line-clamp-1">Incluir gráficos</Label>
             </div>
           </div>
         </div>
 
-        <div className="flex flex-col sm:flex-row justify-end gap-2 sm:space-x-2">
-          <Button variant="outline" onClick={() => setOpen(false)} className="w-full sm:w-auto">
+        <div className="flex flex-col sm:flex-row justify-end gap-2 sm:gap-3">
+          <Button variant="outline" onClick={() => setOpen(false)} className="w-full sm:w-auto h-9 text-sm">
             Cancelar
           </Button>
-          <Button onClick={handleExport} className="w-full sm:w-auto">
+          <Button onClick={handleExport} className="w-full sm:w-auto h-9 text-sm">
             Gerar PDF
           </Button>
         </div>

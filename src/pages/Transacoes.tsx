@@ -100,14 +100,16 @@ export default function Transacoes() {
           return new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
         case 'created_desc':
           return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-        case 'date_asc':
+        case 'date_asc': {
           const dateA = a.quando ? new Date(a.quando) : new Date(a.created_at)
           const dateB = b.quando ? new Date(b.quando) : new Date(b.created_at)
           return dateA.getTime() - dateB.getTime()
-        case 'date_desc':
+        }
+        case 'date_desc': {
           const dateA2 = a.quando ? new Date(a.quando) : new Date(a.created_at)
           const dateB2 = b.quando ? new Date(b.quando) : new Date(b.created_at)
           return dateB2.getTime() - dateA2.getTime()
+        }
         default:
           return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
       }
@@ -302,16 +304,13 @@ export default function Transacoes() {
     if (!dateString) return ''
     
     try {
-      // Tenta diferentes formatos de data
-      let date: Date
-      
       // Se já está no formato YYYY-MM-DD
       if (/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
         return dateString
       }
       
       // Para outros formatos (ISO, timestamp, etc)
-      date = new Date(dateString)
+      const date = new Date(dateString)
       
       // Verifica se a data é válida
       if (isNaN(date.getTime())) {

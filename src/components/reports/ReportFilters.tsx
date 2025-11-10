@@ -50,19 +50,19 @@ export function ReportFiltersComponent({ filters, onFiltersChange, onClearFilter
 
   return (
     <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Filter className="h-5 w-5" />
-          Filtros de Relatório
+      <CardHeader className="p-4 sm:p-6">
+        <CardTitle className="flex items-center gap-2 text-base sm:text-lg">
+          <Filter className="h-4 w-4 sm:h-5 sm:w-5" />
+          <span className="line-clamp-1">Filtros de Relatório</span>
         </CardTitle>
       </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <CardContent className="space-y-3 sm:space-y-4 p-4 sm:p-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
           <div className="space-y-2">
-            <Label>Período</Label>
+            <Label className="text-sm">Período</Label>
             <Select value={filters.period} onValueChange={handlePeriodChange}>
-              <SelectTrigger>
-                <Calendar className="h-4 w-4 mr-2" />
+              <SelectTrigger className="h-9 text-sm">
+                <Calendar className="h-3 w-3 sm:h-4 sm:w-4 mr-2" />
                 <SelectValue placeholder="Selecione o período" />
               </SelectTrigger>
               <SelectContent>
@@ -76,35 +76,37 @@ export function ReportFiltersComponent({ filters, onFiltersChange, onClearFilter
 
           {filters.period === 'custom' && (
             <>
-              <div className="space-y-2">
-                <Label htmlFor="startDate">Data Inicial</Label>
+              <div className="space-y-2 sm:col-span-1">
+                <Label htmlFor="startDate" className="text-sm">Data Inicial</Label>
                 <Input
                   id="startDate"
                   type="date"
                   value={filters.startDate}
                   onChange={(e) => onFiltersChange({ ...filters, startDate: e.target.value })}
+                  className="h-9 text-sm"
                 />
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="endDate">Data Final</Label>
+              <div className="space-y-2 sm:col-span-1">
+                <Label htmlFor="endDate" className="text-sm">Data Final</Label>
                 <Input
                   id="endDate"
                   type="date"
                   value={filters.endDate}
                   onChange={(e) => onFiltersChange({ ...filters, endDate: e.target.value })}
+                  className="h-9 text-sm"
                 />
               </div>
             </>
           )}
 
           <div className="space-y-2">
-            <Label>Tipo</Label>
+            <Label className="text-sm">Tipo</Label>
             <Select 
               value={filters.type} 
               onValueChange={(value) => onFiltersChange({ ...filters, type: value === 'all' ? '' : value })}
             >
-              <SelectTrigger>
+              <SelectTrigger className="h-9 text-sm">
                 <SelectValue placeholder="Todos os tipos" />
               </SelectTrigger>
               <SelectContent>
@@ -116,13 +118,13 @@ export function ReportFiltersComponent({ filters, onFiltersChange, onClearFilter
           </div>
 
           <div className="space-y-2">
-            <Label>Categoria</Label>
+            <Label className="text-sm">Categoria</Label>
             <Select 
               value={filters.categoryId} 
               onValueChange={(value) => onFiltersChange({ ...filters, categoryId: value === 'all' ? '' : value })}
               disabled={isLoading}
             >
-              <SelectTrigger>
+              <SelectTrigger className="h-9 text-sm">
                 <SelectValue placeholder={isLoading ? "Carregando..." : "Todas categorias"} />
               </SelectTrigger>
               <SelectContent>
@@ -138,8 +140,8 @@ export function ReportFiltersComponent({ filters, onFiltersChange, onClearFilter
         </div>
 
         {hasFilters && (
-          <div className="flex justify-center sm:justify-end">
-            <Button variant="outline" onClick={onClearFilters} className="w-full sm:w-auto">
+          <div className="flex justify-center sm:justify-end pt-2">
+            <Button variant="outline" onClick={onClearFilters} className="w-full sm:w-auto h-9 text-sm">
               Limpar Filtros
             </Button>
           </div>
