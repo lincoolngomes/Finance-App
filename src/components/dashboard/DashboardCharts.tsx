@@ -234,7 +234,7 @@ export function DashboardCharts({ transacoes }: DashboardChartsProps) {
               <div className="absolute top-0 right-0 w-20 h-20 bg-white/10 rounded-full -translate-y-10 translate-x-10"></div>
               <div className="relative">
                 <div className="text-green-100 text-sm font-medium mb-1">💰 Receitas</div>
-                <div className="text-xs sm:text-sm md:text-base lg:text-lg font-bold text-white break-all">
+                <div className="text-xs sm:text-xs md:text-sm lg:text-base font-bold text-white break-all">
                   {formatCurrency(stats.totalReceitas)}
                 </div>
               </div>
@@ -244,7 +244,7 @@ export function DashboardCharts({ transacoes }: DashboardChartsProps) {
               <div className="absolute top-0 right-0 w-20 h-20 bg-white/10 rounded-full -translate-y-10 translate-x-10"></div>
               <div className="relative">
                 <div className="text-red-100 text-sm font-medium mb-1">💸 Despesas</div>
-                <div className="text-xs sm:text-sm md:text-base lg:text-lg font-bold text-white break-all">
+                <div className="text-xs sm:text-xs md:text-sm lg:text-base font-bold text-white break-all">
                   {formatCurrency(Math.abs(stats.totalDespesas))}
                 </div>
               </div>
@@ -258,7 +258,7 @@ export function DashboardCharts({ transacoes }: DashboardChartsProps) {
                 <div className={`${stats.saldo >= 0 ? 'text-blue-100' : 'text-yellow-100'} text-sm font-medium mb-1`}>
                   {stats.saldo >= 0 ? '📊 Saldo' : '⚠️ Déficit'}
                 </div>
-                <div className="text-xs sm:text-sm md:text-base lg:text-lg font-bold text-white break-all">
+                <div className="text-xs sm:text-xs md:text-sm lg:text-base font-bold text-white break-all">
                   {formatCurrency(stats.saldo)}
                 </div>
               </div>
@@ -268,7 +268,7 @@ export function DashboardCharts({ transacoes }: DashboardChartsProps) {
               <div className="absolute top-0 right-0 w-20 h-20 bg-white/10 rounded-full -translate-y-10 translate-x-10"></div>
               <div className="relative">
                 <div className="text-purple-100 text-sm font-medium mb-1">🔄 Transações</div>
-                <div className="text-xs sm:text-sm md:text-base lg:text-lg font-bold text-white break-all">
+                <div className="text-xs sm:text-xs md:text-sm lg:text-base font-bold text-white break-all">
                   {stats.transacoesCount}
                 </div>
               </div>
