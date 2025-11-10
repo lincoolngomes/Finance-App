@@ -291,25 +291,52 @@ export default function Calendario() {
 
   // Mover transação para nova data
   const handleMoveTransaction = async (transactionId: number, newDate: Date) => {
-    try {
-      const { error } = await supabase
-        .from('transacoes')
-        .update({ quando: format(newDate, 'yyyy-MM-dd') })
-        .eq('id', transactionId)
-
-      if (error) throw error
-
+    if (!user) {
       toast({
-        title: "Sucesso",
-        description: "Transação movida com sucesso!"
+        title: "Erro",
+        description: "Usuário não autenticado",
+        variant: "destructive"
       })
+      return
+    }
 
-      fetchTransacoes()
+    try {
+      const newDateString = format(newDate, 'yyyy-MM-dd')
+      console.log('Movendo transação:', { transactionId, newDateString, userId: user.id })
+
+      const { data, error } = await supabase
+        .from('transacoes')
+        .update({ quando: newDateString })
+        .eq('id', transactionId)
+        .eq('userid', user.id) // Garantir que só move transações do próprio usuário
+        .select()
+
+      if (error) {
+        console.error('Erro do Supabase:', error)
+        throw error
+      }
+
+      console.log('Transação atualizada:', data)
+
+      if (data && data.length > 0) {
+        toast({
+          title: "Sucesso",
+          description: `Transação movida para ${format(newDate, 'dd/MM/yyyy', { locale: ptBR })}!`
+        })
+        fetchTransacoes()
+      } else {
+        console.warn('Nenhuma transação foi atualizada')
+        toast({
+          title: "Aviso",
+          description: "Nenhuma transação foi encontrada para mover",
+          variant: "destructive"
+        })
+      }
     } catch (error) {
       console.error('Erro ao mover transação:', error)
       toast({
         title: "Erro",
-        description: "Erro ao mover transação",
+        description: `Erro ao mover transação: ${error.message || 'Erro desconhecido'}`,
         variant: "destructive"
       })
     }
@@ -333,14 +360,36 @@ export default function Calendario() {
     setDragOverDay(null)
     
     try {
-      const data = JSON.parse(e.dataTransfer.getData('application/json'))
-      const { transactionId } = data
+      const dataString = e.dataTransfer.getData('application/json')
+      console.log('Dados recebidos no drop:', dataString)
       
-      if (transactionId) {
-        await handleMoveTransaction(transactionId, targetDate)
+      if (!dataString) {
+        console.warn('Nenhum dado foi transferido')
+        return
+      }
+
+      const data = JSON.parse(dataString)
+      const { transactionId, sourceDate } = data
+      
+      console.log('Drop processado:', { transactionId, sourceDate, targetDate: format(targetDate, 'yyyy-MM-dd') })
+      
+      if (transactionId && !isNaN(transactionId)) {
+        await handleMoveTransaction(parseInt(transactionId), targetDate)
+      } else {
+        console.warn('ID da transação inválido:', transactionId)
+        toast({
+          title: "Erro",
+          description: "ID da transação inválido",
+          variant: "destructive"
+        })
       }
     } catch (error) {
       console.error('Erro no drop:', error)
+      toast({
+        title: "Erro", 
+        description: "Erro ao processar movimento da transação",
+        variant: "destructive"
+      })
     }
   }
 
@@ -590,10 +639,12 @@ export default function Calendario() {
                           draggable={true}
                           onDragStart={(e) => {
                             e.stopPropagation()
-                            e.dataTransfer.setData('application/json', JSON.stringify({
+                            const dragData = {
                               transactionId: transaction.id,
                               sourceDate: format(day, 'yyyy-MM-dd')
-                            }))
+                            }
+                            console.log('Iniciando drag:', dragData)
+                            e.dataTransfer.setData('application/json', JSON.stringify(dragData))
                             e.dataTransfer.effectAllowed = 'move'
                             // Adiciona classe visual durante drag
                             e.currentTarget.style.opacity = '0.5'
