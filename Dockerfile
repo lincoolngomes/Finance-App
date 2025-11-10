@@ -2,9 +2,18 @@
 FROM node:18-alpine AS build
 
 WORKDIR /app
+
+# Copiar arquivos de dependências
 COPY package*.json ./
-RUN npm ci --legacy-peer-deps
+COPY bun.lockb ./
+
+# Instalar dependências
+RUN npm ci
+
+# Copiar código fonte
 COPY . .
+
+# Build da aplicação
 RUN npm run build
 
 FROM nginx:alpine
