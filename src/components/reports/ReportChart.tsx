@@ -93,17 +93,34 @@ export function ReportChart({ chartData, categoryData }: ReportChartProps) {
                 </PieChart>
               </ResponsiveContainer>
             </ChartContainer>
-            {/* Legend mobile */}
-            <div className="flex justify-center gap-4 mt-2">
-              {chartData.map((entry, index) => (
-                <div key={index} className="flex items-center gap-1">
-                  <div 
-                    className="w-3 h-3 rounded-full" 
-                    style={{ backgroundColor: entry.color }}
-                  />
-                  <span className="text-xs text-muted-foreground">{entry.name}</span>
-                </div>
-              ))}
+            {/* Legend mobile - Melhorada */}
+            <div className="space-y-2 mt-3">
+              {chartData.map((entry, index) => {
+                const totalValue = chartData.reduce((sum, item) => sum + item.value, 0)
+                const percentage = totalValue > 0 ? ((entry.value / totalValue) * 100).toFixed(1) : 0
+                
+                return (
+                  <div key={index} className="flex items-center justify-between p-2 bg-gray-50 rounded-lg">
+                    <div className="flex items-center gap-2">
+                      <div 
+                        className="w-4 h-4 rounded-full flex-shrink-0" 
+                        style={{ backgroundColor: entry.color }}
+                      />
+                      <span className="text-sm font-medium text-gray-700 line-clamp-1">
+                        {entry.name}
+                      </span>
+                    </div>
+                    <div className="flex flex-col items-end">
+                      <span className="text-sm font-semibold text-gray-900">
+                        {percentage}%
+                      </span>
+                      <span className="text-xs text-gray-500">
+                        R$ {entry.value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                      </span>
+                    </div>
+                  </div>
+                )
+              })}
             </div>
           </CardContent>
         </Card>
