@@ -136,7 +136,7 @@ export default function Calendario() {
   }
 
   // Obter dias para exibição
-  const getDaysToShow = () => {
+  const getCalendarDays = () => {
     const period = getViewPeriod()
     
     if (viewMode === 'month') {
@@ -334,13 +334,19 @@ export default function Calendario() {
     }
 
     try {
-      // CORREÇÃO DEFINITIVA: usar date-fns format que já lida corretamente com timezone
-      const newDateString = format(newDate, 'yyyy-MM-dd')
+      // CORREÇÃO DEFINITIVA: normalizar a data para evitar problemas de timezone
+      // Criar uma nova data local sem conversões UTC
+      const localDate = new Date(newDate.getTime() - (newDate.getTimezoneOffset() * 60000))
+      const year = localDate.getUTCFullYear()
+      const month = String(localDate.getUTCMonth() + 1).padStart(2, '0')
+      const day = String(localDate.getUTCDate()).padStart(2, '0')
+      const newDateString = `${year}-${month}-${day}`
       
-      console.log('=== MOVENDO TRANSAÇÃO (CORRIGIDO) ===')
+      console.log('=== MOVENDO TRANSAÇÃO (TIMEZONE CORRIGIDO) ===')
       console.log('Data original:', newDate.toString())
-      console.log('Data formatada (date-fns):', newDateString)
-      console.log('Data para exibição:', format(newDate, 'dd/MM/yyyy', { locale: ptBR }))
+      console.log('Offset timezone:', newDate.getTimezoneOffset())
+      console.log('Data local ajustada:', localDate.toString())
+      console.log('String final para BD:', newDateString)
 
       const { data, error } = await supabase
         .from('transacoes')
@@ -359,7 +365,7 @@ export default function Calendario() {
       if (data && data.length > 0) {
         toast({
           title: "Sucesso",
-          description: `Transação movida para ${format(newDate, 'dd/MM/yyyy', { locale: ptBR })}!`
+          description: `Transação movida para ${day}/${month}/${year}!`
         })
         fetchTransacoes()
       } else {
@@ -399,7 +405,8 @@ export default function Calendario() {
     
     try {
       const dataString = e.dataTransfer.getData('application/json')
-      console.log('Dados recebidos no drop:', dataString)
+      console.log('=== HANDLE DROP ===')
+      console.log('Dados recebidos:', dataString)
       
       if (!dataString) {
         console.warn('Nenhum dado foi transferido')
@@ -409,13 +416,16 @@ export default function Calendario() {
       const data = JSON.parse(dataString)
       const { transactionId, sourceDate } = data
       
-      console.log('Drop processado - targetDate original:', {
-        targetDate: targetDate.toString(),
+      console.log('targetDate no handleDrop:', {
+        toString: targetDate.toString(),
+        toISOString: targetDate.toISOString(),
+        toDateString: targetDate.toDateString(),
         getDate: targetDate.getDate(),
         getMonth: targetDate.getMonth(),
         getFullYear: targetDate.getFullYear(),
-        toDateString: targetDate.toDateString(),
-        toISOString: targetDate.toISOString()
+        format_dd_MM_yyyy: format(targetDate, 'dd/MM/yyyy', { locale: ptBR }),
+        format_yyyy_MM_dd: format(targetDate, 'yyyy-MM-dd'),
+        timezone: targetDate.getTimezoneOffset()
       })
       
       if (transactionId && !isNaN(transactionId)) {
@@ -438,7 +448,7 @@ export default function Calendario() {
     }
   }
 
-  const daysToShow = getDaysToShow()
+  const daysToShow = getCalendarDays()
 
   if (loading) {
     return (
@@ -502,7 +512,7 @@ export default function Calendario() {
                   <CurrencyInput
                     id="valor"
                     value={formData.valor}
-                    onValueChange={(value) => setFormData(prev => ({ ...prev, valor: value }))}
+                    onChange={(value) => setFormData(prev => ({ ...prev, valor: String(value || 0) }))}
                     placeholder="0,00"
                   />
                 </div>
@@ -526,7 +536,6 @@ export default function Calendario() {
                 <CategorySelector
                   value={formData.category_id}
                   onValueChange={(value) => setFormData(prev => ({ ...prev, category_id: value }))}
-                  categories={categories}
                 />
               </div>
 
@@ -677,7 +686,20 @@ export default function Calendario() {
                   onClick={() => openNewTransaction(day)}
                   onDragOver={(e) => handleDragOver(e, day)}
                   onDragLeave={handleDragLeave}
-                  onDrop={(e) => handleDrop(e, day)}
+                  onDrop={(e) => {
+                    console.log('=== DROP EVENT ===')
+                    console.log('Dia do calendário (day):', {
+                      toString: day.toString(),
+                      toISOString: day.toISOString(),
+                      toDateString: day.toDateString(),
+                      getDate: day.getDate(),
+                      getMonth: day.getMonth(),
+                      getFullYear: day.getFullYear(),
+                      format_dd_MM_yyyy: format(day, 'dd/MM/yyyy', { locale: ptBR }),
+                      format_yyyy_MM_dd: format(day, 'yyyy-MM-dd')
+                    })
+                    handleDrop(e, day)
+                  }}
                 >
                   <CardContent className="p-2">
                     <div className="flex items-center justify-between mb-2">
