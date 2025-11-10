@@ -334,19 +334,17 @@ export default function Calendario() {
     }
 
     try {
-      // CORREÇÃO DEFINITIVA: normalizar a data para evitar problemas de timezone
-      // Criar uma nova data local sem conversões UTC
-      const localDate = new Date(newDate.getTime() - (newDate.getTimezoneOffset() * 60000))
-      const year = localDate.getUTCFullYear()
-      const month = String(localDate.getUTCMonth() + 1).padStart(2, '0')
-      const day = String(localDate.getUTCDate()).padStart(2, '0')
+      // CORREÇÃO DEFINITIVA: usar componentes diretos da data local
+      const year = newDate.getFullYear()
+      const month = String(newDate.getMonth() + 1).padStart(2, '0')
+      const day = String(newDate.getDate()).padStart(2, '0')
       const newDateString = `${year}-${month}-${day}`
       
-      console.log('=== MOVENDO TRANSAÇÃO (TIMEZONE CORRIGIDO) ===')
+      console.log('=== MOVENDO TRANSAÇÃO (DIRETO) ===')
       console.log('Data original:', newDate.toString())
-      console.log('Offset timezone:', newDate.getTimezoneOffset())
-      console.log('Data local ajustada:', localDate.toString())
+      console.log('Componentes extraídos:', { year, month, day })
       console.log('String final para BD:', newDateString)
+      console.log('Data para exibição:', `${day}/${month}/${year}`)
 
       const { data, error } = await supabase
         .from('transacoes')
