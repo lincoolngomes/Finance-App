@@ -14,7 +14,7 @@ import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
 import { useCategories } from '@/hooks/useCategories'
 import { toast } from '@/hooks/use-toast'
-import { Plus, Edit, Trash2, Calendar as CalendarIcon, ChevronLeft, ChevronRight, TrendingUp, TrendingDown } from 'lucide-react'
+import { Plus, Edit, Trash2, Calendar as CalendarIcon, ChevronLeft, ChevronRight, TrendingUp, TrendingDown, X } from 'lucide-react'
 import { formatCurrency } from '@/utils/currency'
 import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, isSameDay, isSameMonth, addMonths, subMonths, startOfDay, endOfDay } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
@@ -264,26 +264,59 @@ export default function Calendario() {
   }
 
   // Excluir transação
-  const handleDelete = async (id: number) => {
+  const handleDelete = async (id: number, transactionName?: string) => {
+    if (!user) {
+      toast({
+        title: "Erro",
+        description: "Usuário não autenticado",
+        variant: "destructive"
+      })
+      return
+    }
+
+    // Confirmar exclusão
+    const confirmDelete = window.confirm(
+      `Tem certeza que deseja excluir a transação "${transactionName || 'Sem nome'}"?`
+    )
+    
+    if (!confirmDelete) return
+
     try {
-      const { error } = await supabase
+      console.log('Excluindo transação:', { id, userId: user.id })
+
+      const { data, error } = await supabase
         .from('transacoes')
         .delete()
         .eq('id', id)
+        .eq('userid', user.id) // Garantir que só exclui transações do próprio usuário
+        .select()
 
-      if (error) throw error
+      if (error) {
+        console.error('Erro do Supabase:', error)
+        throw error
+      }
 
-      toast({
-        title: "Sucesso",
-        description: "Transação excluída com sucesso!"
-      })
+      console.log('Transação excluída:', data)
 
-      fetchTransacoes()
+      if (data && data.length > 0) {
+        toast({
+          title: "Sucesso",
+          description: `Transação "${transactionName || 'Sem nome'}" excluída com sucesso!`
+        })
+        fetchTransacoes()
+      } else {
+        console.warn('Nenhuma transação foi excluída')
+        toast({
+          title: "Aviso",
+          description: "Nenhuma transação foi encontrada para excluir",
+          variant: "destructive"
+        })
+      }
     } catch (error) {
       console.error('Erro ao excluir:', error)
       toast({
         title: "Erro",
-        description: "Erro ao excluir transação",
+        description: `Erro ao excluir transação: ${error.message || 'Erro desconhecido'}`,
         variant: "destructive"
       })
     }
@@ -635,43 +668,59 @@ export default function Calendario() {
                       {dayTransactions.map(transaction => (
                         <div 
                           key={transaction.id}
-                          className="group flex items-center justify-between p-1 rounded text-xs hover:bg-background cursor-move select-none border border-transparent hover:border-primary/20 transition-all duration-200"
-                          draggable={true}
-                          onDragStart={(e) => {
-                            e.stopPropagation()
-                            const dragData = {
-                              transactionId: transaction.id,
-                              sourceDate: format(day, 'yyyy-MM-dd')
-                            }
-                            console.log('Iniciando drag:', dragData)
-                            e.dataTransfer.setData('application/json', JSON.stringify(dragData))
-                            e.dataTransfer.effectAllowed = 'move'
-                            // Adiciona classe visual durante drag
-                            e.currentTarget.style.opacity = '0.5'
-                          }}
-                          onDragEnd={(e) => {
-                            e.currentTarget.style.opacity = '1'
-                          }}
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            openEditTransaction(transaction)
-                          }}
-                          title="Arraste para mover ou clique para editar"
+                          className="group flex items-center gap-2 p-1 rounded text-xs hover:bg-background select-none border border-transparent hover:border-primary/20 transition-all duration-200"
+                          title="Clique para editar, arraste para mover"
                         >
-                          <div className="flex-1 truncate">
-                            <div className="font-medium truncate">
-                              {transaction.estabelecimento || 'Sem nome'}
+                          <div 
+                            className="flex-1 flex items-center justify-between cursor-move"
+                            draggable={true}
+                            onDragStart={(e) => {
+                              e.stopPropagation()
+                              const dragData = {
+                                transactionId: transaction.id,
+                                sourceDate: format(day, 'yyyy-MM-dd')
+                              }
+                              console.log('Iniciando drag:', dragData)
+                              e.dataTransfer.setData('application/json', JSON.stringify(dragData))
+                              e.dataTransfer.effectAllowed = 'move'
+                              // Adiciona classe visual durante drag
+                              e.currentTarget.parentElement.style.opacity = '0.5'
+                            }}
+                            onDragEnd={(e) => {
+                              e.currentTarget.parentElement.style.opacity = '1'
+                            }}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              openEditTransaction(transaction)
+                            }}
+                          >
+                            <div className="flex-1 truncate">
+                              <div className="font-medium truncate">
+                                {transaction.estabelecimento || 'Sem nome'}
+                              </div>
+                              <div className="text-muted-foreground truncate">
+                                {transaction.categorias?.nome}
+                              </div>
                             </div>
-                            <div className="text-muted-foreground truncate">
-                              {transaction.categorias?.nome}
+                            <div className={`font-bold ${
+                              transaction.tipo === 'receita' ? 'text-green-600' : 'text-red-600'
+                            }`}>
+                              {transaction.tipo === 'receita' ? '+' : '-'}
+                              {formatCurrency(Math.abs(transaction.valor || 0))}
                             </div>
                           </div>
-                          <div className={`font-bold ${
-                            transaction.tipo === 'receita' ? 'text-green-600' : 'text-red-600'
-                          }`}>
-                            {transaction.tipo === 'receita' ? '+' : '-'}
-                            {formatCurrency(Math.abs(transaction.valor || 0))}
-                          </div>
+                          
+                          {/* Botão de exclusão */}
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleDelete(transaction.id, transaction.estabelecimento)
+                            }}
+                            className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-red-100 dark:hover:bg-red-900/20 text-red-500 hover:text-red-700 transition-all duration-200"
+                            title="Excluir transação"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
                         </div>
                       ))}
                     </div>
