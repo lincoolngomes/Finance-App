@@ -334,21 +334,13 @@ export default function Calendario() {
     }
 
     try {
-      // Garantir que a data seja formatada corretamente (sem problemas de timezone)
-      // Usar uma nova instância da data para evitar mutação
-      const localDate = new Date(newDate.getFullYear(), newDate.getMonth(), newDate.getDate())
-      const year = localDate.getFullYear()
-      const month = String(localDate.getMonth() + 1).padStart(2, '0')
-      const day = String(localDate.getDate()).padStart(2, '0')
-      const newDateString = `${year}-${month}-${day}`
+      // CORREÇÃO DEFINITIVA: usar date-fns format que já lida corretamente com timezone
+      const newDateString = format(newDate, 'yyyy-MM-dd')
       
-      console.log('Movendo transação:', { 
-        transactionId, 
-        originalDate: newDate.toDateString(),
-        localDate: localDate.toDateString(), 
-        newDateString, 
-        userId: user.id 
-      })
+      console.log('=== MOVENDO TRANSAÇÃO (CORRIGIDO) ===')
+      console.log('Data original:', newDate.toString())
+      console.log('Data formatada (date-fns):', newDateString)
+      console.log('Data para exibição:', format(newDate, 'dd/MM/yyyy', { locale: ptBR }))
 
       const { data, error } = await supabase
         .from('transacoes')
@@ -362,13 +354,12 @@ export default function Calendario() {
         throw error
       }
 
-      console.log('Transação atualizada:', data)
+      console.log('Transação atualizada com sucesso!')
 
       if (data && data.length > 0) {
-        const formattedDate = `${day}/${month}/${year}`
         toast({
           title: "Sucesso",
-          description: `Transação movida para ${formattedDate}!`
+          description: `Transação movida para ${format(newDate, 'dd/MM/yyyy', { locale: ptBR })}!`
         })
         fetchTransacoes()
       } else {
@@ -418,19 +409,17 @@ export default function Calendario() {
       const data = JSON.parse(dataString)
       const { transactionId, sourceDate } = data
       
-      // Normalizar a data de destino para evitar problemas de timezone
-      const normalizedTargetDate = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate())
-      
-      console.log('Drop processado:', { 
-        transactionId, 
-        sourceDate, 
-        originalTargetDate: targetDate.toDateString(),
-        normalizedTargetDate: normalizedTargetDate.toDateString(),
-        targetDateFormatted: format(normalizedTargetDate, 'yyyy-MM-dd')
+      console.log('Drop processado - targetDate original:', {
+        targetDate: targetDate.toString(),
+        getDate: targetDate.getDate(),
+        getMonth: targetDate.getMonth(),
+        getFullYear: targetDate.getFullYear(),
+        toDateString: targetDate.toDateString(),
+        toISOString: targetDate.toISOString()
       })
       
       if (transactionId && !isNaN(transactionId)) {
-        await handleMoveTransaction(parseInt(transactionId), normalizedTargetDate)
+        await handleMoveTransaction(parseInt(transactionId), targetDate)
       } else {
         console.warn('ID da transação inválido:', transactionId)
         toast({
