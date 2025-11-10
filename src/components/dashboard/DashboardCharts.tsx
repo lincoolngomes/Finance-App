@@ -89,8 +89,7 @@ export function DashboardCharts({ transacoes }: DashboardChartsProps) {
                   cx="50%"
                   cy="50%"
                   labelLine={false}
-                  label={({ value, percent }) => `${(percent * 100).toFixed(0)}%`}
-                  labelStyle={{ fill: '#ffffff', fontSize: '14px', fontWeight: 'bold' }}
+                  label={false}
                   outerRadius={120}
                   innerRadius={60}
                   paddingAngle={2}
@@ -129,20 +128,7 @@ export function DashboardCharts({ transacoes }: DashboardChartsProps) {
               </PieChart>
             </ResponsiveContainer>
             
-            {/* Legenda personalizada - apenas desktop */}
-            <div className="absolute top-0 right-0 space-y-2 text-xs hidden sm:block">
-              {categoriesData.slice(0, 4).map((entry, index) => (
-                <div key={entry.name} className="flex items-center gap-2">
-                  <div 
-                    className="w-3 h-3 rounded-full shadow-lg" 
-                    style={{ backgroundColor: COLORS[index % COLORS.length] }}
-                  />
-                  <span className="text-slate-300 font-medium truncate max-w-[100px]">
-                    {entry.name}
-                  </span>
-                </div>
-              ))}
-            </div>
+
           </div>
         </CardContent>
       </Card>

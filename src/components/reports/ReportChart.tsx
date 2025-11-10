@@ -183,7 +183,7 @@ export function ReportChart({ chartData, categoryData }: ReportChartProps) {
                   cx="50%"
                   cy="50%"
                   labelLine={false}
-                  label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                  label={false}
                   outerRadius="70%"
                   fill="#8884d8"
                   dataKey="value"
@@ -192,7 +192,38 @@ export function ReportChart({ chartData, categoryData }: ReportChartProps) {
                     <Cell key={`cell-${index}`} fill={entry.color} />
                   ))}
                 </Pie>
-                <ChartTooltip content={<ChartTooltipContent />} />
+                <ChartTooltip 
+                  content={({ active, payload }) => {
+                    if (active && payload && payload.length) {
+                      const data = payload[0].payload
+                      const totalValue = chartData.reduce((sum, item) => sum + item.value, 0)
+                      const percentage = totalValue > 0 ? ((data.value / totalValue) * 100).toFixed(1) : 0
+                      
+                      return (
+                        <div className="bg-white p-3 rounded-lg shadow-lg border border-gray-200">
+                          <div className="flex items-center gap-2 mb-2">
+                            <div 
+                              className="w-3 h-3 rounded-full" 
+                              style={{ backgroundColor: data.color }}
+                            />
+                            <span className="font-medium text-gray-900 text-sm">
+                              {data.name}
+                            </span>
+                          </div>
+                          <div className="space-y-1">
+                            <div className="text-lg font-bold text-gray-900">
+                              {percentage}%
+                            </div>
+                            <div className="text-sm text-gray-600">
+                              R$ {data.value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                            </div>
+                          </div>
+                        </div>
+                      )
+                    }
+                    return null
+                  }}
+                />
               </PieChart>
             </ResponsiveContainer>
           </ChartContainer>
