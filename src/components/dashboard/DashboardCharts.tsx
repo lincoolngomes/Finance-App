@@ -70,8 +70,11 @@ export function DashboardCharts({ transacoes }: DashboardChartsProps) {
     <div className="grid gap-6 md:grid-cols-2">
       <Card className="shadow-lg border border-red-500/20 bg-gradient-to-br from-red-900/90 to-rose-900/90 dark:from-red-950/50 dark:to-rose-950/50 backdrop-blur-sm">
         <CardHeader className="pb-4">
-          <CardTitle className="text-xl font-bold bg-gradient-to-r from-red-400 to-rose-400 bg-clip-text text-transparent">
-            💰 Gastos por Categoria
+          <CardTitle className="text-xl font-bold">
+            <span className="text-red-400">💰</span>{' '}
+            <span className="bg-gradient-to-r from-red-400 to-rose-400 bg-clip-text text-transparent">
+              Gastos por Categoria
+            </span>
           </CardTitle>
           <CardDescription className="text-sm text-red-300/70">
             Distribuição dos seus gastos no período selecionado
@@ -112,8 +115,9 @@ export function DashboardCharts({ transacoes }: DashboardChartsProps) {
                     borderRadius: '12px',
                     boxShadow: '0 8px 32px rgba(0, 0, 0, 0.3)',
                     backdropFilter: 'blur(16px)',
-                    color: '#ffffff'
+                    color: '#ffffff !important'
                   }}
+                  itemStyle={{ color: '#ffffff' }}
                 />
               </PieChart>
             </ResponsiveContainer>
@@ -138,8 +142,11 @@ export function DashboardCharts({ transacoes }: DashboardChartsProps) {
 
       <Card className="shadow-lg border border-emerald-500/20 bg-gradient-to-br from-emerald-900/90 to-teal-900/90 dark:from-emerald-950/50 dark:to-red-950/50 backdrop-blur-sm">
         <CardHeader className="pb-4">
-          <CardTitle className="text-xl font-bold bg-gradient-to-r from-emerald-400 to-red-400 bg-clip-text text-transparent">
-            📊 Receitas vs Despesas
+          <CardTitle className="text-xl font-bold">
+            <span className="text-emerald-400">📊</span>{' '}
+            <span className="bg-gradient-to-r from-emerald-400 to-red-400 bg-clip-text text-transparent">
+              Receitas vs Despesas
+            </span>
           </CardTitle>
           <CardDescription className="text-sm text-emerald-300/70">
             Comparação entre receitas e despesas do período
@@ -218,8 +225,11 @@ export function DashboardCharts({ transacoes }: DashboardChartsProps) {
 
       <Card className="md:col-span-2 shadow-lg border border-blue-500/20 bg-gradient-to-br from-blue-950/50 to-slate-950/50 backdrop-blur-sm">
         <CardHeader className="pb-6">
-          <CardTitle className="text-xl font-bold bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent">
-            📈 Resumo do Período
+          <CardTitle className="text-xl font-bold">
+            <span className="text-blue-400">📈</span>{' '}
+            <span className="bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent">
+              Resumo do Período
+            </span>
           </CardTitle>
           <CardDescription className="text-sm text-blue-300/70">
             Estatísticas detalhadas do período selecionado
