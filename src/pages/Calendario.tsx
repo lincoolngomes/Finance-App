@@ -334,8 +334,21 @@ export default function Calendario() {
     }
 
     try {
-      const newDateString = format(newDate, 'yyyy-MM-dd')
-      console.log('Movendo transação:', { transactionId, newDateString, userId: user.id })
+      // Garantir que a data seja formatada corretamente (sem problemas de timezone)
+      // Usar uma nova instância da data para evitar mutação
+      const localDate = new Date(newDate.getFullYear(), newDate.getMonth(), newDate.getDate())
+      const year = localDate.getFullYear()
+      const month = String(localDate.getMonth() + 1).padStart(2, '0')
+      const day = String(localDate.getDate()).padStart(2, '0')
+      const newDateString = `${year}-${month}-${day}`
+      
+      console.log('Movendo transação:', { 
+        transactionId, 
+        originalDate: newDate.toDateString(),
+        localDate: localDate.toDateString(), 
+        newDateString, 
+        userId: user.id 
+      })
 
       const { data, error } = await supabase
         .from('transacoes')
@@ -352,9 +365,10 @@ export default function Calendario() {
       console.log('Transação atualizada:', data)
 
       if (data && data.length > 0) {
+        const formattedDate = `${day}/${month}/${year}`
         toast({
           title: "Sucesso",
-          description: `Transação movida para ${format(newDate, 'dd/MM/yyyy', { locale: ptBR })}!`
+          description: `Transação movida para ${formattedDate}!`
         })
         fetchTransacoes()
       } else {
@@ -404,10 +418,19 @@ export default function Calendario() {
       const data = JSON.parse(dataString)
       const { transactionId, sourceDate } = data
       
-      console.log('Drop processado:', { transactionId, sourceDate, targetDate: format(targetDate, 'yyyy-MM-dd') })
+      // Normalizar a data de destino para evitar problemas de timezone
+      const normalizedTargetDate = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate())
+      
+      console.log('Drop processado:', { 
+        transactionId, 
+        sourceDate, 
+        originalTargetDate: targetDate.toDateString(),
+        normalizedTargetDate: normalizedTargetDate.toDateString(),
+        targetDateFormatted: format(normalizedTargetDate, 'yyyy-MM-dd')
+      })
       
       if (transactionId && !isNaN(transactionId)) {
-        await handleMoveTransaction(parseInt(transactionId), targetDate)
+        await handleMoveTransaction(parseInt(transactionId), normalizedTargetDate)
       } else {
         console.warn('ID da transação inválido:', transactionId)
         toast({
@@ -528,13 +551,47 @@ export default function Calendario() {
                 />
               </div>
 
-              <div className="flex justify-end gap-2">
-                <Button variant="outline" onClick={() => setDialogOpen(false)}>
-                  Cancelar
-                </Button>
-                <Button onClick={handleSave}>
-                  {editingTransaction ? 'Atualizar' : 'Salvar'}
-                </Button>
+              <div className="flex justify-between gap-2">
+                <div>
+                  {editingTransaction && (
+                    <Button 
+                      variant="destructive" 
+                      onClick={() => {
+                        handleDelete(editingTransaction.id, editingTransaction.estabelecimento)
+                        setDialogOpen(false)
+                      }}
+                      className="gap-2"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      Excluir
+                    </Button>
+                  )}
+                </div>
+                <div className="flex justify-between items-center">
+                  {/* Botão de excluir - só aparece quando editando */}
+                  {editingTransaction && (
+                    <Button 
+                      variant="destructive" 
+                      onClick={() => {
+                        handleDelete(editingTransaction.id, editingTransaction.estabelecimento)
+                        setDialogOpen(false)
+                      }}
+                      className="gap-2"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      Excluir
+                    </Button>
+                  )}
+                  
+                  <div className="flex gap-2 ml-auto">
+                    <Button variant="outline" onClick={() => setDialogOpen(false)}>
+                      Cancelar
+                    </Button>
+                    <Button onClick={handleSave}>
+                      {editingTransaction ? 'Atualizar' : 'Salvar'}
+                    </Button>
+                  </div>
+                </div>
               </div>
             </div>
           </DialogContent>
