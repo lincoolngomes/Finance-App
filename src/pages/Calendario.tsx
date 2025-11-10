@@ -49,6 +49,7 @@ export default function Calendario() {
   const [currentDate, setCurrentDate] = useState(new Date())
   const [selectedDate, setSelectedDate] = useState<Date | null>(null)
   const [viewMode, setViewMode] = useState<ViewMode>('month')
+  const [dragOverDay, setDragOverDay] = useState<string | null>(null)
   
   // Form state
   const [formData, setFormData] = useState({
@@ -288,6 +289,61 @@ export default function Calendario() {
     }
   }
 
+  // Mover transação para nova data
+  const handleMoveTransaction = async (transactionId: number, newDate: Date) => {
+    try {
+      const { error } = await supabase
+        .from('transacoes')
+        .update({ quando: format(newDate, 'yyyy-MM-dd') })
+        .eq('id', transactionId)
+
+      if (error) throw error
+
+      toast({
+        title: "Sucesso",
+        description: "Transação movida com sucesso!"
+      })
+
+      fetchTransacoes()
+    } catch (error) {
+      console.error('Erro ao mover transação:', error)
+      toast({
+        title: "Erro",
+        description: "Erro ao mover transação",
+        variant: "destructive"
+      })
+    }
+  }
+
+  // Handlers para drag and drop
+  const handleDragOver = (e: React.DragEvent, day: Date) => {
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'move'
+    setDragOverDay(format(day, 'yyyy-MM-dd'))
+  }
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault()
+    setDragOverDay(null)
+  }
+
+  const handleDrop = async (e: React.DragEvent, targetDate: Date) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setDragOverDay(null)
+    
+    try {
+      const data = JSON.parse(e.dataTransfer.getData('application/json'))
+      const { transactionId } = data
+      
+      if (transactionId) {
+        await handleMoveTransaction(transactionId, targetDate)
+      }
+    } catch (error) {
+      console.error('Erro no drop:', error)
+    }
+  }
+
   const daysToShow = getDaysToShow()
 
   if (loading) {
@@ -478,16 +534,22 @@ export default function Calendario() {
               const totalDespesas = dayTransactions.filter(t => t.tipo === 'despesa').reduce((sum, t) => sum + Math.abs(t.valor || 0), 0)
               const isToday = isSameDay(day, new Date())
               const isCurrentMonth = viewMode !== 'month' || isSameMonth(day, currentDate)
+              const isDragOver = dragOverDay === format(day, 'yyyy-MM-dd')
 
               return (
                 <Card 
                   key={day.toString()} 
-                  className={`min-h-[120px] cursor-pointer hover:bg-accent/50 transition-colors ${
+                  className={`min-h-[120px] cursor-pointer hover:bg-accent/50 transition-all duration-200 ${
                     isToday ? 'ring-2 ring-primary' : ''
                   } ${
                     !isCurrentMonth ? 'opacity-50' : ''
+                  } ${
+                    isDragOver ? 'ring-2 ring-blue-500 bg-blue-50 dark:bg-blue-950/20' : ''
                   }`}
                   onClick={() => openNewTransaction(day)}
+                  onDragOver={(e) => handleDragOver(e, day)}
+                  onDragLeave={handleDragLeave}
+                  onDrop={(e) => handleDrop(e, day)}
                 >
                   <CardContent className="p-2">
                     <div className="flex items-center justify-between mb-2">
@@ -520,15 +582,30 @@ export default function Calendario() {
                     )}
 
                     {/* Transactions List */}
-                    <div className="space-y-1">
-                      {dayTransactions.slice(0, 3).map(transaction => (
+                    <div className="space-y-1 max-h-32 overflow-y-auto">
+                      {dayTransactions.map(transaction => (
                         <div 
                           key={transaction.id}
-                          className="group flex items-center justify-between p-1 rounded text-xs hover:bg-background"
+                          className="group flex items-center justify-between p-1 rounded text-xs hover:bg-background cursor-move select-none border border-transparent hover:border-primary/20 transition-all duration-200"
+                          draggable={true}
+                          onDragStart={(e) => {
+                            e.stopPropagation()
+                            e.dataTransfer.setData('application/json', JSON.stringify({
+                              transactionId: transaction.id,
+                              sourceDate: format(day, 'yyyy-MM-dd')
+                            }))
+                            e.dataTransfer.effectAllowed = 'move'
+                            // Adiciona classe visual durante drag
+                            e.currentTarget.style.opacity = '0.5'
+                          }}
+                          onDragEnd={(e) => {
+                            e.currentTarget.style.opacity = '1'
+                          }}
                           onClick={(e) => {
                             e.stopPropagation()
                             openEditTransaction(transaction)
                           }}
+                          title="Arraste para mover ou clique para editar"
                         >
                           <div className="flex-1 truncate">
                             <div className="font-medium truncate">
@@ -546,11 +623,6 @@ export default function Calendario() {
                           </div>
                         </div>
                       ))}
-                      {dayTransactions.length > 3 && (
-                        <div className="text-xs text-muted-foreground text-center">
-                          +{dayTransactions.length - 3} mais
-                        </div>
-                      )}
                     </div>
                   </CardContent>
                 </Card>
