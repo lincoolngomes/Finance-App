@@ -66,10 +66,10 @@ export default function Calendario() {
     try {
       setLoading(true)
       
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('transacoes')
         .select('*')
-        .eq('userId', user.id)
+        .eq('userid', user.id)
         .order('quando', { ascending: false })
 
       if (error) {
@@ -77,7 +77,12 @@ export default function Calendario() {
         return
       }
 
-      setTransacoes(data || [])
+      console.log('=== TRANSAÇÕES CARREGADAS ===')
+      console.log('Usuário:', user.id)
+      console.log('Total de transações:', data?.length || 0)
+      console.log('Dados:', data)
+
+      setTransacoes(data as Transacao[] || [])
     } catch (error) {
       console.error('Erro ao buscar transações:', error)
     } finally {
@@ -109,7 +114,7 @@ export default function Calendario() {
 
     try {
       const transactionData = {
-        userId: user.id,
+        userid: user.id,
         quando: formData.quando || null,
         estabelecimento: formData.estabelecimento || null,
         valor: formData.valor ? parseFloat(formData.valor) : null,
@@ -119,11 +124,11 @@ export default function Calendario() {
       }
 
       if (editingTransaction) {
-        const { error } = await supabase
+        const { error } = await (supabase as any)
           .from('transacoes')
           .update(transactionData)
           .eq('id', editingTransaction.id)
-          .eq('userId', user.id)
+          .eq('userid', user.id)
 
         if (error) throw error
 
@@ -132,7 +137,7 @@ export default function Calendario() {
           description: "Transação atualizada com sucesso."
         })
       } else {
-        const { error } = await supabase
+        const { error } = await (supabase as any)
           .from('transacoes')
           .insert([transactionData])
 
@@ -239,10 +244,25 @@ export default function Calendario() {
   const getTransactionsForDay = (day: Date) => {
     const targetDateString = format(day, 'yyyy-MM-dd')
     
-    return transacoes.filter(transacao => {
+    const filteredTransactions = transacoes.filter(transacao => {
       const transactionDateString = transacao.quando || format(new Date(transacao.created_at), 'yyyy-MM-dd')
-      return transactionDateString === targetDateString
+      const match = transactionDateString === targetDateString
+      
+      // Debug: log apenas no dia atual para não poluir o console
+      if (isSameDay(day, new Date()) && transacoes.length > 0) {
+        console.log('=== DEBUG HOJE ===')
+        console.log('Total transações:', transacoes.length)
+        console.log('Buscando por:', targetDateString)
+        console.log('Transações encontradas:', filteredTransactions.length)
+        if (transacoes.length > 0) {
+          console.log('Primeira transação:', transacoes[0])
+        }
+      }
+      
+      return match
     })
+    
+    return filteredTransactions
   }
 
   // Funções de drag & drop
@@ -269,16 +289,16 @@ export default function Calendario() {
     setDragOverDay(null)
     
     try {
-      const transactionData = JSON.parse(e.dataTransfer.getData('transaction'))
+      const transactionData: Transacao = JSON.parse(e.dataTransfer.getData('transaction'))
       const newDate = format(targetDay, 'yyyy-MM-dd')
       
       if (!user) return
 
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from('transacoes')
         .update({ quando: newDate })
         .eq('id', transactionData.id)
-        .eq('userId', user.id)
+        .eq('userid', user.id)
 
       if (error) throw error
 
@@ -303,11 +323,11 @@ export default function Calendario() {
     if (!user) return
 
     try {
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from('transacoes')
         .delete()
         .eq('id', transactionId)
-        .eq('userId', user.id)
+        .eq('userid', user.id)
 
       if (error) throw error
 
