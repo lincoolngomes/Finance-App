@@ -29,18 +29,18 @@ export function ReportTable({ transactions }: ReportTableProps) {
         ) : (
           <>
             {/* Visualização mobile - cards empilhados */}
-            <div className="space-y-4 sm:hidden">
+            <div className="space-y-3 sm:hidden">
               {transactions.map((transaction) => (
-                <div key={transaction.id} className="border rounded-lg p-4 space-y-3 bg-white shadow-sm">
+                <div key={transaction.id} className="border rounded-lg p-3 space-y-2">
                   <div className="flex justify-between items-start">
                     <div className="space-y-1 flex-1">
                       <div className="flex items-center gap-2">
                         {transaction.tipo === 'receita' ? (
-                          <TrendingUp className="h-4 w-4 text-green-600" />
+                          <TrendingUp className="h-3 w-3 text-green-600" />
                         ) : (
-                          <TrendingDown className="h-4 w-4 text-red-600" />
+                          <TrendingDown className="h-3 w-3 text-red-600" />
                         )}
-                        <p className="font-medium text-sm">
+                        <p className="font-medium text-sm line-clamp-1">
                           {transaction.estabelecimento || 'Sem estabelecimento'}
                         </p>
                       </div>
@@ -60,7 +60,7 @@ export function ReportTable({ transactions }: ReportTableProps) {
                       transaction.tipo === 'receita' ? 'text-green-600' : 'text-red-600'
                     }`}>
                       {transaction.tipo === 'receita' ? '+' : '-'}
-                      {transaction.valor ? formatCurrency(Math.abs(transaction.valor)) : 'R$ 0,00'}
+                      {formatCurrency(Math.abs(transaction.valor || 0))}
                     </span>
                   </div>
                 </div>
@@ -105,7 +105,7 @@ export function ReportTable({ transactions }: ReportTableProps) {
                         transaction.tipo === 'receita' ? 'text-green-600' : 'text-red-600'
                       }`}>
                         {transaction.tipo === 'receita' ? '+' : '-'}
-                        {transaction.valor ? formatCurrency(Math.abs(transaction.valor)) : 'R$ 0,00'}
+                        {formatCurrency(Math.abs(transaction.valor || 0))}
                       </TableCell>
                     </TableRow>
                   ))}
