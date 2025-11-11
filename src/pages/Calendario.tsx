@@ -24,6 +24,7 @@ interface Transacao {
   id: number
   userid?: string
   userId: string
+  data?: string
   quando: string | null
   estabelecimento: string | null
   valor: number | null
@@ -68,7 +69,7 @@ export default function Calendario() {
     
     try {
       setLoading(true)
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('transacoes')
         .select('*')
         .eq('userid', user.id)
@@ -368,8 +369,6 @@ export default function Calendario() {
     }
   }
 
-
-
   if (loading) {
     return (
       <div className="flex justify-center items-center h-64">
@@ -504,18 +503,20 @@ export default function Calendario() {
                           }`}
                           title="Clique para editar ou arraste para outra data"
                         >
-                          <div className="flex flex-col">
-                            <div className={`font-bold text-xs ${
-                              transacao.tipo === 'receita' ? 'text-green-700' : 'text-red-700'
-                            }`}>
-                              {transacao.tipo === 'receita' ? '+' : '-'}
-                              {formatCurrency(transacao.valor || 0)}
+                          <div className="flex items-center justify-between">
+                            <div className="flex flex-col flex-1">
+                              <div className={`font-bold text-xs ${
+                                transacao.tipo === 'receita' ? 'text-green-700' : 'text-red-700'
+                              }`}>
+                                {transacao.tipo === 'receita' ? '+' : '-'}
+                                {formatCurrency(transacao.valor || 0)}
+                              </div>
+                              <div className="text-xs text-gray-600 truncate">
+                                {transacao.estabelecimento || transacao.detalhes || 'Sem título'}
+                              </div>
                             </div>
-                            <div className="text-xs text-gray-600 truncate">
-                              {transacao.estabelecimento || transacao.descricao || 'Sem título'}
-                            </div>
-                          </div>
-                          <AlertDialog>
+                            
+                            <AlertDialog>
                             <AlertDialogTrigger asChild>
                               <Button
                                 variant="ghost"
