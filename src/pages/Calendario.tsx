@@ -77,10 +77,7 @@ export default function Calendario() {
         return
       }
 
-      console.log('=== TRANSAÇÕES CARREGADAS ===')
-      console.log('Usuário:', user.id)
-      console.log('Total de transações:', data?.length || 0)
-      console.log('Dados:', data)
+
 
       setTransacoes(data as Transacao[] || [])
     } catch (error) {
@@ -248,16 +245,7 @@ export default function Calendario() {
       const transactionDateString = transacao.quando || format(new Date(transacao.created_at), 'yyyy-MM-dd')
       const match = transactionDateString === targetDateString
       
-      // Debug: log apenas no dia atual para não poluir o console
-      if (isSameDay(day, new Date()) && transacoes.length > 0) {
-        console.log('=== DEBUG HOJE ===')
-        console.log('Total transações:', transacoes.length)
-        console.log('Buscando por:', targetDateString)
-        console.log('Transações encontradas:', filteredTransactions.length)
-        if (transacoes.length > 0) {
-          console.log('Primeira transação:', transacoes[0])
-        }
-      }
+
       
       return match
     })
