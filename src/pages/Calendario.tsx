@@ -1,402 +1,800 @@
-import { useState, useEffect, useMemo } from 'react'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Textarea } from '@/components/ui/textarea'
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog'
-import { Badge } from '@/components/ui/badge'
-import { CurrencyInput } from '@/components/ui/currency-input'
-import { CategorySelector } from '@/components/transactions/CategorySelector'
-import { supabase } from '@/lib/supabase'
-import { useAuth } from '@/hooks/useAuth'
-import { useCategories } from '@/hooks/useCategories'
-import { toast } from '@/hooks/use-toast'
-import { Plus, Edit, Trash2, Calendar as CalendarIcon, ChevronLeft, ChevronRight, TrendingUp, TrendingDown, X } from 'lucide-react'
-import { formatCurrency } from '@/utils/currency'
+import { useState, useEffect } from 'react'import { useState, useEffect, useMemo } from 'react'
+
+import { Card, CardContent, CardHeader } from '@/components/ui/card'import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+
+import { Button } from '@/components/ui/button'import { Button } from '@/components/ui/button'
+
+import { Input } from '@/components/ui/input'import { Input } from '@/components/ui/input'
+
+import { Label } from '@/components/ui/label'import { Label } from '@/components/ui/label'
+
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+
+import { Textarea } from '@/components/ui/textarea'import { Textarea } from '@/components/ui/textarea'
+
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
+
+import { Badge } from '@/components/ui/badge'import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog'
+
+import { CurrencyInput } from '@/components/ui/currency-input'import { Badge } from '@/components/ui/badge'
+
+import { CategorySelector } from '@/components/transactions/CategorySelector'import { CurrencyInput } from '@/components/ui/currency-input'
+
+import { supabase } from '@/lib/supabase'import { CategorySelector } from '@/components/transactions/CategorySelector'
+
+import { useAuth } from '@/hooks/useAuth'import { supabase } from '@/lib/supabase'
+
+import { useCategories } from '@/hooks/useCategories'import { useAuth } from '@/hooks/useAuth'
+
+import { toast } from '@/hooks/use-toast'import { useCategories } from '@/hooks/useCategories'
+
+import { Plus, Edit, Trash2, Calendar as CalendarIcon, ChevronLeft, ChevronRight, TrendingUp, TrendingDown } from 'lucide-react'import { toast } from '@/hooks/use-toast'
+
+import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, isSameDay, isSameMonth, addMonths, subMonths } from 'date-fns'import { Plus, Edit, Trash2, Calendar as CalendarIcon, ChevronLeft, ChevronRight, TrendingUp, TrendingDown, X } from 'lucide-react'
+
+import { ptBR } from 'date-fns/locale'import { formatCurrency } from '@/utils/currency'
+
 import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, isSameDay, isSameMonth, addMonths, subMonths, startOfDay, endOfDay } from 'date-fns'
-import { ptBR } from 'date-fns/locale'
 
-interface Transacao {
+interface Transacao {import { ptBR } from 'date-fns/locale'
+
   id: number
-  created_at: string
-  quando: string | null
-  estabelecimento: string | null
-  valor: number | null
-  detalhes: string | null
-  tipo: string | null
-  category_id: string
+
+  estabelecimento: string | nullinterface Transacao {
+
+  valor: number | null  id: number
+
+  detalhes: string | null  created_at: string
+
+  tipo: string | null  quando: string | null
+
+  category_id: string | null  estabelecimento: string | null
+
+  userid: string  valor: number | null
+
+  quando: string | null  detalhes: string | null
+
+  created_at: string  tipo: string | null
+
+}  category_id: string
+
   userid: string | null
-  categorias?: {
-    id: string
-    nome: string
-  }
-}
 
-type ViewMode = 'month' | 'week' | 'day'
+export default function Calendario() {  categorias?: {
 
-export default function Calendario() {
-  const { user } = useAuth()
-  const { categories } = useCategories()
-  const [transacoes, setTransacoes] = useState<Transacao[]>([])
-  const [loading, setLoading] = useState(true)
+  const { user } = useAuth()    id: string
+
+  const { categories } = useCategories()    nome: string
+
+  const [transacoes, setTransacoes] = useState<Transacao[]>([])  }
+
+  const [loading, setLoading] = useState(true)}
+
   const [dialogOpen, setDialogOpen] = useState(false)
-  const [editingTransaction, setEditingTransaction] = useState<Transacao | null>(null)
-  
-  // Calendar state
-  const [currentDate, setCurrentDate] = useState(new Date())
-  const [selectedDate, setSelectedDate] = useState<Date | null>(null)
-  const [viewMode, setViewMode] = useState<ViewMode>('month')
-  const [dragOverDay, setDragOverDay] = useState<string | null>(null)
-  
-  // Form state
-  const [formData, setFormData] = useState({
-    quando: '',
-    estabelecimento: '',
-    valor: '',
-    detalhes: '',
-    tipo: '',
-    category_id: ''
-  })
 
-  // Buscar transações
-  const fetchTransacoes = async () => {
-    if (!user) return
+  const [currentDate, setCurrentDate] = useState(new Date())type ViewMode = 'month' | 'week' | 'day'
+
+  const [viewMode, setViewMode] = useState<'month' | 'week' | 'day'>('month')
+
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null)export default function Calendario() {
+
+  const [editingTransaction, setEditingTransaction] = useState<Transacao | null>(null)  const { user } = useAuth()
+
+  const [dragOverDay, setDragOverDay] = useState<string | null>(null)  const { categories } = useCategories()
+
+  const [transacoes, setTransacoes] = useState<Transacao[]>([])
+
+  const [formData, setFormData] = useState({  const [loading, setLoading] = useState(true)
+
+    quando: '',  const [dialogOpen, setDialogOpen] = useState(false)
+
+    estabelecimento: '',  const [editingTransaction, setEditingTransaction] = useState<Transacao | null>(null)
+
+    valor: '',  
+
+    detalhes: '',  // Calendar state
+
+    tipo: 'despesa',  const [currentDate, setCurrentDate] = useState(new Date())
+
+    category_id: ''  const [selectedDate, setSelectedDate] = useState<Date | null>(null)
+
+  })  const [viewMode, setViewMode] = useState<ViewMode>('month')
+
+  const [dragOverDay, setDragOverDay] = useState<string | null>(null)
+
+  const fetchTransacoes = async () => {  
+
+    if (!user) return  // Form state
+
+  const [formData, setFormData] = useState({
+
+    try {    quando: '',
+
+      setLoading(true)    estabelecimento: '',
+
+      const { data, error } = await supabase    valor: '',
+
+        .from('transacoes')    detalhes: '',
+
+        .select('*')    tipo: '',
+
+        .eq('userid', user.id)    category_id: ''
+
+        .order('quando', { ascending: false })  })
+
+
+
+      if (error) {  // Buscar transações
+
+        console.error('Erro ao buscar transações:', error)  const fetchTransacoes = async () => {
+
+        return    if (!user) return
+
+      }
 
     try {
-      setLoading(true)
-      const { data, error } = await supabase
-        .from('transacoes')
-        .select(`
-          *,
-          categorias (
-            id,
+
+      setTransacoes(data || [])      setLoading(true)
+
+    } catch (error) {      const { data, error } = await supabase
+
+      console.error('Erro ao buscar transações:', error)        .from('transacoes')
+
+    } finally {        .select(`
+
+      setLoading(false)          *,
+
+    }          categorias (
+
+  }            id,
+
             nome
-          )
-        `)
-        .eq('userid', user.id)
+
+  useEffect(() => {          )
+
+    fetchTransacoes()        `)
+
+  }, [user])        .eq('userid', user.id)
+
         .order('quando', { ascending: false })
 
-      if (error) {
-        console.error('Erro ao buscar transações:', error)
-        toast({
-          title: "Erro",
-          description: "Erro ao carregar transações",
-          variant: "destructive"
-        })
-        return
-      }
-
-      setTransacoes(data || [])
-    } catch (error) {
-      console.error('Erro:', error)
-      toast({
-        title: "Erro",
-        description: "Erro ao carregar transações",
-        variant: "destructive"
-      })
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  useEffect(() => {
-    fetchTransacoes()
-  }, [user])
-
-  // Filtrar transações por data
   const getTransactionsForDate = (date: Date) => {
-    // Converter a data para string no formato YYYY-MM-DD para comparação direta
-    const targetDateString = format(date, 'yyyy-MM-dd')
-    
-    const filteredTransactions = transacoes.filter(t => {
-      // Comparar diretamente as strings de data para evitar problemas de timezone
-      const transactionDateString = t.quando || format(new Date(t.created_at), 'yyyy-MM-dd')
-      const isMatch = transactionDateString === targetDateString
-      
-      // Log apenas para transações que têm 'quando' definido (movidas via drag & drop)
-      if (t.quando && isMatch) {
-        console.log('=== TRANSAÇÃO ENCONTRADA ===')
-        console.log('Data do calendário:', format(date, 'dd/MM/yyyy'))
-        console.log('String de busca:', targetDateString)
-        console.log('String da transação:', transactionDateString)
-        console.log('Match:', isMatch)
-      }
-      
-      return isMatch
-    })
-    
-    return filteredTransactions
-  }
 
-  // Obter período de visualização
-  const getViewPeriod = () => {
-    switch (viewMode) {
-      case 'month':
-        return {
-          start: startOfMonth(currentDate),
-          end: endOfMonth(currentDate)
-        }
-      case 'week':
-        return {
-          start: startOfWeek(currentDate, { locale: ptBR }),
-          end: endOfWeek(currentDate, { locale: ptBR })
-        }
-      case 'day':
-        return {
-          start: startOfDay(currentDate),
-          end: endOfDay(currentDate)
-        }
-    }
-  }
+    const targetDateString = format(date, 'yyyy-MM-dd')      if (error) {
 
-  // Obter dias para exibição
-  const getCalendarDays = () => {
-    const period = getViewPeriod()
-    
-    if (viewMode === 'month') {
-      const monthStart = startOfMonth(currentDate)
-      const monthEnd = endOfMonth(currentDate)
-      const calendarStart = startOfWeek(monthStart, { locale: ptBR })
-      const calendarEnd = endOfWeek(monthEnd, { locale: ptBR })
-      
-      return eachDayOfInterval({ start: calendarStart, end: calendarEnd })
-    } else if (viewMode === 'week') {
-      return eachDayOfInterval({ start: period.start, end: period.end })
-    } else {
-      return [currentDate]
-    }
-  }
+    return transacoes.filter(t => {        console.error('Erro ao buscar transações:', error)
 
-  // Navegação de data
-  const navigateDate = (direction: 'prev' | 'next') => {
-    setCurrentDate(prev => {
-      switch (viewMode) {
-        case 'month':
-          return direction === 'prev' ? subMonths(prev, 1) : addMonths(prev, 1)
-        case 'week':
-          return direction === 'prev' ? 
-            new Date(prev.setDate(prev.getDate() - 7)) : 
-            new Date(prev.setDate(prev.getDate() + 7))
-        case 'day':
-          return direction === 'prev' ?
-            new Date(prev.setDate(prev.getDate() - 1)) :
-            new Date(prev.setDate(prev.getDate() + 1))
-        default:
-          return prev
-      }
-    })
-  }
+      const transactionDateString = t.quando || format(new Date(t.created_at), 'yyyy-MM-dd')        toast({
 
-  // Resetar formulário
-  const resetForm = () => {
-    setFormData({
-      quando: selectedDate ? format(selectedDate, 'yyyy-MM-dd') : '',
-      estabelecimento: '',
+      return transactionDateString === targetDateString          title: "Erro",
+
+    })          description: "Erro ao carregar transações",
+
+  }          variant: "destructive"
+
+        })
+
+  const getCalendarDays = () => {        return
+
+    const monthStart = startOfMonth(currentDate)      }
+
+    const monthEnd = endOfMonth(currentDate)
+
+    const calendarStart = startOfWeek(monthStart, { locale: ptBR })      setTransacoes(data || [])
+
+    const calendarEnd = endOfWeek(monthEnd, { locale: ptBR })    } catch (error) {
+
+          console.error('Erro:', error)
+
+    return eachDayOfInterval({ start: calendarStart, end: calendarEnd })      toast({
+
+  }        title: "Erro",
+
+        description: "Erro ao carregar transações",
+
+  const openNewTransaction = (date?: Date) => {        variant: "destructive"
+
+    setEditingTransaction(null)      })
+
+    setSelectedDate(date || new Date())    } finally {
+
+    setFormData({      setLoading(false)
+
+      quando: date ? format(date, 'yyyy-MM-dd') : '',    }
+
+      estabelecimento: '',  }
+
       valor: '',
-      detalhes: '',
-      tipo: '',
-      category_id: ''
+
+      detalhes: '',  useEffect(() => {
+
+      tipo: 'despesa',    fetchTransacoes()
+
+      category_id: ''  }, [user])
+
     })
+
+    setDialogOpen(true)  // Filtrar transações por data
+
+  }  const getTransactionsForDate = (date: Date) => {
+
+    // Converter a data para string no formato YYYY-MM-DD para comparação direta
+
+  const handleSave = async () => {    const targetDateString = format(date, 'yyyy-MM-dd')
+
+    if (!user) {    
+
+      toast({    const filteredTransactions = transacoes.filter(t => {
+
+        title: "Erro",      // Comparar diretamente as strings de data para evitar problemas de timezone
+
+        description: "Usuário não autenticado",      const transactionDateString = t.quando || format(new Date(t.created_at), 'yyyy-MM-dd')
+
+        variant: "destructive"      const isMatch = transactionDateString === targetDateString
+
+      })      
+
+      return      // Log apenas para transações que têm 'quando' definido (movidas via drag & drop)
+
+    }      if (t.quando && isMatch) {
+
+        console.log('=== TRANSAÇÃO ENCONTRADA ===')
+
+    try {        console.log('Data do calendário:', format(date, 'dd/MM/yyyy'))
+
+      const transactionData = {        console.log('String de busca:', targetDateString)
+
+        estabelecimento: formData.estabelecimento || null,        console.log('String da transação:', transactionDateString)
+
+        valor: parseFloat(formData.valor) || null,        console.log('Match:', isMatch)
+
+        detalhes: formData.detalhes || null,      }
+
+        tipo: formData.tipo || null,      
+
+        category_id: formData.category_id || null,      return isMatch
+
+        userid: user.id,    })
+
+        quando: formData.quando || null,    
+
+      }    return filteredTransactions
+
   }
-
-  // Abrir diálogo para nova transação
-  const openNewTransaction = (date?: Date) => {
-    setEditingTransaction(null)
-    setSelectedDate(date || new Date())
-    resetForm()
-    if (date) {
-      setFormData(prev => ({ ...prev, quando: format(date, 'yyyy-MM-dd') }))
-    }
-    setDialogOpen(true)
-  }
-
-  // Abrir diálogo para editar transação
-  const openEditTransaction = (transacao: Transacao) => {
-    setEditingTransaction(transacao)
-    setFormData({
-      quando: transacao.quando ? format(new Date(transacao.quando), 'yyyy-MM-dd') : '',
-      estabelecimento: transacao.estabelecimento || '',
-      valor: transacao.valor?.toString() || '',
-      detalhes: transacao.detalhes || '',
-      tipo: transacao.tipo || '',
-      category_id: transacao.category_id || ''
-    })
-    setDialogOpen(true)
-  }
-
-  // Salvar transação
-  const handleSave = async () => {
-    if (!user) return
-
-    try {
-      const transactionData = {
-        quando: formData.quando || null,
-        estabelecimento: formData.estabelecimento || null,
-        valor: parseFloat(formData.valor) || null,
-        detalhes: formData.detalhes || null,
-        tipo: formData.tipo || null,
-        category_id: formData.category_id || null,
-        userid: user.id
-      }
 
       if (editingTransaction) {
-        const { error } = await supabase
-          .from('transacoes')
-          .update(transactionData)
-          .eq('id', editingTransaction.id)
 
-        if (error) throw error
+        const { error } = await supabase  // Obter período de visualização
 
-        toast({
+          .from('transacoes')  const getViewPeriod = () => {
+
+          .update(transactionData)    switch (viewMode) {
+
+          .eq('id', editingTransaction.id)      case 'month':
+
+          .eq('userid', user.id)        return {
+
+          start: startOfMonth(currentDate),
+
+        if (error) throw error          end: endOfMonth(currentDate)
+
+        }
+
+        toast({      case 'week':
+
+          title: "Sucesso",        return {
+
+          description: "Transação atualizada com sucesso!"          start: startOfWeek(currentDate, { locale: ptBR }),
+
+        })          end: endOfWeek(currentDate, { locale: ptBR })
+
+      } else {        }
+
+        const { error } = await supabase      case 'day':
+
+          .from('transacoes')        return {
+
+          .insert([transactionData])          start: startOfDay(currentDate),
+
+          end: endOfDay(currentDate)
+
+        if (error) throw error        }
+
+    }
+
+        toast({  }
+
           title: "Sucesso",
-          description: "Transação atualizada com sucesso!"
-        })
-      } else {
-        const { error } = await supabase
-          .from('transacoes')
-          .insert([transactionData])
 
-        if (error) throw error
+          description: "Transação criada com sucesso!"  // Obter dias para exibição
 
-        toast({
-          title: "Sucesso", 
-          description: "Transação criada com sucesso!"
-        })
-      }
+        })  const getCalendarDays = () => {
 
-      setDialogOpen(false)
-      fetchTransacoes()
-      resetForm()
-    } catch (error) {
-      console.error('Erro ao salvar:', error)
-      toast({
-        title: "Erro",
-        description: "Erro ao salvar transação",
-        variant: "destructive"
-      })
-    }
-  }
+      }    const period = getViewPeriod()
 
-  // Excluir transação
-  const handleDelete = async (id: number, transactionName?: string) => {
-    if (!user) {
-      toast({
-        title: "Erro",
-        description: "Usuário não autenticado",
-        variant: "destructive"
-      })
-      return
-    }
-
-    // Confirmar exclusão
-    const confirmDelete = window.confirm(
-      `Tem certeza que deseja excluir a transação "${transactionName || 'Sem nome'}"?`
-    )
     
-    if (!confirmDelete) return
 
-    try {
-      console.log('Excluindo transação:', { id, userId: user.id })
+      setDialogOpen(false)    if (viewMode === 'month') {
 
-      const { data, error } = await supabase
-        .from('transacoes')
-        .delete()
-        .eq('id', id)
-        .eq('userid', user.id) // Garantir que só exclui transações do próprio usuário
-        .select()
+      fetchTransacoes()      const monthStart = startOfMonth(currentDate)
 
-      if (error) {
-        console.error('Erro do Supabase:', error)
-        throw error
-      }
+    } catch (error: any) {      const monthEnd = endOfMonth(currentDate)
 
-      console.log('Transação excluída:', data)
+      console.error('Erro ao salvar transação:', error)      const calendarStart = startOfWeek(monthStart, { locale: ptBR })
 
-      if (data && data.length > 0) {
-        toast({
-          title: "Sucesso",
-          description: `Transação "${transactionName || 'Sem nome'}" excluída com sucesso!`
-        })
-        fetchTransacoes()
-      } else {
-        console.warn('Nenhuma transação foi excluída')
-        toast({
-          title: "Aviso",
-          description: "Nenhuma transação foi encontrada para excluir",
-          variant: "destructive"
-        })
-      }
-    } catch (error) {
-      console.error('Erro ao excluir:', error)
-      toast({
-        title: "Erro",
-        description: `Erro ao excluir transação: ${error.message || 'Erro desconhecido'}`,
-        variant: "destructive"
-      })
+      toast({      const calendarEnd = endOfWeek(monthEnd, { locale: ptBR })
+
+        title: "Erro",      
+
+        description: `Erro ao salvar transação: ${error.message}`,      return eachDayOfInterval({ start: calendarStart, end: calendarEnd })
+
+        variant: "destructive"    } else if (viewMode === 'week') {
+
+      })      return eachDayOfInterval({ start: period.start, end: period.end })
+
+    }    } else {
+
+  }      return [currentDate]
+
     }
+
+  if (loading) {  }
+
+    return (
+
+      <div className="flex items-center justify-center h-64">  // Navegação de data
+
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>  const navigateDate = (direction: 'prev' | 'next') => {
+
+      </div>    setCurrentDate(prev => {
+
+    )      switch (viewMode) {
+
+  }        case 'month':
+
+          return direction === 'prev' ? subMonths(prev, 1) : addMonths(prev, 1)
+
+  const daysToShow = getCalendarDays()        case 'week':
+
+          return direction === 'prev' ? 
+
+  return (            new Date(prev.setDate(prev.getDate() - 7)) : 
+
+    <div className="space-y-6 p-6">            new Date(prev.setDate(prev.getDate() + 7))
+
+      {/* Header */}        case 'day':
+
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">          return direction === 'prev' ?
+
+        <div>            new Date(prev.setDate(prev.getDate() - 1)) :
+
+          <h1 className="text-3xl font-bold tracking-tight">📅 Calendário</h1>            new Date(prev.setDate(prev.getDate() + 1))
+
+          <p className="text-muted-foreground">        default:
+
+            Visualize e gerencie suas transações por data          return prev
+
+          </p>      }
+
+        </div>    })
+
   }
 
-  // Mover transação para nova data
-  const handleMoveTransaction = async (transactionId: number, newDate: Date) => {
-    if (!user) {
-      toast({
-        title: "Erro",
-        description: "Usuário não autenticado",
-        variant: "destructive"
-      })
-      return
+        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+
+          <DialogTrigger asChild>  // Resetar formulário
+
+            <Button onClick={() => openNewTransaction()} className="gap-2">  const resetForm = () => {
+
+              <Plus className="h-4 w-4" />    setFormData({
+
+              Nova Transação      quando: selectedDate ? format(selectedDate, 'yyyy-MM-dd') : '',
+
+            </Button>      estabelecimento: '',
+
+          </DialogTrigger>      valor: '',
+
+          <DialogContent className="sm:max-w-md">      detalhes: '',
+
+            <DialogHeader>      tipo: '',
+
+              <DialogTitle>      category_id: ''
+
+                {editingTransaction ? 'Editar Transação' : 'Nova Transação'}    })
+
+              </DialogTitle>  }
+
+              <DialogDescription>
+
+                {editingTransaction ? 'Edite os dados da transação' : 'Adicione uma nova transação'}  // Abrir diálogo para nova transação
+
+              </DialogDescription>  const openNewTransaction = (date?: Date) => {
+
+            </DialogHeader>    setEditingTransaction(null)
+
+            <div className="space-y-4">    setSelectedDate(date || new Date())
+
+              <div>    resetForm()
+
+                <Label htmlFor="quando">Data</Label>    if (date) {
+
+                <Input      setFormData(prev => ({ ...prev, quando: format(date, 'yyyy-MM-dd') }))
+
+                  id="quando"    }
+
+                  type="date"    setDialogOpen(true)
+
+                  value={formData.quando}  }
+
+                  onChange={(e) => setFormData(prev => ({ ...prev, quando: e.target.value }))}
+
+                />  // Abrir diálogo para editar transação
+
+              </div>  const openEditTransaction = (transacao: Transacao) => {
+
+    setEditingTransaction(transacao)
+
+              <div>    setFormData({
+
+                <Label htmlFor="estabelecimento">Estabelecimento</Label>      quando: transacao.quando ? format(new Date(transacao.quando), 'yyyy-MM-dd') : '',
+
+                <Input      estabelecimento: transacao.estabelecimento || '',
+
+                  id="estabelecimento"      valor: transacao.valor?.toString() || '',
+
+                  value={formData.estabelecimento}      detalhes: transacao.detalhes || '',
+
+                  onChange={(e) => setFormData(prev => ({ ...prev, estabelecimento: e.target.value }))}      tipo: transacao.tipo || '',
+
+                  placeholder="Nome do estabelecimento"      category_id: transacao.category_id || ''
+
+                />    })
+
+              </div>    setDialogOpen(true)
+
+  }
+
+              <div className="grid grid-cols-2 gap-4">
+
+                <div>  // Salvar transação
+
+                  <Label htmlFor="valor">Valor</Label>  const handleSave = async () => {
+
+                  <CurrencyInput    if (!user) return
+
+                    id="valor"
+
+                    value={formData.valor}    try {
+
+                    onChange={(value) => setFormData(prev => ({ ...prev, valor: String(value || 0) }))}      const transactionData = {
+
+                    placeholder="0,00"        quando: formData.quando || null,
+
+                  />        estabelecimento: formData.estabelecimento || null,
+
+                </div>        valor: parseFloat(formData.valor) || null,
+
+        detalhes: formData.detalhes || null,
+
+                <div>        tipo: formData.tipo || null,
+
+                  <Label htmlFor="tipo">Tipo</Label>        category_id: formData.category_id || null,
+
+                  <Select value={formData.tipo} onValueChange={(value) => setFormData(prev => ({ ...prev, tipo: value }))}>        userid: user.id
+
+                    <SelectTrigger>      }
+
+                      <SelectValue placeholder="Selecione o tipo" />
+
+                    </SelectTrigger>      if (editingTransaction) {
+
+                    <SelectContent>        const { error } = await supabase
+
+                      <SelectItem value="receita">Receita</SelectItem>          .from('transacoes')
+
+                      <SelectItem value="despesa">Despesa</SelectItem>          .update(transactionData)
+
+                    </SelectContent>          .eq('id', editingTransaction.id)
+
+                  </Select>
+
+                </div>        if (error) throw error
+
+              </div>
+
+        toast({
+
+              <div>          title: "Sucesso",
+
+                <Label htmlFor="category">Categoria</Label>          description: "Transação atualizada com sucesso!"
+
+                <CategorySelector        })
+
+                  value={formData.category_id}      } else {
+
+                  onValueChange={(value) => setFormData(prev => ({ ...prev, category_id: value }))}        const { error } = await supabase
+
+                />          .from('transacoes')
+
+              </div>          .insert([transactionData])
+
+
+
+              <div>        if (error) throw error
+
+                <Label htmlFor="detalhes">Detalhes</Label>
+
+                <Textarea        toast({
+
+                  id="detalhes"          title: "Sucesso", 
+
+                  value={formData.detalhes}          description: "Transação criada com sucesso!"
+
+                  onChange={(e) => setFormData(prev => ({ ...prev, detalhes: e.target.value }))}        })
+
+                  placeholder="Observações adicionais"      }
+
+                />
+
+              </div>      setDialogOpen(false)
+
+      fetchTransacoes()
+
+              <div className="flex justify-end gap-2">      resetForm()
+
+                <Button variant="outline" onClick={() => setDialogOpen(false)}>    } catch (error) {
+
+                  Cancelar      console.error('Erro ao salvar:', error)
+
+                </Button>      toast({
+
+                <Button onClick={handleSave}>        title: "Erro",
+
+                  {editingTransaction ? 'Atualizar' : 'Salvar'}        description: "Erro ao salvar transação",
+
+                </Button>        variant: "destructive"
+
+              </div>      })
+
+            </div>    }
+
+          </DialogContent>  }
+
+        </Dialog>
+
+      </div>  // Excluir transação
+
+  const handleDelete = async (id: number, transactionName?: string) => {
+
+      {/* Calendar */}    if (!user) {
+
+      <Card>      toast({
+
+        <CardHeader>        title: "Erro",
+
+          <div className="flex items-center justify-between">        description: "Usuário não autenticado",
+
+            <Button variant="outline" size="sm" onClick={() => setCurrentDate(prev => subMonths(prev, 1))}>        variant: "destructive"
+
+              <ChevronLeft className="h-4 w-4" />      })
+
+            </Button>      return
+
+            <h3 className="text-lg font-semibold">    }
+
+              {format(currentDate, 'MMMM yyyy', { locale: ptBR })}
+
+            </h3>    // Confirmar exclusão
+
+            <Button variant="outline" size="sm" onClick={() => setCurrentDate(prev => addMonths(prev, 1))}>    const confirmDelete = window.confirm(
+
+              <ChevronRight className="h-4 w-4" />      `Tem certeza que deseja excluir a transação "${transactionName || 'Sem nome'}"?`
+
+            </Button>    )
+
+          </div>    
+
+        </CardHeader>    if (!confirmDelete) return
+
+        <CardContent>
+
+          {/* Calendar Grid */}    try {
+
+          <div className="grid grid-cols-7 gap-2">      console.log('Excluindo transação:', { id, userId: user.id })
+
+            {/* Days of week header */}
+
+            {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map((day) => (      const { data, error } = await supabase
+
+              <div key={day} className="p-2 text-center text-sm font-medium text-muted-foreground">        .from('transacoes')
+
+                {day}        .delete()
+
+              </div>        .eq('id', id)
+
+            ))}        .eq('userid', user.id) // Garantir que só exclui transações do próprio usuário
+
+                    .select()
+
+            {/* Calendar Days */}
+
+            {daysToShow.map((day) => {      if (error) {
+
+              const dayTransactions = getTransactionsForDate(day)        console.error('Erro do Supabase:', error)
+
+              const totalReceitas = dayTransactions.filter(t => t.tipo === 'receita').reduce((sum, t) => sum + (t.valor || 0), 0)        throw error
+
+              const totalDespesas = dayTransactions.filter(t => t.tipo === 'despesa').reduce((sum, t) => sum + Math.abs(t.valor || 0), 0)      }
+
+              const isToday = isSameDay(day, new Date())
+
+              const isCurrentMonth = isSameMonth(day, currentDate)      console.log('Transação excluída:', data)
+
+
+
+              return (      if (data && data.length > 0) {
+
+                <Card         toast({
+
+                  key={day.toString()}           title: "Sucesso",
+
+                  className={`min-h-[120px] cursor-pointer hover:bg-accent/50 transition-all duration-200 ${          description: `Transação "${transactionName || 'Sem nome'}" excluída com sucesso!`
+
+                    isToday ? 'ring-2 ring-primary' : ''        })
+
+                  } ${        fetchTransacoes()
+
+                    !isCurrentMonth ? 'opacity-50' : ''      } else {
+
+                  }`}        console.warn('Nenhuma transação foi excluída')
+
+                  onClick={() => openNewTransaction(day)}        toast({
+
+                >          title: "Aviso",
+
+                  <CardContent className="p-2">          description: "Nenhuma transação foi encontrada para excluir",
+
+                    <div className="flex items-center justify-between mb-2">          variant: "destructive"
+
+                      <span className={`text-sm font-medium ${isToday ? 'text-primary' : ''}`}>        })
+
+                        {format(day, 'd', { locale: ptBR })}      }
+
+                      </span>    } catch (error) {
+
+                      {dayTransactions.length > 0 && (      console.error('Erro ao excluir:', error)
+
+                        <Badge variant="secondary" className="text-xs">      toast({
+
+                          {dayTransactions.length}        title: "Erro",
+
+                        </Badge>        description: `Erro ao excluir transação: ${error.message || 'Erro desconhecido'}`,
+
+                      )}        variant: "destructive"
+
+                    </div>      })
+
     }
 
-    try {
-      // CORREÇÃO DEFINITIVA: usar componentes diretos da data local
-      const year = newDate.getFullYear()
-      const month = String(newDate.getMonth() + 1).padStart(2, '0')
+                    {/* Transaction Summary */}  }
+
+                    {(totalReceitas > 0 || totalDespesas > 0) && (
+
+                      <div className="space-y-1 text-xs">  // Mover transação para nova data
+
+                        {totalReceitas > 0 && (  const handleMoveTransaction = async (transactionId: number, newDate: Date) => {
+
+                          <div className="flex items-center gap-1 text-green-600">    if (!user) {
+
+                            <TrendingUp className="h-3 w-3" />      toast({
+
+                            <span>R$ {totalReceitas.toFixed(2)}</span>        title: "Erro",
+
+                          </div>        description: "Usuário não autenticado",
+
+                        )}        variant: "destructive"
+
+                        {totalDespesas > 0 && (      })
+
+                          <div className="flex items-center gap-1 text-red-600">      return
+
+                            <TrendingDown className="h-3 w-3" />    }
+
+                            <span>R$ {totalDespesas.toFixed(2)}</span>
+
+                          </div>    try {
+
+                        )}      // CORREÇÃO DEFINITIVA: usar componentes diretos da data local
+
+                      </div>      const year = newDate.getFullYear()
+
+                    )}      const month = String(newDate.getMonth() + 1).padStart(2, '0')
+
       const day = String(newDate.getDate()).padStart(2, '0')
-      const newDateString = `${year}-${month}-${day}`
-      
-      console.log('=== MOVENDO TRANSAÇÃO (DIRETO) ===')
-      console.log('Data original:', newDate.toString())
-      console.log('Componentes extraídos:', { year, month, day })
-      console.log('String final para BD:', newDateString)
-      console.log('Data para exibição:', `${day}/${month}/${year}`)
 
-      const { data, error } = await supabase
-        .from('transacoes')
-        .update({ quando: newDateString })
-        .eq('id', transactionId)
-        .eq('userid', user.id) // Garantir que só move transações do próprio usuário
-        .select()
+                    {/* Transaction List */}      const newDateString = `${year}-${month}-${day}`
 
-      if (error) {
-        console.error('Erro do Supabase:', error)
-        throw error
-      }
+                    <div className="mt-2 space-y-1">      
 
-      console.log('Transação atualizada com sucesso!')
+                      {dayTransactions.slice(0, 2).map((transaction) => (      console.log('=== MOVENDO TRANSAÇÃO (DIRETO) ===')
 
-      if (data && data.length > 0) {
-        toast({
-          title: "Sucesso",
-          description: `Transação movida para ${day}/${month}/${year}!`
-        })
-        fetchTransacoes()
-      } else {
-        console.warn('Nenhuma transação foi atualizada')
-        toast({
-          title: "Aviso",
-          description: "Nenhuma transação foi encontrada para mover",
-          variant: "destructive"
-        })
-      }
-    } catch (error) {
-      console.error('Erro ao mover transação:', error)
-      toast({
-        title: "Erro",
-        description: `Erro ao mover transação: ${error.message || 'Erro desconhecido'}`,
-        variant: "destructive"
+                        <div      console.log('Data original:', newDate.toString())
+
+                          key={transaction.id}      console.log('Componentes extraídos:', { year, month, day })
+
+                          className="text-xs p-1 rounded bg-muted/50 truncate"      console.log('String final para BD:', newDateString)
+
+                          onClick={(e) => {      console.log('Data para exibição:', `${day}/${month}/${year}`)
+
+                            e.stopPropagation()
+
+                            setEditingTransaction(transaction)      const { data, error } = await supabase
+
+                            setFormData({        .from('transacoes')
+
+                              quando: transaction.quando ? format(new Date(transaction.quando), 'yyyy-MM-dd') : '',        .update({ quando: newDateString })
+
+                              estabelecimento: transaction.estabelecimento || '',        .eq('id', transactionId)
+
+                              valor: String(transaction.valor || ''),        .eq('userid', user.id) // Garantir que só move transações do próprio usuário
+
+                              detalhes: transaction.detalhes || '',        .select()
+
+                              tipo: transaction.tipo || 'despesa',
+
+                              category_id: transaction.category_id || ''      if (error) {
+
+                            })        console.error('Erro do Supabase:', error)
+
+                            setDialogOpen(true)        throw error
+
+                          }}      }
+
+                        >
+
+                          <div className="font-medium">{transaction.estabelecimento}</div>      console.log('Transação atualizada com sucesso!')
+
+                          <div className={transaction.tipo === 'receita' ? 'text-green-600' : 'text-red-600'}>
+
+                            R$ {Math.abs(transaction.valor || 0).toFixed(2)}      if (data && data.length > 0) {
+
+                          </div>        toast({
+
+                        </div>          title: "Sucesso",
+
+                      ))}          description: `Transação movida para ${day}/${month}/${year}!`
+
+                      {dayTransactions.length > 2 && (        })
+
+                        <div className="text-xs text-muted-foreground text-center">        fetchTransacoes()
+
+                          +{dayTransactions.length - 2} mais      } else {
+
+                        </div>        console.warn('Nenhuma transação foi atualizada')
+
+                      )}        toast({
+
+                    </div>          title: "Aviso",
+
+                  </CardContent>          description: "Nenhuma transação foi encontrada para mover",
+
+                </Card>          variant: "destructive"
+
+              )        })
+
+            })}      }
+
+          </div>    } catch (error) {
+
+        </CardContent>      console.error('Erro ao mover transação:', error)
+
+      </Card>      toast({
+
+    </div>        title: "Erro",
+
+  )        description: `Erro ao mover transação: ${error.message || 'Erro desconhecido'}`,
+
+}        variant: "destructive"
       })
     }
   }
