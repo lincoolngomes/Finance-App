@@ -68,16 +68,25 @@ export default function Calendario() {
       
       const { data, error } = await (supabase as any)
         .from('transacoes')
-        .select('*')
-        .eq('userid', user.id)
-        .order('quando', { ascending: false })
+        .select(`
+          *,
+          categorias!transacoes_category_id_fkey (
+            id,
+            nome
+          )
+        `)
+        .eq('userid', user?.id)
+        .order('created_at', { ascending: false })
 
       if (error) {
         console.error('Erro ao buscar transações:', error)
         return
       }
 
-
+      console.log('=== DEBUG TRANSAÇÕES ===')
+      console.log('User ID:', user.id)
+      console.log('Transações encontradas:', data?.length || 0)
+      console.log('Dados completos:', data)
 
       setTransacoes(data as Transacao[] || [])
     } catch (error) {
@@ -88,7 +97,9 @@ export default function Calendario() {
   }
 
   useEffect(() => {
-    fetchTransacoes()
+    if (user?.id) {
+      fetchTransacoes()
+    }
   }, [user])
 
   const resetForm = () => {
@@ -245,7 +256,14 @@ export default function Calendario() {
       const transactionDateString = transacao.quando || format(new Date(transacao.created_at), 'yyyy-MM-dd')
       const match = transactionDateString === targetDateString
       
-
+      // Debug apenas para hoje para não poluir o console
+      if (isSameDay(day, new Date()) && transacoes.length > 0) {
+        console.log('=== DEBUG DIA HOJE ===')
+        console.log('Data buscada:', targetDateString)
+        console.log('Total transações:', transacoes.length)
+        console.log('Transações hoje:', filteredTransactions.length)
+        console.log('Primeira transação exemplo:', transacoes[0])
+      }
       
       return match
     })
