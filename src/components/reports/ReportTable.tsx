@@ -31,41 +31,36 @@ export function ReportTable({ transactions }: ReportTableProps) {
             {/* Visualização mobile - cards empilhados */}
             <div className="space-y-4 sm:hidden">
               {transactions.map((transaction) => (
-                <div key={transaction.id} className="bg-white border border-gray-200 rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow">
-                  <div className="flex justify-between items-start mb-3">
-                    <div className="space-y-2 flex-1">
+                <div key={transaction.id} className="border rounded-lg p-4 space-y-3 bg-white shadow-sm">
+                  <div className="flex justify-between items-start">
+                    <div className="space-y-1 flex-1">
                       <div className="flex items-center gap-2">
                         {transaction.tipo === 'receita' ? (
-                          <TrendingUp className="h-4 w-4 text-green-600 flex-shrink-0" />
+                          <TrendingUp className="h-4 w-4 text-green-600" />
                         ) : (
-                          <TrendingDown className="h-4 w-4 text-red-600 flex-shrink-0" />
+                          <TrendingDown className="h-4 w-4 text-red-600" />
                         )}
-                        <p className="font-semibold text-base text-gray-900 line-clamp-2">
+                        <p className="font-medium text-sm">
                           {transaction.estabelecimento || 'Sem estabelecimento'}
                         </p>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <p className="text-sm text-gray-600">
-                          {transaction.categorias?.nome || 'Sem categoria'}
-                        </p>
-                        <span className="text-gray-400">•</span>
-                        <p className="text-sm text-gray-500">
-                          {formatDate(transaction.quando || '')}
-                        </p>
-                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        {transaction.categorias?.nome || 'Sem categoria'}
+                      </p>
                     </div>
+                    <Badge variant={transaction.tipo === 'receita' ? 'default' : 'destructive'} className="text-xs">
+                      {transaction.tipo}
+                    </Badge>
                   </div>
                   <div className="flex justify-between items-center">
-                    <Badge 
-                      variant={transaction.tipo === 'receita' ? 'default' : 'destructive'} 
-                      className="text-sm px-3 py-1">
-                      {transaction.tipo === 'receita' ? 'Receita' : 'Despesa'}
-                    </Badge>
-                    <span className={`font-bold text-lg ${
+                    <span className="text-xs text-muted-foreground">
+                      {formatDate(transaction.quando || '')}
+                    </span>
+                    <span className={`font-medium text-sm ${
                       transaction.tipo === 'receita' ? 'text-green-600' : 'text-red-600'
                     }`}>
                       {transaction.tipo === 'receita' ? '+' : '-'}
-                      {formatCurrency(Math.abs(transaction.valor || 0))}
+                      {transaction.valor ? formatCurrency(Math.abs(transaction.valor)) : 'R$ 0,00'}
                     </span>
                   </div>
                 </div>
@@ -110,7 +105,7 @@ export function ReportTable({ transactions }: ReportTableProps) {
                         transaction.tipo === 'receita' ? 'text-green-600' : 'text-red-600'
                       }`}>
                         {transaction.tipo === 'receita' ? '+' : '-'}
-                        {formatCurrency(Math.abs(transaction.valor || 0))}
+                        {transaction.valor ? formatCurrency(Math.abs(transaction.valor)) : 'R$ 0,00'}
                       </TableCell>
                     </TableRow>
                   ))}
