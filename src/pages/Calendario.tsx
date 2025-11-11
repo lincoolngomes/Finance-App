@@ -61,36 +61,27 @@ export default function Calendario() {
   const { toast } = useToast()
 
   const fetchTransacoes = async () => {
-    if (!user) return
+    if (!user?.id) {
+      console.log('❌ Usuário não encontrado ou sem ID')
+      return
+    }
     
     try {
       setLoading(true)
-      
-      const { data, error } = await (supabase as any)
+      const { data, error } = await supabase
         .from('transacoes')
-        .select(`
-          *,
-          categorias!transacoes_category_id_fkey (
-            id,
-            nome
-          )
-        `)
-        .eq('userid', user?.id)
-        .order('created_at', { ascending: false })
+        .select('*')
+        .eq('userid', user.id)
+        .order('data', { ascending: false })
 
       if (error) {
         console.error('Erro ao buscar transações:', error)
         return
       }
 
-      console.log('=== DEBUG TRANSAÇÕES ===')
-      console.log('User ID:', user.id)
-      console.log('Transações encontradas:', data?.length || 0)
-      console.log('Dados completos:', data)
-
-      setTransacoes(data as Transacao[] || [])
+      setTransacoes(data || [])
     } catch (error) {
-      console.error('Erro ao buscar transações:', error)
+      console.error('💥 Erro geral:', error)
     } finally {
       setLoading(false)
     }
@@ -253,17 +244,12 @@ export default function Calendario() {
     const targetDateString = format(day, 'yyyy-MM-dd')
     
     const filteredTransactions = transacoes.filter(transacao => {
-      const transactionDateString = transacao.quando || format(new Date(transacao.created_at), 'yyyy-MM-dd')
+      // Usar o campo 'data' que é o padrão das transações
+      const transactionDate = new Date(transacao.data || transacao.created_at)
+      const transactionDateString = format(transactionDate, 'yyyy-MM-dd')
       const match = transactionDateString === targetDateString
       
-      // Debug apenas para hoje para não poluir o console
-      if (isSameDay(day, new Date()) && transacoes.length > 0) {
-        console.log('=== DEBUG DIA HOJE ===')
-        console.log('Data buscada:', targetDateString)
-        console.log('Total transações:', transacoes.length)
-        console.log('Transações hoje:', filteredTransactions.length)
-        console.log('Primeira transação exemplo:', transacoes[0])
-      }
+
       
       return match
     })
@@ -382,6 +368,8 @@ export default function Calendario() {
     }
   }
 
+
+
   if (loading) {
     return (
       <div className="flex justify-center items-center h-64">
@@ -468,10 +456,10 @@ export default function Calendario() {
                 key={day.toString()}
                 className={`
                   ${viewMode === 'day' ? 'min-h-[400px]' : 'min-h-[120px]'} 
-                  p-3 border border-border cursor-pointer hover:bg-accent/50 transition-all duration-200
-                  ${!isCurrentMonth && viewMode === 'month' ? 'opacity-50 bg-muted/30' : 'bg-white'}
-                  ${isToday ? 'bg-primary/10 border-primary ring-1 ring-primary/20' : ''}
-                  ${isDragOver ? 'bg-blue-50 border-blue-300 border-2 shadow-lg' : ''}
+                  p-3 border border-gray-200 cursor-pointer hover:bg-gray-50 transition-all duration-200 relative
+                  ${!isCurrentMonth && viewMode === 'month' ? 'opacity-50 bg-gray-100' : 'bg-white'}
+                  ${isToday ? 'bg-blue-50 border-blue-400 ring-2 ring-blue-200' : ''}
+                  ${isDragOver ? 'bg-blue-100 border-blue-500 border-2 shadow-lg' : ''}
                 `}
                 onClick={() => openNewDialog(day)}
                 onDragOver={handleDragOver}
@@ -479,46 +467,63 @@ export default function Calendario() {
                 onDragLeave={handleDragLeave}
                 onDrop={(e) => handleDrop(e, day)}
               >
-                <div className={`text-sm font-medium mb-2 ${isToday ? 'text-primary' : ''}`}>
+                <div className={`text-sm font-bold mb-2 ${isToday ? 'text-blue-700' : 'text-gray-800'}`}>
                   {viewMode === 'day' ? format(day, 'EEEE, dd MMMM', { locale: ptBR }) : format(day, 'd')}
                 </div>
+                
+                {/* Indicador de transações */}
+                {dayTransactions.length > 0 && (
+                  <div className="absolute top-1 right-1">
+                    <div className="bg-blue-500 text-white rounded-full text-xs w-5 h-5 flex items-center justify-center font-bold">
+                      {dayTransactions.length}
+                    </div>
+                  </div>
+                )}
+                
+
                 
                 <div className="space-y-1">
                   {dayTransactions.map((transacao, index) => {
                     // Mostrar mais transações em visualização diária
-                    const maxVisible = viewMode === 'day' ? 10 : 3
+                    const maxVisible = viewMode === 'day' ? 10 : 2
                     if (index >= maxVisible) return null
                     
                     return (
-                      <div
-                        key={transacao.id}
-                        draggable
-                        onDragStart={(e) => handleDragStart(e, transacao)}
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          openEditDialog(transacao)
-                        }}
-                        className="group relative text-xs p-2 rounded cursor-move hover:opacity-80 hover:shadow-md transition-all duration-200 bg-white shadow-sm border hover:border-primary/50 active:scale-95"
-                        title="Clique para editar ou arraste para outra data"
-                      >
-                        <div className="flex items-center justify-between">
-                          <Badge 
-                            variant="secondary" 
-                            className={`${getTypeColor(transacao.tipo)} text-white text-xs mr-2`}
-                          >
-                            {transacao.tipo === 'receita' ? '+' : '-'}
-                            {formatCurrency(transacao.valor || 0)}
-                          </Badge>
-                          
+                        <div
+                          key={transacao.id}
+                          draggable
+                          onDragStart={(e) => handleDragStart(e, transacao)}
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            openEditDialog(transacao)
+                          }}
+                          className={`group relative text-xs p-1.5 rounded cursor-move hover:opacity-90 transition-all duration-200 shadow-sm border ${
+                            transacao.tipo === 'receita' 
+                              ? 'bg-green-50 border-green-300 hover:bg-green-100' 
+                              : 'bg-red-50 border-red-300 hover:bg-red-100'
+                          }`}
+                          title="Clique para editar ou arraste para outra data"
+                        >
+                          <div className="flex flex-col">
+                            <div className={`font-bold text-xs ${
+                              transacao.tipo === 'receita' ? 'text-green-700' : 'text-red-700'
+                            }`}>
+                              {transacao.tipo === 'receita' ? '+' : '-'}
+                              {formatCurrency(transacao.valor || 0)}
+                            </div>
+                            <div className="text-xs text-gray-600 truncate">
+                              {transacao.estabelecimento || transacao.descricao || 'Sem título'}
+                            </div>
+                          </div>
                           <AlertDialog>
                             <AlertDialogTrigger asChild>
                               <Button
                                 variant="ghost"
                                 size="sm"
-                                className="opacity-0 group-hover:opacity-100 transition-opacity h-6 w-6 p-0"
+                                className="opacity-0 group-hover:opacity-100 transition-opacity h-5 w-5 p-0 absolute -top-1 -right-1 bg-red-100 hover:bg-red-200 rounded-full"
                                 onClick={(e) => e.stopPropagation()}
                               >
-                                <Trash2 className="h-3 w-3" />
+                                <Trash2 className="h-3 w-3 text-red-600" />
                               </Button>
                             </AlertDialogTrigger>
                             <AlertDialogContent>
@@ -541,10 +546,6 @@ export default function Calendario() {
                           </AlertDialog>
                         </div>
                         
-                        <div className="text-xs text-muted-foreground mt-1 truncate">
-                          {transacao.estabelecimento || 'Sem título'}
-                        </div>
-                        
                         {viewMode === 'day' && transacao.detalhes && (
                           <div className="text-xs text-muted-foreground mt-1">
                             {transacao.detalhes}
@@ -554,9 +555,9 @@ export default function Calendario() {
                     )
                   })}
                   
-                  {dayTransactions.length > (viewMode === 'day' ? 10 : 3) && (
-                    <div className="text-xs text-muted-foreground">
-                      +{dayTransactions.length - (viewMode === 'day' ? 10 : 3)} mais
+                  {dayTransactions.length > (viewMode === 'day' ? 10 : 2) && (
+                    <div className="text-xs text-gray-500 text-center py-1">
+                      +{dayTransactions.length - (viewMode === 'day' ? 10 : 2)} mais
                     </div>
                   )}
                 </div>
