@@ -20,37 +20,35 @@ import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInte
 import { ptBR } from 'date-fns/locale'
 
 interface Transacao {
-  id: number
-  created_at: string
-  quando: string | null
-  estabelecimento: string | null
-  valor: number | null
-  detalhes: string | null
-  tipo: string | null
-  category_id: string
-  userid: string | null
+  id: number;
+  created_at: string;
+  quando: string | null;
+  estabelecimento: string | null;
+  valor: number | null;
+  detalhes: string | null;
+  tipo: string | null;
+  category_id: string;
+  userid: string | null;
   categorias?: {
-    id: string
-    nome: string
-  }
+    id: string;
+    nome: string;
+  };
 }
 
-type ViewMode = 'month' | 'week' | 'day'
+type ViewMode = 'month' | 'week' | 'day';
 
 export default function Calendario() {
-  const { user } = useAuth()
-  const { categories } = useCategories()
-  const [transacoes, setTransacoes] = useState<Transacao[]>([])
-  const [loading, setLoading] = useState(true)
-  const [dialogOpen, setDialogOpen] = useState(false)
-  const [editingTransaction, setEditingTransaction] = useState<Transacao | null>(null)
-  
+  const { user } = useAuth();
+  const { categories } = useCategories();
+  const [transacoes, setTransacoes] = useState<Transacao[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editingTransaction, setEditingTransaction] = useState<Transacao | null>(null);
   // Calendar state
-  const [currentDate, setCurrentDate] = useState(new Date())
-  const [selectedDate, setSelectedDate] = useState<Date | null>(null)
-  const [viewMode, setViewMode] = useState<ViewMode>('month')
-  const [dragOverDay, setDragOverDay] = useState<string | null>(null)
-  
+  const [currentDate, setCurrentDate] = useState(new Date());
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [viewMode, setViewMode] = useState<ViewMode>('month');
+  const [dragOverDay, setDragOverDay] = useState<string | null>(null);
   // Form state
   const [formData, setFormData] = useState({
     quando: '',
@@ -59,14 +57,14 @@ export default function Calendario() {
     detalhes: '',
     tipo: '',
     category_id: ''
-  })
+  });
+
 
   // Buscar transações
   const fetchTransacoes = async () => {
-    if (!user) return
-
+    if (!user) return;
     try {
-      setLoading(true)
+      setLoading(true);
       const { data, error } = await supabase
         .from('transacoes')
         .select(`
@@ -77,30 +75,28 @@ export default function Calendario() {
           )
         `)
         .eq('userid', user.id)
-        .order('quando', { ascending: false })
-
+        .order('quando', { ascending: false });
       if (error) {
-        console.error('Erro ao buscar transações:', error)
+        console.error('Erro ao buscar transações:', error);
         toast({
           title: "Erro",
           description: "Erro ao carregar transações",
           variant: "destructive"
-        })
-        return
+        });
+        return;
       }
-
-      setTransacoes(data || [])
+      setTransacoes(data || []);
     } catch (error) {
-      console.error('Erro:', error)
+      console.error('Erro:', error);
       toast({
         title: "Erro",
         description: "Erro ao carregar transações",
         variant: "destructive"
-      })
+      });
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   useEffect(() => {
     fetchTransacoes()
@@ -614,12 +610,12 @@ export default function Calendario() {
       {/* Controls */}
       <Card>
         <CardHeader>
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div className="flex items-center gap-2">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-center gap-2 w-full sm:w-auto">
               <Button variant="outline" size="sm" onClick={() => navigateDate('prev')}>
                 <ChevronLeft className="h-4 w-4" />
               </Button>
-              <h3 className="text-lg font-semibold">
+              <h3 className="text-base sm:text-lg font-semibold">
                 {viewMode === 'month' && format(currentDate, 'MMMM yyyy', { locale: ptBR })}
                 {viewMode === 'week' && `Semana de ${format(getViewPeriod().start, 'dd/MM')} - ${format(getViewPeriod().end, 'dd/MM/yyyy')}`}
                 {viewMode === 'day' && format(currentDate, 'dd/MM/yyyy', { locale: ptBR })}
@@ -629,11 +625,12 @@ export default function Calendario() {
               </Button>
             </div>
 
-            <div className="flex gap-2">
+            <div className="flex gap-2 w-full sm:w-auto">
               <Button 
                 variant={viewMode === 'day' ? 'default' : 'outline'} 
                 size="sm"
                 onClick={() => setViewMode('day')}
+                className="w-full sm:w-auto"
               >
                 Dia
               </Button>
@@ -641,6 +638,7 @@ export default function Calendario() {
                 variant={viewMode === 'week' ? 'default' : 'outline'} 
                 size="sm"
                 onClick={() => setViewMode('week')}
+                className="w-full sm:w-auto"
               >
                 Semana
               </Button>
@@ -648,6 +646,7 @@ export default function Calendario() {
                 variant={viewMode === 'month' ? 'default' : 'outline'} 
                 size="sm"
                 onClick={() => setViewMode('month')}
+                className="w-full sm:w-auto"
               >
                 Mês
               </Button>
@@ -655,6 +654,7 @@ export default function Calendario() {
                 variant="outline" 
                 size="sm"
                 onClick={() => setCurrentDate(new Date())}
+                className="w-full sm:w-auto"
               >
                 Hoje
               </Button>
@@ -663,7 +663,7 @@ export default function Calendario() {
         </CardHeader>
         <CardContent>
           {/* Calendar Grid */}
-          <div className={`grid gap-2 ${
+          <div className={`overflow-x-auto grid gap-2 ${
             viewMode === 'month' ? 'grid-cols-7' : 
             viewMode === 'week' ? 'grid-cols-7' : 
             'grid-cols-1'
@@ -672,7 +672,7 @@ export default function Calendario() {
             {(viewMode === 'month' || viewMode === 'week') && (
               <>
                 {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map(day => (
-                  <div key={day} className="p-2 text-center font-semibold text-muted-foreground">
+                  <div key={day} className="p-2 text-center font-semibold text-muted-foreground text-xs sm:text-base">
                     {day}
                   </div>
                 ))}
@@ -691,7 +691,7 @@ export default function Calendario() {
               return (
                 <Card 
                   key={day.toString()} 
-                  className={`min-h-[120px] cursor-pointer hover:bg-accent/50 transition-all duration-200 ${
+                  className={`min-h-[100px] sm:min-h-[120px] cursor-pointer hover:bg-accent/50 transition-all duration-200 ${
                     isToday ? 'ring-2 ring-primary' : ''
                   } ${
                     !isCurrentMonth ? 'opacity-50' : ''
@@ -702,23 +702,12 @@ export default function Calendario() {
                   onDragOver={(e) => handleDragOver(e, day)}
                   onDragLeave={handleDragLeave}
                   onDrop={(e) => {
-                    console.log('=== DROP EVENT ===')
-                    console.log('Dia do calendário (day):', {
-                      toString: day.toString(),
-                      toISOString: day.toISOString(),
-                      toDateString: day.toDateString(),
-                      getDate: day.getDate(),
-                      getMonth: day.getMonth(),
-                      getFullYear: day.getFullYear(),
-                      format_dd_MM_yyyy: format(day, 'dd/MM/yyyy', { locale: ptBR }),
-                      format_yyyy_MM_dd: format(day, 'yyyy-MM-dd')
-                    })
                     handleDrop(e, day)
                   }}
                 >
                   <CardContent className="p-2">
                     <div className="flex items-center justify-between mb-2">
-                      <span className={`text-sm font-medium ${isToday ? 'text-primary' : ''}`}>
+                      <span className={`text-xs sm:text-sm font-medium ${isToday ? 'text-primary' : ''}`}>
                         {format(day, viewMode === 'day' ? 'EEEE, dd/MM/yyyy' : 'd', { locale: ptBR })}
                       </span>
                       {dayTransactions.length > 0 && (
@@ -763,10 +752,8 @@ export default function Calendario() {
                                 transactionId: transaction.id,
                                 sourceDate: format(day, 'yyyy-MM-dd')
                               }
-                              console.log('Iniciando drag:', dragData)
                               e.dataTransfer.setData('application/json', JSON.stringify(dragData))
                               e.dataTransfer.effectAllowed = 'move'
-                              // Adiciona classe visual durante drag
                               e.currentTarget.parentElement.style.opacity = '0.5'
                             }}
                             onDragEnd={(e) => {
@@ -792,7 +779,6 @@ export default function Calendario() {
                               {formatCurrency(Math.abs(transaction.valor || 0))}
                             </div>
                           </div>
-                          
                           {/* Botão de exclusão */}
                           <button
                             onClick={(e) => {

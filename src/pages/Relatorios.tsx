@@ -1,4 +1,3 @@
-
 import { useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { FileText } from 'lucide-react'
@@ -29,7 +28,6 @@ export default function Relatorios() {
 
   const generatePDF = async (options: PDFOptions) => {
     setIsGeneratingPDF(true)
-    
     try {
       const reportData = {
         transactions,
@@ -37,9 +35,7 @@ export default function Relatorios() {
         filters,
         userName: user?.user_metadata?.nome || user?.email || 'Usuário'
       }
-
       generatePDFReport(reportData, options)
-      
       toast({
         title: "PDF gerado com sucesso!",
         description: "O relatório foi exportado em formato PDF.",
