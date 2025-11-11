@@ -56,8 +56,8 @@ export function ReportFiltersComponent({ filters, onFiltersChange, onClearFilter
           <span className="line-clamp-1">Filtros de Relatório</span>
         </CardTitle>
       </CardHeader>
-      <CardContent className="space-y-3 sm:space-y-4 p-4 sm:p-6">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+      <CardContent className="space-y-3 sm:space-y-4 p-3 sm:p-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
           <div className="space-y-2">
             <Label className="text-sm">Período</Label>
             <Select value={filters.period} onValueChange={handlePeriodChange}>
