@@ -1,42 +1,41 @@
 import { useState, useEffect, useMemo } from 'react'
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, addMonths, subMonths, startOfWeek, endOfWeek, startOfDay, endOfDay } from 'date-fns'
-import { ptBR } from 'date-fns/locale'
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import { ChevronLeft, ChevronRight, Plus, Edit, Trash2, Calendar as CalendarIcon, TrendingUp, TrendingDown } from "lucide-react"
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Label } from "@/components/ui/label"
-import { CurrencyInput } from "@/components/ui/currency-input"
-import { useToast } from "@/hooks/use-toast"
-import { supabase } from "@/integrations/supabase/client"
-import { useAuth } from "@/hooks/useAuth"
-import { useCategories } from "@/hooks/useCategories"
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Textarea } from '@/components/ui/textarea'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog'
+import { Badge } from '@/components/ui/badge'
+import { CurrencyInput } from '@/components/ui/currency-input'
+import { CategorySelector } from '@/components/transactions/CategorySelector'
+import { supabase } from '@/lib/supabase'
+import { useAuth } from '@/hooks/useAuth'
+import { useCategories } from '@/hooks/useCategories'
+import { toast } from '@/hooks/use-toast'
+import { Plus, Edit, Trash2, Calendar as CalendarIcon, ChevronLeft, ChevronRight, TrendingUp, TrendingDown, X } from 'lucide-react'
 import { formatCurrency } from '@/utils/currency'
-
-type ViewMode = 'month' | 'week' | 'day'
+import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval, isSameDay, isSameMonth, addMonths, subMonths, startOfDay, endOfDay } from 'date-fns'
+import { ptBR } from 'date-fns/locale'
 
 interface Transacao {
   id: number
-  userid?: string
-  userId: string
-  data?: string
+  created_at: string
   quando: string | null
   estabelecimento: string | null
   valor: number | null
   detalhes: string | null
-  created_at: string
   tipo: string | null
-  category_id: string | null
+  category_id: string
+  userid: string | null
   categorias?: {
     id: string
     nome: string
-  } | null
+  }
 }
+
+type ViewMode = 'month' | 'week' | 'day'
 
 export default function Calendario() {
   const { user } = useAuth()
@@ -45,144 +44,91 @@ export default function Calendario() {
   const [loading, setLoading] = useState(true)
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingTransaction, setEditingTransaction] = useState<Transacao | null>(null)
+  
+  // Calendar state
   const [currentDate, setCurrentDate] = useState(new Date())
   const [selectedDate, setSelectedDate] = useState<Date | null>(null)
   const [viewMode, setViewMode] = useState<ViewMode>('month')
   const [dragOverDay, setDragOverDay] = useState<string | null>(null)
   
+  // Form state
   const [formData, setFormData] = useState({
     quando: '',
     estabelecimento: '',
     valor: '',
     detalhes: '',
-    tipo: 'despesa',
+    tipo: '',
     category_id: ''
   })
 
-  const { toast } = useToast()
-
+  // Buscar transações
   const fetchTransacoes = async () => {
-    if (!user?.id) {
-      console.log('❌ Usuário não encontrado ou sem ID')
-      return
-    }
-    
+    if (!user) return
+
     try {
       setLoading(true)
-      const { data, error } = await (supabase as any)
+      const { data, error } = await supabase
         .from('transacoes')
-        .select('*')
+        .select(`
+          *,
+          categorias (
+            id,
+            nome
+          )
+        `)
         .eq('userid', user.id)
-        .order('data', { ascending: false })
+        .order('quando', { ascending: false })
 
       if (error) {
         console.error('Erro ao buscar transações:', error)
+        toast({
+          title: "Erro",
+          description: "Erro ao carregar transações",
+          variant: "destructive"
+        })
         return
       }
 
       setTransacoes(data || [])
     } catch (error) {
-      console.error('💥 Erro geral:', error)
+      console.error('Erro:', error)
+      toast({
+        title: "Erro",
+        description: "Erro ao carregar transações",
+        variant: "destructive"
+      })
     } finally {
       setLoading(false)
     }
   }
 
   useEffect(() => {
-    if (user?.id) {
-      fetchTransacoes()
-    }
+    fetchTransacoes()
   }, [user])
 
-  const resetForm = () => {
-    setFormData({
-      quando: '',
-      estabelecimento: '',
-      valor: '',
-      detalhes: '',
-      tipo: 'despesa',
-      category_id: ''
-    })
-    setEditingTransaction(null)
-    setSelectedDate(null)
-  }
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+  // Filtrar transações por data
+  const getTransactionsForDate = (date: Date) => {
+    // Converter a data para string no formato YYYY-MM-DD para comparação direta
+    const targetDateString = format(date, 'yyyy-MM-dd')
     
-    if (!user) return
-
-    try {
-      const transactionData = {
-        userid: user.id,
-        quando: formData.quando || null,
-        estabelecimento: formData.estabelecimento || null,
-        valor: formData.valor ? parseFloat(formData.valor) : null,
-        detalhes: formData.detalhes || null,
-        tipo: formData.tipo || null,
-        category_id: formData.category_id || null
+    const filteredTransactions = transacoes.filter(t => {
+      // Comparar diretamente as strings de data para evitar problemas de timezone
+      const transactionDateString = t.quando || format(new Date(t.created_at), 'yyyy-MM-dd')
+      const isMatch = transactionDateString === targetDateString
+      
+      // Log apenas para transações que têm 'quando' definido (movidas via drag & drop)
+      if (t.quando && isMatch) {
+        console.log('=== TRANSAÇÃO ENCONTRADA ===')
+        console.log('Data do calendário:', format(date, 'dd/MM/yyyy'))
+        console.log('String de busca:', targetDateString)
+        console.log('String da transação:', transactionDateString)
+        console.log('Match:', isMatch)
       }
-
-      if (editingTransaction) {
-        const { error } = await (supabase as any)
-          .from('transacoes')
-          .update(transactionData)
-          .eq('id', editingTransaction.id)
-          .eq('userid', user.id)
-
-        if (error) throw error
-
-        toast({
-          title: "Sucesso!",
-          description: "Transação atualizada com sucesso."
-        })
-      } else {
-        const { error } = await (supabase as any)
-          .from('transacoes')
-          .insert([transactionData])
-
-        if (error) throw error
-
-        toast({
-          title: "Sucesso!",
-          description: "Transação criada com sucesso."
-        })
-      }
-
-      setDialogOpen(false)
-      resetForm()
-      fetchTransacoes()
-    } catch (error: any) {
-      console.error('Erro ao salvar transação:', error)
-      toast({
-        title: "Erro",
-        description: error.message || "Erro ao salvar transação",
-        variant: "destructive"
-      })
-    }
-  }
-
-  const openEditDialog = (transacao: Transacao) => {
-    setEditingTransaction(transacao)
-    setFormData({
-      quando: transacao.quando || '',
-      estabelecimento: transacao.estabelecimento || '',
-      valor: transacao.valor?.toString() || '',
-      detalhes: transacao.detalhes || '',
-      tipo: transacao.tipo || 'despesa',
-      category_id: transacao.category_id || ''
+      
+      return isMatch
     })
-    setDialogOpen(true)
-  }
-
-  const openNewDialog = (date?: Date) => {
-    resetForm()
-    if (date) {
-      const formattedDate = format(date, 'yyyy-MM-dd')
-      setFormData(prev => ({ ...prev, quando: formattedDate }))
-      setSelectedDate(date)
-    }
-    setDialogOpen(true)
+    
+    return filteredTransactions
   }
 
   // Obter período de visualização
@@ -224,122 +170,6 @@ export default function Calendario() {
     }
   }
 
-  // Obter dias para renderização
-  const calendarDays = getCalendarDays()
-
-  // Função para obter título da visualização
-  const getViewTitle = () => {
-    switch (viewMode) {
-      case 'month':
-        return format(currentDate, 'MMMM yyyy', { locale: ptBR })
-      case 'week':
-        const weekStart = startOfWeek(currentDate, { locale: ptBR })
-        const weekEnd = endOfWeek(currentDate, { locale: ptBR })
-        return `${format(weekStart, 'd MMM', { locale: ptBR })} - ${format(weekEnd, 'd MMM yyyy', { locale: ptBR })}`
-      case 'day':
-        return format(currentDate, 'dd MMMM yyyy', { locale: ptBR })
-    }
-  }
-
-  const getTransactionsForDay = (day: Date) => {
-    const targetDateString = format(day, 'yyyy-MM-dd')
-    
-    const filteredTransactions = transacoes.filter(transacao => {
-      // Usar o campo 'data' que é o padrão das transações
-      const transactionDate = new Date(transacao.data || transacao.created_at)
-      const transactionDateString = format(transactionDate, 'yyyy-MM-dd')
-      const match = transactionDateString === targetDateString
-      
-
-      
-      return match
-    })
-    
-    return filteredTransactions
-  }
-
-  // Funções de drag & drop
-  const handleDragStart = (e: React.DragEvent, transacao: Transacao) => {
-    e.dataTransfer.setData('transaction', JSON.stringify(transacao))
-  }
-
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault()
-  }
-
-  const handleDragEnter = (e: React.DragEvent, dayString: string) => {
-    e.preventDefault()
-    setDragOverDay(dayString)
-  }
-
-  const handleDragLeave = (e: React.DragEvent) => {
-    e.preventDefault()
-    setDragOverDay(null)
-  }
-
-  const handleDrop = async (e: React.DragEvent, targetDay: Date) => {
-    e.preventDefault()
-    setDragOverDay(null)
-    
-    try {
-      const transactionData: Transacao = JSON.parse(e.dataTransfer.getData('transaction'))
-      const newDate = format(targetDay, 'yyyy-MM-dd')
-      
-      if (!user) return
-
-      const { error } = await (supabase as any)
-        .from('transacoes')
-        .update({ quando: newDate })
-        .eq('id', transactionData.id)
-        .eq('userid', user.id)
-
-      if (error) throw error
-
-      await fetchTransacoes()
-      
-      toast({
-        title: "Sucesso!",
-        description: `Transação movida para ${format(targetDay, 'dd/MM/yyyy', { locale: ptBR })}`
-      })
-    } catch (error: any) {
-      console.error('Erro ao mover transação:', error)
-      toast({
-        title: "Erro",
-        description: "Erro ao mover transação",
-        variant: "destructive"
-      })
-    }
-  }
-
-  // Função para deletar transação
-  const handleDeleteTransaction = async (transactionId: number) => {
-    if (!user) return
-
-    try {
-      const { error } = await (supabase as any)
-        .from('transacoes')
-        .delete()
-        .eq('id', transactionId)
-        .eq('userid', user.id)
-
-      if (error) throw error
-
-      await fetchTransacoes()
-      
-      toast({
-        title: "Sucesso!",
-        description: "Transação excluída com sucesso"
-      })
-    } catch (error: any) {
-      console.error('Erro ao excluir transação:', error)
-      toast({
-        title: "Erro",
-        description: "Erro ao excluir transação",
-        variant: "destructive"
-      })
-    }
-  }
-
   // Navegação de data
   const navigateDate = (direction: 'prev' | 'next') => {
     setCurrentDate(prev => {
@@ -347,347 +177,643 @@ export default function Calendario() {
         case 'month':
           return direction === 'prev' ? subMonths(prev, 1) : addMonths(prev, 1)
         case 'week':
-          const weekChange = direction === 'prev' ? -7 : 7
-          return new Date(prev.getTime() + weekChange * 24 * 60 * 60 * 1000)
+          return direction === 'prev' ? 
+            new Date(prev.setDate(prev.getDate() - 7)) : 
+            new Date(prev.setDate(prev.getDate() + 7))
         case 'day':
-          const dayChange = direction === 'prev' ? -1 : 1
-          return new Date(prev.getTime() + dayChange * 24 * 60 * 60 * 1000)
+          return direction === 'prev' ?
+            new Date(prev.setDate(prev.getDate() - 1)) :
+            new Date(prev.setDate(prev.getDate() + 1))
         default:
           return prev
       }
     })
   }
 
-  const getTypeColor = (tipo: string | null) => {
-    switch (tipo) {
-      case 'receita':
-        return 'bg-green-500'
-      case 'despesa':
-        return 'bg-red-500'
-      default:
-        return 'bg-gray-500'
+  // Resetar formulário
+  const resetForm = () => {
+    setFormData({
+      quando: selectedDate ? format(selectedDate, 'yyyy-MM-dd') : '',
+      estabelecimento: '',
+      valor: '',
+      detalhes: '',
+      tipo: '',
+      category_id: ''
+    })
+  }
+
+  // Abrir diálogo para nova transação
+  const openNewTransaction = (date?: Date) => {
+    setEditingTransaction(null)
+    setSelectedDate(date || new Date())
+    resetForm()
+    if (date) {
+      setFormData(prev => ({ ...prev, quando: format(date, 'yyyy-MM-dd') }))
+    }
+    setDialogOpen(true)
+  }
+
+  // Abrir diálogo para editar transação
+  const openEditTransaction = (transacao: Transacao) => {
+    setEditingTransaction(transacao)
+    setFormData({
+      quando: transacao.quando ? format(new Date(transacao.quando), 'yyyy-MM-dd') : '',
+      estabelecimento: transacao.estabelecimento || '',
+      valor: transacao.valor?.toString() || '',
+      detalhes: transacao.detalhes || '',
+      tipo: transacao.tipo || '',
+      category_id: transacao.category_id || ''
+    })
+    setDialogOpen(true)
+  }
+
+  // Salvar transação
+  const handleSave = async () => {
+    if (!user) return
+
+    try {
+      const transactionData = {
+        quando: formData.quando || null,
+        estabelecimento: formData.estabelecimento || null,
+        valor: parseFloat(formData.valor) || null,
+        detalhes: formData.detalhes || null,
+        tipo: formData.tipo || null,
+        category_id: formData.category_id || null,
+        userid: user.id
+      }
+
+      if (editingTransaction) {
+        const { error } = await supabase
+          .from('transacoes')
+          .update(transactionData)
+          .eq('id', editingTransaction.id)
+
+        if (error) throw error
+
+        toast({
+          title: "Sucesso",
+          description: "Transação atualizada com sucesso!"
+        })
+      } else {
+        const { error } = await supabase
+          .from('transacoes')
+          .insert([transactionData])
+
+        if (error) throw error
+
+        toast({
+          title: "Sucesso", 
+          description: "Transação criada com sucesso!"
+        })
+      }
+
+      setDialogOpen(false)
+      fetchTransacoes()
+      resetForm()
+    } catch (error) {
+      console.error('Erro ao salvar:', error)
+      toast({
+        title: "Erro",
+        description: "Erro ao salvar transação",
+        variant: "destructive"
+      })
     }
   }
 
+  // Excluir transação
+  const handleDelete = async (id: number, transactionName?: string) => {
+    if (!user) {
+      toast({
+        title: "Erro",
+        description: "Usuário não autenticado",
+        variant: "destructive"
+      })
+      return
+    }
+
+    // Confirmar exclusão
+    const confirmDelete = window.confirm(
+      `Tem certeza que deseja excluir a transação "${transactionName || 'Sem nome'}"?`
+    )
+    
+    if (!confirmDelete) return
+
+    try {
+      console.log('Excluindo transação:', { id, userId: user.id })
+
+      const { data, error } = await supabase
+        .from('transacoes')
+        .delete()
+        .eq('id', id)
+        .eq('userid', user.id) // Garantir que só exclui transações do próprio usuário
+        .select()
+
+      if (error) {
+        console.error('Erro do Supabase:', error)
+        throw error
+      }
+
+      console.log('Transação excluída:', data)
+
+      if (data && data.length > 0) {
+        toast({
+          title: "Sucesso",
+          description: `Transação "${transactionName || 'Sem nome'}" excluída com sucesso!`
+        })
+        fetchTransacoes()
+      } else {
+        console.warn('Nenhuma transação foi excluída')
+        toast({
+          title: "Aviso",
+          description: "Nenhuma transação foi encontrada para excluir",
+          variant: "destructive"
+        })
+      }
+    } catch (error) {
+      console.error('Erro ao excluir:', error)
+      toast({
+        title: "Erro",
+        description: `Erro ao excluir transação: ${error.message || 'Erro desconhecido'}`,
+        variant: "destructive"
+      })
+    }
+  }
+
+  // Mover transação para nova data
+  const handleMoveTransaction = async (transactionId: number, newDate: Date) => {
+    if (!user) {
+      toast({
+        title: "Erro",
+        description: "Usuário não autenticado",
+        variant: "destructive"
+      })
+      return
+    }
+
+    try {
+      // CORREÇÃO DEFINITIVA: usar componentes diretos da data local
+      const year = newDate.getFullYear()
+      const month = String(newDate.getMonth() + 1).padStart(2, '0')
+      const day = String(newDate.getDate()).padStart(2, '0')
+      const newDateString = `${year}-${month}-${day}`
+      
+      console.log('=== MOVENDO TRANSAÇÃO (DIRETO) ===')
+      console.log('Data original:', newDate.toString())
+      console.log('Componentes extraídos:', { year, month, day })
+      console.log('String final para BD:', newDateString)
+      console.log('Data para exibição:', `${day}/${month}/${year}`)
+
+      const { data, error } = await supabase
+        .from('transacoes')
+        .update({ quando: newDateString })
+        .eq('id', transactionId)
+        .eq('userid', user.id) // Garantir que só move transações do próprio usuário
+        .select()
+
+      if (error) {
+        console.error('Erro do Supabase:', error)
+        throw error
+      }
+
+      console.log('Transação atualizada com sucesso!')
+
+      if (data && data.length > 0) {
+        toast({
+          title: "Sucesso",
+          description: `Transação movida para ${day}/${month}/${year}!`
+        })
+        fetchTransacoes()
+      } else {
+        console.warn('Nenhuma transação foi atualizada')
+        toast({
+          title: "Aviso",
+          description: "Nenhuma transação foi encontrada para mover",
+          variant: "destructive"
+        })
+      }
+    } catch (error) {
+      console.error('Erro ao mover transação:', error)
+      toast({
+        title: "Erro",
+        description: `Erro ao mover transação: ${error.message || 'Erro desconhecido'}`,
+        variant: "destructive"
+      })
+    }
+  }
+
+  // Handlers para drag and drop
+  const handleDragOver = (e: React.DragEvent, day: Date) => {
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'move'
+    setDragOverDay(format(day, 'yyyy-MM-dd'))
+  }
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault()
+    setDragOverDay(null)
+  }
+
+  const handleDrop = async (e: React.DragEvent, targetDate: Date) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setDragOverDay(null)
+    
+    try {
+      const dataString = e.dataTransfer.getData('application/json')
+      console.log('=== HANDLE DROP ===')
+      console.log('Dados recebidos:', dataString)
+      
+      if (!dataString) {
+        console.warn('Nenhum dado foi transferido')
+        return
+      }
+
+      const data = JSON.parse(dataString)
+      const { transactionId, sourceDate } = data
+      
+      console.log('targetDate no handleDrop:', {
+        toString: targetDate.toString(),
+        toISOString: targetDate.toISOString(),
+        toDateString: targetDate.toDateString(),
+        getDate: targetDate.getDate(),
+        getMonth: targetDate.getMonth(),
+        getFullYear: targetDate.getFullYear(),
+        format_dd_MM_yyyy: format(targetDate, 'dd/MM/yyyy', { locale: ptBR }),
+        format_yyyy_MM_dd: format(targetDate, 'yyyy-MM-dd'),
+        timezone: targetDate.getTimezoneOffset()
+      })
+      
+      if (transactionId && !isNaN(transactionId)) {
+        await handleMoveTransaction(parseInt(transactionId), targetDate)
+      } else {
+        console.warn('ID da transação inválido:', transactionId)
+        toast({
+          title: "Erro",
+          description: "ID da transação inválido",
+          variant: "destructive"
+        })
+      }
+    } catch (error) {
+      console.error('Erro no drop:', error)
+      toast({
+        title: "Erro", 
+        description: "Erro ao processar movimento da transação",
+        variant: "destructive"
+      })
+    }
+  }
+
+  const daysToShow = getCalendarDays()
+
   if (loading) {
     return (
-      <div className="flex justify-center items-center h-64">
+      <div className="flex items-center justify-center h-64">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
       </div>
     )
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header do Calendário */}
-      <Card className="p-6">
-        <div className="flex flex-col space-y-4">
-          {/* Controles de Visualização */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-2">
-              {(['month', 'week', 'day'] as ViewMode[]).map((mode) => (
-                <Button
-                  key={mode}
-                  variant={viewMode === mode ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => setViewMode(mode)}
-                >
-                  {mode === 'month' && 'Mês'}
-                  {mode === 'week' && 'Semana'}
-                  {mode === 'day' && 'Dia'}
-                </Button>
-              ))}
-            </div>
-            
-            <Button onClick={() => openNewDialog()}>
-              <Plus className="h-4 w-4 mr-2" />
+    <div className="space-y-6 p-6">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">📅 Calendário</h1>
+          <p className="text-muted-foreground">
+            Visualize e gerencie suas transações por data
+          </p>
+        </div>
+
+        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+          <DialogTrigger asChild>
+            <Button onClick={() => openNewTransaction()} className="gap-2">
+              <Plus className="h-4 w-4" />
               Nova Transação
             </Button>
-          </div>
+          </DialogTrigger>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>
+                {editingTransaction ? 'Editar Transação' : 'Nova Transação'}
+              </DialogTitle>
+              <DialogDescription>
+                {editingTransaction ? 'Edite os dados da transação' : 'Adicione uma nova transação'}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div>
+                <Label htmlFor="quando">Data</Label>
+                <Input
+                  id="quando"
+                  type="date"
+                  value={formData.quando}
+                  onChange={(e) => setFormData(prev => ({ ...prev, quando: e.target.value }))}
+                />
+              </div>
 
-          {/* Navegação de Data */}
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-4">
-              <Button variant="outline" size="icon" onClick={() => navigateDate('prev')}>
+              <div>
+                <Label htmlFor="estabelecimento">Estabelecimento</Label>
+                <Input
+                  id="estabelecimento"
+                  value={formData.estabelecimento}
+                  onChange={(e) => setFormData(prev => ({ ...prev, estabelecimento: e.target.value }))}
+                  placeholder="Nome do estabelecimento"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="valor">Valor</Label>
+                  <CurrencyInput
+                    id="valor"
+                    value={formData.valor}
+                    onChange={(value) => setFormData(prev => ({ ...prev, valor: String(value || 0) }))}
+                    placeholder="0,00"
+                  />
+                </div>
+
+                <div>
+                  <Label htmlFor="tipo">Tipo</Label>
+                  <Select value={formData.tipo} onValueChange={(value) => setFormData(prev => ({ ...prev, tipo: value }))}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="receita">Receita</SelectItem>
+                      <SelectItem value="despesa">Despesa</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div>
+                <Label htmlFor="category">Categoria</Label>
+                <CategorySelector
+                  value={formData.category_id}
+                  onValueChange={(value) => setFormData(prev => ({ ...prev, category_id: value }))}
+                />
+              </div>
+
+              <div>
+                <Label htmlFor="detalhes">Detalhes</Label>
+                <Textarea
+                  id="detalhes"
+                  value={formData.detalhes}
+                  onChange={(e) => setFormData(prev => ({ ...prev, detalhes: e.target.value }))}
+                  placeholder="Observações adicionais"
+                />
+              </div>
+
+              <div className="flex justify-between gap-2">
+                <div>
+                  {editingTransaction && (
+                    <Button 
+                      variant="destructive" 
+                      onClick={() => {
+                        handleDelete(editingTransaction.id, editingTransaction.estabelecimento)
+                        setDialogOpen(false)
+                      }}
+                      className="gap-2"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      Excluir
+                    </Button>
+                  )}
+                </div>
+                <div className="flex justify-between items-center">
+                  {/* Botão de excluir - só aparece quando editando */}
+                  {editingTransaction && (
+                    <Button 
+                      variant="destructive" 
+                      onClick={() => {
+                        handleDelete(editingTransaction.id, editingTransaction.estabelecimento)
+                        setDialogOpen(false)
+                      }}
+                      className="gap-2"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      Excluir
+                    </Button>
+                  )}
+                  
+                  <div className="flex gap-2 ml-auto">
+                    <Button variant="outline" onClick={() => setDialogOpen(false)}>
+                      Cancelar
+                    </Button>
+                    <Button onClick={handleSave}>
+                      {editingTransaction ? 'Atualizar' : 'Salvar'}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      </div>
+
+      {/* Controls */}
+      <Card>
+        <CardHeader>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={() => navigateDate('prev')}>
                 <ChevronLeft className="h-4 w-4" />
               </Button>
-              <h2 className="text-2xl font-bold">
-                {getViewTitle()}
-              </h2>
-              <Button variant="outline" size="icon" onClick={() => navigateDate('next')}>
+              <h3 className="text-lg font-semibold">
+                {viewMode === 'month' && format(currentDate, 'MMMM yyyy', { locale: ptBR })}
+                {viewMode === 'week' && `Semana de ${format(getViewPeriod().start, 'dd/MM')} - ${format(getViewPeriod().end, 'dd/MM/yyyy')}`}
+                {viewMode === 'day' && format(currentDate, 'dd/MM/yyyy', { locale: ptBR })}
+              </h3>
+              <Button variant="outline" size="sm" onClick={() => navigateDate('next')}>
                 <ChevronRight className="h-4 w-4" />
               </Button>
             </div>
-            
-            <Button 
-              variant="outline" 
-              size="sm"
-              onClick={() => setCurrentDate(new Date())}
-            >
-              Hoje
-            </Button>
-          </div>
-        </div>
 
-        {/* Grid do Calendário */}
-        <div className={`grid gap-1 mt-6 ${viewMode === 'month' ? 'grid-cols-7' : viewMode === 'week' ? 'grid-cols-7' : 'grid-cols-1'}`}>
-        </div>
-
-        {/* Grid do Calendário */}
-        <div className={`grid gap-1 ${viewMode === 'month' ? 'grid-cols-7' : viewMode === 'week' ? 'grid-cols-7' : 'grid-cols-1'}`}>
-          {/* Cabeçalhos dos dias da semana (apenas para mês e semana) */}
-          {viewMode !== 'day' && ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map((day) => (
-            <div key={day} className="p-2 text-center font-medium text-sm text-muted-foreground">
-              {day}
-            </div>
-          ))}
-
-          {/* Dias do calendário */}
-          {calendarDays.map((day) => {
-            const dayTransactions = getTransactionsForDay(day)
-            const isCurrentMonth = isSameMonth(day, currentDate)
-            const isToday = isSameDay(day, new Date())
-            const dayString = format(day, 'yyyy-MM-dd')
-            const isDragOver = dragOverDay === dayString
-
-            return (
-              <div
-                key={day.toString()}
-                className={`
-                  ${viewMode === 'day' ? 'min-h-[400px]' : 'min-h-[120px]'} 
-                  p-3 border border-gray-200 cursor-pointer hover:bg-gray-50 transition-all duration-200 relative
-                  ${!isCurrentMonth && viewMode === 'month' ? 'opacity-50 bg-gray-100' : 'bg-white'}
-                  ${isToday ? 'bg-blue-50 border-blue-400 ring-2 ring-blue-200' : ''}
-                  ${isDragOver ? 'bg-blue-100 border-blue-500 border-2 shadow-lg' : ''}
-                `}
-                onClick={() => openNewDialog(day)}
-                onDragOver={handleDragOver}
-                onDragEnter={(e) => handleDragEnter(e, dayString)}
-                onDragLeave={handleDragLeave}
-                onDrop={(e) => handleDrop(e, day)}
+            <div className="flex gap-2">
+              <Button 
+                variant={viewMode === 'day' ? 'default' : 'outline'} 
+                size="sm"
+                onClick={() => setViewMode('day')}
               >
-                <div className={`text-sm font-bold mb-2 ${isToday ? 'text-blue-700' : 'text-gray-800'}`}>
-                  {viewMode === 'day' ? format(day, 'EEEE, dd MMMM', { locale: ptBR }) : format(day, 'd')}
-                </div>
-                
-                {/* Indicador de transações */}
-                {dayTransactions.length > 0 && (
-                  <div className="absolute top-1 right-1">
-                    <div className="bg-blue-500 text-white rounded-full text-xs w-5 h-5 flex items-center justify-center font-bold">
-                      {dayTransactions.length}
-                    </div>
+                Dia
+              </Button>
+              <Button 
+                variant={viewMode === 'week' ? 'default' : 'outline'} 
+                size="sm"
+                onClick={() => setViewMode('week')}
+              >
+                Semana
+              </Button>
+              <Button 
+                variant={viewMode === 'month' ? 'default' : 'outline'} 
+                size="sm"
+                onClick={() => setViewMode('month')}
+              >
+                Mês
+              </Button>
+              <Button 
+                variant="outline" 
+                size="sm"
+                onClick={() => setCurrentDate(new Date())}
+              >
+                Hoje
+              </Button>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {/* Calendar Grid */}
+          <div className={`grid gap-2 ${
+            viewMode === 'month' ? 'grid-cols-7' : 
+            viewMode === 'week' ? 'grid-cols-7' : 
+            'grid-cols-1'
+          }`}>
+            {/* Headers */}
+            {(viewMode === 'month' || viewMode === 'week') && (
+              <>
+                {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map(day => (
+                  <div key={day} className="p-2 text-center font-semibold text-muted-foreground">
+                    {day}
                   </div>
-                )}
-                
+                ))}
+              </>
+            )}
+            
+            {/* Calendar Days */}
+            {daysToShow.map(day => {
+              const dayTransactions = getTransactionsForDate(day)
+              const totalReceitas = dayTransactions.filter(t => t.tipo === 'receita').reduce((sum, t) => sum + (t.valor || 0), 0)
+              const totalDespesas = dayTransactions.filter(t => t.tipo === 'despesa').reduce((sum, t) => sum + Math.abs(t.valor || 0), 0)
+              const isToday = isSameDay(day, new Date())
+              const isCurrentMonth = viewMode !== 'month' || isSameMonth(day, currentDate)
+              const isDragOver = dragOverDay === format(day, 'yyyy-MM-dd')
 
-                
-                <div className="space-y-1">
-                  {dayTransactions.map((transacao, index) => {
-                    // Mostrar mais transações em visualização diária
-                    const maxVisible = viewMode === 'day' ? 10 : 2
-                    if (index >= maxVisible) return null
-                    
-                    return (
-                        <div
-                          key={transacao.id}
-                          draggable
-                          onDragStart={(e) => handleDragStart(e, transacao)}
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            openEditDialog(transacao)
-                          }}
-                          className={`group relative text-xs p-1.5 rounded cursor-move hover:opacity-90 transition-all duration-200 shadow-sm border ${
-                            transacao.tipo === 'receita' 
-                              ? 'bg-green-50 border-green-300 hover:bg-green-100' 
-                              : 'bg-red-50 border-red-300 hover:bg-red-100'
-                          }`}
-                          title="Clique para editar ou arraste para outra data"
-                        >
-                          <div className="flex items-center justify-between">
-                            <div className="flex flex-col flex-1">
-                              <div className={`font-bold text-xs ${
-                                transacao.tipo === 'receita' ? 'text-green-700' : 'text-red-700'
-                              }`}>
-                                {transacao.tipo === 'receita' ? '+' : '-'}
-                                {formatCurrency(transacao.valor || 0)}
-                              </div>
-                              <div className="text-xs text-gray-600 truncate">
-                                {transacao.estabelecimento || transacao.detalhes || 'Sem título'}
-                              </div>
-                            </div>
-                            
-                            <AlertDialog>
-                            <AlertDialogTrigger asChild>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                className="opacity-0 group-hover:opacity-100 transition-opacity h-5 w-5 p-0 absolute -top-1 -right-1 bg-red-100 hover:bg-red-200 rounded-full"
-                                onClick={(e) => e.stopPropagation()}
-                              >
-                                <Trash2 className="h-3 w-3 text-red-600" />
-                              </Button>
-                            </AlertDialogTrigger>
-                            <AlertDialogContent>
-                              <AlertDialogHeader>
-                                <AlertDialogTitle>Excluir Transação</AlertDialogTitle>
-                                <AlertDialogDescription>
-                                  Tem certeza que deseja excluir esta transação? Esta ação não pode ser desfeita.
-                                </AlertDialogDescription>
-                              </AlertDialogHeader>
-                              <AlertDialogFooter>
-                                <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                                <AlertDialogAction 
-                                  onClick={() => handleDeleteTransaction(transacao.id)}
-                                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                                >
-                                  Excluir
-                                </AlertDialogAction>
-                              </AlertDialogFooter>
-                            </AlertDialogContent>
-                          </AlertDialog>
-                        </div>
-                        
-                        {viewMode === 'day' && transacao.detalhes && (
-                          <div className="text-xs text-muted-foreground mt-1">
-                            {transacao.detalhes}
+              return (
+                <Card 
+                  key={day.toString()} 
+                  className={`min-h-[120px] cursor-pointer hover:bg-accent/50 transition-all duration-200 ${
+                    isToday ? 'ring-2 ring-primary' : ''
+                  } ${
+                    !isCurrentMonth ? 'opacity-50' : ''
+                  } ${
+                    isDragOver ? 'ring-2 ring-blue-500 bg-blue-50 dark:bg-blue-950/20' : ''
+                  }`}
+                  onClick={() => openNewTransaction(day)}
+                  onDragOver={(e) => handleDragOver(e, day)}
+                  onDragLeave={handleDragLeave}
+                  onDrop={(e) => {
+                    console.log('=== DROP EVENT ===')
+                    console.log('Dia do calendário (day):', {
+                      toString: day.toString(),
+                      toISOString: day.toISOString(),
+                      toDateString: day.toDateString(),
+                      getDate: day.getDate(),
+                      getMonth: day.getMonth(),
+                      getFullYear: day.getFullYear(),
+                      format_dd_MM_yyyy: format(day, 'dd/MM/yyyy', { locale: ptBR }),
+                      format_yyyy_MM_dd: format(day, 'yyyy-MM-dd')
+                    })
+                    handleDrop(e, day)
+                  }}
+                >
+                  <CardContent className="p-2">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className={`text-sm font-medium ${isToday ? 'text-primary' : ''}`}>
+                        {format(day, viewMode === 'day' ? 'EEEE, dd/MM/yyyy' : 'd', { locale: ptBR })}
+                      </span>
+                      {dayTransactions.length > 0 && (
+                        <Badge variant="secondary" className="text-xs">
+                          {dayTransactions.length}
+                        </Badge>
+                      )}
+                    </div>
+
+                    {/* Totals */}
+                    {(totalReceitas > 0 || totalDespesas > 0) && (
+                      <div className="space-y-1 mb-2">
+                        {totalReceitas > 0 && (
+                          <div className="flex items-center gap-1 text-xs">
+                            <TrendingUp className="h-3 w-3 text-green-500" />
+                            <span className="text-green-600">{formatCurrency(totalReceitas)}</span>
+                          </div>
+                        )}
+                        {totalDespesas > 0 && (
+                          <div className="flex items-center gap-1 text-xs">
+                            <TrendingDown className="h-3 w-3 text-red-500" />
+                            <span className="text-red-600">{formatCurrency(totalDespesas)}</span>
                           </div>
                         )}
                       </div>
-                    )
-                  })}
-                  
-                  {dayTransactions.length > (viewMode === 'day' ? 10 : 2) && (
-                    <div className="text-xs text-gray-500 text-center py-1">
-                      +{dayTransactions.length - (viewMode === 'day' ? 10 : 2)} mais
+                    )}
+
+                    {/* Transactions List */}
+                    <div className="space-y-1 max-h-32 overflow-y-auto">
+                      {dayTransactions.map(transaction => (
+                        <div 
+                          key={transaction.id}
+                          className="group flex items-center gap-2 p-1 rounded text-xs hover:bg-background select-none border border-transparent hover:border-primary/20 transition-all duration-200"
+                          title="Clique para editar, arraste para mover"
+                        >
+                          <div 
+                            className="flex-1 flex items-center justify-between cursor-move"
+                            draggable={true}
+                            onDragStart={(e) => {
+                              e.stopPropagation()
+                              const dragData = {
+                                transactionId: transaction.id,
+                                sourceDate: format(day, 'yyyy-MM-dd')
+                              }
+                              console.log('Iniciando drag:', dragData)
+                              e.dataTransfer.setData('application/json', JSON.stringify(dragData))
+                              e.dataTransfer.effectAllowed = 'move'
+                              // Adiciona classe visual durante drag
+                              e.currentTarget.parentElement.style.opacity = '0.5'
+                            }}
+                            onDragEnd={(e) => {
+                              e.currentTarget.parentElement.style.opacity = '1'
+                            }}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              openEditTransaction(transaction)
+                            }}
+                          >
+                            <div className="flex-1 truncate">
+                              <div className="font-medium truncate">
+                                {transaction.estabelecimento || 'Sem nome'}
+                              </div>
+                              <div className="text-muted-foreground truncate">
+                                {transaction.categorias?.nome}
+                              </div>
+                            </div>
+                            <div className={`font-bold ${
+                              transaction.tipo === 'receita' ? 'text-green-600' : 'text-red-600'
+                            }`}>
+                              {transaction.tipo === 'receita' ? '+' : '-'}
+                              {formatCurrency(Math.abs(transaction.valor || 0))}
+                            </div>
+                          </div>
+                          
+                          {/* Botão de exclusão */}
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleDelete(transaction.id, transaction.estabelecimento)
+                            }}
+                            className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-red-100 dark:hover:bg-red-900/20 text-red-500 hover:text-red-700 transition-all duration-200"
+                            title="Excluir transação"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </div>
+                      ))}
                     </div>
-                  )}
-                </div>
-              </div>
-            )
-          })}
-        </div>
+                  </CardContent>
+                </Card>
+              )
+            })}
+          </div>
+        </CardContent>
       </Card>
-
-      {/* Dialog de Transação */}
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>
-              {editingTransaction ? 'Editar Transação' : 'Nova Transação'}
-            </DialogTitle>
-          </DialogHeader>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <Label htmlFor="quando">Data</Label>
-              <Input
-                id="quando"
-                type="date"
-                value={formData.quando}
-                onChange={(e) => setFormData(prev => ({ ...prev, quando: e.target.value }))}
-                required
-              />
-            </div>
-
-            <div>
-              <Label htmlFor="estabelecimento">Estabelecimento</Label>
-              <Input
-                id="estabelecimento"
-                value={formData.estabelecimento}
-                onChange={(e) => setFormData(prev => ({ ...prev, estabelecimento: e.target.value }))}
-                placeholder="Nome do estabelecimento"
-              />
-            </div>
-
-            <div>
-              <Label htmlFor="valor">Valor</Label>
-              <CurrencyInput
-                id="valor"
-                value={formData.valor}
-                onChange={(value) => setFormData(prev => ({ ...prev, valor: value.toString() }))}
-                placeholder="0,00"
-              />
-            </div>
-
-            <div>
-              <Label htmlFor="tipo">Tipo</Label>
-              <Select value={formData.tipo} onValueChange={(value) => setFormData(prev => ({ ...prev, tipo: value }))}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione o tipo" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="receita">Receita</SelectItem>
-                  <SelectItem value="despesa">Despesa</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div>
-              <Label htmlFor="category_id">Categoria</Label>
-              <Select value={formData.category_id} onValueChange={(value) => setFormData(prev => ({ ...prev, category_id: value }))}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione uma categoria" />
-                </SelectTrigger>
-                <SelectContent>
-                  {categories.map((category) => (
-                    <SelectItem key={category.id} value={category.id}>
-                      {category.nome}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div>
-              <Label htmlFor="detalhes">Detalhes</Label>
-              <Textarea
-                id="detalhes"
-                value={formData.detalhes}
-                onChange={(e) => setFormData(prev => ({ ...prev, detalhes: e.target.value }))}
-                placeholder="Detalhes da transação"
-                rows={3}
-              />
-            </div>
-
-            <div className="flex gap-2 pt-4">
-              <Button type="submit" className="flex-1">
-                {editingTransaction ? 'Atualizar' : 'Criar'}
-              </Button>
-              <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
-                Cancelar
-              </Button>
-              {editingTransaction && (
-                <AlertDialog>
-                  <AlertDialogTrigger asChild>
-                    <Button type="button" variant="destructive" size="sm">
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </AlertDialogTrigger>
-                  <AlertDialogContent>
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>Excluir Transação</AlertDialogTitle>
-                      <AlertDialogDescription>
-                        Tem certeza que deseja excluir esta transação? Esta ação não pode ser desfeita.
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                      <AlertDialogAction 
-                        onClick={() => {
-                          handleDeleteTransaction(editingTransaction.id)
-                          setDialogOpen(false)
-                        }}
-                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                      >
-                        Excluir
-                      </AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
-              )}
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
     </div>
   )
 }
