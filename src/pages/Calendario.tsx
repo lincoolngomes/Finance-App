@@ -468,10 +468,10 @@ export default function Calendario() {
                 key={day.toString()}
                 className={`
                   ${viewMode === 'day' ? 'min-h-[400px]' : 'min-h-[120px]'} 
-                  p-3 border border-border cursor-pointer hover:bg-accent/50 transition-colors
-                  ${!isCurrentMonth && viewMode === 'month' ? 'opacity-50 bg-muted/30' : ''}
-                  ${isToday ? 'bg-primary/10 border-primary' : ''}
-                  ${isDragOver ? 'bg-accent border-primary border-2' : ''}
+                  p-3 border border-border cursor-pointer hover:bg-accent/50 transition-all duration-200
+                  ${!isCurrentMonth && viewMode === 'month' ? 'opacity-50 bg-muted/30' : 'bg-white'}
+                  ${isToday ? 'bg-primary/10 border-primary ring-1 ring-primary/20' : ''}
+                  ${isDragOver ? 'bg-blue-50 border-blue-300 border-2 shadow-lg' : ''}
                 `}
                 onClick={() => openNewDialog(day)}
                 onDragOver={handleDragOver}
@@ -498,7 +498,8 @@ export default function Calendario() {
                           e.stopPropagation()
                           openEditDialog(transacao)
                         }}
-                        className="group relative text-xs p-2 rounded cursor-move hover:opacity-80 transition-opacity bg-white shadow-sm border"
+                        className="group relative text-xs p-2 rounded cursor-move hover:opacity-80 hover:shadow-md transition-all duration-200 bg-white shadow-sm border hover:border-primary/50 active:scale-95"
+                        title="Clique para editar ou arraste para outra data"
                       >
                         <div className="flex items-center justify-between">
                           <Badge 
