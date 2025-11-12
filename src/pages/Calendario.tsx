@@ -576,30 +576,13 @@ export default function Calendario() {
                     </Button>
                   )}
                 </div>
-                <div className="flex justify-between items-center">
-                  {/* Botão de excluir - só aparece quando editando */}
-                  {editingTransaction && (
-                    <Button 
-                      variant="destructive" 
-                      onClick={() => {
-                        handleDelete(editingTransaction.id, editingTransaction.estabelecimento)
-                        setDialogOpen(false)
-                      }}
-                      className="gap-2"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                      Excluir
-                    </Button>
-                  )}
-                  
-                  <div className="flex gap-2 ml-auto">
-                    <Button variant="outline" onClick={() => setDialogOpen(false)}>
-                      Cancelar
-                    </Button>
-                    <Button onClick={handleSave}>
-                      {editingTransaction ? 'Atualizar' : 'Salvar'}
-                    </Button>
-                  </div>
+                <div className="flex gap-2 ml-auto">
+                  <Button variant="outline" onClick={() => setDialogOpen(false)}>
+                    Cancelar
+                  </Button>
+                  <Button onClick={handleSave}>
+                    {editingTransaction ? 'Atualizar' : 'Salvar'}
+                  </Button>
                 </div>
               </div>
             </div>
@@ -736,7 +719,9 @@ export default function Calendario() {
                     )}
 
                     {/* Transactions List */}
-                    <div className="space-y-1 max-h-32 overflow-y-auto">
+                    <div
+                      className="space-y-1 max-h-32 overflow-y-auto custom-scrollbar"
+                    >
                       {dayTransactions.map(transaction => (
                         <div 
                           key={transaction.id}
