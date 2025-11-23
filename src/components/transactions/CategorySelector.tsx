@@ -37,6 +37,7 @@ export function CategorySelector({ value, onValueChange, placeholder = "Selecion
         <SelectValue placeholder={placeholder} />
       </SelectTrigger>
       <SelectContent>
+        <SelectItem value="all">Todas categorias</SelectItem>
         {categories.map((categoria) => (
           <SelectItem key={categoria.id} value={categoria.id}>
             {categoria.nome}

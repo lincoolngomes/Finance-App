@@ -1,0 +1,99 @@
+{
+  "name": "Criação Manual de Usuário",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "criar-usuario-manual",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [100, 100],
+      "name": "WebhookCriarUsuarioManual"
+    },
+    {
+      "parameters": {
+        "jsCode": "function gerarSenha() {\n    const chars = '0123456789';\n    let senha = '';\n    for (let i = 0; i < 7; i++) {\n        const indice = Math.floor(Math.random() * chars.length);\n        senha += chars[indice];\n    }\n    return senha;\n}\nreturn {\n  senha: $json.senha || gerarSenha()\n}"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [300, 100],
+      "name": "GeraSenhaSeNecessario"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://finance-app-supabase-finance-app.rcnehy.easypanel.host/auth/v1/admin/users",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyAgCiAgICAicm9sZSI6ICJzZXJ2aWNlX3JvbGUiLAogICAgImlzcyI6ICJzdXBhYmFzZS1kZW1vIiwKICAgICJpYXQiOiAxNjQxNzY5MjAwLAogICAgImV4cCI6IDE3OTk1MzU2MDAKfQ.DaYlNEoUrrEn2Ig7tqibS-PHK5vgusbcbo7X36XVt4Q" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "email", "value": "={{ $json.email }}" },
+            { "name": "password", "value": "={{ $json.senha }}" },
+            { "name": "email_confirm", "value": "={{ true }}" },
+            { "name": "user_metadata", "value": "={{ { nome: $json.nome } }}" }
+          ]
+        },
+        "options": {},
+        "response": "={{ $json }}"
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [500, 100],
+      "name": "CriaUsuarioSupabase"
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "https://finance-app-supabase-finance-app.rcnehy.easypanel.host/rest/v1/profiles?email=eq.{{ $json.email }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyAgCiAgICAicm9sZSI6ICJzZXJ2aWNlX3JvbGUiLAogICAgImlzcyI6ICJzdXBhYmFzZS1kZW1vIiwKICAgICJpYXQiOiAxNjQxNzY5MjAwLAogICAgImV4cCI6IDE3OTk1MzU2MDAKfQ.DaYlNEoUrrEn2Ig7tqibS-PHK5vgusbcbo7X36XVt4Q" },
+            { "name": "apikey", "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyAgCiAgICAicm9sZSI6ICJzZXJ2aWNlX3JvbGUiLAogICAgImlzcyI6ICJzdXBhYmFzZS1kZW1vIiwKICAgICJpYXQiOiAxNjQxNzY5MjAwLAogICAgImV4cCI6IDE3OTk1MzU2MDAKfQ.DaYlNEoUrrEn2Ig7tqibS-PHK5vgusbcbo7X36XVt4Q" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "bodyParametersJson": "={{ {\"nome\": $json.nome, \"cpf\": $json.cpf, \"endereco\": $json.endereco, \"n_endereco\": $json.n_endereco, \"bairro\": $json.bairro, \"cidade\": $json.cidade, \"estado\": $json.estado, \"pais\": $json.pais, \"assinaturaId\": $json.assinaturaId, \"role\": $json.role, \"subscription_status\": $json.subscription_status, \"is_active\": $json.is_active } }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [600, 100],
+      "name": "AtualizaProfileSupabase"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"success\": true,\n  \"mensagem\": \"Usuário criado com sucesso!\",\n  \"email\": $json.email,\n  \"senha\": $json.senha\n} ",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.2,
+      "position": [700, 100],
+      "name": "RetornaSucesso"
+    }
+  ],
+  "connections": {
+    "WebhookCriarUsuarioManual": {
+      "main": [ [ { "node": "GeraSenhaSeNecessario", "type": "main", "index": 0 } ] ]
+    },
+    "GeraSenhaSeNecessario": {
+      "main": [ [ { "node": "CriaUsuarioSupabase", "type": "main", "index": 0 } ] ]
+    },
+    "CriaUsuarioSupabase": {
+      "main": [ [ { "node": "AtualizaProfileSupabase", "type": "main", "index": 0 } ] ]
+    },
+    "AtualizaProfileSupabase": {
+      "main": [ [ { "node": "RetornaSucesso", "type": "main", "index": 0 } ] ]
+    }
+  }
+}
