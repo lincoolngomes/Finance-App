@@ -135,25 +135,15 @@ export default function Admin() {
 
   const createUser = async (userData: UserFormData) => {
     try {
-      // Usar senha fornecida ou gerar temporária
-      const password = userData.password || Math.random().toString(36).slice(-8) + 'A1!'
-      
-      // Criar usuário no Supabase Auth
-      const { data: authUser, error: authError } = await supabase.auth.admin.createUser({
-        email: userData.email,
-        password: password,
-        email_confirm: true,
-        user_metadata: {
-          nome: userData.nome
-        }
-      })
-      
-      if (authError) throw authError
-      
-      // Atualizar o perfil com as informações adicionais
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .update({
+      // Enviar todos os dados para o webhook n8n
+      const response = await fetch('https://finance-app-n8n-finance-app.rcnehy.easypanel.host/webhook/criar-usuario-manual', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          email: userData.email,
+          senha: userData.password, // pode ser undefined, o n8n gera se não vier
           nome: userData.nome,
           cpf: userData.cpf,
           endereco: userData.endereco,
@@ -167,17 +157,13 @@ export default function Admin() {
           subscription_status: userData.subscription_status,
           is_active: userData.is_active
         })
-        .eq('id', authUser.user.id)
-      
-      if (profileError) throw profileError
-      
+      })
+      const result = await response.json()
+      if (!result.success) throw new Error(result.mensagem || 'Erro ao criar usuário')
       toast({
         title: 'Usuário criado',
-        description: userData.password 
-          ? 'Novo usuário criado com sucesso!'
-          : 'Novo usuário criado com sucesso! Uma senha temporária foi gerada.'
+        description: `Usuário criado com sucesso! Email: ${result.email}${result.senha ? ` | Senha: ${result.senha}` : ''}`
       })
-      
       loadUsers()
       setIsEditDialogOpen(false)
     } catch (error: any) {

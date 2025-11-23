@@ -1,0 +1,43 @@
+{
+  "parameters": {
+    "operation": "update",
+    "tableId": "profiles",
+    "filters": {
+      "conditions": [
+        {
+          "keyName": "id",
+          "condition": "eq",
+          "keyValue": "={{ $json.user.id }}"
+        }
+      ]
+    },
+    "fieldsUi": {
+      "fieldValues": [
+        { "fieldId": "nome", "fieldValue": "={{ $json.nome }}" },
+        { "fieldId": "cpf", "fieldValue": "={{ $json.cpf }}" },
+        { "fieldId": "endereco", "fieldValue": "={{ $json.endereco }}" },
+        { "fieldId": "n_endereco", "fieldValue": "={{ $json.n_endereco }}" },
+        { "fieldId": "bairro", "fieldValue": "={{ $json.bairro }}" },
+        { "fieldId": "cidade", "fieldValue": "={{ $json.cidade }}" },
+        { "fieldId": "estado", "fieldValue": "={{ $json.estado }}" },
+        { "fieldId": "pais", "fieldValue": "={{ $json.pais }}" },
+        { "fieldId": "assinaturaId", "fieldValue": "={{ $json.assinaturaId }}" },
+        { "fieldId": "role", "fieldValue": "={{ $json.role }}" },
+        { "fieldId": "subscription_status", "fieldValue": "={{ $json.subscription_status }}" },
+        { "fieldId": "is_active", "fieldValue": "={{ $json.is_active }}" },
+        { "fieldId": "phone", "fieldValue": "={{ $json.phone }}" },
+        { "fieldId": "whatsapp", "fieldValue": "={{ $json.whatsapp }}" }
+      ]
+    }
+  },
+  "type": "n8n-nodes-base.supabase",
+  "typeVersion": 1,
+  "position": [650, 100],
+  "name": "AtualizaInfoUser",
+  "credentials": {
+    "supabaseApi": {
+      "id": "SUA_CREDENCIAL_ID",
+      "name": "Supabase account"
+    }
+  }
+}

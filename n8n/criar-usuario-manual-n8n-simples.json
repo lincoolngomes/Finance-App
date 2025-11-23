@@ -1,0 +1,117 @@
+{
+  "name": "Criação Manual de Usuário (Completo)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "criar-usuario-manual",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [100, 100],
+      "name": "WebhookCriarUsuarioManual"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://finance-app-supabase-finance-app.rcnehy.easypanel.host/auth/v1/admin/users",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyAgCiAgICAicm9sZSI6ICJzZXJ2aWNlX3JvbGUiLAogICAgImlzcyI6ICJzdXBhYmFzZS1kZW1vIiwKICAgICJpYXQiOiAxNjQxNzY5MjAwLAogICAgImV4cCI6IDE3OTk1MzU2MDAKfQ.DaYlNEoUrrEn2Ig7tqibS-PHK5vgusbcbo7X36XVt4Q" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            { "name": "email", "value": "={{ $json.email }}" },
+            { "name": "password", "value": "={{ $json.senha }}" },
+            { "name": "email_confirm", "value": "={{ true }}" },
+            { "name": "user_metadata", "value": "={{ { nome: $json.nome } }}" }
+          ]
+        },
+        "options": {},
+        "response": "={{ $json }}"
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [300, 100],
+      "name": "CriaUsuarioSupabase"
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "tableId": "profiles",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "condition": "eq",
+              "keyValue": "={{ $json.user.id }}"
+            }
+          ]
+        },
+        "fieldsUi": {
+          "fieldValues": [
+            { "fieldId": "nome", "fieldValue": "={{ $json.nome }}" },
+            { "fieldId": "cpf", "fieldValue": "={{ $json.cpf }}" },
+            { "fieldId": "endereco", "fieldValue": "={{ $json.endereco }}" },
+            { "fieldId": "n_endereco", "fieldValue": "={{ $json.n_endereco }}" },
+            { "fieldId": "bairro", "fieldValue": "={{ $json.bairro }}" },
+            { "fieldId": "cidade", "fieldValue": "={{ $json.cidade }}" },
+            { "fieldId": "estado", "fieldValue": "={{ $json.estado }}" },
+            { "fieldId": "pais", "fieldValue": "={{ $json.pais }}" },
+            { "fieldId": "assinaturaId", "fieldValue": "={{ $json.assinaturaId }}" },
+            { "fieldId": "role", "fieldValue": "={{ $json.role }}" },
+            { "fieldId": "subscription_status", "fieldValue": "={{ $json.subscription_status }}" },
+            { "fieldId": "is_active", "fieldValue": "={{ $json.is_active }}" },
+            { "fieldId": "phone", "fieldValue": "={{ $json.phone }}" },
+            { "fieldId": "whatsapp", "fieldValue": "={{ $json.whatsapp }}" }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [500, 100],
+      "name": "AtualizaInfoUser",
+      "credentials": {
+        "supabaseApi": {
+          "id": "SUA_CREDENCIAL_ID",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={\n  \"success\": true,\n  \"mensagem\": \"Usuário criado com sucesso!\",\n  \"email\": $json.email,\n  \"senha\": $json.senha\n} ",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.2,
+      "position": [700, 100],
+      "name": "RetornaSucesso"
+    }
+  ],
+  "connections": {
+    "WebhookCriarUsuarioManual": {
+      "main": [ [ { "node": "CriaUsuarioSupabase", "type": "main", "index": 0 } ] ]
+    },
+    "CriaUsuarioSupabase": {
+      "main": [ [ { "node": "AtualizaInfoUser", "type": "main", "index": 0 } ] ]
+    },
+    "AtualizaInfoUser": {
+      "main": [ [ { "node": "RetornaSucesso", "type": "main", "index": 0 } ] ]
+    },
+    "RetornaSucesso": {
+      "main": [
+        [
+          { "node": "EnviaWhatsapp1", "type": "main", "index": 0 },
+          { "node": "EnviaEmail1", "type": "main", "index": 0 }
+        ]
+      ]
+    }
+  }
+}
