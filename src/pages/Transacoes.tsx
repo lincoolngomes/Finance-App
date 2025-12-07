@@ -1,5 +1,5 @@
-
-import { useState, useEffect, useMemo } from 'react'
+import React, { useState, useEffect, useMemo, useRef } from 'react'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -13,45 +13,27 @@ import { CurrencyInput } from '@/components/ui/currency-input'
 import { TransactionSummaryCards } from '@/components/transactions/TransactionSummaryCards'
 import { TransactionFilters } from '@/components/transactions/TransactionFilters'
 import { CategorySelector } from '@/components/transactions/CategorySelector'
+import { BankSelector, CardSelector } from '@/components/accounts/BankAndCardSelector'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
 import { useCategories } from '@/hooks/useCategories'
+// import { useAccountsMap } from '@/hooks/useAccountsMap'
 import { toast } from '@/hooks/use-toast'
 import { Plus, Edit, Trash2, TrendingUp, TrendingDown, ArrowUpDown } from 'lucide-react'
 import { formatCurrency } from '@/utils/currency'
+
+
 
 interface Transacao {
   id: number
   created_at: string
   quando: string | null
   estabelecimento: string | null
-  valor: number | null
-  detalhes: string | null
-  tipo: string | null
-  category_id: string
-  userid: string | null
-  categorias?: {
-    id: string
-    nome: string
-  }
 }
 
-export default function Transacoes() {
-  const { user } = useAuth()
-  const { categories } = useCategories()
-  const [transacoes, setTransacoes] = useState<Transacao[]>([])
-  const [loading, setLoading] = useState(true)
-  const [dialogOpen, setDialogOpen] = useState(false)
-  const [editingTransaction, setEditingTransaction] = useState<Transacao | null>(null)
-  
-  // Filtros
-  const [searchTerm, setSearchTerm] = useState('')
-  const [typeFilter, setTypeFilter] = useState('')
-  const [categoryFilter, setCategoryFilter] = useState('')
-  
-  // Ordenação
-  const [sortOrder, setSortOrder] = useState('created_desc') // created_desc, created_asc, date_desc, date_asc
 
+const Transacoes: React.FC = () => {
+  // Estado do formulário de transação (corrige ReferenceError)
   const [formData, setFormData] = useState({
     quando: '',
     estabelecimento: '',
@@ -59,111 +41,168 @@ export default function Transacoes() {
     detalhes: '',
     tipo: '',
     category_id: '',
-  })
+    metodo: '',
+    status: '',
+    account_id: '',
+    fatura_id: '',
+  });
+  // Estados principais
+  const { user } = useAuth();
+  const { categories } = useCategories();
+  const [transacoes, setTransacoes] = useState<any[]>([]);
+  const [contas, setContas] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [typeFilter, setTypeFilter] = useState('all');
+  const [categoryFilter, setCategoryFilter] = useState('all');
+  const [accountFilter, setAccountFilter] = useState('all');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+  const [sortOrder, setSortOrder] = useState('created_desc');
+  const [saldoInicial, setSaldoInicial] = useState(0);
+  // Estado para controle do diálogo de transação
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editingTransaction, setEditingTransaction] = useState<Transacao | null>(null);
+  // Estados para seleção em massa (se usados no arquivo)
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  const [massCategoryDialogOpen, setMassCategoryDialogOpen] = useState(false);
+  const [massAccountDialogOpen, setMassAccountDialogOpen] = useState(false);
+  const [massCategory, setMassCategory] = useState('');
+  const [massAccount, setMassAccount] = useState('');
 
-  useEffect(() => {
-    if (user) {
-      fetchTransacoes()
-    }
-  }, [user])
+  // Memo para mapear contas por id (accountsMap)
+  const accountsMap = useMemo(() => {
+    const map: Record<string, any> = {};
+    contas.forEach((conta) => {
+      if (conta.id) map[conta.id] = conta;
+    });
+    return map;
+  }, [contas]);
 
-  // Transações filtradas e ordenadas
+  // Memo para filtrar transações conforme filtros visuais
   const filteredTransacoes = useMemo(() => {
-    let filtered = transacoes.filter(transacao => {
-      if (!searchTerm) return true
-      
-      const searchLower = searchTerm.toLowerCase()
-      
-      // Busca em múltiplos campos
-      const matchesEstabelecimento = transacao.estabelecimento?.toLowerCase().includes(searchLower) ?? false
-      const matchesCategoria = transacao.categorias?.nome?.toLowerCase().includes(searchLower) ?? false
-      const matchesDetalhes = transacao.detalhes?.toLowerCase().includes(searchLower) ?? false
-      const matchesData = transacao.quando?.includes(searchTerm) ?? false
-      const matchesValor = transacao.valor?.toString().includes(searchTerm) ?? false
-      
-      return matchesEstabelecimento || matchesCategoria || matchesDetalhes || matchesData || matchesValor
-    })
-    
-    // Aplicar filtros de tipo e categoria
-    if (typeFilter) {
-      filtered = filtered.filter(transacao => transacao.tipo === typeFilter)
+    let filtered = [...transacoes];
+    if (accountFilter && accountFilter !== 'all') {
+      filtered = filtered.filter(t => t.account_id === accountFilter);
     }
-    
-    if (categoryFilter) {
-      filtered = filtered.filter(transacao => transacao.category_id === categoryFilter)
+    if (typeFilter && typeFilter !== 'all') {
+      filtered = filtered.filter(t => t.tipo === typeFilter);
     }
-    
-    // Aplicar ordenação
-    return filtered.sort((a, b) => {
-      switch (sortOrder) {
-        case 'created_asc':
-          return new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-        case 'created_desc':
-          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-        case 'date_asc': {
-          const dateA = a.quando ? new Date(a.quando) : new Date(a.created_at)
-          const dateB = b.quando ? new Date(b.quando) : new Date(b.created_at)
-          return dateA.getTime() - dateB.getTime()
-        }
-        case 'date_desc': {
-          const dateA2 = a.quando ? new Date(a.quando) : new Date(a.created_at)
-          const dateB2 = b.quando ? new Date(b.quando) : new Date(b.created_at)
-          return dateB2.getTime() - dateA2.getTime()
-        }
-        default:
-          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-      }
-    })
-  }, [transacoes, searchTerm, typeFilter, categoryFilter, sortOrder])
+    if (categoryFilter && categoryFilter !== 'all') {
+      filtered = filtered.filter(t => t.category_id === categoryFilter);
+    }
+    if (dateFrom) {
+      filtered = filtered.filter(t => t.quando && t.quando >= dateFrom);
+    }
+    if (dateTo) {
+      filtered = filtered.filter(t => t.quando && t.quando <= dateTo);
+    }
+    if (searchTerm) {
+      const search = searchTerm.toLowerCase();
+      filtered = filtered.filter(t =>
+        (t.estabelecimento?.toLowerCase().includes(search) || '') ||
+        (t.detalhes?.toLowerCase().includes(search) || '') ||
+        (t.categorias?.nome?.toLowerCase().includes(search) || '')
+      );
+    }
+    // Ordenação
+    if (sortOrder === 'created_asc') {
+      filtered.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+    } else if (sortOrder === 'created_desc') {
+      filtered.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    } else if (sortOrder === 'date_asc') {
+      filtered.sort((a, b) => new Date(a.quando || a.created_at).getTime() - new Date(b.quando || b.created_at).getTime());
+    } else if (sortOrder === 'date_desc') {
+      filtered.sort((a, b) => new Date(b.quando || b.created_at).getTime() - new Date(a.quando || a.created_at).getTime());
+    }
+    return filtered;
+  }, [transacoes, accountFilter, typeFilter, categoryFilter, dateFrom, dateTo, searchTerm, sortOrder]);
 
-  // Cálculo dos totais
-  const { receitas, despesas, saldo } = useMemo(() => {
-    const receitas = filteredTransacoes
-      .filter(t => t.tipo === 'receita')
-      .reduce((acc, t) => acc + (t.valor || 0), 0)
-    
-    const despesas = filteredTransacoes
-      .filter(t => t.tipo === 'despesa')
-      .reduce((acc, t) => acc + (t.valor || 0), 0)
-    
+  // Variáveis auxiliares para seleção em massa (após filteredTransacoes)
+  const isAllSelected = filteredTransacoes.length > 0 && selectedIds.length === filteredTransacoes.length;
+  const isIndeterminate = selectedIds.length > 0 && selectedIds.length < filteredTransacoes.length;
+  const handleSelectAll = (checked: boolean | "indeterminate") => {
+    if (checked) {
+      setSelectedIds(filteredTransacoes.map(t => t.id));
+    } else {
+      setSelectedIds([]);
+    }
+  };
+
+
+  // Função para buscar transações e contas do usuário
+  const fetchTransacoes = async () => {
+    if (!user?.id) return;
+    setLoading(true);
+    try {
+      // Busca contas igual à tela de contas
+      const { data: contasData, error: contasError } = await supabase
+        .from('accounts')
+        .select('*')
+        .eq('user_id', user.id);
+      if (contasError) throw contasError;
+      setContas(contasData || []);
+
+      const { data, error } = await supabase
+        .from('transacoes')
+        .select(`*, categorias:categorias!transacoes_category_id_fkey(id, nome)`) // join categorias
+        .eq('userid', user.id)
+        .order('quando', { ascending: false });
+      if (error) throw error;
+      setTransacoes(data || []);
+    } catch (error: any) {
+      toast({
+        title: 'Erro ao carregar transações',
+        description: error.message,
+        variant: 'destructive',
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+
+
+
+  // Memo para receitas, despesas e saldo (usando todas as transações da(s) conta(s) filtrada(s), igual à tela de contas)
+  const { receitas, despesas, saldoReal } = useMemo(() => {
+    let transacoesParaSaldo = transacoes;
+    if (accountFilter && accountFilter !== 'all') {
+      transacoesParaSaldo = transacoes.filter(t => t.account_id === accountFilter);
+    }
+    // Não filtra por data/categoria/tipo para o saldo!
+    const receitas = transacoesParaSaldo.filter(t => t.tipo === 'receita').reduce((acc, t) => acc + (t.valor || 0), 0);
+    const despesas = transacoesParaSaldo.filter(t => t.tipo === 'despesa').reduce((acc, t) => acc + (t.valor || 0), 0);
     return {
       receitas,
       despesas,
-      saldo: receitas - despesas
-    }
-  }, [filteredTransacoes])
+      saldoReal: saldoInicial + receitas + despesas,
+    };
+  }, [transacoes, accountFilter, saldoInicial]);
+  useEffect(() => {
+    // Coloque aqui a lógica de efeito colateral, como fetch de dados, listeners, etc.
+    // Não retorne JSX!
+  }, []);
+  // ...código JS/async deve estar fora do return/JSX...
 
-  const fetchTransacoes = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('transacoes')
-        .select(`
-          *,
-          categorias!transacoes_category_id_fkey (
-            id,
-            nome
-          )
-        `)
-        .eq('userid', user?.id)
-        .order('created_at', { ascending: false })
-
-      if (error) throw error
-      setTransacoes(data || [])
-    } catch (error: any) {
-      toast({
-        title: "Erro ao carregar transações",
-        description: error.message,
-        variant: "destructive",
-      })
-    } finally {
-      setLoading(false)
+  useEffect(() => {
+    if (!user) {
+      console.log('[Transacoes] Usuário não está definido ainda.');
+      return;
     }
-  }
+    if (!user.id) {
+      console.log('[Transacoes] user.id não está definido:', user);
+      return;
+    }
+    console.log('[Transacoes] Chamando fetchTransacoes para user.id:', user.id);
+    fetchTransacoes();
+  }, [user]);
 
   const clearFilters = () => {
     setSearchTerm('')
-    setTypeFilter('')
-    setCategoryFilter('')
+    setTypeFilter('all')
+    setCategoryFilter('all')
+    setAccountFilter('all')
     setSortOrder('created_desc')
   }
 
@@ -184,6 +223,21 @@ export default function Transacoes() {
     }
 
     try {
+      // Define status automaticamente conforme método
+      let status = formData.status;
+      let metodo = formData.metodo;
+      if (!status) {
+        if (formData.metodo === 'credito') {
+          status = 'pendente_fatura';
+        } else if (formData.metodo === 'pix' || formData.metodo === 'debito' || formData.metodo === 'transferencia') {
+          status = 'pago';
+        } else {
+          status = '';
+        }
+      }
+      if (!metodo) {
+        metodo = '';
+      }
       const transacaoData = {
         quando: formData.quando,
         estabelecimento: formData.estabelecimento,
@@ -191,6 +245,9 @@ export default function Transacoes() {
         detalhes: formData.detalhes,
         tipo: formData.tipo,
         category_id: formData.category_id,
+        metodo,
+        status,
+        account_id: formData.account_id, // novo campo
         userid: user?.id,
       }
 
@@ -220,6 +277,10 @@ export default function Transacoes() {
         detalhes: '',
         tipo: '',
         category_id: '',
+        metodo: '',
+        status: '',
+        account_id: '',
+        fatura_id: '',
       })
       fetchTransacoes()
     } catch (error: any) {
@@ -231,28 +292,40 @@ export default function Transacoes() {
     }
   }
 
-  const handleEdit = (transacao: Transacao) => {
-    setEditingTransaction(transacao)
-    
-    // Normaliza a data para o formato do input
-    let dateForInput = ''
-    if (transacao.quando) {
-      dateForInput = normalizeDate(transacao.quando)
+  // Handler robusto para editar transação
+  const handleEdit = (transacao: any) => {
+    setEditingTransaction(transacao);
+    let accountId = '';
+    if (typeof transacao.account_id === 'string' && transacao.account_id) {
+      accountId = transacao.account_id;
+    } else if (transacao.accounts && typeof transacao.accounts.id === 'string') {
+      accountId = transacao.accounts.id;
+    } else {
+      accountId = '';
     }
-    // Se não conseguiu normalizar ou não tem data específica, usa created_at
-    if (!dateForInput) {
-      dateForInput = normalizeDate(transacao.created_at)
+    // Normaliza data: se não houver data válida, usa created_at
+    let dataNormalizada = '';
+    if (transacao.quando && !isNaN(new Date(transacao.quando).getTime())) {
+      dataNormalizada = normalizeDate(transacao.quando);
+    } else if (transacao.created_at && !isNaN(new Date(transacao.created_at).getTime())) {
+      dataNormalizada = normalizeDate(transacao.created_at);
+    } else {
+      dataNormalizada = '';
     }
-    
     setFormData({
-      quando: dateForInput,
+      quando: dataNormalizada,
       estabelecimento: transacao.estabelecimento || '',
-      valor: transacao.valor || 0,
+      valor: typeof transacao.valor === 'number' && !isNaN(transacao.valor) ? transacao.valor : 0,
       detalhes: transacao.detalhes || '',
       tipo: transacao.tipo || '',
       category_id: transacao.category_id || '',
-    })
-    setDialogOpen(true)
+      metodo: transacao.metodo || '',
+      status: transacao.status || '',
+      account_id: accountId,
+      fatura_id: transacao.fatura_id || '',
+    });
+    // Garante que o Dialog só abre após o formData ser atualizado
+    setTimeout(() => setDialogOpen(true), 0);
   }
 
   const handleDelete = async (id: number) => {
@@ -295,199 +368,239 @@ export default function Transacoes() {
     }
   }
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('pt-BR')
+  // Função robusta para formatar datas, evitando "Invalid Date"
+  // Função robusta para formatar datas, tentando forçar ISO se vier formato estranho do Supabase
+  // Função para exibir a data exatamente como está no banco, mas sempre no formato brasileiro
+  const formatDate = (dateString: string | null | undefined) => {
+    if (!dateString) return 'Sem data';
+    // Se vier dd/mm/yyyy, retorna igual
+    if (/^\d{2}\/\d{2}\/\d{4}$/.test(dateString)) return dateString;
+    // Se vier yyyy-mm-dd, converte para dd/mm/yyyy
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
+      const [y, m, d] = dateString.split('-');
+      return `${d}/${m}/${y}`;
+    }
+    // Se vier yyyy-mm-ddTHH:MM:SS, pega só a data
+    if (/^\d{4}-\d{2}-\d{2}T/.test(dateString)) {
+      const [datePart] = dateString.split('T');
+      const [y, m, d] = datePart.split('-');
+      return `${d}/${m}/${y}`;
+    }
+    // Se vier outro formato, tenta converter
+    const date = new Date(dateString);
+    if (!isNaN(date.getTime())) return date.toLocaleDateString('pt-BR');
+    return dateString;
   }
 
   // Função para normalizar data para formato input (YYYY-MM-DD)
   const normalizeDate = (dateString: string | null): string => {
-    if (!dateString) return ''
-    
+    if (!dateString) return '';
     try {
       // Se já está no formato YYYY-MM-DD
       if (/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
-        return dateString
+        return dateString;
       }
-      
       // Para outros formatos (ISO, timestamp, etc)
-      const date = new Date(dateString)
-      
+      const date = new Date(dateString);
       // Verifica se a data é válida
       if (isNaN(date.getTime())) {
-        return ''
+        return '';
       }
-      
       // Retorna no formato YYYY-MM-DD
-      return date.toISOString().split('T')[0]
+      return date.toISOString().split('T')[0];
     } catch (error) {
-      console.error('Erro ao normalizar data:', error)
-      return ''
+      console.error('Erro ao normalizar data:', error);
+      return '';
     }
-  }
+  };
 
+  // ...hooks, funções e lógica acima...
   return (
+
+
     <div className="space-y-4 sm:space-y-6 p-3 sm:p-6">
-      <div className="flex flex-col gap-3 sm:flex-row sm:justify-between sm:items-center sm:gap-4">
-        <div className="space-y-1">
-          <h2 className="text-xl sm:text-2xl md:text-3xl font-bold tracking-tight">Transações</h2>
-          <p className="text-muted-foreground text-sm sm:text-base">Gerencie suas receitas e despesas</p>
+      {/* Título, descrição e botão Nova Transação alinhados */}
+      <div className="flex flex-row items-center justify-between mb-2 mt-2">
+        <div>
+          <h2 className="text-3xl font-bold leading-tight">Transações</h2>
+          <p className="text-muted-foreground text-base">Gerencie suas receitas e despesas</p>
         </div>
-        <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
-          {transacoes.length > 0 && (
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button variant="destructive" size="sm" className="w-full sm:w-auto">
-                  <Trash2 className="mr-2 h-3 w-3 sm:h-4 sm:w-4" />
-                  <span className="text-xs sm:text-sm">Remover Todas</span>
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent className="mx-4 sm:mx-0 max-w-sm sm:max-w-md">
-                <AlertDialogHeader>
-                  <AlertDialogTitle className="text-base sm:text-lg">Remover todas as transações</AlertDialogTitle>
-                  <AlertDialogDescription className="text-sm">
-                    Esta ação não pode ser desfeita. Isso irá remover permanentemente todas as suas transações.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter className="flex-col sm:flex-row gap-2">
-                  <AlertDialogCancel className="w-full sm:w-auto">Cancelar</AlertDialogCancel>
-                  <AlertDialogAction onClick={handleDeleteAll} className="w-full sm:w-auto bg-destructive text-destructive-foreground hover:bg-destructive/90">
-                    Remover Todas
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-          )}
-          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-            <DialogTrigger asChild>
-              <Button size="sm" className="bg-primary hover:bg-primary/90 w-full sm:w-auto">
-                <Plus className="mr-2 h-3 w-3 sm:h-4 sm:w-4" />
-                <span className="text-xs sm:text-sm">Nova Transação</span>
+        <Button className="bg-primary hover:bg-primary/90 h-9 text-sm rounded-md px-4 whitespace-nowrap" onClick={() => { setEditingTransaction(null); setDialogOpen(true); }}>
+          + Nova Transação
+        </Button>
+      </div>
+
+      {/* Dialog de criação/edição de transação */}
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent className="max-w-md w-full">
+          <DialogHeader>
+            <DialogTitle>{editingTransaction ? 'Editar Transação' : 'Nova Transação'}</DialogTitle>
+            <DialogDescription>
+              {editingTransaction ? 'Edite os dados da transação.' : 'Preencha os dados para criar uma nova transação.'}
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <Label htmlFor="quando">Data</Label>
+              <Input
+                id="quando"
+                type="date"
+                value={formData.quando}
+                onChange={e => setFormData({ ...formData, quando: e.target.value })}
+                required
+              />
+            </div>
+            <div>
+              <Label htmlFor="estabelecimento">Estabelecimento</Label>
+              <Input
+                id="estabelecimento"
+                value={formData.estabelecimento}
+                onChange={e => setFormData({ ...formData, estabelecimento: e.target.value })}
+                required
+              />
+            </div>
+            <div>
+              <Label htmlFor="valor">Valor</Label>
+              <Input
+                id="valor"
+                type="number"
+                value={formData.valor}
+                onChange={e => setFormData({ ...formData, valor: Number(e.target.value) })}
+                required
+              />
+            </div>
+            <div>
+              <Label htmlFor="tipo">Tipo</Label>
+              <Select value={formData.tipo} onValueChange={value => setFormData({ ...formData, tipo: value })}>
+                <SelectTrigger className="h-9 text-sm">
+                  <SelectValue placeholder="Selecione o tipo" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="receita">Receita</SelectItem>
+                  <SelectItem value="despesa">Despesa</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label htmlFor="category_id">Categoria</Label>
+              <CategorySelector
+                value={formData.category_id}
+                onValueChange={value => setFormData({ ...formData, category_id: value })}
+                placeholder="Selecione a categoria"
+                allValue=""
+                className="h-9 text-sm"
+              />
+            </div>
+            <div>
+              <Label htmlFor="detalhes">Detalhes</Label>
+              <Textarea
+                id="detalhes"
+                value={formData.detalhes}
+                onChange={e => setFormData({ ...formData, detalhes: e.target.value })}
+                className="min-h-[60px] text-sm resize-none"
+              />
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
+                Cancelar
               </Button>
-            </DialogTrigger>
-            <DialogContent className="mx-4 sm:mx-0 max-w-sm sm:max-w-[425px] max-h-[90vh] overflow-y-auto">
-              <DialogHeader className="space-y-2">
-                <DialogTitle className="text-base sm:text-lg">
-                  {editingTransaction ? 'Editar Transação' : 'Nova Transação'}
-                </DialogTitle>
-                <DialogDescription className="text-sm">
-                  {editingTransaction 
-                    ? 'Faça as alterações necessárias na transação.' 
-                    : 'Adicione uma nova receita ou despesa.'}
-                </DialogDescription>
-              </DialogHeader>
-              <form onSubmit={handleSubmit} className="space-y-3 sm:space-y-4">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="tipo" className="text-sm">Tipo</Label>
-                    <Select value={formData.tipo} onValueChange={(value) => setFormData({...formData, tipo: value})}>
-                      <SelectTrigger className="h-9 text-sm">
-                        <SelectValue placeholder="Selecione o tipo" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="receita">Receita</SelectItem>
-                        <SelectItem value="despesa">Despesa</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="valor" className="text-sm">Valor</Label>
-                    <CurrencyInput
-                      value={formData.valor}
-                      onChange={(value) => setFormData({...formData, valor: value})}
-                      required
-                      className="h-9 text-sm"
-                    />
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="estabelecimento" className="text-sm">Estabelecimento</Label>
-                  <Input
-                    id="estabelecimento"
-                    placeholder="Ex: Supermercado, Salário, etc."
-                    value={formData.estabelecimento}
-                    onChange={(e) => setFormData({...formData, estabelecimento: e.target.value})}
-                    className="h-9 text-sm"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="categoria" className="text-sm">Categoria</Label>
-                  <CategorySelector
-                    value={formData.category_id}
-                    onValueChange={(value) => setFormData({...formData, category_id: value})}
-                    placeholder="Selecione a categoria"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="quando" className="text-sm">Data</Label>
-                  <Input
-                    id="quando"
-                    type="date"
-                    value={formData.quando}
-                    onChange={(e) => setFormData({...formData, quando: e.target.value})}
-                    className="h-9 text-sm"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="detalhes" className="text-sm">Detalhes</Label>
-                  <Textarea
-                    id="detalhes"
-                    placeholder="Informações adicionais..."
-                    value={formData.detalhes}
-                    onChange={(e) => setFormData({...formData, detalhes: e.target.value})}
-                    className="min-h-[60px] text-sm resize-none"
-                  />
-                </div>
-                <Button type="submit" className="w-full bg-primary hover:bg-primary/90 h-9 text-sm">
-                  {editingTransaction ? 'Atualizar' : 'Adicionar'} Transação
-                </Button>
-              </form>
-            </DialogContent>
-          </Dialog>
+              <Button type="submit" className="bg-primary hover:bg-primary/90">
+                {editingTransaction ? 'Salvar' : 'Adicionar'}
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Cards de resumo: apenas uma linha, logo abaixo do título/descrição */}
+      <TransactionSummaryCards receitas={receitas} despesas={despesas} saldo={saldoReal} />
+
+      {/* Filtros agrupados em card visual, duas linhas, sem botão dentro */}
+      <div className="mb-4">
+        <div className="bg-muted/10 border border-muted-foreground/10 rounded-xl p-4 flex flex-col gap-2 w-full">
+          <div className="flex flex-row gap-2 w-full">
+            <Input
+              placeholder="Pesquisar transações..."
+              value={searchTerm}
+              onChange={e => setSearchTerm(e.target.value)}
+              className="h-9 text-sm rounded-md px-3 bg-background border border-muted-foreground/20 focus:ring-2 focus:ring-primary/30 shadow-sm w-[220px]"
+            />
+            <Select value={typeFilter} onValueChange={value => setTypeFilter(value && value !== '' ? value : 'all')}>
+              <SelectTrigger className="h-9 text-sm rounded-md bg-background border border-muted-foreground/20 w-[120px]">
+                <SelectValue placeholder="Todos os tipos" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos os tipos</SelectItem>
+                <SelectItem value="receita">Receita</SelectItem>
+                <SelectItem value="despesa">Despesa</SelectItem>
+              </SelectContent>
+            </Select>
+            <CategorySelector
+              value={categoryFilter}
+              onValueChange={value => setCategoryFilter(value && value !== '' ? value : 'all')}
+              placeholder="Todas categorias"
+              allValue="all"
+              className="h-9 text-sm rounded-md bg-background border border-muted-foreground/20 w-[150px]"
+            />
+          </div>
+          <div className="flex flex-row gap-2 w-full">
+            <Select
+              value={accountFilter && accountFilter !== '' ? accountFilter : 'all'}
+              onValueChange={value => setAccountFilter(value && value !== '' ? value : 'all')}
+            >
+              <SelectTrigger className="h-9 text-sm rounded-md bg-background border border-muted-foreground/20 w-[150px]">
+                <SelectValue placeholder="Todas contas" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas contas</SelectItem>
+                {accountsMap && Object.entries(accountsMap)
+                  .filter(([id, acc]) => id && id !== '' && id !== null && id !== undefined)
+                  .map(([id, acc]) => (
+                    <SelectItem key={id} value={id}>{acc.name}</SelectItem>
+                  ))}
+              </SelectContent>
+            </Select>
+            <Input
+              type="text"
+              value={dateFrom}
+              onChange={e => setDateFrom(e.target.value)}
+              className="h-9 text-sm rounded-md bg-background border border-muted-foreground/20 w-[120px]"
+              placeholder="dd/mm/aaaa"
+              maxLength={10}
+            />
+            <Input
+              type="text"
+              value={dateTo}
+              onChange={e => setDateTo(e.target.value)}
+              className="h-9 text-sm rounded-md bg-background border border-muted-foreground/20 w-[120px]"
+              placeholder="dd/mm/aaaa"
+              maxLength={10}
+            />
+            <Select value={sortOrder} onValueChange={setSortOrder}>
+              <SelectTrigger className="h-9 text-sm flex items-center rounded-md bg-background border border-muted-foreground/20 w-[120px]">
+                <ArrowUpDown className="w-4 h-4 mr-2" />
+                <SelectValue>
+                  {sortOrder === 'date_desc' ? 'Ordenar' : sortOrder === 'date_asc' ? 'Ordenar' : 'Ordenar'}
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="date_desc">Data da transação ↓</SelectItem>
+                <SelectItem value="date_asc">Data da transação ↑</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
       </div>
 
-      <TransactionSummaryCards 
-        receitas={receitas}
-        despesas={despesas}
-        saldo={saldo}
-      />
-
-      <TransactionFilters
-        searchTerm={searchTerm}
-        onSearchChange={setSearchTerm}
-        typeFilter={typeFilter}
-        onTypeFilterChange={setTypeFilter}
-        categoryFilter={categoryFilter}
-        onCategoryFilterChange={setCategoryFilter}
-        sortOrder={sortOrder}
-        onSortOrderChange={setSortOrder}
-        onClearFilters={clearFilters}
-      />
-
+      {/* Lista de transações */}
       <div className="grid gap-3 sm:gap-4">
-        {loading ? (
-          <div className="space-y-3 sm:space-y-4">
-            {[...Array(5)].map((_, i) => (
-              <Card key={i} className="animate-pulse">
-                <CardContent className="p-4 sm:p-6">
-                  <div className="flex items-center justify-between">
-                    <div className="space-y-2">
-                      <div className="h-3 sm:h-4 bg-gray-200 rounded w-24 sm:w-32"></div>
-                      <div className="h-2 sm:h-3 bg-gray-200 rounded w-16 sm:w-20"></div>
-                    </div>
-                    <div className="h-5 sm:h-6 bg-gray-200 rounded w-16 sm:w-20"></div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        ) : filteredTransacoes.length === 0 ? (
+        {filteredTransacoes.length === 0 ? (
           <Card>
             <CardContent className="p-6 sm:p-8 text-center">
               <p className="text-muted-foreground mb-4 text-sm sm:text-base">
                 {transacoes.length === 0 ? 'Nenhuma transação encontrada' : 'Nenhuma transação encontrada com os filtros aplicados'}
               </p>
-              <Button onClick={() => setDialogOpen(true)} size="sm" className="bg-primary hover:bg-primary/90">
+              <Button onClick={() => { setEditingTransaction(null); setDialogOpen(true); }} size="sm" className="bg-primary hover:bg-primary/90">
                 Adicionar primeira transação
               </Button>
             </CardContent>
@@ -509,45 +622,46 @@ export default function Transacoes() {
                           {transacao.estabelecimento || 'Sem estabelecimento'}
                         </h3>
                       </div>
-                      <Badge variant={transacao.tipo === 'receita' ? 'default' : 'destructive'} className="self-start text-xs">
-                        {transacao.tipo}
-                      </Badge>
+                      {transacao.tipo === 'receita' ? (
+                        <Badge variant="default" className="self-start text-xs px-5 py-1.5 rounded-2xl bg-gradient-to-r from-green-500/90 to-green-700/90 text-white border-none font-bold tracking-wide shadow-md drop-shadow-sm" style={{letterSpacing: 0.5}}>
+                          Receita
+                        </Badge>
+                      ) : (
+                        <Badge variant="destructive" className="self-start text-xs px-5 py-1.5 rounded-2xl bg-gradient-to-r from-red-500/90 to-red-700/90 text-white border-none font-bold tracking-wide shadow-md drop-shadow-sm" style={{letterSpacing: 0.5}}>
+                          Despesa
+                        </Badge>
+                      )}
+                      <span className={`font-bold text-base sm:text-lg ${transacao.tipo === 'receita' ? 'text-green-600' : 'text-red-600'}`}>
+                        {transacao.tipo === 'receita' ? '+' : '-'}R$ {formatCurrency(Math.abs(transacao.valor || 0))}
+                      </span>
                     </div>
-                    <div className="text-xs sm:text-sm text-muted-foreground space-y-1">
-                      {transacao.categorias && (
-                        <p className="line-clamp-1">Categoria: {transacao.categorias.nome}</p>
-                      )}
-                      <p>Data: {formatDate(transacao.quando || transacao.created_at)}</p>
-                      {transacao.detalhes && (
-                        <p className="line-clamp-2 sm:line-clamp-1">Detalhes: {transacao.detalhes}</p>
-                      )}
+                    <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
+                      <span>Categoria: {transacao.categorias?.nome || 'Sem categoria'}</span>
+                      <span>Conta: {accountsMap?.[transacao.account_id || '']?.name || 'Sem conta'}</span>
+                      <span>Data: {formatDate(transacao.quando)}</span>
                     </div>
                   </div>
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
-                    <div className={`text-base sm:text-lg md:text-xl font-bold text-center sm:text-right ${
-                      transacao.tipo === 'receita' ? 'text-green-600' : 'text-red-600'
-                    }`}>
-                      {transacao.tipo === 'receita' ? '+' : '-'}
-                      {formatCurrency(Math.abs(transacao.valor || 0))}
-                    </div>
-                    <div className="flex justify-center sm:justify-start gap-2">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleEdit(transacao)}
-                        className="h-8 w-8 p-0 border-primary text-primary hover:bg-primary hover:text-primary-foreground"
-                      >
-                        <Edit className="h-3 w-3 sm:h-4 sm:w-4" />
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleDelete(transacao.id)}
-                        className="h-8 w-8 p-0 border-destructive text-destructive hover:bg-destructive hover:text-destructive-foreground"
-                      >
-                        <Trash2 className="h-3 w-3 sm:h-4 sm:w-4" />
-                      </Button>
-                    </div>
+                  <div className="flex gap-2 mt-2 sm:mt-0">
+                    <Button size="sm" variant="outline" onClick={() => handleEdit(transacao)} aria-label="Editar transação">
+                      <Edit className="h-3 w-3 sm:h-4 sm:w-4" />
+                    </Button>
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button size="sm" variant="outline" type="button" className="h-8 w-8 p-0 border-destructive text-destructive hover:bg-destructive hover:text-destructive-foreground" aria-label="Remover transação">
+                          <Trash2 className="h-3 w-3 sm:h-4 sm:w-4" />
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Remover transação</AlertDialogTitle>
+                          <AlertDialogDescription>Tem certeza que deseja remover esta transação? Esta ação não pode ser desfeita.</AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                          <AlertDialogAction onClick={() => handleDelete(transacao.id)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Remover</AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
                   </div>
                 </div>
               </CardContent>
@@ -556,5 +670,7 @@ export default function Transacoes() {
         )}
       </div>
     </div>
-  )
+  );
 }
+
+export default Transacoes;
