@@ -254,7 +254,7 @@ const Transacoes: React.FC = () => {
       let status = formData.status;
       let metodo = formData.metodo;
       if (!status) {
-        if (formData.metodo === 'credito') {
+        if (formData.metodo === 'cartao_credito') {
           status = 'pendente_fatura';
         } else if (formData.metodo === 'pix' || formData.metodo === 'debito' || formData.metodo === 'transferencia') {
           status = 'pago';
@@ -291,8 +291,7 @@ const Transacoes: React.FC = () => {
         Object.entries(transacaoData).filter(([_, v]) => v !== '')
       )
 
-      // Debug: mostrar payload antes de enviar (temporário)
-      console.debug('[Transacoes] payload before save:', payload)
+      // (debug removed)
 
       if (editingTransaction) {
         const { error } = await supabase
@@ -539,7 +538,7 @@ const Transacoes: React.FC = () => {
                 <SelectContent>
                   <SelectItem value="pix">PIX</SelectItem>
                   <SelectItem value="debito">Débito</SelectItem>
-                  <SelectItem value="credito">Cartão de Crédito</SelectItem>
+                  <SelectItem value="cartao_credito">Cartão de Crédito</SelectItem>
                   <SelectItem value="transferencia">Transferência</SelectItem>
                 </SelectContent>
               </Select>
@@ -562,7 +561,7 @@ const Transacoes: React.FC = () => {
                 placeholder="Selecione a conta (opcional)"
               />
             </div>
-            {formData.metodo === 'credito' && (
+            {formData.metodo === 'cartao_credito' && (
               <div>
                 <Label htmlFor="card_account_id">Cartão</Label>
                 <CardSelector
