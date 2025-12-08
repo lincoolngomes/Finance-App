@@ -286,20 +286,34 @@ const Transacoes: React.FC = () => {
         fatura_id: normalizeUuid(formData.fatura_id),
       }
 
+      // Remove fields that are empty strings (''), Postgres rejects '' for uuid fields
+      const payload = Object.fromEntries(
+        Object.entries(transacaoData).filter(([_, v]) => v !== '')
+      )
+
+      // Debug: mostrar payload antes de enviar (temporário)
+      console.debug('[Transacoes] payload before save:', payload)
+
       if (editingTransaction) {
         const { error } = await supabase
           .from('transacoes')
-          .update(transacaoData)
+          .update(payload)
           .eq('id', editingTransaction.id)
 
-        if (error) throw error
+        if (error) {
+          console.error('[Transacoes] update error:', error)
+          throw error
+        }
         toast({ title: "Transação atualizada com sucesso!" })
       } else {
         const { error } = await supabase
           .from('transacoes')
-          .insert([transacaoData])
+          .insert([payload])
 
-        if (error) throw error
+        if (error) {
+          console.error('[Transacoes] insert error:', error)
+          throw error
+        }
         toast({ title: "Transação adicionada com sucesso!" })
       }
 
