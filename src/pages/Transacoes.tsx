@@ -58,7 +58,8 @@ const Transacoes: React.FC = () => {
   const [accountFilter, setAccountFilter] = useState('all');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
-  const [sortOrder, setSortOrder] = useState('created_desc');
+  // Ordenação padrão: data da transação mais recentes primeiro
+  const [sortOrder, setSortOrder] = useState('date_desc');
   const [saldoInicial, setSaldoInicial] = useState(0);
   // Estado para controle do diálogo de transação
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -106,14 +107,28 @@ const Transacoes: React.FC = () => {
       );
     }
     // Ordenação
+    // Helper para parsear datas em vários formatos (dd/mm/yyyy, yyyy-mm-dd, ISO)
+    const parseDateToTime = (dateStr) => {
+      if (!dateStr) return 0
+      // dd/mm/yyyy
+      if (/^\d{2}\/\d{2}\/\d{4}$/.test(dateStr)) {
+        const [d, m, y] = dateStr.split('/')
+        return new Date(`${y}-${m}-${d}T00:00:00`).getTime()
+      }
+      // yyyy-mm-dd or ISO
+      const d = new Date(dateStr)
+      if (!isNaN(d.getTime())) return d.getTime()
+      return 0
+    }
+
     if (sortOrder === 'created_asc') {
-      filtered.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+      filtered.sort((a, b) => parseDateToTime(a.created_at) - parseDateToTime(b.created_at))
     } else if (sortOrder === 'created_desc') {
-      filtered.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+      filtered.sort((a, b) => parseDateToTime(b.created_at) - parseDateToTime(a.created_at))
     } else if (sortOrder === 'date_asc') {
-      filtered.sort((a, b) => new Date(a.quando || a.created_at).getTime() - new Date(b.quando || b.created_at).getTime());
+      filtered.sort((a, b) => parseDateToTime(a.quando || a.created_at) - parseDateToTime(b.quando || b.created_at))
     } else if (sortOrder === 'date_desc') {
-      filtered.sort((a, b) => new Date(b.quando || b.created_at).getTime() - new Date(a.quando || a.created_at).getTime());
+      filtered.sort((a, b) => parseDateToTime(b.quando || b.created_at) - parseDateToTime(a.quando || a.created_at))
     }
     return filtered;
   }, [transacoes, accountFilter, typeFilter, categoryFilter, dateFrom, dateTo, searchTerm, sortOrder]);
@@ -176,6 +191,8 @@ const Transacoes: React.FC = () => {
     return {
       receitas,
       despesas,
+      // Em alguns setups as despesas já vêm com sinal negativo no DB.
+      // O comportamento esperado (conforme UI) é: saldo = saldoInicial + receitas + despesas
       saldoReal: saldoInicial + receitas + despesas,
     };
   }, [transacoes, accountFilter, saldoInicial]);
@@ -222,6 +239,16 @@ const Transacoes: React.FC = () => {
       }
     }
 
+    // Categoria é obrigatória no banco (category_id uuid not null)
+    if (!formData.category_id) {
+      toast({
+        title: 'Erro de validação',
+        description: 'Selecione uma categoria antes de salvar a transação.',
+        variant: 'destructive',
+      })
+      return
+    }
+
     try {
       // Define status automaticamente conforme método
       let status = formData.status;
@@ -238,17 +265,25 @@ const Transacoes: React.FC = () => {
       if (!metodo) {
         metodo = '';
       }
+      // Normaliza campos UUID vazios para null (Postgres não aceita '')
+      const normalizeUuid = (v: any) => {
+        if (v === undefined || v === null) return null
+        if (typeof v === 'string' && v.trim() === '') return null
+        return v
+      }
+
       const transacaoData = {
-        quando: formData.quando,
-        estabelecimento: formData.estabelecimento,
-        valor: formData.valor,
-        detalhes: formData.detalhes,
-        tipo: formData.tipo,
-        category_id: formData.category_id,
-        metodo,
-        status,
-        account_id: formData.account_id, // novo campo
-        userid: user?.id,
+        quando: formData.quando || null,
+        estabelecimento: formData.estabelecimento || null,
+        valor: formData.valor || null,
+        detalhes: formData.detalhes || null,
+        tipo: formData.tipo || null,
+        category_id: normalizeUuid(formData.category_id),
+        metodo: metodo || null,
+        status: status || null,
+        account_id: normalizeUuid(formData.account_id), // novo campo
+        userid: user?.id || null,
+        fatura_id: normalizeUuid(formData.fatura_id),
       }
 
       if (editingTransaction) {
