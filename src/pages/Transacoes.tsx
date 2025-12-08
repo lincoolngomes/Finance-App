@@ -531,6 +531,20 @@ const Transacoes: React.FC = () => {
               </Select>
             </div>
             <div>
+              <Label htmlFor="metodo">Método</Label>
+              <Select value={formData.metodo} onValueChange={value => setFormData({ ...formData, metodo: value })}>
+                <SelectTrigger className="h-9 text-sm">
+                  <SelectValue placeholder="Selecione o método" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="pix">PIX</SelectItem>
+                  <SelectItem value="debito">Débito</SelectItem>
+                  <SelectItem value="credito">Crédito</SelectItem>
+                  <SelectItem value="transferencia">Transferência</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
               <Label htmlFor="category_id">Categoria</Label>
               <CategorySelector
                 value={formData.category_id}
@@ -548,6 +562,16 @@ const Transacoes: React.FC = () => {
                 placeholder="Selecione a conta (opcional)"
               />
             </div>
+            {formData.metodo === 'credito' && (
+              <div>
+                <Label htmlFor="card_account_id">Cartão</Label>
+                <CardSelector
+                  value={formData.account_id}
+                  onValueChange={value => setFormData({ ...formData, account_id: value })}
+                  placeholder="Selecione o cartão (opcional)"
+                />
+              </div>
+            )}
             <div>
               <Label htmlFor="detalhes">Detalhes</Label>
               <Textarea
