@@ -43,8 +43,8 @@ export function DashboardCharts({ transacoes, recentTransacoes }: DashboardChart
   }
 
   const getReceitasDespesasData = () => {
-    const receitas = transacoes.filter(t => t.tipo === 'receita').reduce((sum, t) => sum + (t.valor || 0), 0)
-    const despesas = transacoes.filter(t => t.tipo === 'despesa').reduce((sum, t) => sum + Math.abs(t.valor || 0), 0)
+    const receitas = transacoes.filter(t => t.tipo === 'receita').reduce((sum, t) => sum + (Number(t.valor) || 0), 0)
+    const despesas = transacoes.filter(t => t.tipo === 'despesa').reduce((sum, t) => sum + Math.abs(Number(t.valor) || 0), 0)
 
     return [
       { name: 'Receitas', value: receitas },
@@ -340,7 +340,7 @@ export function DashboardCharts({ transacoes, recentTransacoes }: DashboardChart
                 </div>
               ))
             }
-            {transacoes.length === 0 && (
+            {(recentTransacoes ?? transacoes).length === 0 && (
               <div className="text-center py-8 text-slate-400">
                 Nenhuma transação encontrada
               </div>

@@ -130,11 +130,11 @@ export default function Dashboard() {
   const stats = useMemo(() => {
     const totalReceitas = filteredTransacoes
       .filter(t => t.tipo === 'receita')
-      .reduce((acc, t) => acc + (t.valor || 0), 0)
+      .reduce((acc, t) => acc + (Number(t.valor) || 0), 0)
     
     const totalDespesas = filteredTransacoes
       .filter(t => t.tipo === 'despesa')
-      .reduce((acc, t) => acc + (t.valor || 0), 0)
+      .reduce((acc, t) => acc + (Math.abs(Number(t.valor) || 0)), 0)
     
     // Calcula o saldo agregado usando a mesma regra da página Contas:
     // para cada conta: saldoInicial + receitasConta + despesasConta
@@ -196,6 +196,10 @@ export default function Dashboard() {
         setFilterYear={setFilterYear}
         transactionCount={filteredTransacoes.length}
       />
+      {/* Quick diagnostic: show selected month/year and counts */}
+      <div className="text-sm text-muted-foreground mb-2">
+        Filtro: <b>{new Date(0, parseInt(filterMonth)).toLocaleDateString('pt-BR', { month: 'long' })}</b> / <b>{filterYear}</b> • Transações carregadas: <b>{transacoes.length}</b> • Transações filtradas: <b>{filteredTransacoes.length}</b>
+      </div>
       {/* debug panel removed */}
       
       <DashboardStats stats={stats} />
