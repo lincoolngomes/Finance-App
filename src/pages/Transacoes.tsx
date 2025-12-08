@@ -541,6 +541,14 @@ const Transacoes: React.FC = () => {
               />
             </div>
             <div>
+              <Label htmlFor="account_id">Conta</Label>
+              <BankSelector
+                value={formData.account_id}
+                onValueChange={value => setFormData({ ...formData, account_id: value })}
+                placeholder="Selecione a conta (opcional)"
+              />
+            </div>
+            <div>
               <Label htmlFor="detalhes">Detalhes</Label>
               <Textarea
                 id="detalhes"
