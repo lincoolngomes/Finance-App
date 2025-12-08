@@ -21,11 +21,12 @@ interface Transacao {
 
 interface DashboardChartsProps {
   transacoes: Transacao[]
+  recentTransacoes?: Transacao[]
 }
 
 const COLORS = ['#6366f1', '#8b5cf6', '#ec4899', '#06b6d4', '#10b981', '#f59e0b', '#ef4444', '#84cc16']
 
-export function DashboardCharts({ transacoes }: DashboardChartsProps) {
+export function DashboardCharts({ transacoes, recentTransacoes }: DashboardChartsProps) {
   const getCategoriesData = () => {
     const categorias: { [key: string]: number } = {}
     
@@ -289,9 +290,21 @@ export function DashboardCharts({ transacoes }: DashboardChartsProps) {
         </CardHeader>
         <CardContent>
           <div className="space-y-3">
-            {transacoes
+            { (recentTransacoes ?? transacoes)
               .slice()
-              .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+              .sort((a, b) => {
+                // parse dates robustly: prefer `quando`, fallback to `created_at`
+                const parseDateToTime = (dateStr: any) => {
+                  if (!dateStr) return 0
+                  if (/^\d{2}\/\d{2}\/\d{4}$/.test(dateStr)) {
+                    const [d, m, y] = String(dateStr).split('/')
+                    return new Date(`${y}-${m}-${d}T00:00:00`).getTime()
+                  }
+                  const dt = new Date(dateStr)
+                  return isNaN(dt.getTime()) ? 0 : dt.getTime()
+                }
+                return parseDateToTime(b.quando || b.created_at) - parseDateToTime(a.quando || a.created_at)
+              })
               .slice(0, 5)
               .map((transacao) => (
                 <div 
@@ -309,8 +322,12 @@ export function DashboardCharts({ transacoes }: DashboardChartsProps) {
                       <div className="text-sm text-slate-400">
                         {transacao.categorias?.nome || 'Sem categoria'} • {
                           transacao.quando 
-                            ? new Date(transacao.quando).toLocaleDateString('pt-BR')
-                            : new Date(transacao.created_at).toLocaleDateString('pt-BR')
+                            ? (/^\d{2}\/\d{2}\/\d{4}$/.test(transacao.quando)
+                                ? transacao.quando
+                                : new Date(transacao.quando).toLocaleDateString('pt-BR'))
+                            : (/^\d{2}\/\d{2}\/\d{4}$/.test(transacao.created_at)
+                                ? transacao.created_at
+                                : new Date(transacao.created_at).toLocaleDateString('pt-BR'))
                         }
                       </div>
                     </div>
@@ -318,8 +335,7 @@ export function DashboardCharts({ transacoes }: DashboardChartsProps) {
                   <div className={`font-bold ${
                     transacao.tipo === 'receita' ? 'text-green-400' : 'text-red-400'
                   }`}>
-                    {transacao.tipo === 'receita' ? '+' : '-'}
-                    {formatCurrency(Math.abs(transacao.valor || 0))}
+                    {transacao.tipo === 'receita' ? '+' : '-'}{formatCurrency(Math.abs(transacao.valor || 0))}
                   </div>
                 </div>
               ))

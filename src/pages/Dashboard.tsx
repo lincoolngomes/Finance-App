@@ -37,6 +37,7 @@ export default function Dashboard() {
   const { user } = useAuth()
   const [transacoes, setTransacoes] = useState<Transacao[]>([])
   const [lembretes, setLembretes] = useState<Lembrete[]>([])
+  const [contas, setContas] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   
   // Estados dos filtros
@@ -75,6 +76,13 @@ export default function Dashboard() {
       if (lembretesError) throw lembretesError
 
       setTransacoes(transacoesData || [])
+      // Buscar contas do usuário (usadas para cálculo de saldo por conta)
+      const { data: contasData, error: contasError } = await supabase
+        .from('accounts')
+        .select('*')
+        .eq('user_id', user?.id)
+
+      if (!contasError) setContas(contasData || [])
       setLembretes(lembretesData || [])
     } catch (error: any) {
       toast({
@@ -92,13 +100,27 @@ export default function Dashboard() {
 
   // Filtrar transações por mês e ano
   const filteredTransacoes = useMemo(() => {
+    const parseToDate = (dateStr?: string | null) => {
+      if (!dateStr) return null
+      // dd/mm/yyyy
+      if (/^\d{2}\/\d{2}\/\d{4}$/.test(dateStr)) {
+        const [d, m, y] = String(dateStr).split('/')
+        const dt = new Date(`${y}-${m}-${d}T00:00:00`)
+        return isNaN(dt.getTime()) ? null : dt
+      }
+      // ISO or other formats
+      const dt = new Date(dateStr)
+      return isNaN(dt.getTime()) ? null : dt
+    }
+
     return transacoes.filter(transacao => {
-      if (!transacao.quando) return false
-      
-      const transacaoDate = new Date(transacao.quando)
+      const raw = transacao.quando || transacao.created_at
+      const transacaoDate = parseToDate(raw)
+      if (!transacaoDate) return false
+
       const transacaoMonth = transacaoDate.getMonth()
       const transacaoYear = transacaoDate.getFullYear()
-      
+
       return transacaoMonth === parseInt(filterMonth) && 
              transacaoYear === parseInt(filterYear)
     })
@@ -114,7 +136,22 @@ export default function Dashboard() {
       .filter(t => t.tipo === 'despesa')
       .reduce((acc, t) => acc + (t.valor || 0), 0)
     
-    const saldo = totalReceitas - totalDespesas
+    // Calcula o saldo agregado usando a mesma regra da página Contas:
+    // para cada conta: saldoInicial + receitasConta + despesasConta
+    let saldoAggregate = 0
+    contas.forEach(conta => {
+      const saldoInicial = (typeof conta.saldo_inicial !== 'undefined' && conta.saldo_inicial !== null)
+        ? Number(conta.saldo_inicial)
+        : (typeof conta.saldoInicial !== 'undefined' && conta.saldoInicial !== null ? Number(conta.saldoInicial) : 0)
+
+      const transacoesConta = transacoes.filter(t => t.account_id === conta.id)
+      const receitasConta = transacoesConta.filter(t => t.tipo === 'receita').reduce((acc, t) => acc + (Number(t.valor) || 0), 0)
+      const despesasConta = transacoesConta.filter(t => t.tipo === 'despesa').reduce((acc, t) => acc + (Number(t.valor) || 0), 0)
+
+      saldoAggregate += saldoInicial + receitasConta + despesasConta
+    })
+
+    const saldo = saldoAggregate
     
     const lembretesCount = lembretes.filter(l => {
       if (!l.data) return false
@@ -131,6 +168,8 @@ export default function Dashboard() {
       lembretesCount
     }
   }, [filteredTransacoes, lembretes, filterMonth, filterYear])
+
+  // (debug logs removed)
 
   if (loading) {
     return (
@@ -157,12 +196,13 @@ export default function Dashboard() {
         setFilterYear={setFilterYear}
         transactionCount={filteredTransacoes.length}
       />
+      {/* debug panel removed */}
       
       <DashboardStats stats={stats} />
       
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2">
-          <DashboardCharts transacoes={filteredTransacoes} />
+          <div className="lg:col-span-2">
+          <DashboardCharts transacoes={filteredTransacoes} recentTransacoes={transacoes} />
         </div>
         <div>
           <DashboardSidebar lembretes={lembretes} />
