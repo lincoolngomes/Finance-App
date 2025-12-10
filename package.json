@@ -13,7 +13,8 @@
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
     "preview": "vite preview",
-    "start": "serve -s dist -p ${PORT:-8080}"
+    "start": "serve -s dist -l $PORT",
+    "postinstall": "npm run build"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.0",
