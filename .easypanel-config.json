@@ -1,0 +1,12 @@
+{
+  "build": {
+    "command": "npm install --legacy-peer-deps && npm run build",
+    "output": "dist"
+  },
+  "start": {
+    "command": "npx serve -s dist -p $PORT"
+  },
+  "env": {
+    "NODE_VERSION": "20"
+  }
+}
