@@ -40,11 +40,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    })
-    return { error }
+    try {
+      const res = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      })
+      // Log para depuração local — remova em produção
+      // eslint-disable-next-line no-console
+      console.debug('signIn response:', res)
+      return { error: res.error }
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.error('signIn exception:', err)
+      return { error: err }
+    }
   }
 
   const signOut = async () => {

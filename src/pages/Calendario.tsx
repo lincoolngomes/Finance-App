@@ -1,15 +1,9 @@
 import { useState, useEffect, useMemo } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Textarea } from '@/components/ui/textarea'
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
-import { CurrencyInput } from '@/components/ui/currency-input'
-import { CategorySelector } from '@/components/transactions/CategorySelector'
+import { TransactionFormDialog } from '@/components/transactions/TransactionFormDialog'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
 import { useCategories } from '@/hooks/useCategories'
@@ -53,10 +47,14 @@ export default function Calendario() {
   const [formData, setFormData] = useState({
     quando: '',
     estabelecimento: '',
-    valor: '',
+    valor: 0,
     detalhes: '',
     tipo: '',
-    category_id: ''
+    category_id: '',
+    metodo: '',
+    status: '',
+    account_id: '',
+    fatura_id: ''
   });
 
 
@@ -191,10 +189,14 @@ export default function Calendario() {
     setFormData({
       quando: selectedDate ? format(selectedDate, 'yyyy-MM-dd') : '',
       estabelecimento: '',
-      valor: '',
+      valor: 0,
       detalhes: '',
       tipo: '',
-      category_id: ''
+      category_id: '',
+      metodo: '',
+      status: '',
+      account_id: '',
+      fatura_id: ''
     })
   }
 
@@ -210,15 +212,19 @@ export default function Calendario() {
   }
 
   // Abrir diálogo para editar transação
-  const openEditTransaction = (transacao: Transacao) => {
+  const openEditTransaction = (transacao: any) => {
     setEditingTransaction(transacao)
     setFormData({
       quando: transacao.quando ? format(new Date(transacao.quando), 'yyyy-MM-dd') : '',
       estabelecimento: transacao.estabelecimento || '',
-      valor: transacao.valor?.toString() || '',
+      valor: Number(transacao.valor) || 0,
       detalhes: transacao.detalhes || '',
       tipo: transacao.tipo || '',
-      category_id: transacao.category_id || ''
+      category_id: transacao.category_id || '',
+      metodo: transacao.metodo || '',
+      status: transacao.status || '',
+      account_id: transacao.account_id || '',
+      fatura_id: transacao.fatura_id || ''
     })
     setDialogOpen(true)
   }
@@ -228,13 +234,24 @@ export default function Calendario() {
     if (!user) return
 
     try {
+      // Normaliza campos UUID vazios para null
+      const normalizeUuid = (v: any) => {
+        if (v === undefined || v === null) return null
+        if (typeof v === 'string' && v.trim() === '') return null
+        return v
+      }
+
       const transactionData = {
         quando: formData.quando || null,
         estabelecimento: formData.estabelecimento || null,
-        valor: parseFloat(formData.valor) || null,
+        valor: Number(formData.valor) || null,
         detalhes: formData.detalhes || null,
         tipo: formData.tipo || null,
-        category_id: formData.category_id || null,
+        category_id: normalizeUuid(formData.category_id),
+        metodo: formData.metodo || null,
+        status: formData.status || null,
+        account_id: normalizeUuid(formData.account_id),
+        fatura_id: normalizeUuid(formData.fatura_id),
         userid: user.id
       }
 
@@ -480,131 +497,22 @@ export default function Calendario() {
           </p>
         </div>
 
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogTrigger asChild>
-            <Button onClick={() => openNewTransaction()} className="gap-2">
-              <Plus className="h-4 w-4" />
-              Nova Transação
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-md">
-            <DialogHeader>
-              <DialogTitle>
-                {editingTransaction ? 'Editar Transação' : 'Nova Transação'}
-              </DialogTitle>
-              <DialogDescription>
-                {editingTransaction ? 'Edite os dados da transação' : 'Adicione uma nova transação'}
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4">
-              <div>
-                <Label htmlFor="quando">Data</Label>
-                <Input
-                  id="quando"
-                  type="date"
-                  value={formData.quando}
-                  onChange={(e) => setFormData(prev => ({ ...prev, quando: e.target.value }))}
-                />
-              </div>
+        <Button onClick={() => openNewTransaction()} className="gap-2">
+          <Plus className="h-4 w-4" />
+          Nova Transação
+        </Button>
 
-              <div>
-                <Label htmlFor="estabelecimento">Estabelecimento</Label>
-                <Input
-                  id="estabelecimento"
-                  value={formData.estabelecimento}
-                  onChange={(e) => setFormData(prev => ({ ...prev, estabelecimento: e.target.value }))}
-                  placeholder="Nome do estabelecimento"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="valor">Valor</Label>
-                  <CurrencyInput
-                    id="valor"
-                    value={formData.valor}
-                    onChange={(value) => setFormData(prev => ({ ...prev, valor: String(value || 0) }))}
-                    placeholder="0,00"
-                  />
-                </div>
-
-                <div>
-                  <Label htmlFor="tipo">Tipo</Label>
-                  <Select value={formData.tipo} onValueChange={(value) => setFormData(prev => ({ ...prev, tipo: value }))}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="receita">Receita</SelectItem>
-                      <SelectItem value="despesa">Despesa</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              <div>
-                <Label htmlFor="category">Categoria</Label>
-                <CategorySelector
-                  value={formData.category_id}
-                  onValueChange={(value) => setFormData(prev => ({ ...prev, category_id: value }))}
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="detalhes">Detalhes</Label>
-                <Textarea
-                  id="detalhes"
-                  value={formData.detalhes}
-                  onChange={(e) => setFormData(prev => ({ ...prev, detalhes: e.target.value }))}
-                  placeholder="Observações adicionais"
-                />
-              </div>
-
-              <div className="flex justify-between gap-2">
-                <div>
-                  {editingTransaction && (
-                    <Button 
-                      variant="destructive" 
-                      onClick={() => {
-                        handleDelete(editingTransaction.id, editingTransaction.estabelecimento)
-                        setDialogOpen(false)
-                      }}
-                      className="gap-2"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                      Excluir
-                    </Button>
-                  )}
-                </div>
-                <div className="flex justify-between items-center">
-                  {/* Botão de excluir - só aparece quando editando */}
-                  {editingTransaction && (
-                    <Button 
-                      variant="destructive" 
-                      onClick={() => {
-                        handleDelete(editingTransaction.id, editingTransaction.estabelecimento)
-                        setDialogOpen(false)
-                      }}
-                      className="gap-2"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                      Excluir
-                    </Button>
-                  )}
-                  
-                  <div className="flex gap-2 ml-auto">
-                    <Button variant="outline" onClick={() => setDialogOpen(false)}>
-                      Cancelar
-                    </Button>
-                    <Button onClick={handleSave}>
-                      {editingTransaction ? 'Atualizar' : 'Salvar'}
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </DialogContent>
-        </Dialog>
+        <TransactionFormDialog
+          open={dialogOpen}
+          onOpenChange={setDialogOpen}
+          formData={formData}
+          onFormDataChange={setFormData}
+          onSubmit={(e) => {
+            e.preventDefault()
+            handleSave()
+          }}
+          isEditing={!!editingTransaction}
+        />
       </div>
 
       {/* Controls */}

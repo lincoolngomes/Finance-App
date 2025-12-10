@@ -1,0 +1,703 @@
+  // Função utilitária para normalizar strings (remove acentos, espaços extras, caixa baixa)
+  function normalizar(str) {
+    return (str || "")
+      .normalize("NFD")
+      .replace(/\p{Diacritic}/gu, "")
+      .replace(/\s+/g, " ")
+      .trim()
+      .toLowerCase();
+  }
+
+  function categorizar(descricao, regrasTexto) {
+    if (!descricao) return '';
+    const descNorm = normalizar(descricao);
+    const regras = regrasTexto.split('\n').filter(l => l.includes('=')).map(l => l.trim());
+    for (const regra of regras) {
+      const [termo, categoria] = regra.split('=').map(s => s.trim());
+      if (descNorm.includes(normalizar(termo))) {
+        const catNorm = categoria.trim();
+        return catNorm.charAt(0).toUpperCase() + catNorm.slice(1);
+      }
+    }
+    return '';
+  }
+import React, { useEffect, useState } from 'react';
+import Papa from 'papaparse';
+// Modal de importação de extrato bancário
+
+
+function ImportarExtratoModal({ open, onClose, onImport, contas }) {
+  // Estados principais do modal de importação
+  const [step, setStep] = useState(1);
+  const [regrasTexto, setRegrasTexto] = useState(`# ===== DESPESAS =====\n\n# Academia\nsmart fit = Academia\nbluefit = Academia\nselfit = Academia\nbodytech = Academia\njust fit = Academia\ngympass = Academia\nacademia = Academia\n\n# Água\nsabesp = Água\nsanepar = Água\ncopasa = Água\ncaesb = Água\ncasan = Água\ndmae = Água\nembasa = Água\nsaae = Água\n\n# Alimentação\nifood = Alimentação\nubereats = Alimentação\nrestaurante = Alimentação\nlanchonete = Alimentação\npadaria = Alimentação\npizzaria = Alimentação\nhamburgueria = Alimentação\nhabibs = Alimentação\noutback = Alimentação\nmcdonalds = Alimentação\nburger king = Alimentação\nbk = Alimentação\ngiraffas = Alimentação\nsubway = Alimentação\nspoleto = Alimentação\n\n# Aluguel\naluguel = Aluguel\nlocacao residencial = Aluguel\nimobiliaria = Aluguel\nquinto andar = Aluguel\nquintoandar = Aluguel\n\n# Aplicação Investimento\naplicacao cdb = Aplicação Investimento\naplicacao cdb cofrinhos = Aplicação Investimento\naplicacao cdb di = Aplicação Investimento\ncof aplicacao cdb = Aplicação Investimento\ndi aplicacao cdb = Aplicação Investimento\npix transf avenue = Aplicação Investimento\naporte = Aplicação Investimento\nenvio corretora = Aplicação Investimento\ncompra tesouro = Aplicação Investimento\ncompra fundos = Aplicação Investimento\n\n# Assinaturas\nseguro cartao = Assinaturas\nnetflix = Assinaturas\nspotify = Assinaturas\nprime video = Assinaturas\ndisney = Assinaturas\ngloboplay = Assinaturas\nmax = Assinaturas\nhbo = Assinaturas\nyoutube premium = Assinaturas\napple tv = Assinaturas\napple music = Assinaturas\nicloud = Assinaturas\ngoogle one = Assinaturas\nmicrosoft 365 = Assinaturas\nadobe = Assinaturas\nchatgpt = Assinaturas\nnotion = Assinaturas\nonepassword = Assinaturas\ndeezer = Assinaturas\nparamount = Assinaturas\ncanva = Assinaturas\n\n# Carro\nipva = Carro\nlicenciamento = Carro\npag licenciamento de vei = Carro\necovias = Carro\nsem parar = Carro\nrscss ecovias = Carro\nposto = Carro\ngasolina = Carro\netanol = Carro\ndiesel = Carro\nestacionamento = Carro\nmanutencao veiculo = Carro\n\n# Celular\nvivo recarga = Celular\nclaro recarga = Celular\ntim recarga = Celular\noi recarga = Celular\nvivo pos = Celular\nclaro pos = Celular\ntim pos = Celular\noi pos = Celular\nvivo controle = Celular\nclaro controle = Celular\ntim controle = Celular\nrecarga celular = Celular\n\n# Compras\nmercado livre = Compras\nmagalu = Compras\namericanas = Compras\nsubmarino = Compras\ncasas bahia = Compras\nshopee = Compras\namazon = Compras\nkabum = Compras\nfast shop = Compras\ncentauro = Compras\nkalunga = Compras\nshein = Compras\naliexpress = Compras\npaypal = Compras\npagseguro = Compras\nstone = Compras\nsumup = Compras\ngetnet = Compras\ncielo = Compras\nrede = Compras\nsafetopay = Compras\npay shopp = Compras\nreceita fed = Compras\nint pre-pago = Compras\npix qrs = Compras\npix whats = Compras\nmagazine lu = Compras\nnetshoes = Compras\n\n# Educação\nescola = Educação\nfaculdade = Educação\nuniversidade = Educação\ncurso = Educação\nead = Educação\nalura = Educação\nrocketseat = Educação\nudemy = Educação\ncoursera = Educação\nsenai = Educação\netec = Educação\npix transf thamire = Educação\n\n# Energia\nenel = Energia\nlight = Energia\ncemig = Energia\ncopel = Energia\nequatorial = Energia\nrge = Energia\ncelesc = Energia\ncpfl = Energia\nenergisa = Energia\n\n# Farmácia\ndrogaraia = Farmácia\ndroga raia = Farmácia\ndrogasil = Farmácia\npacheco = Farmácia\ndrogaria sao paulo = Farmácia\npanvel = Farmácia\nnissei = Farmácia\naraujo = Farmácia\nfarmaconde = Farmácia\nfarmacia = Farmácia\n\n# Fatura do Cartão\nint mc black = Fatura do Cartão\nint itau black = Fatura do Cartão\npix qrs mercado pag = Fatura do Cartão\npix qrs portoseg = Fatura do Cartão\nportoseg sa = Fatura do Cartão\npagamento fatura = Fatura do Cartão\nfatura cartao = Fatura do Cartão\n\n# Internet\nvivo fibra = Internet\nclaro net = Internet\ntim live = Internet\noi fibra = Internet\ngvt = Internet\nalgar = Internet\nbrisanet = Internet\ndesktop = Internet\nvogel = Internet\nprovedor = Internet\ninternet = Internet\n\n# Lazer\ncinema = Lazer\ncinemark = Lazer\ncinepolis = Lazer\nteatro = Lazer\nshow = Lazer\ningresso = Lazer\nparque = Lazer\nmuseu = Lazer\nthermas = Lazer\nhotel = Lazer\nbooking = Lazer\ndecolar = Lazer\nairbnb = Lazer\nresort = Lazer\nsympla = Lazer\ningresso.com = Lazer\n\n# Mercado\ncarrefour = Mercado\nextra = Mercado\npao de acucar = Mercado\nassai = Mercado\natacadao = Mercado\ndia = Mercado\nsonda = Mercado\ntenda = Mercado\nbig = Mercado\noba = Mercado\nhortifruti = Mercado\nsupermerc = Mercado\nsuper mercado = Mercado\n\n# Moradia\ncondominio = Moradia\niptu = Moradia\nmanutencao residencial = Moradia\nleroy merlin = Moradia\ntelha norte = Moradia\ntok stok = Moradia\ncamicado = Moradia\nmobly = Moradia\n\n# Necessidades\nsaque banco24h = Necessidades\nsaque din atm = Necessidades\natm banco24h = Necessidades\nloterica = Necessidades\ncaixa eletronico = Necessidades\n\n# Pet\npetz = Pet\ncobasi = Pet\npetlove = Pet\npet shop = Pet\nseres = Pet\nvet = Pet\nclinica veterinaria = Pet\ndrogavet = Pet\n\n# Salão/Barbearia\nbarbearia = Salão\nsalao = Salão\ncabeleireiro = Salão\nesmalteria = Salão\nmanicure = Salão\nbarber = Salão\npix transf sergio = Salão\n\n# Saúde\nhospital = Saúde\nclinica = Saúde\nlaboratorio = Saúde\nexame = Saúde\nvacina = Saúde\ndasa = Saúde\nfleury = Saúde\nsabin = Saúde\neinstein = Saúde\nsirio = Saúde\nunimed = Saúde\namil = Saúde\nhapvida = Saúde\nprevent = Saúde\npix transf tania = Saúde\n\n# Transferência (Despesa)\npix transf lincoln = Transferência\npix transf conta itau = Transferência\nted transf conta = Transferência\ndoc transferencia = Transferência\ntransferencia entre contas = Transferência\npix transf minha conta = Transferência\n\n# Uber\nuber = Uber\n99 app = Uber\n99pop = Uber\ncabify = Uber\nindriver = Uber\n\n# Vestuário\nrenner = Vestuário\nriachuelo = Vestuário\ncea = Vestuário\nc&a = Vestuário\nzara = Vestuário\nhering = Vestuário\nmarisa = Vestuário\nyoucom = Vestuário\nnetshoes = Vestuário\ndafiti = Vestuário\n\n# ===== RECEITAS =====\n\n# Aluguel Recebido\naluguel recebido = Aluguel\nrepasse aluguel = Aluguel\ninquilino = Aluguel\nairbnb repasse = Aluguel\n\n# Benefícios/Ajuda\npgto itau itau-k = Benefícios\nsispag fund saude itau = Benefícios\nbeneficio = Benefícios\nreembolso = Benefícios\najuda = Benefícios\n\n# Investimentos\ndividendos = Investimentos\nproventos = Investimentos\njcp = Investimentos\naluguel de acoes = Investimentos\nrendimento fundos = Investimentos\nrendimento fii = Investimentos\nprovento fii = Investimentos\n\n# Juros Investimentos\ncor juros rf = Juros Investimentos\njuros cdb = Juros Investimentos\njuros = Juros Investimentos\nrend pago aplic aut mais = Juros Investimentos\n\n# Recompensas\ncashback = Recompensas\nrecompensa = Recompensas\nbonus = Recompensas\nted 104.0000caixa econ f = Recompensas\nmeliuz = Recompensas\name digital = Recompensas\n\n# Renda Extra\nfreela = Renda Extra\nfreelancer = Renda Extra\nconsultoria = Renda Extra\naula = Renda Extra\nbico = Renda Extra\nrevenda = Renda Extra\ncomissao = Renda Extra\npix cliente = Renda Extra\npagamento servico = Renda Extra\n\n# Resgate Investimentos\nresgate cdb = Resgate Investimentos\nresgate cdb di = Resgate Investimentos\nresgate cdb cofrinhos = Resgate Investimentos\ndi resgate cdb = Resgate Investimentos\ncor tes direto - venda = Resgate Investimentos\ncor amortizacao - rf = Resgate Investimentos\ncor irrf = Resgate Investimentos\nresgate fundo = Resgate Investimentos\nvenda tesouro = Resgate Investimentos\n\n# Salário\nfolha pagamento mensal = Salário\nfolha de ferias = Salário\n13. salario = Salário\nholerite = Salário\npagamento salario = Salário\nproventos folha = Salário\n\n# Transferência (Receita)\npix transf lincoln = Transferência\npix transf conta itau = Transferência\nted transf conta = Transferência\ndoc transferencia = Transferência\ntransferencia entre contas = Transferência\npix transf minha conta = Transferência\n\n# Vendas\nmercado pago receb = Vendas\npagseguro receb = Vendas\nstone receb = Vendas\ngetnet receb = Vendas\nsumup receb = Vendas\nifood repasse = Vendas\nshopee repasse = Vendas\nshopify payout = Vendas\nvenda = Vendas\npagamento cliente = Vendas`);
+  const [csvFile, setCsvFile] = useState(null);
+  const [lancamentos, setLancamentos] = useState([]);
+  const [parseError, setParseError] = useState("");
+  const [contaSelecionada, setContaSelecionada] = useState(contas?.[0]?.id || '');
+
+  // Atualiza categorias automaticamente ao editar regrasTexto, mas só para lançamentos que não foram editados manualmente
+  React.useEffect(() => {
+    if (step === 2 && lancamentos.length > 0) {
+      setLancamentos(lancs => lancs.map(l => {
+        // Se a categoria foi editada manualmente, não sobrescreve
+        if (l.categoriaManual) return l;
+        return {
+          ...l,
+          categoria: categorizar(l.estabelecimento, regrasTexto) || ''
+        };
+      }));
+    }
+    // eslint-disable-next-line
+  }, [regrasTexto]);
+
+  // Carregar regras do localStorage ao iniciar
+  React.useEffect(() => {
+    const saved = localStorage.getItem('regrasTexto');
+    if (saved) setRegrasTexto(saved);
+  }, []);
+
+  // Salvar regras no localStorage sempre que mudar
+  React.useEffect(() => {
+    localStorage.setItem('regrasTexto', regrasTexto);
+  }, [regrasTexto]);
+
+  // Atualiza contaSelecionada sempre que contas mudar
+  React.useEffect(() => {
+    if (contas && contas.length > 0) {
+      setContaSelecionada(contas[0].id);
+    } else {
+      setContaSelecionada('');
+    }
+  }, [contas]);
+
+  // Carregar regras do localStorage ao iniciar
+  React.useEffect(() => {
+    const saved = localStorage.getItem('regrasTexto');
+    if (saved) setRegrasTexto(saved);
+  }, []);
+
+  // Salvar regras no localStorage sempre que mudar
+  React.useEffect(() => {
+    localStorage.setItem('regrasTexto', regrasTexto);
+  }, [regrasTexto]);
+
+  // ...existing code...
+
+  // Atualiza contaSelecionada sempre que contas mudar
+  React.useEffect(() => {
+    if (contas && contas.length > 0) {
+      setContaSelecionada(contas[0].id);
+    } else {
+      setContaSelecionada('');
+    }
+  }, [contas]);
+  const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
+  const [loading, setLoading] = useState(false);
+
+  // Estilos para células vazias/preenchidas
+  const emptyCellStyle = { backgroundColor: '#fffbe3', color: '#a37a00', fontWeight: 700 };
+  const filledCellStyle = { backgroundColor: '#fff', color: '#183153', fontWeight: 500 };
+  const noCategoryStyle = { backgroundColor: '#ffe3e3', color: '#a30000', fontWeight: 700 };
+
+  // Função para parsear CSV
+  const handleFileChange = (e) => {
+    setCsvFile(e.target.files[0]);
+    setParseError("");
+  };
+  // Função para processar regras de categorização
+
+  const handleParse = () => {
+    setParseError("");
+    if (!csvFile) return;
+    setLoading(true);
+    Papa.parse(csvFile, {
+      header: false,
+      delimiter: ";",
+      skipEmptyLines: true,
+      complete: (results) => {
+        setLoading(false);
+        // Se não tem cabeçalho, mapear manualmente: [data, descricao, valor]
+        const parsed = results.data
+          .filter(row => Array.isArray(row) && row.length >= 2 && row[0] && row[1])
+          .map((row) => {
+            const descricao = row[1] || '';
+            return {
+              quando: row[0] || '',
+              estabelecimento: descricao,
+              valor: (row[2] || '').replace('.', '').replace(',', '.'),
+              tipo: Number((row[2] || '').replace('.', '').replace(',', '.')) < 0 ? 'despesa' : 'receita',
+              categoria: categorizar(descricao, regrasTexto),
+            };
+          });
+        if (parsed.length === 0) {
+          setParseError("Nenhum lançamento encontrado no arquivo CSV.");
+          return;
+        }
+        setLancamentos(parsed);
+        setStep(2);
+      },
+      error: (err) => {
+        setLoading(false);
+        setParseError("Erro ao ler o arquivo CSV: " + err.message);
+      }
+    });
+  };
+
+  // Função para editar lançamentos
+  const handleEditLancamento = (idx, campo, valor) => {
+    setLancamentos(lancamentos => {
+      const novos = [...lancamentos];
+      novos[idx][campo] = valor;
+      // Se o campo editado for categoria, marca como manual
+      if (campo === 'categoria') {
+        novos[idx].categoriaManual = true;
+      }
+      return novos;
+    });
+  };
+
+  // Função para ordenar
+  const handleSort = (key) => {
+    setSortConfig((prev) => ({
+      key,
+      direction: prev.key === key && prev.direction === 'asc' ? 'desc' : 'asc',
+    }));
+  };
+  const getSortedLancamentos = () => {
+    if (!sortConfig.key) return lancamentos;
+    return [...lancamentos].sort((a, b) => {
+      if (a[sortConfig.key] < b[sortConfig.key]) return sortConfig.direction === 'asc' ? -1 : 1;
+      if (a[sortConfig.key] > b[sortConfig.key]) return sortConfig.direction === 'asc' ? 1 : -1;
+      return 0;
+    });
+  };
+
+  // Função para importar
+  // Estado para feedback de importação
+  const [importFeedback, setImportFeedback] = useState(null);
+
+  const handleImportar = async () => {
+    try {
+      const result = await onImport(lancamentos, contaSelecionada, regrasTexto);
+      if (result && typeof result === 'object' && ('success' in result)) {
+        setImportFeedback(result);
+      } else {
+        setImportFeedback({
+          success: true,
+          message: `Importação realizada com sucesso! ${lancamentos.length} lançamentos importados.`
+        });
+      }
+      setStep(1);
+      setLancamentos([]);
+      setCsvFile(null);
+    } catch (e) {
+      setImportFeedback({
+        success: false,
+        message: `Erro ao importar: ${e.message || e}`
+      });
+    }
+    // Modal não fecha automaticamente, mostra feedback
+  };
+
+  if (!open) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60">
+      <div className="bg-zinc-900 rounded-lg shadow-lg p-6 w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+        <h2 className="text-lg font-bold mb-4 text-blue-400">Importar Extrato/CSV</h2>
+        {step === 1 && (
+          <>
+            <div className="mb-4">
+              <label className="block text-xs font-bold mb-1 text-blue-300">Selecione a conta para importar:</label>
+              <select
+                className="w-full p-2 rounded bg-black text-blue-300 text-xs font-mono mb-2"
+                value={contaSelecionada}
+                onChange={e => setContaSelecionada(e.target.value)}
+              >
+                {(contas && Array.isArray(contas) && contas.length > 0) ? (
+                  contas.map((conta) => (
+                    <option key={conta.id} value={conta.id}>{conta.name} ({conta.type})</option>
+                  ))
+                ) : (
+                  <option value="">Nenhuma conta cadastrada</option>
+                )}
+              </select>
+            </div>
+            <input type="file" accept=".csv" onChange={handleFileChange} className="mb-4" />
+            {parseError && (
+              <div className="text-red-400 text-xs mb-2">{parseError}</div>
+            )}
+            <div className="flex gap-2 justify-end mt-4">
+              <button
+                className="px-4 py-2 rounded border border-zinc-600 text-zinc-300 hover:bg-zinc-800 transition"
+                onClick={onClose}
+                disabled={loading}
+              >
+                Cancelar
+              </button>
+              <button
+                className={`px-4 py-2 rounded bg-blue-500 text-white font-bold hover:bg-blue-400 transition flex items-center gap-2 ${(!csvFile || !contaSelecionada || loading) ? 'opacity-50 cursor-not-allowed' : ''}`}
+                onClick={handleParse}
+                disabled={!csvFile || !contaSelecionada || loading}
+              >
+                {loading ? <span className="loader border-2 border-t-2 border-blue-700 rounded-full w-4 h-4 animate-spin"></span> : null}
+                Próximo
+              </button>
+            </div>
+          </>
+        )}
+        {step === 2 && (
+          <>
+            <div className="mb-2">
+              <label className="block text-xs font-bold mb-1 text-zinc-200">Regras de categorização (edite ou cole suas regras):</label>
+              <textarea
+                className="w-full p-2 rounded bg-black text-yellow-200 text-xs font-mono mb-2"
+                style={{ minHeight: 180, maxHeight: 300, height: 220, overflow: 'auto' }}
+                value={regrasTexto}
+                onChange={e => setRegrasTexto(e.target.value)}
+              />
+            </div>
+            <div className="overflow-x-auto max-h-[50vh] mb-2">
+              <table className="min-w-full text-xs border-separate border-spacing-0 rounded-lg shadow-lg" style={{ borderCollapse: 'separate', borderSpacing: 0, background: '#18181b' }}>
+                <thead className="sticky top-0 z-10">
+                  <tr>
+                    <th className="p-2 text-blue-300 bg-zinc-900 border-b border-zinc-800 text-left sticky top-0" style={{ minWidth: 100, fontWeight: 700, fontSize: 13, letterSpacing: 1 }} onClick={() => handleSort('quando')}>Data</th>
+                    <th className="p-2 text-blue-300 bg-zinc-900 border-b border-zinc-800 text-left sticky top-0" style={{ minWidth: 180, fontWeight: 700, fontSize: 13, letterSpacing: 1 }} onClick={() => handleSort('estabelecimento')}>Descrição</th>
+                    <th className="p-2 text-blue-300 bg-zinc-900 border-b border-zinc-800 text-left sticky top-0" style={{ minWidth: 90, fontWeight: 700, fontSize: 13, letterSpacing: 1 }} onClick={() => handleSort('valor')}>Valor</th>
+                    <th className="p-2 text-blue-300 bg-zinc-900 border-b border-zinc-800 text-left sticky top-0" style={{ minWidth: 80, fontWeight: 700, fontSize: 13, letterSpacing: 1 }} onClick={() => handleSort('tipo')}>Tipo</th>
+                    <th className="p-2 text-blue-300 bg-zinc-900 border-b border-zinc-800 text-left sticky top-0" style={{ minWidth: 120, fontWeight: 700, fontSize: 13, letterSpacing: 1 }} onClick={() => handleSort('categoria')}>Categoria</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {lancamentos.length === 0 ? (
+                    <tr><td colSpan={5} className="text-center text-zinc-400 py-4">Nenhum lançamento encontrado no arquivo CSV.</td></tr>
+                  ) : (
+                    getSortedLancamentos().map((l, idx) => (
+                      <tr key={idx} className={idx % 2 === 0 ? 'bg-zinc-900/70' : 'bg-zinc-800/70'} style={{ transition: 'background 0.2s' }}>
+                        <td className="p-1 border-b border-zinc-800">
+                          <input
+                            className="w-full px-2 py-1 rounded bg-zinc-950 focus:bg-blue-50 focus:text-blue-900 border border-zinc-800 focus:border-blue-400 outline-none transition text-sm text-blue-100"
+                            value={l.quando}
+                            onChange={e => handleEditLancamento(idx, 'quando', e.target.value)}
+                            style={!l.quando || l.quando === '' ? emptyCellStyle : filledCellStyle}
+                          />
+                        </td>
+                        <td className="p-1 border-b border-zinc-800">
+                          <input
+                            className="w-full px-2 py-1 rounded bg-zinc-950 focus:bg-blue-50 focus:text-blue-900 border border-zinc-800 focus:border-blue-400 outline-none transition text-sm text-blue-100"
+                            value={l.estabelecimento}
+                            onChange={e => handleEditLancamento(idx, 'estabelecimento', e.target.value)}
+                            style={!l.estabelecimento || l.estabelecimento === '' ? emptyCellStyle : filledCellStyle}
+                          />
+                        </td>
+                        <td className="p-1 border-b border-zinc-800">
+                          <input
+                            className="w-full px-2 py-1 rounded bg-zinc-950 focus:bg-blue-50 focus:text-blue-900 border border-zinc-800 focus:border-blue-400 outline-none transition text-sm text-blue-100"
+                            type="number"
+                            value={Math.abs(Number(l.valor))}
+                            onChange={e => handleEditLancamento(idx, 'valor', e.target.value)}
+                            style={l.valor === undefined || l.valor === '' ? emptyCellStyle : filledCellStyle}
+                          />
+                        </td>
+                        <td className="p-1 border-b border-zinc-800">
+                          <input
+                            className="w-full px-2 py-1 rounded bg-zinc-950 focus:bg-blue-50 focus:text-blue-900 border border-zinc-800 focus:border-blue-400 outline-none transition text-sm text-blue-100"
+                            value={l.tipo}
+                            onChange={e => handleEditLancamento(idx, 'tipo', e.target.value)}
+                            style={!l.tipo || l.tipo === '' ? emptyCellStyle : filledCellStyle}
+                          />
+                        </td>
+                        <td className="p-1 border-b border-zinc-800">
+                          <input
+                            className="w-full px-2 py-1 rounded bg-zinc-950 focus:bg-blue-50 focus:text-blue-900 border border-zinc-800 focus:border-blue-400 outline-none transition text-sm text-blue-100"
+                            value={l.categoria && l.categoria.trim() !== '' ? l.categoria : ''}
+                            placeholder="Outros"
+                            onChange={e => handleEditLancamento(idx, 'categoria', e.target.value)}
+                            style={!l.categoria || l.categoria.trim() === '' ? noCategoryStyle : filledCellStyle}
+                          />
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+            <div className="flex gap-2 justify-end mt-4">
+              <button
+                className="px-4 py-2 rounded border border-zinc-600 text-zinc-300 hover:bg-zinc-800 transition"
+                onClick={() => setStep(1)}
+              >
+                Voltar
+              </button>
+              <button
+                className={`px-4 py-2 rounded bg-blue-500 text-white font-bold hover:bg-blue-400 transition ${lancamentos.length === 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
+                onClick={() => setStep(3)}
+                disabled={lancamentos.length === 0}
+              >
+                Validar Lançamentos
+              </button>
+            </div>
+          </>
+        )}
+        {step === 3 && (
+          <>
+            <div className="overflow-x-auto max-h-[50vh] mb-2">
+              <table className="min-w-full text-xs border-separate border-spacing-0 rounded-lg shadow-lg" style={{ borderCollapse: 'separate', borderSpacing: 0, background: '#18181b' }}>
+                <thead className="sticky top-0 z-10">
+                  <tr>
+                    <th className="p-2 text-blue-300 bg-zinc-900 border-b border-zinc-800 text-left sticky top-0" style={{ minWidth: 100, fontWeight: 700, fontSize: 13, letterSpacing: 1 }} onClick={() => handleSort('quando')}>Data</th>
+                    <th className="p-2 text-blue-300 bg-zinc-900 border-b border-zinc-800 text-left sticky top-0" style={{ minWidth: 180, fontWeight: 700, fontSize: 13, letterSpacing: 1 }} onClick={() => handleSort('estabelecimento')}>Descrição</th>
+                    <th className="p-2 text-blue-300 bg-zinc-900 border-b border-zinc-800 text-left sticky top-0" style={{ minWidth: 90, fontWeight: 700, fontSize: 13, letterSpacing: 1 }} onClick={() => handleSort('valor')}>Valor</th>
+                    <th className="p-2 text-blue-300 bg-zinc-900 border-b border-zinc-800 text-left sticky top-0" style={{ minWidth: 80, fontWeight: 700, fontSize: 13, letterSpacing: 1 }} onClick={() => handleSort('tipo')}>Tipo</th>
+                    <th className="p-2 text-blue-300 bg-zinc-900 border-b border-zinc-800 text-left sticky top-0" style={{ minWidth: 120, fontWeight: 700, fontSize: 13, letterSpacing: 1 }} onClick={() => handleSort('categoria')}>Categoria</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {lancamentos.length === 0 ? (
+                    <tr><td colSpan={5} className="text-center text-zinc-400 py-4">Nenhum lançamento encontrado no arquivo CSV.</td></tr>
+                  ) : (
+                    getSortedLancamentos().map((l, idx) => (
+                      <tr key={idx} className={idx % 2 === 0 ? 'bg-zinc-900/70' : 'bg-zinc-800/70'} style={{ transition: 'background 0.2s' }}>
+                        <td className="p-1 border-b border-zinc-800">
+                          <input
+                            className="w-full px-2 py-1 rounded bg-zinc-950 focus:bg-blue-50 focus:text-blue-900 border border-zinc-800 focus:border-blue-400 outline-none transition text-sm text-blue-100"
+                            value={l.quando}
+                            onChange={e => handleEditLancamento(idx, 'quando', e.target.value)}
+                            style={!l.quando || l.quando === '' ? emptyCellStyle : filledCellStyle}
+                          />
+                        </td>
+                        <td className="p-1 border-b border-zinc-800">
+                          <input
+                            className="w-full px-2 py-1 rounded bg-zinc-950 focus:bg-blue-50 focus:text-blue-900 border border-zinc-800 focus:border-blue-400 outline-none transition text-sm text-blue-100"
+                            value={l.estabelecimento}
+                            onChange={e => handleEditLancamento(idx, 'estabelecimento', e.target.value)}
+                            style={!l.estabelecimento || l.estabelecimento === '' ? emptyCellStyle : filledCellStyle}
+                          />
+                        </td>
+                        <td className="p-1 border-b border-zinc-800">
+                          <input
+                            className="w-full px-2 py-1 rounded bg-zinc-950 focus:bg-blue-50 focus:text-blue-900 border border-zinc-800 focus:border-blue-400 outline-none transition text-sm text-blue-100"
+                            type="number"
+                            value={Math.abs(Number(l.valor))}
+                            onChange={e => handleEditLancamento(idx, 'valor', e.target.value)}
+                            style={l.valor === undefined || l.valor === '' ? emptyCellStyle : filledCellStyle}
+                          />
+                        </td>
+                        <td className="p-1 border-b border-zinc-800">
+                          <input
+                            className="w-full px-2 py-1 rounded bg-zinc-950 focus:bg-blue-50 focus:text-blue-900 border border-zinc-800 focus:border-blue-400 outline-none transition text-sm text-blue-100"
+                            value={l.tipo}
+                            onChange={e => handleEditLancamento(idx, 'tipo', e.target.value)}
+                            style={!l.tipo || l.tipo === '' ? emptyCellStyle : filledCellStyle}
+                          />
+                        </td>
+                        <td className="p-1 border-b border-zinc-800">
+                          <input
+                            className="w-full px-2 py-1 rounded bg-zinc-950 focus:bg-blue-50 focus:text-blue-900 border border-zinc-800 focus:border-blue-400 outline-none transition text-sm text-blue-100"
+                            value={l.categoria && l.categoria.trim() !== '' ? l.categoria : ''}
+                            placeholder="Outros"
+                            onChange={e => handleEditLancamento(idx, 'categoria', e.target.value)}
+                            style={!l.categoria || l.categoria.trim() === '' ? noCategoryStyle : filledCellStyle}
+                          />
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+            <div className="flex gap-2 justify-end mt-4">
+              <button
+                className="px-4 py-2 rounded border border-zinc-600 text-zinc-300 hover:bg-zinc-800 transition"
+                onClick={() => setStep(2)}
+              >
+                Voltar
+              </button>
+              <button
+                className={`px-4 py-2 rounded bg-blue-600 text-white font-bold hover:bg-blue-500 transition ${lancamentos.length === 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
+                onClick={handleImportar}
+                disabled={lancamentos.length === 0}
+              >
+                Finalizar Importação
+              </button>
+            </div>
+          </>
+        )}
+        {/* Feedback de importação */}
+        {importFeedback && (
+          <div className={`mb-4 p-3 rounded text-sm font-bold ${importFeedback.success ? 'bg-green-900 text-green-300' : 'bg-red-900 text-red-300'}`}>
+            {importFeedback.message}
+            <button className="ml-4 underline text-xs text-blue-200" onClick={() => setImportFeedback(null)}>Fechar</button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+// ================= COMPONENTE PRINCIPAL DA PÁGINA =================
+
+import { Button } from "../components/ui/button";
+import { Card, CardContent } from "../components/ui/card";
+import { formatCurrency } from "../utils/currency";
+import { supabase } from "../lib/supabase";
+import { useAuth } from "../hooks/useAuth";
+
+// Stub temporário para evitar erro de compilação
+function EditContaModal({ conta, open, onClose, onSave }: { conta: any, open: boolean, onClose: () => void, onSave: (contaEditada: any) => Promise<void> }) {
+  const [form, setForm] = useState({
+    name: conta?.name || '',
+    type: conta?.type || '',
+    saldoInicial: conta?.saldo_inicial ?? conta?.saldoInicial ?? 0,
+  });
+  React.useEffect(() => {
+    setForm({
+      name: conta?.name || '',
+      type: conta?.type || '',
+      saldoInicial: conta?.saldo_inicial ?? conta?.saldoInicial ?? 0,
+    });
+  }, [conta]);
+  if (!open || !conta) return null;
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60">
+      <div className="bg-zinc-900 rounded-lg shadow-lg p-6 w-full max-w-md">
+        <h2 className="text-lg font-bold mb-4 text-blue-400">Editar Conta</h2>
+        <div className="mb-2">
+          <label className="block text-xs font-bold mb-1 text-blue-300">Nome</label>
+          <input className="w-full p-2 rounded bg-black text-blue-200 text-xs font-mono mb-2" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} />
+        </div>
+        <div className="mb-2">
+          <label className="block text-xs font-bold mb-1 text-blue-300">Tipo</label>
+          <input className="w-full p-2 rounded bg-black text-blue-200 text-xs font-mono mb-2" value={form.type} onChange={e => setForm(f => ({ ...f, type: e.target.value }))} />
+        </div>
+        <div className="mb-4">
+          <label className="block text-xs font-bold mb-1 text-blue-300">Saldo Inicial</label>
+          <input type="number" className="w-full p-2 rounded bg-black text-blue-200 text-xs font-mono mb-2" value={form.saldoInicial} onChange={e => setForm(f => ({ ...f, saldoInicial: e.target.value }))} />
+        </div>
+        <div className="flex gap-2 justify-end">
+          <button className="px-4 py-2 rounded border border-zinc-600 text-zinc-300 hover:bg-zinc-800 transition" onClick={onClose}>Cancelar</button>
+          <button className="px-4 py-2 rounded bg-blue-500 text-white font-bold hover:bg-blue-400 transition" onClick={() => onSave({ ...conta, ...form })}>Salvar</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default function ContasPage() {
+  const [contas, setContas] = useState([]);
+  const [transacoes, setTransacoes] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [editConta, setEditConta] = useState(null);
+  const [editOpen, setEditOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  const { user } = useAuth();
+
+  async function fetchContas() {
+    setLoading(true);
+    if (!user || !user.id) {
+      setContas([]);
+      setTransacoes([]);
+      setLoading(false);
+      return;
+    }
+    // Buscar apenas contas do usuário logado
+    const { data, error } = await supabase.from('accounts').select('*').eq('user_id', user.id);
+    setContas(data || []);
+    setError(error);
+    // Busca transações do usuário
+    const { data: transData, error: transError } = await supabase
+      .from('transacoes')
+      .select('id, valor, tipo, account_id')
+      .eq('userid', user.id);
+    if (!transError && transData) {
+      setTransacoes(transData);
+    } else {
+      setTransacoes([]);
+    }
+    setLoading(false);
+  }
+
+  useEffect(() => {
+    fetchContas();
+  }, []);
+
+  // Excluir conta
+  async function handleDeleteConta(conta) {
+    if (!window.confirm('Tem certeza que deseja excluir esta conta?')) return;
+    const { error } = await supabase.from('accounts').delete().eq('id', conta.id);
+    if (error) {
+      alert('Erro ao excluir: ' + error.message);
+    } else {
+      fetchContas();
+    }
+  }
+
+  // Editar conta (abrir modal)
+  function handleEditConta(conta) {
+    setEditConta(conta);
+    setEditOpen(true);
+  }
+
+  // Salvar edição
+  async function handleSaveConta(contaEditada) {
+    const { error } = await supabase.from('accounts').update({ name: contaEditada.name, type: contaEditada.type, saldoInicial: contaEditada.saldoInicial ?? contaEditada.saldo_inicial }).eq('id', contaEditada.id);
+    setEditOpen(false);
+    setEditConta(null);
+    if (error) {
+      alert('Erro ao editar: ' + error.message);
+    } else {
+      fetchContas();
+    }
+  }
+
+  // Importação de lançamentos: insere no Supabase e retorna feedback detalhado
+  async function handleImportLancamentos(lancamentos, contaId, regras) {
+    if (!user || !user.id) {
+      return { success: false, message: 'Usuário não autenticado.' };
+    }
+    try {
+      // Função auxiliar para buscar ou criar categoria
+      async function getOrCreateCategoriaId(nomeCategoria) {
+        if (!nomeCategoria) return null;
+        // Busca categoria do usuário
+        const { data: cat, error: catErr } = await supabase
+          .from('categorias')
+          .select('id')
+          .eq('userid', user.id)
+          .ilike('nome', nomeCategoria)
+          .maybeSingle();
+        if (cat && cat.id) return cat.id;
+        // Cria se não existir
+        const { data: newCat, error: newCatErr } = await supabase
+          .from('categorias')
+          .insert({ userid: user.id, nome: nomeCategoria, tags: null })
+          .select('id')
+          .maybeSingle();
+        if (newCat && newCat.id) return newCat.id;
+        return null;
+      }
+
+      // Para cada lançamento, resolve o categoria_id
+      const lancamentosComCategoriaId = [];
+      // Busca/cria categoria 'Outros' uma vez
+      const outrosCategoriaId = await getOrCreateCategoriaId('Outros');
+      for (const l of lancamentos) {
+        let categoryId = null;
+        if (l.categoria && l.categoria.trim() !== '') {
+          categoryId = await getOrCreateCategoriaId(l.categoria.trim());
+        } else {
+          categoryId = outrosCategoriaId;
+        }
+        lancamentosComCategoriaId.push({
+          quando: l.quando,
+          estabelecimento: l.estabelecimento,
+          valor: Number(l.valor),
+          tipo: l.tipo,
+          category_id: categoryId,
+          account_id: contaId,
+          userid: user.id,
+          detalhes: '',
+        });
+      }
+
+      // Insere em lote
+      const { data, error } = await supabase.from('transacoes').insert(lancamentosComCategoriaId).select();
+      if (error) {
+        return { success: false, message: 'Erro ao importar: ' + error.message };
+      }
+      fetchContas();
+      // Resumo detalhado
+      const conta = contas.find(c => c.id === contaId);
+      const exemplos = (data || []).slice(0, 3).map(l => `${l.quando} - ${l.estabelecimento} - ${formatCurrency(l.valor)} - ${l.categoria_id || ''}`).join('\n');
+      return {
+        success: true,
+        message: `Importação realizada com sucesso!\nConta: ${conta ? conta.name : contaId}\nLançamentos importados: ${(data || []).length}\nExemplos:\n${exemplos}`
+      };
+    } catch (e) {
+      return { success: false, message: `Erro ao importar: ${e.message || e}` };
+    }
+  }
+
+  return (
+    <div className="space-y-4 p-4">
+      <div className="flex items-center justify-between mb-2">
+        <h2 className="text-2xl font-bold">Contas Bancárias</h2>
+        <Button variant="secondary" size="sm" onClick={() => setImportOpen(true)}>Importar Extrato</Button>
+      </div>
+      {error && (
+        <div className="text-red-500 mb-2">Erro: {error.message || String(error)}</div>
+      )}
+      {loading ? (
+          <p>Carregando contas...</p>
+      ) : contas.length === 0 ? (
+        <p>Nenhuma conta cadastrada.</p>
+      ) : (
+        contas
+          .filter(conta => {
+            // Ignora qualquer conta cujo type contenha 'cartao' ou 'cartão' (case insensitive, sem acento)
+            if (!conta.type) return true;
+            const tipo = (conta.type || '').normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase();
+            return !tipo.includes('cartao');
+          })
+          .map((conta) => {
+            // Saldo inicial (compatível com saldo_inicial e saldoInicial)
+            const saldoInicial =
+              (typeof conta.saldo_inicial !== 'undefined' && conta.saldo_inicial !== null)
+                ? Number(conta.saldo_inicial)
+                : (typeof conta.saldoInicial !== 'undefined' && conta.saldoInicial !== null ? Number(conta.saldoInicial) : 0);
+
+            // Filtra apenas transações da conta exibida
+            const transacoesConta = transacoes.filter(t => t.account_id === conta.id);
+            // Soma receitas e despesas APENAS dessas transações
+            // Receitas: soma apenas valores positivos
+            const receitas = transacoesConta.filter(t => t.tipo === 'receita').reduce((acc, t) => acc + (Number(t.valor) || 0), 0);
+            // Despesas: soma valores negativos (mantém sinal negativo)
+            const despesas = transacoesConta.filter(t => t.tipo === 'despesa').reduce((acc, t) => acc + (Number(t.valor) || 0), 0);
+            // Saldo: saldo inicial + receitas + despesas (despesas já negativas)
+            const saldoTotal = saldoInicial + receitas + despesas;
+            return (
+              <Card key={conta.id} className="mb-2">
+                <CardContent className="p-4 flex justify-between items-center gap-2">
+                  <div className="flex flex-col">
+                    <span>{conta.name}</span>
+                    <span className="text-xs text-gray-500">{conta.type}</span>
+                    <span className="text-xs text-gray-400 mt-1">Saldo inicial: {formatCurrency(saldoInicial)}</span>
+                    <span className="text-xs text-gray-400">Saldo: {formatCurrency(saldoTotal)}</span>
+                    <div className="mt-2 p-2 rounded bg-zinc-800 text-xs text-gray-300">
+                      <div>Receitas: <b>{formatCurrency(receitas)}</b></div>
+                      <div>Despesas: <b>{formatCurrency(despesas)}</b></div>
+                      <div>Saldo calculado: <b>{formatCurrency(saldoInicial + receitas + despesas)}</b></div>
+                      <div>Total de transações: <b>{transacoesConta.length}</b></div>
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <button className="px-2 py-1 rounded border border-gray-600 text-gray-200 hover:bg-gray-700 transition text-xs" onClick={() => handleEditConta(conta)}>
+                      Editar
+                    </button>
+                    <button className="px-2 py-1 rounded border border-red-700 text-red-300 hover:bg-red-900 transition text-xs" onClick={() => handleDeleteConta(conta)}>
+                      Excluir
+                    </button>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })
+      )}
+      {/* Modal só aparece se editConta estiver definido */}
+      {/* Modal de edição de conta: abre direto para a conta clicada */}
+      <EditContaModal
+        conta={editConta}
+        open={Boolean(editConta) && editOpen}
+        onClose={() => { setEditOpen(false); setEditConta(null); }}
+        onSave={handleSaveConta}
+      />
+      <ImportarExtratoModal
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        onImport={handleImportLancamentos}
+        contas={contas}
+      />
+      <Button className="mt-4">Adicionar Conta</Button>
+    </div>
+  );
+}

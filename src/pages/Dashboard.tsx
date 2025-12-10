@@ -17,6 +17,7 @@ interface Transacao {
   detalhes: string | null
   tipo: string | null
   category_id: string
+  account_id?: string | null
   userid: string | null
   categorias?: {
     id: string
@@ -102,56 +103,79 @@ export default function Dashboard() {
   const filteredTransacoes = useMemo(() => {
     const parseToDate = (dateStr?: string | null) => {
       if (!dateStr) return null
-      // dd/mm/yyyy
-      if (/^\d{2}\/\d{2}\/\d{4}$/.test(dateStr)) {
-        const [d, m, y] = String(dateStr).split('/')
-        const dt = new Date(`${y}-${m}-${d}T00:00:00`)
+      const s = String(dateStr).trim()
+
+      // dd/mm/yyyy or d/m/yyyy
+      const dmYMatch = s.match(/^(\d{1,2})\s*\/\s*(\d{1,2})\s*\/\s*(\d{2,4})/)
+      if (dmYMatch) {
+        const d = Number(dmYMatch[1])
+        const m = Number(dmYMatch[2])
+        const y = Number(dmYMatch[3])
+        const fullYear = y < 100 ? (2000 + y) : y
+        // normalize to UTC midnight for the given date to avoid timezone shift
+        const dt = new Date(Date.UTC(fullYear, m - 1, d))
         return isNaN(dt.getTime()) ? null : dt
       }
-      // ISO or other formats
-      const dt = new Date(dateStr)
-      return isNaN(dt.getTime()) ? null : dt
+
+      // ISO or other formats -> normalize to UTC midnight of that date
+      const dtIso = new Date(s)
+      if (isNaN(dtIso.getTime())) return null
+      const normalized = new Date(Date.UTC(dtIso.getUTCFullYear(), dtIso.getUTCMonth(), dtIso.getUTCDate()))
+      return normalized
     }
 
+    // normalize filter month: accept either 0-11 or 1-12 from the select
+    const filterMonthIndex = (() => {
+      const m = parseInt(filterMonth)
+      if (isNaN(m)) return new Date().getMonth()
+      return m > 11 ? m - 1 : m
+    })()
+
+    const filterYearNum = parseInt(filterYear) || new Date().getFullYear()
+
     return transacoes.filter(transacao => {
-      const raw = transacao.quando || transacao.created_at
+      const raw = (transacao.quando || transacao.created_at || '').toString().trim()
       const transacaoDate = parseToDate(raw)
       if (!transacaoDate) return false
 
-      const transacaoMonth = transacaoDate.getMonth()
-      const transacaoYear = transacaoDate.getFullYear()
+      const transacaoMonth = transacaoDate.getUTCMonth()
+      const transacaoYear = transacaoDate.getUTCFullYear()
 
-      return transacaoMonth === parseInt(filterMonth) && 
-             transacaoYear === parseInt(filterYear)
+      return transacaoMonth === filterMonthIndex && transacaoYear === filterYearNum
     })
   }, [transacoes, filterMonth, filterYear])
 
   // Calcular estatísticas
-  const stats = useMemo(() => {
-    const totalReceitas = filteredTransacoes
-      .filter(t => t.tipo === 'receita')
-      .reduce((acc, t) => acc + (Number(t.valor) || 0), 0)
-    
-    const totalDespesas = filteredTransacoes
-      .filter(t => t.tipo === 'despesa')
-      .reduce((acc, t) => acc + (Math.abs(Number(t.valor) || 0)), 0)
-    
-    // Calcula o saldo agregado usando a mesma regra da página Contas:
-    // para cada conta: saldoInicial + receitasConta + despesasConta
-    let saldoAggregate = 0
-    contas.forEach(conta => {
-      const saldoInicial = (typeof conta.saldo_inicial !== 'undefined' && conta.saldo_inicial !== null)
+  // Saldo atual (global) — não deve depender do filtro de mês/ano
+  const saldoAtual = useMemo(() => {
+    // Soma do saldo inicial de todas as contas (valores absolutos)
+    const totalSaldoInicial = contas.reduce((acc, conta) => {
+      const s = (typeof conta.saldo_inicial !== 'undefined' && conta.saldo_inicial !== null)
         ? Number(conta.saldo_inicial)
         : (typeof conta.saldoInicial !== 'undefined' && conta.saldoInicial !== null ? Number(conta.saldoInicial) : 0)
+      return acc + Math.abs(isNaN(s) ? 0 : s)
+    }, 0)
 
-      const transacoesConta = transacoes.filter(t => t.account_id === conta.id)
-      const receitasConta = transacoesConta.filter(t => t.tipo === 'receita').reduce((acc, t) => acc + (Number(t.valor) || 0), 0)
-      const despesasConta = transacoesConta.filter(t => t.tipo === 'despesa').reduce((acc, t) => acc + (Number(t.valor) || 0), 0)
+    // Soma todas as receitas/despesas com valores absolutos
+    const totalReceitas = transacoes.filter(t => t.tipo === 'receita').reduce((acc, t) => acc + Math.abs(Number(t.valor) || 0), 0)
+    const totalDespesas = transacoes.filter(t => t.tipo === 'despesa').reduce((acc, t) => acc + Math.abs(Number(t.valor) || 0), 0)
 
-      saldoAggregate += saldoInicial + receitasConta + despesasConta
-    })
+    // Saldo = saldo inicial + receitas - despesas (todos valores absolutos)
+    return totalSaldoInicial + totalReceitas - totalDespesas
+  }, [transacoes, contas])
 
-    const saldo = saldoAggregate
+  const stats = useMemo(() => {
+    // Usa valores globais (todas as transações), não apenas filtradas
+    const totalReceitas = transacoes
+      .filter(t => t.tipo === 'receita')
+      .reduce((acc, t) => acc + Math.abs(Number(t.valor) || 0), 0)
+    
+    const totalDespesas = transacoes
+      .filter(t => t.tipo === 'despesa')
+      .reduce((acc, t) => acc + Math.abs(Number(t.valor) || 0), 0)
+    
+    // Saldo atual (global, não dependente do filtro)
+    const saldo = saldoAtual
     
     const lembretesCount = lembretes.filter(l => {
       if (!l.data) return false
@@ -167,7 +191,7 @@ export default function Dashboard() {
       transacoesCount: filteredTransacoes.length,
       lembretesCount
     }
-  }, [filteredTransacoes, lembretes, filterMonth, filterYear])
+  }, [transacoes, filteredTransacoes, lembretes, filterMonth, filterYear, saldoAtual])
 
   // (debug logs removed)
 
@@ -206,7 +230,7 @@ export default function Dashboard() {
       
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2">
-          <DashboardCharts transacoes={filteredTransacoes} recentTransacoes={transacoes} />
+          <DashboardCharts transacoes={filteredTransacoes} recentTransacoes={transacoes} contas={contas} />
         </div>
         <div>
           <DashboardSidebar lembretes={lembretes} />

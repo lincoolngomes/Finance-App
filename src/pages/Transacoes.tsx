@@ -19,7 +19,8 @@ import { useAuth } from '@/hooks/useAuth'
 import { useCategories } from '@/hooks/useCategories'
 // import { useAccountsMap } from '@/hooks/useAccountsMap'
 import { toast } from '@/hooks/use-toast'
-import { Plus, Edit, Trash2, TrendingUp, TrendingDown, ArrowUpDown } from 'lucide-react'
+import { Plus, Edit, Trash2, TrendingUp, TrendingDown, ArrowUpDown, Download } from 'lucide-react'
+import * as XLSX from 'xlsx'
 import { formatCurrency } from '@/utils/currency'
 
 
@@ -49,6 +50,9 @@ const Transacoes: React.FC = () => {
   // Estados principais
   const { user } = useAuth();
   const { categories } = useCategories();
+  // mês/ano para filtro rápido (igual ao Dashboard)
+  const [filterMonth, setFilterMonth] = useState<string>(new Date().getMonth().toString())
+  const [filterYear, setFilterYear] = useState<string>(new Date().getFullYear().toString())
   const [transacoes, setTransacoes] = useState<any[]>([]);
   const [contas, setContas] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -179,23 +183,75 @@ const Transacoes: React.FC = () => {
 
 
 
-  // Memo para receitas, despesas e saldo (usando todas as transações da(s) conta(s) filtrada(s), igual à tela de contas)
+  // Memo para receitas, despesas e saldo (calcula saldo agregado por conta como no Dashboard)
   const { receitas, despesas, saldoReal } = useMemo(() => {
-    let transacoesParaSaldo = transacoes;
-    if (accountFilter && accountFilter !== 'all') {
-      transacoesParaSaldo = transacoes.filter(t => t.account_id === accountFilter);
-    }
-    // Não filtra por data/categoria/tipo para o saldo!
-    const receitas = transacoesParaSaldo.filter(t => t.tipo === 'receita').reduce((acc, t) => acc + (t.valor || 0), 0);
-    const despesas = transacoesParaSaldo.filter(t => t.tipo === 'despesa').reduce((acc, t) => acc + (t.valor || 0), 0);
+    // Soma do saldo inicial de todas as contas (valores absolutos, tratando tipo)
+    const totalSaldoInicial = contas.reduce((acc, conta) => {
+      const s = (typeof conta.saldo_inicial !== 'undefined' && conta.saldo_inicial !== null)
+        ? Number(conta.saldo_inicial)
+        : (typeof conta.saldoInicial !== 'undefined' && conta.saldoInicial !== null ? Number(conta.saldoInicial) : 0)
+      return acc + Math.abs(isNaN(s) ? 0 : s)
+    }, 0)
+
+    // Soma todas as receitas/despesas com valores absolutos
+    const receitasGlobais = transacoes.filter(t => t.tipo === 'receita').reduce((acc, t) => acc + Math.abs(Number(t.valor) || 0), 0)
+    const despesasGlobais = transacoes.filter(t => t.tipo === 'despesa').reduce((acc, t) => acc + Math.abs(Number(t.valor) || 0), 0)
+
+    // Saldo = saldo inicial + receitas - despesas (todos valores absolutos)
+    const saldoAggregate = totalSaldoInicial + receitasGlobais - despesasGlobais
+
+    // Debug
+    console.log('📊 Cálculo do Saldo:', {
+      contas: contas.length,
+      totalSaldoInicial,
+      receitasGlobais,
+      despesasGlobais,
+      saldoAggregate,
+      formula: `${totalSaldoInicial} + ${receitasGlobais} - ${despesasGlobais} = ${saldoAggregate}`,
+      contasDetalhes: contas.map(c => ({ 
+        name: c.name || c.nome, 
+        saldo_inicial: c.saldo_inicial,
+        saldoInicial: c.saldoInicial 
+      }))
+    })
+
     return {
-      receitas,
-      despesas,
-      // Em alguns setups as despesas já vêm com sinal negativo no DB.
-      // O comportamento esperado (conforme UI) é: saldo = saldoInicial + receitas + despesas
-      saldoReal: saldoInicial + receitas + despesas,
-    };
-  }, [transacoes, accountFilter, saldoInicial]);
+      receitas: receitasGlobais,
+      despesas: despesasGlobais,
+      saldoReal: saldoAggregate,
+    }
+  }, [transacoes, contas])
+
+  // Parser de data reutilizável (normaliza para UTC midnight)
+  const parseToDate = (dateStr?: string | null): Date | null => {
+    if (!dateStr) return null
+    const s = String(dateStr).trim()
+    const dmYMatch = s.match(/^(\d{1,2})\s*\/\s*(\d{1,2})\s*\/\s*(\d{2,4})/)
+    if (dmYMatch) {
+      const d = Number(dmYMatch[1])
+      const m = Number(dmYMatch[2])
+      const y = Number(dmYMatch[3])
+      const fullYear = y < 100 ? 2000 + y : y
+      return new Date(Date.UTC(fullYear, m - 1, d))
+    }
+    const dt = new Date(s)
+    if (isNaN(dt.getTime())) return null
+    return new Date(Date.UTC(dt.getUTCFullYear(), dt.getUTCMonth(), dt.getUTCDate()))
+  }
+
+  // Totais para o mês/ano selecionado
+  const { receitasMes, despesasMes, transacoesCountMes } = useMemo(() => {
+    const monthIndex = (() => { const m = parseInt(filterMonth); return isNaN(m) ? new Date().getMonth() : (m > 11 ? m - 1 : m) })()
+    const yearNum = parseInt(filterYear) || new Date().getFullYear()
+    const filtered = transacoes.filter(t => {
+      const dt = parseToDate(t.quando || t.created_at)
+      if (!dt) return false
+      return dt.getUTCMonth() === monthIndex && dt.getUTCFullYear() === yearNum
+    })
+    const receitasMes = filtered.filter(t => t.tipo === 'receita').reduce((acc, t) => acc + Math.abs(Number(t.valor) || 0), 0)
+    const despesasMes = filtered.filter(t => t.tipo === 'despesa').reduce((acc, t) => acc + Math.abs(Number(t.valor) || 0), 0)
+    return { receitasMes, despesasMes, transacoesCountMes: filtered.length }
+  }, [transacoes, filterMonth, filterYear])
   useEffect(() => {
     // Coloque aqui a lógica de efeito colateral, como fetch de dados, listeners, etc.
     // Não retorne JSX!
@@ -416,6 +472,189 @@ const Transacoes: React.FC = () => {
     }
   }
 
+  // Handlers para ações em massa
+  const handleMassDelete = async () => {
+    if (selectedIds.length === 0) return
+    try {
+      const { error } = await supabase
+        .from('transacoes')
+        .delete()
+        .in('id', selectedIds)
+      if (error) throw error
+      toast({ title: `${selectedIds.length} transações excluídas com sucesso!` })
+      setSelectedIds([])
+      fetchTransacoes()
+    } catch (error: any) {
+      toast({
+        title: "Erro ao excluir transações",
+        description: error.message,
+        variant: "destructive",
+      })
+    }
+  }
+
+  const handleMassUpdateCategory = async () => {
+    if (selectedIds.length === 0 || !massCategory) return
+    try {
+      const { error } = await supabase
+        .from('transacoes')
+        .update({ category_id: massCategory })
+        .in('id', selectedIds)
+      if (error) throw error
+      toast({ title: `Categoria atualizada para ${selectedIds.length} transações!` })
+      setSelectedIds([])
+      setMassCategoryDialogOpen(false)
+      setMassCategory('')
+      fetchTransacoes()
+    } catch (error: any) {
+      toast({
+        title: "Erro ao atualizar categoria",
+        description: error.message,
+        variant: "destructive",
+      })
+    }
+  }
+
+  const handleMassUpdateAccount = async () => {
+    if (selectedIds.length === 0 || !massAccount) return
+    try {
+      const { error } = await supabase
+        .from('transacoes')
+        .update({ account_id: massAccount })
+        .in('id', selectedIds)
+      if (error) throw error
+      toast({ title: `Conta atualizada para ${selectedIds.length} transações!` })
+      setSelectedIds([])
+      setMassAccountDialogOpen(false)
+      setMassAccount('')
+      fetchTransacoes()
+    } catch (error: any) {
+      toast({
+        title: "Erro ao atualizar conta",
+        description: error.message,
+        variant: "destructive",
+      })
+    }
+  }
+
+  const [massDate, setMassDate] = useState('')
+  const [massDateDialogOpen, setMassDateDialogOpen] = useState(false)
+
+  const handleMassUpdateDate = async () => {
+    if (selectedIds.length === 0 || !massDate) return
+    try {
+      const { error} = await supabase
+        .from('transacoes')
+        .update({ quando: massDate })
+        .in('id', selectedIds)
+      if (error) throw error
+      toast({ title: `Data atualizada para ${selectedIds.length} transações!` })
+      setSelectedIds([])
+      setMassDateDialogOpen(false)
+      setMassDate('')
+      fetchTransacoes()
+    } catch (error: any) {
+      toast({
+        title: "Erro ao atualizar data",
+        description: error.message,
+        variant: "destructive",
+      })
+    }
+  }
+
+  const handleToggleSelect = (id: number) => {
+    setSelectedIds(prev => 
+      prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+    )
+  }
+
+  const handleExportToExcel = () => {
+    // Exporta apenas as transações selecionadas
+    const selectedTransacoes = filteredTransacoes.filter(t => selectedIds.includes(t.id))
+    
+    if (selectedTransacoes.length === 0) {
+      toast({ 
+        title: 'Nenhuma transação selecionada',
+        description: 'Selecione ao menos uma transação para exportar.',
+        variant: 'destructive'
+      })
+      return
+    }
+
+    // Adiciona saldos iniciais das contas como transações
+    const saldosIniciais = contas
+      .filter(c => {
+        const saldo = (typeof c.saldo_inicial !== 'undefined' && c.saldo_inicial !== null)
+          ? Number(c.saldo_inicial)
+          : (typeof c.saldoInicial !== 'undefined' && c.saldoInicial !== null ? Number(c.saldoInicial) : 0)
+        return !isNaN(saldo) && saldo !== 0
+      })
+      .map(c => {
+        const saldo = (typeof c.saldo_inicial !== 'undefined' && c.saldo_inicial !== null)
+          ? Number(c.saldo_inicial)
+          : (typeof c.saldoInicial !== 'undefined' && c.saldoInicial !== null ? Number(c.saldoInicial) : 0)
+        return {
+          'Data': c.created_at ? formatDate(c.created_at) : 'Saldo Inicial',
+          'Estabelecimento': 'Saldo Inicial da Conta',
+          'Tipo': saldo >= 0 ? 'Receita' : 'Despesa',
+          'Valor': Math.abs(saldo),
+          'Categoria': 'Saldo Inicial',
+          'Conta': c.name || c.nome || 'Sem nome',
+          'Método': '',
+          'Status': '',
+          'Detalhes': 'Saldo inicial cadastrado na conta'
+        }
+      })
+
+    // Prepara os dados das transações para exportação
+    const dataToExport = selectedTransacoes.map(t => ({
+      'Data': formatDate(t.quando || t.created_at),
+      'Estabelecimento': t.estabelecimento || 'Sem estabelecimento',
+      'Tipo': t.tipo === 'receita' ? 'Receita' : 'Despesa',
+      'Valor': Math.abs(parseFloat(String(t.valor || 0))),
+      'Categoria': t.categorias?.nome || 'Sem categoria',
+      'Conta': accountsMap?.[t.account_id || '']?.name || 'Sem conta',
+      'Método': t.metodo === 'cartao_credito' ? 'Cartão de Crédito' : t.metodo || '',
+      'Status': t.status || '',
+      'Detalhes': t.detalhes || ''
+    }))
+
+    // Combina saldos iniciais com transações
+    const allData = [...saldosIniciais, ...dataToExport]
+
+    // Cria worksheet e workbook
+    const ws = XLSX.utils.json_to_sheet(allData)
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'Transações')
+
+    // Formata coluna de Valor como moeda
+    const range = XLSX.utils.decode_range(ws['!ref'] || 'A1')
+    for (let R = range.s.r + 1; R <= range.e.r; ++R) {
+      const cellAddress = XLSX.utils.encode_cell({ r: R, c: 3 }) // Coluna D (Valor)
+      if (ws[cellAddress]) {
+        ws[cellAddress].z = 'R$ #,##0.00'
+      }
+    }
+
+    // Define larguras das colunas
+    ws['!cols'] = [
+      { wch: 12 },  // Data
+      { wch: 25 },  // Estabelecimento
+      { wch: 10 },  // Tipo
+      { wch: 15 },  // Valor
+      { wch: 20 },  // Categoria
+      { wch: 20 },  // Conta
+      { wch: 18 },  // Método
+      { wch: 12 },  // Status
+      { wch: 30 },  // Detalhes
+    ]
+
+    // Faz o download
+    XLSX.writeFile(wb, `transacoes_${new Date().toISOString().split('T')[0]}.xlsx`)
+    
+    toast({ title: `${allData.length} registros exportados com sucesso (${saldosIniciais.length} saldos iniciais + ${dataToExport.length} transações)!` })
+  }
+
   // Função robusta para formatar datas, evitando "Invalid Date"
   // Função robusta para formatar datas, tentando forçar ISO se vier formato estranho do Supabase
   // Função para exibir a data exatamente como está no banco, mas sempre no formato brasileiro
@@ -473,9 +712,21 @@ const Transacoes: React.FC = () => {
           <h2 className="text-3xl font-bold leading-tight">Transações</h2>
           <p className="text-muted-foreground text-base">Gerencie suas receitas e despesas</p>
         </div>
-        <Button className="bg-primary hover:bg-primary/90 h-9 text-sm rounded-md px-4 whitespace-nowrap" onClick={() => { setEditingTransaction(null); setDialogOpen(true); }}>
-          + Nova Transação
-        </Button>
+        <div className="flex gap-2">
+          {selectedIds.length > 0 && (
+            <Button 
+              variant="outline" 
+              className="h-9 text-sm rounded-md px-4 whitespace-nowrap" 
+              onClick={handleExportToExcel}
+            >
+              <Download className="h-4 w-4 mr-2" />
+              Exportar Excel
+            </Button>
+          )}
+          <Button className="bg-primary hover:bg-primary/90 h-9 text-sm rounded-md px-4 whitespace-nowrap" onClick={() => { setEditingTransaction(null); setDialogOpen(true); }}>
+            + Nova Transação
+          </Button>
+        </div>
       </div>
 
       {/* Dialog de criação/edição de transação */}
@@ -592,8 +843,183 @@ const Transacoes: React.FC = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Cards de resumo: apenas uma linha, logo abaixo do título/descrição */}
-      <TransactionSummaryCards receitas={receitas} despesas={despesas} saldo={saldoReal} />
+      {/* Seletor de mês/ano igual ao Dashboard e Cards de resumo (totais do período + saldo atualizado) */}
+      <div className="flex items-center justify-between gap-4 mb-4">
+        <div className="flex items-center gap-2">
+          <Select value={filterMonth} onValueChange={setFilterMonth}>
+            <SelectTrigger className="h-9 text-sm w-40">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {Array.from({ length: 12 }, (_, i) => (
+                <SelectItem key={i} value={i.toString()}>
+                  {new Date(0, i).toLocaleDateString('pt-BR', { month: 'long' })}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={filterYear} onValueChange={setFilterYear}>
+            <SelectTrigger className="h-9 text-sm w-28">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {Array.from({ length: 5 }, (_, i) => {
+                const year = new Date().getFullYear() - 2 + i
+                return (
+                  <SelectItem key={year} value={year.toString()}>
+                    {year}
+                  </SelectItem>
+                )
+              })}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="ml-auto">
+          <span className="text-sm text-muted-foreground">Filtro: {new Date(0, parseInt(filterMonth)).toLocaleDateString('pt-BR', { month: 'long' })} / {filterYear} • Transações no período: <b>{transacoesCountMes}</b></span>
+        </div>
+      </div>
+
+      <TransactionSummaryCards receitas={receitasMes} despesas={despesasMes} saldo={saldoReal} />
+
+      {/* Barra de ações em massa */}
+      {selectedIds.length > 0 && (
+        <Card className="mb-4 border-primary">
+          <CardContent className="p-4">
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="text-sm font-medium">
+                {selectedIds.length} {selectedIds.length === 1 ? 'transação selecionada' : 'transações selecionadas'}
+              </span>
+              <div className="flex gap-2 flex-wrap">
+                <Button size="sm" variant="outline" onClick={() => setMassCategoryDialogOpen(true)}>
+                  Alterar Categoria
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => setMassDateDialogOpen(true)}>
+                  Alterar Data
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => setMassAccountDialogOpen(true)}>
+                  Alterar Conta
+                </Button>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button size="sm" variant="destructive">
+                      Excluir Selecionadas
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Excluir transações selecionadas</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Tem certeza que deseja excluir {selectedIds.length} {selectedIds.length === 1 ? 'transação' : 'transações'}? Esta ação não pode ser desfeita.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                      <AlertDialogAction onClick={handleMassDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                        Excluir
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+                <Button size="sm" variant="ghost" onClick={() => setSelectedIds([])}>
+                  Limpar Seleção
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Dialog para alterar categoria em massa */}
+      <Dialog open={massCategoryDialogOpen} onOpenChange={setMassCategoryDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Alterar Categoria</DialogTitle>
+            <DialogDescription>
+              Selecione a nova categoria para {selectedIds.length} {selectedIds.length === 1 ? 'transação' : 'transações'}.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>Categoria</Label>
+              <CategorySelector
+                value={massCategory}
+                onValueChange={setMassCategory}
+                placeholder="Selecione a categoria"
+                allValue=""
+                className="h-9 text-sm"
+              />
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setMassCategoryDialogOpen(false)}>
+                Cancelar
+              </Button>
+              <Button onClick={handleMassUpdateCategory} disabled={!massCategory}>
+                Atualizar
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog para alterar data em massa */}
+      <Dialog open={massDateDialogOpen} onOpenChange={setMassDateDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Alterar Data</DialogTitle>
+            <DialogDescription>
+              Selecione a nova data para {selectedIds.length} {selectedIds.length === 1 ? 'transação' : 'transações'}.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>Data</Label>
+              <Input
+                type="date"
+                value={massDate}
+                onChange={e => setMassDate(e.target.value)}
+              />
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setMassDateDialogOpen(false)}>
+                Cancelar
+              </Button>
+              <Button onClick={handleMassUpdateDate} disabled={!massDate}>
+                Atualizar
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog para alterar conta em massa */}
+      <Dialog open={massAccountDialogOpen} onOpenChange={setMassAccountDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Alterar Conta</DialogTitle>
+            <DialogDescription>
+              Selecione a nova conta para {selectedIds.length} {selectedIds.length === 1 ? 'transação' : 'transações'}.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>Conta</Label>
+              <BankSelector
+                value={massAccount}
+                onValueChange={setMassAccount}
+                placeholder="Selecione a conta"
+              />
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setMassAccountDialogOpen(false)}>
+                Cancelar
+              </Button>
+              <Button onClick={handleMassUpdateAccount} disabled={!massAccount}>
+                Atualizar
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Filtros agrupados em card visual, duas linhas, sem botão dentro */}
       <div className="mb-4">
@@ -672,6 +1098,20 @@ const Transacoes: React.FC = () => {
         </div>
       </div>
 
+      {/* Checkbox Selecionar Tudo */}
+      {filteredTransacoes.length > 0 && (
+        <div className="flex items-center gap-2 mb-3">
+          <Checkbox
+            checked={isAllSelected}
+            onCheckedChange={handleSelectAll}
+            id="select-all"
+          />
+          <Label htmlFor="select-all" className="text-sm font-medium cursor-pointer">
+            Selecionar todas ({filteredTransacoes.length})
+          </Label>
+        </div>
+      )}
+
       {/* Lista de transações */}
       <div className="grid gap-3 sm:gap-4">
         {filteredTransacoes.length === 0 ? (
@@ -687,10 +1127,18 @@ const Transacoes: React.FC = () => {
           </Card>
         ) : (
           filteredTransacoes.map((transacao) => (
-            <Card key={transacao.id} className="hover:shadow-md transition-shadow">
+            <Card key={transacao.id} className={`hover:shadow-md transition-shadow ${
+              selectedIds.includes(transacao.id) ? 'ring-2 ring-primary' : ''
+            }`}>
               <CardContent className="p-3 sm:p-4 md:p-6">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-                  <div className="flex-1 min-w-0">
+                  <div className="flex items-start gap-3 flex-1 min-w-0">
+                    <Checkbox
+                      checked={selectedIds.includes(transacao.id)}
+                      onCheckedChange={() => handleToggleSelect(transacao.id)}
+                      className="mt-1"
+                    />
+                    <div className="flex-1 min-w-0">
                     <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3 mb-2">
                       <div className="flex items-center gap-2 min-w-0 flex-1">
                         {transacao.tipo === 'receita' ? (
@@ -712,13 +1160,14 @@ const Transacoes: React.FC = () => {
                         </Badge>
                       )}
                       <span className={`font-bold text-base sm:text-lg ${transacao.tipo === 'receita' ? 'text-green-600' : 'text-red-600'}`}>
-                        {transacao.tipo === 'receita' ? '+' : '-'}R$ {formatCurrency(Math.abs(transacao.valor || 0))}
+                        {transacao.tipo === 'receita' ? '+' : '-'}{formatCurrency(Math.abs(transacao.valor || 0))}
                       </span>
                     </div>
                     <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
                       <span>Categoria: {transacao.categorias?.nome || 'Sem categoria'}</span>
                       <span>Conta: {accountsMap?.[transacao.account_id || '']?.name || 'Sem conta'}</span>
                       <span>Data: {formatDate(transacao.quando)}</span>
+                    </div>
                     </div>
                   </div>
                   <div className="flex gap-2 mt-2 sm:mt-0">
