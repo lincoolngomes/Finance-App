@@ -1,33 +1,52 @@
-# Multi-stage build
+# Build stage
 FROM node:20-alpine AS builder
 
 WORKDIR /app
 
+# Instalar dependências do sistema
+RUN apk add --no-cache python3 make g++
+
 # Copiar package files
 COPY package*.json ./
 
-# Instalar TODAS as dependências (incluindo devDependencies)
-RUN npm ci --legacy-peer-deps
+# Instalar dependências
+RUN npm install --legacy-peer-deps
 
 # Copiar código fonte
 COPY . .
 
-# Build
+# Configurar variáveis de ambiente para build
+ENV NODE_ENV=production
+
+# Build da aplicação
 RUN npm run build
 
-# Imagem final de produção
-FROM node:20-alpine
+# Production stage
+FROM nginx:alpine
 
-WORKDIR /app
+# Copiar arquivos buildados
+COPY --from=builder /app/dist /usr/share/nginx/html
 
-# Instalar serve
-RUN npm install -g serve
+# Copiar configuração nginx
+COPY <<EOF /etc/nginx/conf.d/default.conf
+server {
+    listen 80;
+    server_name _;
+    root /usr/share/nginx/html;
+    index index.html;
+    
+    location / {
+        try_files \$uri \$uri/ /index.html;
+    }
+    
+    # Configuração para assets
+    location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+    }
+}
+EOF
 
-# Copiar apenas o build
-COPY --from=builder /app/dist ./dist
-
-# Expor porta
 EXPOSE 80
 
-# Start
-CMD ["serve", "-s", "dist", "-l", "80"]
+CMD ["nginx", "-g", "daemon off;"]
