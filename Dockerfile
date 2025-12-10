@@ -1,25 +1,33 @@
-# Dockerfile simplificado para Easypanel
-FROM node:18-alpine
+# Multi-stage build
+FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-# Copiar arquivos de dependências
+# Copiar package files
 COPY package*.json ./
 
-# Instalar dependências
-RUN npm ci --only=production
+# Instalar TODAS as dependências (incluindo devDependencies)
+RUN npm ci --legacy-peer-deps
 
 # Copiar código fonte
 COPY . .
 
-# Build da aplicação
+# Build
 RUN npm run build
 
-# Instalar serve globalmente
+# Imagem final de produção
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Instalar serve
 RUN npm install -g serve
+
+# Copiar apenas o build
+COPY --from=builder /app/dist ./dist
 
 # Expor porta
 EXPOSE 80
 
-# Iniciar aplicação
+# Start
 CMD ["serve", "-s", "dist", "-l", "80"]
