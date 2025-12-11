@@ -1,9 +1,21 @@
 # Build stage
 FROM node:20-alpine AS build
+
+# Install dependencies for native modules
+RUN apk add --no-cache python3 make g++
+
 WORKDIR /app
-COPY package*.json ./
-RUN npm install --legacy-peer-deps
+
+# Copy package files
+COPY package.json package-lock.json ./
+
+# Install with specific flags to avoid errors
+RUN npm install --legacy-peer-deps --no-audit --no-fund --maxsockets=1
+
+# Copy source
 COPY . .
+
+# Build
 RUN npm run build
 
 # Production stage
