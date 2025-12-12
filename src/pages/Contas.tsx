@@ -202,41 +202,77 @@ function ImportarExtratoModal({ open, onClose, onImport, contas }) {
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60">
-      <div className="bg-zinc-900 rounded-lg shadow-lg p-6 w-full max-w-4xl max-h-[90vh] overflow-y-auto">
-        <h2 className="text-lg font-bold mb-4 text-blue-400">Importar Extrato/CSV</h2>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
+      <div className="bg-card border rounded-lg shadow-2xl p-6 w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center gap-3 mb-6">
+          <div className="p-2.5 rounded-lg bg-blue-500/10">
+            <svg className="h-6 w-6 text-blue-600 dark:text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+            </svg>
+          </div>
+          <div>
+            <h2 className="text-xl font-semibold">Importar Extrato/CSV</h2>
+            <p className="text-sm text-muted-foreground">Selecione a conta e o arquivo para importar</p>
+          </div>
+        </div>
+        
         {step === 1 && (
           <>
-            <div className="mb-4">
-              <label className="block text-xs font-bold mb-1 text-blue-300">Selecione a conta para importar:</label>
-              <select
-                className="w-full p-2 rounded bg-black text-blue-300 text-xs font-mono mb-2"
-                value={contaSelecionada}
-                onChange={e => setContaSelecionada(e.target.value)}
-              >
-                {(contas && Array.isArray(contas) && contas.length > 0) ? (
-                  contas.map((conta) => (
-                    <option key={conta.id} value={conta.id}>{conta.name} ({conta.type})</option>
-                  ))
-                ) : (
-                  <option value="">Nenhuma conta cadastrada</option>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-2">Selecione a conta para importar</label>
+                <select
+                  className="w-full p-3 rounded-lg border bg-background text-foreground focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                  value={contaSelecionada}
+                  onChange={e => setContaSelecionada(e.target.value)}
+                >
+                  {(contas && Array.isArray(contas) && contas.length > 0) ? (
+                    contas.map((conta) => (
+                      <option key={conta.id} value={conta.id}>{conta.name} ({conta.type})</option>
+                    ))
+                  ) : (
+                    <option value="">Nenhuma conta cadastrada</option>
+                  )}
+                </select>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium mb-2">Arquivo CSV</label>
+                <div className="relative">
+                  <input 
+                    type="file" 
+                    accept=".csv" 
+                    onChange={handleFileChange}
+                    className="w-full p-3 rounded-lg border bg-background text-foreground file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-500 file:text-white hover:file:bg-blue-600 cursor-pointer transition"
+                  />
+                </div>
+                {csvFile && (
+                  <p className="text-xs text-muted-foreground mt-2 flex items-center gap-1">
+                    <svg className="h-4 w-4 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                    {csvFile.name}
+                  </p>
                 )}
-              </select>
+              </div>
             </div>
-            <input type="file" accept=".csv" onChange={handleFileChange} className="mb-4" />
+            
             {parseError && (
-              <div className="text-red-400 text-xs mb-2">{parseError}</div>
+              <div className="mt-4 p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-600 dark:text-red-400 text-sm">
+                {parseError}
+              </div>
             )}
-            <div className="flex gap-2 justify-end mt-4">
+            
+            <div className="flex gap-3 justify-end mt-6 pt-4 border-t">
               <button
-                className="px-4 py-2 rounded border border-zinc-600 text-zinc-300 hover:bg-zinc-800 transition"
+                className="px-4 py-2 rounded-lg border hover:bg-accent transition"
                 onClick={onClose}
                 disabled={loading}
               >
                 Cancelar
               </button>
               <button
-                className={`px-4 py-2 rounded bg-blue-500 text-white font-bold hover:bg-blue-400 transition flex items-center gap-2 ${(!csvFile || !contaSelecionada || loading) ? 'opacity-50 cursor-not-allowed' : ''}`}
+                className={`px-6 py-2 rounded-lg bg-blue-500 text-white font-semibold hover:bg-blue-600 transition flex items-center gap-2 ${(!csvFile || !contaSelecionada || loading) ? 'opacity-50 cursor-not-allowed' : ''}`}
                 onClick={handleParse}
                 disabled={!csvFile || !contaSelecionada || loading}
               >

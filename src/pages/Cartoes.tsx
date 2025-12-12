@@ -73,17 +73,44 @@ function ImportarExtratoModal({ open, onClose, onImport }) {
 
   if (!open) return null;
   return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-      <div className="bg-white dark:bg-zinc-900 rounded-lg p-6 min-w-[350px] max-w-[90vw] max-h-[90vh] overflow-auto">
-        <h3 className="font-bold mb-2 text-black dark:text-white">Importar Fatura do Cartão (CSV)</h3>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
+      <div className="bg-card border rounded-lg shadow-2xl p-6 min-w-[350px] max-w-[90vw] max-h-[90vh] overflow-auto">
+        <div className="flex items-center gap-3 mb-6">
+          <div className="p-2.5 rounded-lg bg-purple-500/10">
+            <svg className="h-6 w-6 text-purple-600 dark:text-purple-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+            </svg>
+          </div>
+          <div>
+            <h3 className="text-xl font-semibold">Importar Fatura do Cartão</h3>
+            <p className="text-sm text-muted-foreground">Selecione o arquivo CSV da fatura</p>
+          </div>
+        </div>
+        
         {step === 1 && (
-          <>
-            <input type="file" accept=".csv" onChange={handleFileChange} className="mb-4 text-black dark:text-white bg-white dark:bg-zinc-800 border dark:border-zinc-700 rounded" />
-            <div className="flex gap-2 justify-end">
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium mb-2">Arquivo CSV</label>
+              <input 
+                type="file" 
+                accept=".csv" 
+                onChange={handleFileChange}
+                className="w-full p-3 rounded-lg border bg-background text-foreground file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-purple-500 file:text-white hover:file:bg-purple-600 cursor-pointer transition"
+              />
+              {csvFile && (
+                <p className="text-xs text-muted-foreground mt-2 flex items-center gap-1">
+                  <svg className="h-4 w-4 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  {csvFile.name}
+                </p>
+              )}
+            </div>
+            <div className="flex gap-3 justify-end pt-4 border-t">
               <Button variant="outline" size="sm" onClick={onClose}>Cancelar</Button>
               <Button size="sm" onClick={handleParse} disabled={!csvFile}>Próximo</Button>
             </div>
-          </>
+          </div>
         )}
         {step === 2 && (
           <>
