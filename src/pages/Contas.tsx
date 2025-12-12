@@ -650,11 +650,11 @@ export default function ContasPage() {
             const transacoesConta = transacoes.filter(t => t.account_id === conta.id);
             // Soma receitas e despesas APENAS dessas transações
             // Receitas: soma apenas valores positivos
-            const receitas = transacoesConta.filter(t => t.tipo === 'receita').reduce((acc, t) => acc + (Number(t.valor) || 0), 0);
-            // Despesas: soma valores negativos (mantém sinal negativo)
-            const despesas = transacoesConta.filter(t => t.tipo === 'despesa').reduce((acc, t) => acc + (Number(t.valor) || 0), 0);
-            // Saldo: saldo inicial + receitas + despesas (despesas já negativas)
-            const saldoTotal = saldoInicial + receitas + despesas;
+            const receitas = transacoesConta.filter(t => t.tipo === 'receita').reduce((acc, t) => acc + Math.abs(Number(t.valor) || 0), 0);
+            // Despesas: soma valores absolutos (despesas são salvas como positivas no banco)
+            const despesas = transacoesConta.filter(t => t.tipo === 'despesa').reduce((acc, t) => acc + Math.abs(Number(t.valor) || 0), 0);
+            // Saldo: saldo inicial + receitas - despesas
+            const saldoTotal = saldoInicial + receitas - despesas;
             return (
               <Card key={conta.id} className="mb-2">
                 <CardContent className="p-4 flex justify-between items-center gap-2">
@@ -664,9 +664,9 @@ export default function ContasPage() {
                     <span className="text-xs text-gray-400 mt-1">Saldo inicial: {formatCurrency(saldoInicial)}</span>
                     <span className="text-xs text-gray-400">Saldo: {formatCurrency(saldoTotal)}</span>
                     <div className="mt-2 p-2 rounded bg-zinc-800 text-xs text-gray-300">
-                      <div>Receitas: <b>{formatCurrency(receitas)}</b></div>
-                      <div>Despesas: <b>{formatCurrency(despesas)}</b></div>
-                      <div>Saldo calculado: <b>{formatCurrency(saldoInicial + receitas + despesas)}</b></div>
+                      <div>Receitas: <b className="text-green-400">{formatCurrency(receitas)}</b></div>
+                      <div>Despesas: <b className="text-red-400">{formatCurrency(despesas)}</b></div>
+                      <div>Saldo calculado: <b>{formatCurrency(saldoInicial + receitas - despesas)}</b></div>
                       <div>Total de transações: <b>{transacoesConta.length}</b></div>
                     </div>
                   </div>
