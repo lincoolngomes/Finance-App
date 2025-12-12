@@ -569,13 +569,14 @@ export default function Calendario() {
             </div>
           </div>
         </CardHeader>
-        <CardContent className="overflow-hidden p-4 sm:p-6">
-          {/* Calendar Grid */}
-          <div className={`grid gap-2 ${
-            viewMode === 'month' ? 'grid-cols-7' : 
-            viewMode === 'week' ? 'grid-cols-7' : 
-            'grid-cols-1'
-          }`}>
+        <CardContent className="p-0">
+          <div className="p-4 sm:p-6">
+            {/* Calendar Grid */}
+            <div className={`grid gap-2 ${
+              viewMode === 'month' ? 'grid-cols-7' : 
+              viewMode === 'week' ? 'grid-cols-7' : 
+              'grid-cols-1'
+            }`}>
             {/* Headers */}
             {(viewMode === 'month' || viewMode === 'week') && (
               <>
@@ -718,6 +719,7 @@ export default function Calendario() {
                 </Card>
               )
             })}
+            </div>
           </div>
         </CardContent>
       </Card>
