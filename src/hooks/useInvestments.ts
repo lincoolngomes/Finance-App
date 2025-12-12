@@ -106,34 +106,46 @@ export const useInvestments = () => {
       // Buscar cotações atualizadas (apenas para ativos com cotação)
       const investimentosComCotacao = await Promise.all(
         (data || []).map(async (inv) => {
-          // Renda fixa, fundos e previdência não têm cotação - valor = saldo aplicado
-          const temCotacao = ['acao', 'fii', 'etf', 'cripto'].includes(inv.tipo)
-          
-          let cotacao = null
-          let valor_atual = inv.valor_total
-          let dadosAdicionais: any = {}
-          
-          if (temCotacao) {
-            cotacao = await getCotacaoAtual(inv.codigo, inv.tipo)
-            valor_atual = cotacao ? inv.quantidade * cotacao : inv.valor_total
-          } else if (inv.tipo === 'renda_fixa' && inv.data_aplicacao && inv.data_vencimento) {
-            // Calcular rentabilidade de renda fixa com base na curva
-            dadosAdicionais = calcularRendaFixa(inv)
-            valor_atual = dadosAdicionais.valor_atual
-          }
-          
-          const rentabilidade = valor_atual - inv.valor_total
-          const rentabilidade_percentual = inv.valor_total > 0 
-            ? (rentabilidade / inv.valor_total) * 100 
-            : 0
+          try {
+            // Renda fixa, fundos e previdência não têm cotação - valor = saldo aplicado
+            const temCotacao = ['acao', 'fii', 'etf', 'cripto'].includes(inv.tipo)
+            
+            let cotacao = null
+            let valor_atual = inv.valor_total
+            let dadosAdicionais: any = {}
+            
+            if (temCotacao) {
+              cotacao = await getCotacaoAtual(inv.codigo, inv.tipo)
+              valor_atual = cotacao ? inv.quantidade * cotacao : inv.valor_total
+            } else if (inv.tipo === 'renda_fixa' && inv.data_aplicacao && inv.data_vencimento) {
+              // Calcular rentabilidade de renda fixa com base na curva
+              dadosAdicionais = calcularRendaFixa(inv)
+              valor_atual = dadosAdicionais.valor_atual
+            }
+            
+            const rentabilidade = valor_atual - inv.valor_total
+            const rentabilidade_percentual = inv.valor_total > 0 
+              ? (rentabilidade / inv.valor_total) * 100 
+              : 0
 
-          return {
-            ...inv,
-            ...dadosAdicionais,
-            cotacao_atual: cotacao,
-            valor_atual,
-            rentabilidade,
-            rentabilidade_percentual
+            return {
+              ...inv,
+              ...dadosAdicionais,
+              cotacao_atual: cotacao,
+              valor_atual,
+              rentabilidade,
+              rentabilidade_percentual
+            }
+          } catch (error) {
+            console.error(`Erro ao processar investimento ${inv.codigo}:`, error)
+            // Retorna investimento sem cotação atualizada
+            return {
+              ...inv,
+              cotacao_atual: null,
+              valor_atual: inv.valor_total,
+              rentabilidade: 0,
+              rentabilidade_percentual: 0
+            }
           }
         })
       )
@@ -319,6 +331,18 @@ export const useInvestments = () => {
 
   // Calcular rentabilidade de renda fixa
   const calcularRendaFixa = (inv: any) => {
+    // Validar se tem as datas necessárias
+    if (!inv.data_aplicacao || !inv.data_vencimento) {
+      return {
+        valor_atual: inv.valor_total,
+        valor_bruto_resgate: inv.valor_total,
+        ir_retido: 0,
+        dias_aplicado: 0,
+        dias_ate_vencimento: 0,
+        rentabilidade_projetada: 0
+      }
+    }
+
     const dataAplicacao = new Date(inv.data_aplicacao)
     const dataVencimento = new Date(inv.data_vencimento)
     const hoje = new Date()
