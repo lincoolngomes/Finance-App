@@ -599,8 +599,8 @@ export default function Calendario() {
               return (
                 <Card 
                   key={day.toString()} 
-                  className={`min-h-[100px] sm:min-h-[120px] cursor-pointer hover:bg-accent/50 transition-all duration-200 ${
-                    isToday ? 'ring-2 ring-primary' : ''
+                  className={`min-h-[100px] sm:min-h-[120px] cursor-pointer hover:shadow-lg transition-all duration-200 overflow-hidden ${
+                    isToday ? 'ring-2 ring-primary border-l-4 border-l-primary' : 'border-l-4 border-l-transparent'
                   } ${
                     !isCurrentMonth ? 'opacity-50' : ''
                   } ${
@@ -613,63 +613,75 @@ export default function Calendario() {
                     handleDrop(e, day)
                   }}
                 >
-                  <CardContent className="p-2">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className={`text-xs sm:text-sm font-medium ${isToday ? 'text-primary' : ''}`}>
-                        {format(day, viewMode === 'day' ? 'EEEE, dd/MM/yyyy' : 'd', { locale: ptBR })}
-                      </span>
-                      {dayTransactions.length > 0 && (
-                        <Badge variant="secondary" className="text-xs">
-                          {dayTransactions.length}
-                        </Badge>
-                      )}
-                    </div>
-
-                    {/* Totals */}
-                    {(totalReceitas > 0 || totalDespesas > 0) && (
-                      <div className="space-y-1 mb-2">
-                        {totalReceitas > 0 && (
-                          <div className="flex items-center gap-1 text-xs">
-                            <TrendingUp className="h-3 w-3 text-green-500" />
-                            <span className="text-green-600">{formatCurrency(totalReceitas)}</span>
-                          </div>
-                        )}
-                        {totalDespesas > 0 && (
-                          <div className="flex items-center gap-1 text-xs">
-                            <TrendingDown className="h-3 w-3 text-red-500" />
-                            <span className="text-red-600">{formatCurrency(totalDespesas)}</span>
-                          </div>
+                  <CardContent className="p-0">
+                    {/* Header do dia */}
+                    <div className={`p-2 border-b border-border/50 ${isToday ? 'bg-gradient-to-r from-primary/10 to-transparent' : 'bg-secondary/20'}`}>
+                      <div className="flex items-center justify-between">
+                        <span className={`text-xs sm:text-sm font-bold ${isToday ? 'text-primary' : ''}`}>
+                          {format(day, viewMode === 'day' ? 'EEEE, dd/MM/yyyy' : 'd', { locale: ptBR })}
+                        </span>
+                        {dayTransactions.length > 0 && (
+                          <Badge variant={isToday ? "default" : "secondary"} className="text-xs">
+                            {dayTransactions.length}
+                          </Badge>
                         )}
                       </div>
-                    )}
+                    </div>
 
-                    {/* Transactions List */}
-                    <div className="space-y-1 max-h-32 overflow-y-auto">
-                      {dayTransactions.map(transaction => (
-                        <div 
-                          key={transaction.id}
-                          className="group flex items-center gap-2 p-1 rounded text-xs hover:bg-background select-none border border-transparent hover:border-primary/20 transition-all duration-200"
-                          title="Clique para editar, arraste para mover"
-                        >
+                    <div className="p-2">
+                      {/* Totals */}
+                      {(totalReceitas > 0 || totalDespesas > 0) && (
+                        <div className="space-y-1 mb-2 bg-secondary/30 rounded p-1.5">
+                          {totalReceitas > 0 && (
+                            <div className="flex items-center gap-1 text-xs">
+                              <div className="w-5 h-5 rounded-full bg-green-500/20 flex items-center justify-center">
+                                <TrendingUp className="h-3 w-3 text-green-600" />
+                              </div>
+                              <span className="font-semibold text-green-600">{formatCurrency(totalReceitas)}</span>
+                            </div>
+                          )}
+                          {totalDespesas > 0 && (
+                            <div className="flex items-center gap-1 text-xs">
+                              <div className="w-5 h-5 rounded-full bg-red-500/20 flex items-center justify-center">
+                                <TrendingDown className="h-3 w-3 text-red-600" />
+                              </div>
+                              <span className="font-semibold text-red-600">{formatCurrency(totalDespesas)}</span>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Transactions List */}
+                      <div className="space-y-1 max-h-32 overflow-y-auto">
+                        {dayTransactions.map(transaction => (
                           <div 
-                            className="flex-1 flex items-center justify-between cursor-move"
-                            draggable={true}
-                            onDragStart={(e) => {
-                              e.stopPropagation()
-                              const dragData = {
-                                transactionId: transaction.id,
-                                sourceDate: format(day, 'yyyy-MM-dd')
-                              }
-                              e.dataTransfer.setData('application/json', JSON.stringify(dragData))
-                              e.dataTransfer.effectAllowed = 'move'
-                              e.currentTarget.parentElement.style.opacity = '0.5'
-                            }}
-                            onDragEnd={(e) => {
-                              e.currentTarget.parentElement.style.opacity = '1'
-                            }}
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              openEditTransaction(transaction)
+                            key={transaction.id}
+                            className={`group flex items-center gap-2 p-1.5 rounded text-xs hover:bg-background select-none border transition-all duration-200 ${
+                              transaction.tipo === 'receita' 
+                                ? 'border-l-2 border-l-green-500 bg-green-500/5 hover:bg-green-500/10' 
+                                : 'border-l-2 border-l-red-500 bg-red-500/5 hover:bg-red-500/10'
+                            }`}
+                            title="Clique para editar, arraste para mover"
+                          >
+                            <div 
+                              className="flex-1 flex items-center justify-between cursor-move"
+                              draggable={true}
+                              onDragStart={(e) => {
+                                e.stopPropagation()
+                                const dragData = {
+                                  transactionId: transaction.id,
+                                  sourceDate: format(day, 'yyyy-MM-dd')
+                                }
+                                e.dataTransfer.setData('application/json', JSON.stringify(dragData))
+                                e.dataTransfer.effectAllowed = 'move'
+                                e.currentTarget.parentElement.style.opacity = '0.5'
+                              }}
+                              onDragEnd={(e) => {
+                                e.currentTarget.parentElement.style.opacity = '1'
+                              }}
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                openEditTransaction(transaction)
                             }}
                           >
                             <div className="flex-1 truncate">
