@@ -246,15 +246,12 @@ export function DashboardCharts({ transacoes, recentTransacoes, contas = [], lem
                             y={0} 
                             dy={16} 
                             textAnchor="middle" 
-                            fill={isSelected ? '#3b82f6' : 'rgba(148, 163, 184, 0.8)'}
+                            fill={isSelected ? 'rgba(59, 130, 246, 0.9)' : 'rgba(148, 163, 184, 0.8)'}
                             fontSize={12}
-                            fontWeight={isSelected ? 700 : 400}
+                            fontWeight={isSelected ? 600 : 400}
                           >
                             {payload.value}
                           </text>
-                          {isSelected && (
-                            <circle cx={0} cy={-10} r={3} fill="#3b82f6" />
-                          )}
                         </g>
                       )
                     }}
@@ -290,16 +287,9 @@ export function DashboardCharts({ transacoes, recentTransacoes, contas = [], lem
                   {selectedMonth && (
                     <ReferenceLine 
                       x={monthlyBalanceData.find(d => d.monthKey === selectedMonth)?.month}
-                      stroke="#3b82f6"
-                      strokeWidth={2}
-                      strokeDasharray="5 5"
-                      label={{ 
-                        value: 'Mês Selecionado', 
-                        position: 'top',
-                        fill: '#3b82f6',
-                        fontSize: 11,
-                        fontWeight: 600
-                      }}
+                      stroke="rgba(59, 130, 246, 0.2)"
+                      strokeWidth={1.5}
+                      strokeDasharray="3 3"
                     />
                   )}
                   <Line 
@@ -314,10 +304,10 @@ export function DashboardCharts({ transacoes, recentTransacoes, contas = [], lem
                         <circle 
                           cx={props.cx} 
                           cy={props.cy} 
-                          r={isSelected ? 7 : 5} 
+                          r={isSelected ? 6 : 5} 
                           fill="#10b981"
-                          stroke={isSelected ? '#3b82f6' : '#fff'}
-                          strokeWidth={isSelected ? 3 : 2}
+                          stroke={isSelected ? 'rgba(59, 130, 246, 0.5)' : '#fff'}
+                          strokeWidth={2}
                         />
                       )
                     }}
@@ -335,10 +325,10 @@ export function DashboardCharts({ transacoes, recentTransacoes, contas = [], lem
                         <circle 
                           cx={props.cx} 
                           cy={props.cy} 
-                          r={isSelected ? 7 : 5} 
+                          r={isSelected ? 6 : 5} 
                           fill="#ef4444"
-                          stroke={isSelected ? '#3b82f6' : '#fff'}
-                          strokeWidth={isSelected ? 3 : 2}
+                          stroke={isSelected ? 'rgba(59, 130, 246, 0.5)' : '#fff'}
+                          strokeWidth={2}
                         />
                       )
                     }}
