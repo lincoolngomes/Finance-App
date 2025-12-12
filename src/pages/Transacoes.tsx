@@ -506,24 +506,69 @@ const Transacoes: React.FC = () => {
       return
     }
     
+    console.log('Tentando excluir IDs:', selectedIds, 'User ID:', user.id)
+    
     try {
-      const { error } = await supabase
+      // Deletar um por um para evitar problemas com RLS
+      let errors = []
+      let deleted = 0
+      
+      for (const id of selectedIds) {
+        const { error } = await supabase
+          .from('transacoes')
+          .delete()
+          .eq('id', id)
+          .eq('userid', user.id)
+        
+        if (error) {
+          console.error(`Erro ao excluir transação ${id}:`, error)
+          errors.push(error)
+        } else {
+          deleted++
+        }
+      }
+      
+      if (errors.length > 0) {
+        throw new Error(`Falha ao excluir ${errors.length} de ${selectedIds.length} transações`)
+      }
+      
+      toast({ title: `${deleted} transações excluídas com sucesso!` })
+      setSelectedIds([])
+      fetchTransacoes()
+    } catch (error: any) {
+      console.error('Erro final:', error)
+      toast({
+        title: "Erro ao excluir transações",
+        description: error.message || "Erro de conexão ou permissão. Verifique o console para detalhes.",
+        variant: "destructive",
+      })
+    }
+  }
+
+  const handleMassDeleteOld = async () => {
+    if (selectedIds.length === 0) return
+    if (!user) return
+    
+    try {
+      // Tenta em lote primeiro
+      const { error, data } = await supabase
         .from('transacoes')
         .delete()
         .in('id', selectedIds)
         .eq('userid', user.id)
+        .select()
       
-      if (error) {
-        console.error('Erro ao excluir em lote:', error)
-        throw error
-      }
+      console.log('Resultado delete em lote:', { error, data, selectedIds })
       
-      toast({ title: `${selectedIds.length} transações excluídas com sucesso!` })
+      if (error) throw error
+      
+      toast({ title: `${selectedIds.length} transações excluídas!` })
       setSelectedIds([])
       fetchTransacoes()
     } catch (error: any) {
+      console.error('Erro exclusão em lote:', error)
       toast({
-        title: "Erro ao excluir transações",
+        title: "Erro",
         description: error.message,
         variant: "destructive",
       })
