@@ -433,32 +433,54 @@ const Transacoes: React.FC = () => {
   }
 
   const handleDelete = async (id: number) => {
-    if (!confirm('Tem certeza que deseja excluir esta transação?')) return
+    if (!user) {
+      toast({
+        title: "Erro",
+        description: "Usuário não autenticado",
+        variant: "destructive",
+      })
+      return
+    }
 
     try {
       const { error } = await supabase
         .from('transacoes')
         .delete()
         .eq('id', id)
+        .eq('userid', user.id)
 
-      if (error) throw error
+      if (error) {
+        console.error('Erro ao excluir:', error)
+        throw error
+      }
+      
       toast({ title: "Transação excluída com sucesso!" })
       fetchTransacoes()
     } catch (error: any) {
+      console.error('Erro ao excluir transação:', error)
       toast({
         title: "Erro ao excluir transação",
-        description: error.message,
+        description: error.message || "Erro de conexão. Verifique sua internet.",
         variant: "destructive",
       })
     }
   }
 
   const handleDeleteAll = async () => {
+    if (!user) {
+      toast({
+        title: "Erro",
+        description: "Usuário não autenticado",
+        variant: "destructive",
+      })
+      return
+    }
+
     try {
       const { error } = await supabase
         .from('transacoes')
         .delete()
-        .eq('userid', user?.id)
+        .eq('userid', user.id)
 
       if (error) throw error
       toast({ title: "Todas as transações foram excluídas com sucesso!" })
@@ -475,12 +497,27 @@ const Transacoes: React.FC = () => {
   // Handlers para ações em massa
   const handleMassDelete = async () => {
     if (selectedIds.length === 0) return
+    if (!user) {
+      toast({
+        title: "Erro",
+        description: "Usuário não autenticado",
+        variant: "destructive",
+      })
+      return
+    }
+    
     try {
       const { error } = await supabase
         .from('transacoes')
         .delete()
         .in('id', selectedIds)
-      if (error) throw error
+        .eq('userid', user.id)
+      
+      if (error) {
+        console.error('Erro ao excluir em lote:', error)
+        throw error
+      }
+      
       toast({ title: `${selectedIds.length} transações excluídas com sucesso!` })
       setSelectedIds([])
       fetchTransacoes()
