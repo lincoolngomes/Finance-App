@@ -658,12 +658,16 @@ export default function ContasPage() {
             return (
               <Card key={conta.id} className="mb-2">
                 <CardContent className="p-4 flex justify-between items-center gap-2">
-                  <div className="flex flex-col">
-                    <span>{conta.name}</span>
-                    <span className="text-xs text-gray-500">{conta.type}</span>
-                    <span className="text-xs text-gray-400 mt-1">Saldo inicial: {formatCurrency(saldoInicial)}</span>
-                    <span className="text-xs text-gray-400">Saldo: {formatCurrency(saldoTotal)}</span>
+                  <div className="flex flex-col w-full">
+                    <div className="flex justify-between items-center mb-2">
+                      <div>
+                        <span className="font-semibold">{conta.name}</span>
+                        <span className="text-xs text-gray-500 ml-2">{conta.type}</span>
+                      </div>
+                      <span className="text-lg font-bold">{formatCurrency(saldoTotal)}</span>
+                    </div>
                     <div className="mt-2 p-2 rounded bg-zinc-800 text-xs text-gray-300">
+                      <div>Saldo inicial: <b>{formatCurrency(saldoInicial)}</b></div>
                       <div>Receitas: <b className="text-green-400">{formatCurrency(receitas)}</b></div>
                       <div>Despesas: <b className="text-red-400">{formatCurrency(despesas)}</b></div>
                       <div>Saldo calculado: <b>{formatCurrency(saldoInicial + receitas - despesas)}</b></div>
