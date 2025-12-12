@@ -656,31 +656,73 @@ export default function ContasPage() {
             // Saldo: saldo inicial + receitas - despesas
             const saldoTotal = saldoInicial + receitas - despesas;
             return (
-              <Card key={conta.id} className="mb-2">
-                <CardContent className="p-4 flex justify-between items-center gap-2">
-                  <div className="flex flex-col w-full">
-                    <div className="flex justify-between items-center mb-2">
-                      <div>
-                        <span className="font-semibold">{conta.name}</span>
-                        <span className="text-xs text-gray-500 ml-2">{conta.type}</span>
+              <Card key={conta.id} className="mb-4 overflow-hidden border-l-4 border-l-primary hover:shadow-lg transition-shadow">
+                <CardContent className="p-0">
+                  {/* Header da Conta */}
+                  <div className="bg-gradient-to-r from-primary/10 to-transparent p-4 border-b border-border/50">
+                    <div className="flex justify-between items-start mb-2">
+                      <div className="flex items-center gap-3">
+                        <div className="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center">
+                          <svg className="w-6 h-6 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                          </svg>
+                        </div>
+                        <div>
+                          <h3 className="font-bold text-lg">{conta.name}</h3>
+                          <span className="text-xs text-muted-foreground px-2 py-0.5 rounded-full bg-secondary/50">{conta.type}</span>
+                        </div>
                       </div>
-                      <span className="text-lg font-bold">{formatCurrency(saldoTotal)}</span>
-                    </div>
-                    <div className="mt-2 p-2 rounded bg-zinc-800 text-xs text-gray-300">
-                      <div>Saldo inicial: <b>{formatCurrency(saldoInicial)}</b></div>
-                      <div>Receitas: <b className="text-green-400">{formatCurrency(receitas)}</b></div>
-                      <div>Despesas: <b className="text-red-400">{formatCurrency(despesas)}</b></div>
-                      <div>Saldo calculado: <b>{formatCurrency(saldoInicial + receitas - despesas)}</b></div>
-                      <div>Total de transações: <b>{transacoesConta.length}</b></div>
+                      <div className="text-right">
+                        <p className="text-xs text-muted-foreground mb-1">Saldo Atual</p>
+                        <p className={`text-2xl font-bold ${saldoTotal >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                          {formatCurrency(saldoTotal)}
+                        </p>
+                      </div>
                     </div>
                   </div>
-                  <div className="flex gap-2">
-                    <button className="px-2 py-1 rounded border border-gray-600 text-gray-200 hover:bg-gray-700 transition text-xs" onClick={() => handleEditConta(conta)}>
-                      Editar
-                    </button>
-                    <button className="px-2 py-1 rounded border border-red-700 text-red-300 hover:bg-red-900 transition text-xs" onClick={() => handleDeleteConta(conta)}>
-                      Excluir
-                    </button>
+
+                  {/* Detalhes da Conta */}
+                  <div className="p-4">
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                      <div className="space-y-1">
+                        <p className="text-xs text-muted-foreground">Saldo Inicial</p>
+                        <p className="font-semibold">{formatCurrency(saldoInicial)}</p>
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-xs text-muted-foreground">Receitas</p>
+                        <p className="font-semibold text-green-500">+{formatCurrency(receitas)}</p>
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-xs text-muted-foreground">Despesas</p>
+                        <p className="font-semibold text-red-500">-{formatCurrency(despesas)}</p>
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-xs text-muted-foreground">Transações</p>
+                        <p className="font-semibold">{transacoesConta.length}</p>
+                      </div>
+                    </div>
+
+                    {/* Botões de Ação */}
+                    <div className="flex gap-2 justify-end">
+                      <button 
+                        className="px-4 py-2 rounded-lg border border-border hover:bg-secondary/50 transition text-sm font-medium flex items-center gap-2" 
+                        onClick={() => handleEditConta(conta)}
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                        </svg>
+                        Editar
+                      </button>
+                      <button 
+                        className="px-4 py-2 rounded-lg border border-red-500/50 text-red-500 hover:bg-red-500/10 transition text-sm font-medium flex items-center gap-2" 
+                        onClick={() => handleDeleteConta(conta)}
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                        Excluir
+                      </button>
+                    </div>
                   </div>
                 </CardContent>
               </Card>
