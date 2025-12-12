@@ -39,18 +39,18 @@ export function AppSidebar() {
     }
   }
 
-  // Items do menu normal
+  // Items do menu normal (alfabético, exceto Início que fica em primeiro)
   const normalItems = [
-    { title: 'Dashboard', url: '/dashboard', icon: Home },
-    { title: 'Transações', url: '/transacoes', icon: CreditCard },
+    { title: 'Início', url: '/dashboard', icon: Home },
+    { title: 'Calendário', url: '/calendario', icon: CalendarDays },
+    { title: 'Cartões', url: '/cartoes', icon: CreditCard },
+    { title: 'Categorias', url: '/categorias', icon: Tag },
     { title: 'Contas', url: '/contas', icon: Wallet },
     { title: 'Investimentos', url: '/investimentos', icon: TrendingUp },
-    { title: 'Calendário', url: '/calendario', icon: CalendarDays },
-    { title: 'Categorias', url: '/categorias', icon: Tag },
-    { title: 'Cartões', url: '/cartoes', icon: CreditCard },
-    { title: 'Relatórios', url: '/relatorios', icon: FileText },
     { title: 'Lembretes', url: '/lembretes', icon: Bell },
     { title: 'Perfil', url: '/perfil', icon: User },
+    { title: 'Relatórios', url: '/relatorios', icon: FileText },
+    { title: 'Transações', url: '/transacoes', icon: CreditCard },
   ]
 
   // Items apenas para admin
