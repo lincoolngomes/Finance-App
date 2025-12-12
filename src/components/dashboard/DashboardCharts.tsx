@@ -176,54 +176,45 @@ export function DashboardCharts({ transacoes, recentTransacoes, contas = [], lem
       {/* Linha 1: Evolução Mensal (2/3) + Gastos por Categoria (1/3) */}
       <div className="grid gap-6 grid-cols-1 lg:grid-cols-3">
         {/* Evolução Mensal - 2/3 */}
-        <Card className="lg:col-span-2 shadow-lg border border-cyan-500/20 bg-gradient-to-br from-cyan-950/50 to-slate-950/50 backdrop-blur-sm">
-          <CardHeader className="pb-4">
-            <CardTitle className="text-xl font-bold">
-              <span className="text-cyan-400">📈</span>{' '}
-              <span className="bg-gradient-to-r from-cyan-400 to-blue-400 bg-clip-text text-transparent">
-                Evolução Mensal
-              </span>
-            </CardTitle>
-            <CardDescription className="text-sm text-cyan-300/70">
-              Comparação entre receitas e despesas mês a mês
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="h-[300px] md:h-[350px]">
+        <Card className="lg:col-span-2 overflow-hidden border-l-4 border-l-blue-500 hover:shadow-lg transition-all">
+          <CardContent className="p-0">
+            <div className="bg-gradient-to-r from-blue-500/20 to-blue-500/5 p-4 border-b border-border/50">
+              <div className="w-12 h-12 rounded-full bg-blue-500/20 flex items-center justify-center mb-3">
+                <span className="text-2xl">📈</span>
+              </div>
+              <CardTitle className="text-xl font-bold">Evolução Mensal</CardTitle>
+              <CardDescription className="text-sm">Comparação entre receitas e despesas mês a mês</CardDescription>
+            </div>
+            <div className="h-[300px] md:h-[350px] p-6">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={monthlyBalanceData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(6, 182, 212, 0.2)" />
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(148, 163, 184, 0.2)" />
                   <XAxis 
                     dataKey="month" 
-                    tick={{ fontSize: 12, fill: '#e2e8f0' }}
+                    tick={{ fontSize: 12 }}
                     tickLine={false}
-                    axisLine={{ stroke: 'rgba(6, 182, 212, 0.3)' }}
+                    axisLine={{ stroke: 'rgba(148, 163, 184, 0.3)' }}
                   />
                   <YAxis 
                     tickFormatter={(value) => `R$ ${(value / 1000).toFixed(0)}k`}
-                    tick={{ fontSize: 12, fill: '#cbd5e1' }}
+                    tick={{ fontSize: 12 }}
                     tickLine={false}
-                    axisLine={{ stroke: 'rgba(6, 182, 212, 0.3)' }}
+                    axisLine={{ stroke: 'rgba(148, 163, 184, 0.3)' }}
                   />
                   <Tooltip 
                     formatter={(value: number, name: string) => {
                       const label = name === 'receitas' ? 'Receitas' : 'Despesas'
                       return [formatCurrency(value), label]
                     }}
-                    labelStyle={{ color: '#e2e8f0', fontWeight: 'bold' }}
                     contentStyle={{ 
-                      backgroundColor: 'rgba(15, 23, 42, 0.95)', 
-                      border: '1px solid rgba(6, 182, 212, 0.3)',
-                      borderRadius: '12px',
-                      boxShadow: '0 8px 32px rgba(0, 0, 0, 0.3)',
-                      backdropFilter: 'blur(16px)'
+                      backgroundColor: 'hsl(var(--background))', 
+                      border: '1px solid hsl(var(--border))',
+                      borderRadius: '8px'
                     }}
-                    itemStyle={{ color: '#e2e8f0' }}
                   />
                   <Legend 
                     wrapperStyle={{ paddingTop: '20px' }}
                     iconType="line"
-                    formatter={(value) => <span style={{ color: '#e2e8f0', fontSize: '14px', fontWeight: 500 }}>{value === 'receitas' ? 'Receitas' : 'Despesas'}</span>}
                   />
                   <Line 
                     type="monotone" 
@@ -248,19 +239,16 @@ export function DashboardCharts({ transacoes, recentTransacoes, contas = [], lem
         </Card>
 
         {/* Gastos por Categoria - 1/3 */}
-        <Card className="shadow-lg border border-red-500/20 bg-gradient-to-br from-red-900/90 to-rose-900/90 dark:from-red-950/50 dark:to-rose-950/50 backdrop-blur-sm">
-          <CardHeader className="pb-4">
-            <CardTitle className="text-xl font-bold">
-              <span className="text-red-400">💰</span>{' '}
-              <span className="bg-gradient-to-r from-red-400 to-rose-400 bg-clip-text text-transparent">
-                Gastos por Categoria
-              </span>
-            </CardTitle>
-            <CardDescription className="text-sm text-red-300/70">
-              Distribuição dos seus gastos
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
+        <Card className="overflow-hidden border-l-4 border-l-red-500 hover:shadow-lg transition-all">
+          <CardContent className="p-0">
+            <div className="bg-gradient-to-r from-red-500/20 to-red-500/5 p-4 border-b border-border/50">
+              <div className="w-12 h-12 rounded-full bg-red-500/20 flex items-center justify-center mb-3">
+                <span className="text-2xl">💰</span>
+              </div>
+              <CardTitle className="text-xl font-bold">Gastos por Categoria</CardTitle>
+              <CardDescription className="text-sm">Distribuição dos seus gastos</CardDescription>
+            </div>
+            <div className="p-4">
             <div className="h-[250px] md:h-[300px] relative">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
@@ -294,78 +282,58 @@ export function DashboardCharts({ transacoes, recentTransacoes, contas = [], lem
                         props.payload.name
                       ]
                     }}
-                    labelStyle={{ color: '#ffffff', fontWeight: 'bold' }}
                     contentStyle={{ 
-                      backgroundColor: 'rgba(15, 23, 42, 0.95)', 
-                      border: '1px solid rgba(239, 68, 68, 0.3)',
-                      borderRadius: '12px',
-                      boxShadow: '0 8px 32px rgba(0, 0, 0, 0.3)',
-                      backdropFilter: 'blur(16px)',
-                      color: '#ffffff !important'
+                      backgroundColor: 'hsl(var(--background))', 
+                      border: '1px solid hsl(var(--border))',
+                      borderRadius: '8px'
                     }}
-                    itemStyle={{ color: '#ffffff' }}
                   />
                 </PieChart>
               </ResponsiveContainer>
+            </div>
             </div>
           </CardContent>
         </Card>
       </div>
 
       {/* Linha 2: Resumo do Período - Full Width */}
-      <Card className="shadow-lg border border-blue-500/20 bg-gradient-to-br from-blue-950/50 to-slate-950/50 backdrop-blur-sm">
-        <CardHeader className="pb-6">
-          <CardTitle className="text-xl font-bold">
-            <span className="text-blue-400">📈</span>{' '}
-            <span className="bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent">
-              Resumo do Período
-            </span>
-          </CardTitle>
-          <CardDescription className="text-sm text-blue-300/70">
-            Estatísticas detalhadas do período selecionado
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
-            <div className="relative overflow-hidden bg-gradient-to-br from-green-500 to-emerald-600 p-4 sm:p-5 lg:p-6 rounded-2xl shadow-lg">
-              <div className="absolute top-0 right-0 w-20 h-20 bg-white/10 rounded-full -translate-y-10 translate-x-10"></div>
-              <div className="relative">
-                <div className="text-green-100 text-sm font-medium mb-1">💰 Receitas</div>
-                <div className="text-xs sm:text-xs md:text-xs lg:text-base font-bold text-white break-all">
+      <Card className="overflow-hidden border-l-4 border-l-primary hover:shadow-lg transition-all">
+        <CardContent className="p-0">
+          <div className="bg-gradient-to-r from-primary/20 to-primary/5 p-4 border-b border-border/50">
+            <div className="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center mb-3">
+              <span className="text-2xl">📈</span>
+            </div>
+            <CardTitle className="text-xl font-bold">Resumo do Período</CardTitle>
+            <CardDescription className="text-sm">Estatísticas detalhadas do período selecionado</CardDescription>
+          </div>
+          <div className="p-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="p-4 rounded-lg border border-border bg-card">
+                <div className="text-sm text-muted-foreground mb-1">💰 Receitas</div>
+                <div className="text-lg font-bold text-green-600 dark:text-green-500">
                   {formatCurrency(stats.totalReceitas)}
                 </div>
               </div>
-            </div>
-            
-            <div className="relative overflow-hidden bg-gradient-to-br from-red-500 to-rose-600 p-4 sm:p-5 lg:p-6 rounded-2xl shadow-lg">
-              <div className="absolute top-0 right-0 w-20 h-20 bg-white/10 rounded-full -translate-y-10 translate-x-10"></div>
-              <div className="relative">
-                <div className="text-red-100 text-sm font-medium mb-1">💸 Despesas</div>
-                <div className="text-xs sm:text-xs md:text-xs lg:text-base font-bold text-white break-all">
+              
+              <div className="p-4 rounded-lg border border-border bg-card">
+                <div className="text-sm text-muted-foreground mb-1">💸 Despesas</div>
+                <div className="text-lg font-bold text-red-600 dark:text-red-500">
                   {formatCurrency(Math.abs(stats.totalDespesas))}
                 </div>
               </div>
-            </div>
-            
-            <div className={`relative overflow-hidden ${stats.saldo >= 0 
-              ? 'bg-gradient-to-br from-blue-500 to-indigo-600' 
-              : 'bg-gradient-to-br from-yellow-500 to-orange-600'} p-4 sm:p-5 lg:p-6 rounded-2xl shadow-lg`}>
-              <div className="absolute top-0 right-0 w-20 h-20 bg-white/10 rounded-full -translate-y-10 translate-x-10"></div>
-              <div className="relative">
-                <div className={`${stats.saldo >= 0 ? 'text-blue-100' : 'text-yellow-100'} text-sm font-medium mb-1`}>
+              
+              <div className="p-4 rounded-lg border border-border bg-card">
+                <div className="text-sm text-muted-foreground mb-1">
                   {stats.saldo >= 0 ? '📊 Saldo' : '⚠️ Déficit'}
                 </div>
-                <div className="text-xs sm:text-xs md:text-xs lg:text-base font-bold text-white break-all">
+                <div className={`text-lg font-bold ${stats.saldo >= 0 ? 'text-blue-600 dark:text-blue-500' : 'text-orange-600 dark:text-orange-500'}`}>
                   {formatCurrency(stats.saldo)}
                 </div>
               </div>
-            </div>
-            
-            <div className="relative overflow-hidden bg-gradient-to-br from-purple-500 to-violet-600 p-4 sm:p-5 lg:p-6 rounded-2xl shadow-lg">
-              <div className="absolute top-0 right-0 w-20 h-20 bg-white/10 rounded-full -translate-y-10 translate-x-10"></div>
-              <div className="relative">
-                <div className="text-purple-100 text-sm font-medium mb-1">🔄 Transações</div>
-                <div className="text-xs sm:text-xs md:text-xs lg:text-base font-bold text-white break-all">
+              
+              <div className="p-4 rounded-lg border border-border bg-card">
+                <div className="text-sm text-muted-foreground mb-1">🔄 Transações</div>
+                <div className="text-lg font-bold">
                   {stats.transacoesCount}
                 </div>
               </div>
@@ -377,17 +345,16 @@ export function DashboardCharts({ transacoes, recentTransacoes, contas = [], lem
       {/* Linha 3: Últimos Lançamentos (2/3) + Lembretes (1/3) */}
       <div className="grid gap-6 grid-cols-1 lg:grid-cols-3">
         {/* Últimos Lançamentos - 2/3 */}
-        <Card className="lg:col-span-2 shadow-lg border border-slate-500/20 bg-gradient-to-br from-slate-900/80 to-slate-800/60 backdrop-blur-sm">
-          <CardHeader className="pb-4">
-            <CardTitle className="text-xl font-bold bg-gradient-to-r from-slate-300 to-slate-100 bg-clip-text text-transparent">
-              📋 Últimos Lançamentos
-            </CardTitle>
-            <CardDescription className="text-sm text-slate-400">
-              Os 5 lançamentos mais recentes
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
+        <Card className="lg:col-span-2 overflow-hidden border-l-4 border-l-slate-500 hover:shadow-lg transition-all">
+          <CardContent className="p-0">
+            <div className="bg-gradient-to-r from-slate-500/20 to-slate-500/5 p-4 border-b border-border/50">
+              <div className="w-12 h-12 rounded-full bg-slate-500/20 flex items-center justify-center mb-3">
+                <span className="text-2xl">📋</span>
+              </div>
+              <CardTitle className="text-xl font-bold">Últimos Lançamentos</CardTitle>
+              <CardDescription className="text-sm">Os 5 lançamentos mais recentes</CardDescription>
+            </div>
+            <div className="p-6 space-y-3">
               { (recentTransacoes ?? transacoes)
                 .slice()
                 .sort((a, b) => {
@@ -399,17 +366,17 @@ export function DashboardCharts({ transacoes, recentTransacoes, contas = [], lem
                 .map((transacao) => (
                   <div 
                     key={transacao.id} 
-                    className="flex items-center justify-between p-4 rounded-xl bg-slate-800/50 border border-slate-700/50 hover:bg-slate-700/50 transition-colors"
+                    className="flex items-center justify-between p-4 rounded-lg border border-border bg-card hover:bg-accent transition-colors"
                   >
                     <div className="flex items-center gap-3">
                       <div className={`w-3 h-3 rounded-full ${
                         transacao.tipo === 'receita' ? 'bg-green-500' : 'bg-red-500'
                       }`} />
-                      <div>
-                        <div className="font-medium text-slate-200">
-                          {transacao.estabelecimento || 'Sem estabelecimento'}
-                        </div>
-                        <div className="text-sm text-slate-400">
+                    <div>
+                      <div className="font-medium">
+                        {transacao.estabelecimento || 'Sem estabelecimento'}
+                      </div>
+                      <div className="text-sm text-muted-foreground">
                           {transacao.categorias?.nome || 'Sem categoria'} • {
                             (() => {
                               const raw = transacao.quando ?? transacao.created_at
@@ -429,7 +396,7 @@ export function DashboardCharts({ transacoes, recentTransacoes, contas = [], lem
                 ))
               }
               {(recentTransacoes ?? transacoes).length === 0 && (
-                <div className="text-center py-8 text-slate-400">
+                <div className="text-center py-8 text-muted-foreground">
                   Nenhuma transação encontrada
                 </div>
               )}
@@ -439,53 +406,53 @@ export function DashboardCharts({ transacoes, recentTransacoes, contas = [], lem
 
         {/* Lembretes - 1/3 */}
         <div className="space-y-6">
-          <Card className="shadow-lg border border-purple-500/20 bg-gradient-to-br from-purple-950/50 to-slate-950/50 backdrop-blur-sm">
-            <CardHeader className="pb-4">
-              <CardTitle className="flex items-center gap-2 text-lg font-bold">
-                <Calendar className="h-5 w-5 text-purple-400" />
-                <span className="bg-gradient-to-r from-purple-400 to-violet-400 bg-clip-text text-transparent">
-                  Próximo Lembrete
-                </span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
+          <Card className="overflow-hidden border-l-4 border-l-purple-500 hover:shadow-lg transition-all">
+            <CardContent className="p-0">
+              <div className="bg-gradient-to-r from-purple-500/20 to-purple-500/5 p-4 border-b border-border/50">
+                <div className="w-10 h-10 rounded-full bg-purple-500/20 flex items-center justify-center mb-2">
+                  <Calendar className="h-5 w-5 text-purple-500" />
+                </div>
+                <CardTitle className="text-lg font-bold">Próximo Lembrete</CardTitle>
+              </div>
+              <div className="p-4">
               {(() => {
                 const proximoLembrete = lembretes
                   .filter(l => l.data && new Date(l.data) >= new Date())
                   .sort((a, b) => new Date(a.data!).getTime() - new Date(b.data!).getTime())[0]
                 
                 return proximoLembrete ? (
-                  <div className="space-y-2 p-4 rounded-xl bg-purple-900/20 border border-purple-500/20">
-                    <p className="font-medium text-purple-200">{proximoLembrete.descricao}</p>
-                    <p className="text-sm text-purple-300/70">
+                  <div className="space-y-2">
+                    <p className="font-medium">{proximoLembrete.descricao}</p>
+                    <p className="text-sm text-muted-foreground">
                       {new Date(proximoLembrete.data!).toLocaleDateString('pt-BR')}
                     </p>
                     {proximoLembrete.valor && (
-                      <p className="text-sm font-medium text-purple-400">
+                      <p className="text-sm font-medium text-purple-600 dark:text-purple-500">
                         {formatCurrency(proximoLembrete.valor)}
                       </p>
                     )}
                   </div>
                 ) : (
-                  <p className="text-purple-300/50 text-center py-4">Nenhum lembrete próximo</p>
+                  <p className="text-muted-foreground text-center py-2">Nenhum lembrete próximo</p>
                 )
               })()}
+              </div>
             </CardContent>
           </Card>
 
-          <Card className="shadow-lg border border-amber-500/20 bg-gradient-to-br from-amber-950/50 to-slate-950/50 backdrop-blur-sm">
-            <CardHeader className="pb-4">
-              <CardTitle className="flex items-center gap-2 text-lg font-bold">
-                <Lightbulb className="h-5 w-5 text-amber-400" />
-                <span className="bg-gradient-to-r from-amber-400 to-yellow-400 bg-clip-text text-transparent">
-                  Dica do Dia
-                </span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-amber-200/80 p-4 rounded-xl bg-amber-900/20 border border-amber-500/20">
-                {dicas[new Date().getDate() % dicas.length]}
-              </p>
+          <Card className="overflow-hidden border-l-4 border-l-amber-500 hover:shadow-lg transition-all">
+            <CardContent className="p-0">
+              <div className="bg-gradient-to-r from-amber-500/20 to-amber-500/5 p-4 border-b border-border/50">
+                <div className="w-10 h-10 rounded-full bg-amber-500/20 flex items-center justify-center mb-2">
+                  <Lightbulb className="h-5 w-5 text-amber-500" />
+                </div>
+                <CardTitle className="text-lg font-bold">Dica do Dia</CardTitle>
+              </div>
+              <div className="p-4">
+                <p className="text-sm">
+                  {dicas[new Date().getDate() % dicas.length]}
+                </p>
+              </div>
             </CardContent>
           </Card>
         </div>
