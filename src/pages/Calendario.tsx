@@ -682,36 +682,38 @@ export default function Calendario() {
                               onClick={(e) => {
                                 e.stopPropagation()
                                 openEditTransaction(transaction)
-                            }}
-                          >
-                            <div className="flex-1 truncate">
-                              <div className="font-medium truncate">
-                                {transaction.estabelecimento || 'Sem nome'}
+                              }}
+                            >
+                              <div className="flex-1 truncate">
+                                <div className="font-medium truncate">
+                                  {transaction.estabelecimento || 'Sem nome'}
+                                </div>
+                                <div className="text-muted-foreground truncate">
+                                  {transaction.categorias?.nome}
+                                </div>
                               </div>
-                              <div className="text-muted-foreground truncate">
-                                {transaction.categorias?.nome}
+                              <div className={`font-bold ${
+                                transaction.tipo === 'receita' ? 'text-green-600' : 'text-red-600'
+                              }`}>
+                                {transaction.tipo === 'receita' ? '+' : '-'}
+                                {formatCurrency(Math.abs(transaction.valor || 0))}
                               </div>
                             </div>
-                            <div className={`font-bold ${
-                              transaction.tipo === 'receita' ? 'text-green-600' : 'text-red-600'
-                            }`}>
-                              {transaction.tipo === 'receita' ? '+' : '-'}
-                              {formatCurrency(Math.abs(transaction.valor || 0))}
-                            </div>
+                            {/* Botão de exclusão */}
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                handleDelete(transaction.id, transaction.estabelecimento)
+                              }}
+                              className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-red-100 dark:hover:bg-red-900/20 text-red-500 hover:text-red-700 transition-all duration-200"
+                              title="Excluir transação"
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
                           </div>
-                          {/* Botão de exclusão */}
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              handleDelete(transaction.id, transaction.estabelecimento)
-                            }}
-                            className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-red-100 dark:hover:bg-red-900/20 text-red-500 hover:text-red-700 transition-all duration-200"
-                            title="Excluir transação"
-                          >
-                            <X className="h-3 w-3" />
-                          </button>
-                        </div>
-                      ))}
+                        ))}
+                      </div>
+                    </div>
                     </div>
                   </CardContent>
                 </Card>
