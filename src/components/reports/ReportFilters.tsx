@@ -3,8 +3,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Filter, Calendar } from 'lucide-react'
-import { useCategories } from '@/hooks/useCategories'
+import { Calendar } from 'lucide-react'
 import { ReportFilters } from '@/hooks/useReports'
 
 interface ReportFiltersProps {
@@ -14,7 +13,6 @@ interface ReportFiltersProps {
 }
 
 export function ReportFiltersComponent({ filters, onFiltersChange, onClearFilters }: ReportFiltersProps) {
-  const { categories, isLoading } = useCategories()
 
   const handlePeriodChange = (period: 'day' | 'month' | 'year' | 'custom') => {
     const now = new Date()
@@ -46,110 +44,65 @@ export function ReportFiltersComponent({ filters, onFiltersChange, onClearFilter
     })
   }
 
-  const hasFilters = filters.startDate || filters.endDate || filters.type || filters.categoryId
-
   return (
     <Card>
       <CardHeader className="p-4 sm:p-6">
-        <CardTitle className="flex items-center gap-2 text-lg sm:text-lg">
-          <Filter className="h-5 w-5 sm:h-5 sm:w-5" />
-          <span>Filtros de Relatório</span>
+        <CardTitle className="flex items-center gap-2 text-lg">
+          <Calendar className="h-5 w-5" />
+          <span>Período de Análise</span>
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4 p-4 sm:p-6">
-        <div className="space-y-4">
-          {/* Período */}
-          <div className="space-y-2">
-            <Label className="text-sm font-medium">Período</Label>
-            <Select value={filters.period} onValueChange={handlePeriodChange}>
-              <SelectTrigger className="h-10 text-sm">
-                <Calendar className="h-4 w-4 mr-2" />
-                <SelectValue placeholder="Selecione o período" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="day">Hoje</SelectItem>
-                <SelectItem value="month">Este mês</SelectItem>
-                <SelectItem value="year">Este ano</SelectItem>
-                <SelectItem value="custom">Personalizado</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* Datas Personalizadas */}
-          {filters.period === 'custom' && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 rounded-lg border border-primary/20 bg-primary/5">
-              <div className="space-y-2">
-                <Label htmlFor="startDate" className="text-sm font-medium">Data Inicial</Label>
-                <Input
-                  id="startDate"
-                  type="date"
-                  value={filters.startDate}
-                  onChange={(e) => onFiltersChange({ ...filters, startDate: e.target.value })}
-                  className="h-10 text-sm"
-                  placeholder="Selecione a data inicial"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="endDate" className="text-sm font-medium">Data Final</Label>
-                <Input
-                  id="endDate"
-                  type="date"
-                  value={filters.endDate}
-                  onChange={(e) => onFiltersChange({ ...filters, endDate: e.target.value })}
-                  className="h-10 text-sm"
-                  placeholder="Selecione a data final"
-                />
-              </div>
-            </div>
-          )}
-
-          {/* Outros Filtros */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label className="text-sm font-medium">Tipo</Label>
-              <Select 
-                value={filters.type} 
-                onValueChange={(value) => onFiltersChange({ ...filters, type: value === 'all' ? '' : value })}
-              >
-                <SelectTrigger className="h-10 text-sm">
-                  <SelectValue placeholder="Todos os tipos" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todos os tipos</SelectItem>
-                  <SelectItem value="receita">Receitas</SelectItem>
-                  <SelectItem value="despesa">Despesas</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label className="text-sm font-medium">Categoria</Label>
-              <Select 
-                value={filters.categoryId} 
-                onValueChange={(value) => onFiltersChange({ ...filters, categoryId: value === 'all' ? '' : value })}
-                disabled={isLoading}
-              >
-                <SelectTrigger className="h-10 text-sm">
-                  <SelectValue placeholder={isLoading ? "Carregando..." : "Todas categorias"} />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Todas categorias</SelectItem>
-                  {categories?.map((categoria) => (
-                    <SelectItem key={categoria.id} value={categoria.id}>
-                      {categoria.nome}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
+        {/* Período */}
+        <div className="space-y-2">
+          <Label className="text-sm font-medium">Período de Análise</Label>
+          <Select value={filters.period} onValueChange={handlePeriodChange}>
+            <SelectTrigger className="h-10 text-sm">
+              <Calendar className="h-4 w-4 mr-2" />
+              <SelectValue placeholder="Selecione o período" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="day">Hoje</SelectItem>
+              <SelectItem value="month">Este mês</SelectItem>
+              <SelectItem value="year">Este ano</SelectItem>
+              <SelectItem value="custom">Personalizado</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
 
-        {hasFilters && (
-          <div className="flex justify-center sm:justify-end pt-3">
+        {/* Datas Personalizadas */}
+        {filters.period === 'custom' && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 rounded-lg border border-primary/20 bg-primary/5">
+            <div className="space-y-2">
+              <Label htmlFor="startDate" className="text-sm font-medium">Data Inicial</Label>
+              <Input
+                id="startDate"
+                type="date"
+                value={filters.startDate}
+                onChange={(e) => onFiltersChange({ ...filters, startDate: e.target.value })}
+                className="h-10 text-sm"
+                placeholder="Selecione a data inicial"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="endDate" className="text-sm font-medium">Data Final</Label>
+              <Input
+                id="endDate"
+                type="date"
+                value={filters.endDate}
+                onChange={(e) => onFiltersChange({ ...filters, endDate: e.target.value })}
+                className="h-10 text-sm"
+                placeholder="Selecione a data final"
+              />
+            </div>
+          </div>
+        )}
+
+        {(filters.startDate || filters.endDate) && filters.period === 'custom' && (
+          <div className="flex justify-center sm:justify-end">
             <Button variant="outline" onClick={onClearFilters} className="w-full sm:w-auto h-10 text-sm">
-              Limpar Filtros
+              Limpar Período
             </Button>
           </div>
         )}
