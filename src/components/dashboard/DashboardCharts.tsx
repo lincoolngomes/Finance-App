@@ -352,23 +352,21 @@ export function DashboardCharts({ transacoes, recentTransacoes, contas = [], lem
                         })}
                       </Pie>
                       <Tooltip 
-                        formatter={(value, name, props) => {
+                        content={({ active, payload }) => {
+                          if (!active || !payload || !payload.length) return null
+                          const data = payload[0]
                           const totalValue = despesasData.reduce((sum, item) => sum + item.value, 0)
-                          const percentage = totalValue > 0 ? ((Number(value) / totalValue) * 100).toFixed(1) : 0
-                          return [
-                            `${formatCurrency(Number(value))} (${percentage}%)`, 
-                            props.payload.name
-                          ]
-                        }}
-                        contentStyle={{ 
-                          backgroundColor: 'hsl(var(--card))', 
-                          border: '1px solid hsl(var(--border))',
-                          borderRadius: '8px',
-                          fontSize: '12px'
-                        }}
-                        labelStyle={{
-                          color: 'hsl(var(--foreground))',
-                          fontWeight: 600
+                          const percentage = totalValue > 0 ? ((Number(data.value) / totalValue) * 100).toFixed(1) : 0
+                          
+                          return (
+                            <div className="bg-popover text-popover-foreground border border-border rounded-lg shadow-lg p-3">
+                              <p className="font-semibold text-sm mb-1">{data.name}</p>
+                              <p className="text-xs">
+                                <span className="font-bold">{formatCurrency(Number(data.value))}</span>
+                                <span className="text-muted-foreground ml-1">({percentage}%)</span>
+                              </p>
+                            </div>
+                          )
                         }}
                       />
                     </PieChart>
