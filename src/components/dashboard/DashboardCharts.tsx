@@ -79,6 +79,7 @@ export function DashboardCharts({ transacoes, recentTransacoes, contas = [], lem
 
   const [modalOpen, setModalOpen] = useState(false)
   const [selectedCategory, setSelectedCategory] = useState<{ name: string, tipo: 'receita' | 'despesa' } | null>(null)
+  const [hiddenCategories, setHiddenCategories] = useState<Set<string>>(new Set())
 
   const getCategoriesData = (tipo: 'receita' | 'despesa') => {
     const categorias: { [key: string]: number } = {}
@@ -174,10 +175,13 @@ export function DashboardCharts({ transacoes, recentTransacoes, contas = [], lem
     lembretesCount: 0
   }
 
-  const despesasData = getCategoriesData('despesa')
+  const despesasDataAll = getCategoriesData('despesa')
   const receitasData = getCategoriesData('receita')
   const receitasDespesasData = getReceitasDespesasData()
   const monthlyBalanceData = getMonthlyBalanceData()
+
+  // Filtrar categorias visíveis
+  const despesasData = despesasDataAll.filter(c => !hiddenCategories.has(c.name))
 
   const totalDespesasCategoria = despesasData.reduce((sum, c) => sum + c.value, 0)
   const totalReceitasCategoria = receitasData.reduce((sum, c) => sum + c.value, 0)
@@ -185,6 +189,16 @@ export function DashboardCharts({ transacoes, recentTransacoes, contas = [], lem
   const handleCategoryClick = (categoryName: string, tipo: 'receita' | 'despesa') => {
     setSelectedCategory({ name: categoryName, tipo })
     setModalOpen(true)
+  }
+
+  const toggleCategoryVisibility = (categoryName: string) => {
+    const newHidden = new Set(hiddenCategories)
+    if (newHidden.has(categoryName)) {
+      newHidden.delete(categoryName)
+    } else {
+      newHidden.add(categoryName)
+    }
+    setHiddenCategories(newHidden)
   }
 
   const selectedTransactions = selectedCategory 
@@ -283,48 +297,88 @@ export function DashboardCharts({ transacoes, recentTransacoes, contas = [], lem
             </div>
           </CardHeader>
           <CardContent className="pt-0">
-            <div className="h-[280px] relative">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={despesasData}
-                    cx="50%"
-                    cy="50%"
-                    labelLine={false}
-                    label={false}
-                    outerRadius="70%"
-                    innerRadius="30%"
-                    paddingAngle={2}
-                    fill="#8884d8"
-                    dataKey="value"
-                  >
-                    {despesasData.map((entry, index) => (
-                      <Cell 
-                        key={`cell-${index}`} 
-                        fill={COLORS[index % COLORS.length]}
-                        stroke="rgba(255,255,255,0.2)"
-                        strokeWidth={2}
+            <div className="space-y-3">
+              {/* Legenda com checkboxes */}
+              <div className="flex flex-wrap gap-2">
+                {despesasDataAll.map((category, index) => {
+                  const isHidden = hiddenCategories.has(category.name)
+                  return (
+                    <button
+                      key={index}
+                      onClick={() => toggleCategoryVisibility(category.name)}
+                      className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-all ${
+                        isHidden 
+                          ? 'bg-muted text-muted-foreground opacity-50' 
+                          : 'bg-card border hover:shadow-md'
+                      }`}
+                    >
+                      <div 
+                        className="w-3 h-3 rounded-sm flex-shrink-0"
+                        style={{ backgroundColor: isHidden ? '#666' : COLORS[index % COLORS.length] }}
                       />
-                    ))}
-                  </Pie>
-                  <Tooltip 
-                    formatter={(value, name, props) => {
-                      const totalValue = despesasData.reduce((sum, item) => sum + item.value, 0)
-                      const percentage = totalValue > 0 ? ((Number(value) / totalValue) * 100).toFixed(1) : 0
-                      return [
-                        `${formatCurrency(Number(value))} (${percentage}%)`, 
-                        props.payload.name
-                      ]
-                    }}
-                    contentStyle={{ 
-                      backgroundColor: 'hsl(var(--card))', 
-                      border: '1px solid hsl(var(--border))',
-                      borderRadius: '12px',
-                      boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)'
-                    }}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
+                      <span className="truncate max-w-[80px]">{category.name}</span>
+                    </button>
+                  )
+                })}
+              </div>
+
+              {/* Gráfico de Pizza */}
+              <div className="h-[220px] relative">
+                {despesasData.length > 0 ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={despesasData}
+                        cx="50%"
+                        cy="50%"
+                        labelLine={false}
+                        label={false}
+                        outerRadius="80%"
+                        innerRadius="50%"
+                        paddingAngle={2}
+                        fill="#8884d8"
+                        dataKey="value"
+                      >
+                        {despesasData.map((entry, index) => {
+                          const originalIndex = despesasDataAll.findIndex(c => c.name === entry.name)
+                          return (
+                            <Cell 
+                              key={`cell-${index}`} 
+                              fill={COLORS[originalIndex % COLORS.length]}
+                              stroke="rgba(255,255,255,0.2)"
+                              strokeWidth={2}
+                            />
+                          )
+                        })}
+                      </Pie>
+                      <Tooltip 
+                        formatter={(value, name, props) => {
+                          const totalValue = despesasData.reduce((sum, item) => sum + item.value, 0)
+                          const percentage = totalValue > 0 ? ((Number(value) / totalValue) * 100).toFixed(1) : 0
+                          return [
+                            `${formatCurrency(Number(value))} (${percentage}%)`, 
+                            props.payload.name
+                          ]
+                        }}
+                        contentStyle={{ 
+                          backgroundColor: 'hsl(var(--card))', 
+                          border: '1px solid hsl(var(--border))',
+                          borderRadius: '8px',
+                          fontSize: '12px'
+                        }}
+                        labelStyle={{
+                          color: 'hsl(var(--foreground))',
+                          fontWeight: 600
+                        }}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="flex items-center justify-center h-full">
+                    <p className="text-xs text-muted-foreground">Selecione ao menos uma categoria</p>
+                  </div>
+                )}
+              </div>
             </div>
           </CardContent>
         </Card>
