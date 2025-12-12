@@ -290,14 +290,14 @@ export function DashboardCharts({ transacoes, recentTransacoes, contas = [], lem
                   {selectedMonth && (
                     <ReferenceLine 
                       x={monthlyBalanceData.find(d => d.monthKey === selectedMonth)?.month}
-                      stroke="rgba(59, 130, 246, 0.3)"
-                      strokeWidth={1.5}
-                      strokeDasharray="4 4"
+                      stroke="rgba(59, 130, 246, 0.5)"
+                      strokeWidth={2}
+                      strokeDasharray="5 3"
                       label={{ 
                         value: '●', 
                         position: 'top',
-                        fill: 'rgba(59, 130, 246, 0.7)',
-                        fontSize: 16,
+                        fill: 'rgba(59, 130, 246, 0.8)',
+                        fontSize: 18,
                         offset: 10
                       }}
                     />
