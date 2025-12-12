@@ -56,13 +56,14 @@ export function ReportFiltersComponent({ filters, onFiltersChange, onClearFilter
           <span>Filtros de Relatório</span>
         </CardTitle>
       </CardHeader>
-      <CardContent className="space-y-4 sm:space-y-4 p-4 sm:p-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-4">
+      <CardContent className="space-y-4 p-4 sm:p-6">
+        <div className="space-y-4">
+          {/* Período */}
           <div className="space-y-2">
             <Label className="text-sm font-medium">Período</Label>
             <Select value={filters.period} onValueChange={handlePeriodChange}>
               <SelectTrigger className="h-10 text-sm">
-                <Calendar className="h-4 w-4 sm:h-4 sm:w-4 mr-2" />
+                <Calendar className="h-4 w-4 mr-2" />
                 <SelectValue placeholder="Selecione o período" />
               </SelectTrigger>
               <SelectContent>
@@ -74,9 +75,10 @@ export function ReportFiltersComponent({ filters, onFiltersChange, onClearFilter
             </Select>
           </div>
 
+          {/* Datas Personalizadas */}
           {filters.period === 'custom' && (
-            <>
-              <div className="space-y-2 sm:col-span-1">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 rounded-lg border border-primary/20 bg-primary/5">
+              <div className="space-y-2">
                 <Label htmlFor="startDate" className="text-sm font-medium">Data Inicial</Label>
                 <Input
                   id="startDate"
@@ -84,10 +86,11 @@ export function ReportFiltersComponent({ filters, onFiltersChange, onClearFilter
                   value={filters.startDate}
                   onChange={(e) => onFiltersChange({ ...filters, startDate: e.target.value })}
                   className="h-10 text-sm"
+                  placeholder="Selecione a data inicial"
                 />
               </div>
 
-              <div className="space-y-2 sm:col-span-1">
+              <div className="space-y-2">
                 <Label htmlFor="endDate" className="text-sm font-medium">Data Final</Label>
                 <Input
                   id="endDate"
@@ -95,47 +98,51 @@ export function ReportFiltersComponent({ filters, onFiltersChange, onClearFilter
                   value={filters.endDate}
                   onChange={(e) => onFiltersChange({ ...filters, endDate: e.target.value })}
                   className="h-10 text-sm"
+                  placeholder="Selecione a data final"
                 />
               </div>
-            </>
+            </div>
           )}
 
-          <div className="space-y-2">
-            <Label className="text-sm font-medium">Tipo</Label>
-            <Select 
-              value={filters.type} 
-              onValueChange={(value) => onFiltersChange({ ...filters, type: value === 'all' ? '' : value })}
-            >
-              <SelectTrigger className="h-10 text-sm">
-                <SelectValue placeholder="Todos os tipos" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos os tipos</SelectItem>
-                <SelectItem value="receita">Receitas</SelectItem>
-                <SelectItem value="despesa">Despesas</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+          {/* Outros Filtros */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">Tipo</Label>
+              <Select 
+                value={filters.type} 
+                onValueChange={(value) => onFiltersChange({ ...filters, type: value === 'all' ? '' : value })}
+              >
+                <SelectTrigger className="h-10 text-sm">
+                  <SelectValue placeholder="Todos os tipos" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todos os tipos</SelectItem>
+                  <SelectItem value="receita">Receitas</SelectItem>
+                  <SelectItem value="despesa">Despesas</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
 
-          <div className="space-y-2">
-            <Label className="text-sm font-medium">Categoria</Label>
-            <Select 
-              value={filters.categoryId} 
-              onValueChange={(value) => onFiltersChange({ ...filters, categoryId: value === 'all' ? '' : value })}
-              disabled={isLoading}
-            >
-              <SelectTrigger className="h-10 text-sm">
-                <SelectValue placeholder={isLoading ? "Carregando..." : "Todas categorias"} />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todas categorias</SelectItem>
-                {categories?.map((categoria) => (
-                  <SelectItem key={categoria.id} value={categoria.id}>
-                    {categoria.nome}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">Categoria</Label>
+              <Select 
+                value={filters.categoryId} 
+                onValueChange={(value) => onFiltersChange({ ...filters, categoryId: value === 'all' ? '' : value })}
+                disabled={isLoading}
+              >
+                <SelectTrigger className="h-10 text-sm">
+                  <SelectValue placeholder={isLoading ? "Carregando..." : "Todas categorias"} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">Todas categorias</SelectItem>
+                  {categories?.map((categoria) => (
+                    <SelectItem key={categoria.id} value={categoria.id}>
+                      {categoria.nome}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         </div>
 
