@@ -14,19 +14,19 @@ interface PDFExportOptionsProps {
 }
 
 export interface PDFExportOptions {
-  includeCharts: boolean
   transactionType: 'all' | 'receita' | 'despesa'
   includeSummary: boolean
   includeDetails: boolean
+  includeAnalytics: boolean
 }
 
 export function PDFExportOptions({ onExport, isGenerating, disabled }: PDFExportOptionsProps) {
   const [open, setOpen] = useState(false)
   const [options, setOptions] = useState<PDFExportOptions>({
-    includeCharts: true,
     transactionType: 'all',
     includeSummary: true,
     includeDetails: true,
+    includeAnalytics: true,
   })
 
   const handleExport = () => {
@@ -109,14 +109,14 @@ export function PDFExportOptions({ onExport, isGenerating, disabled }: PDFExport
 
             <div className="flex items-center space-x-2">
               <Checkbox 
-                id="charts"
-                checked={options.includeCharts}
+                id="analytics"
+                checked={options.includeAnalytics}
                 onCheckedChange={(checked) => 
-                  setOptions({ ...options, includeCharts: checked as boolean })
+                  setOptions({ ...options, includeAnalytics: checked as boolean })
                 }
                 className="h-4 w-4"
               />
-              <Label htmlFor="charts" className="text-sm line-clamp-1">Incluir gráficos</Label>
+              <Label htmlFor="analytics" className="text-sm line-clamp-1">Incluir análises avançadas</Label>
             </div>
           </div>
         </div>

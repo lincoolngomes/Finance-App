@@ -160,7 +160,7 @@ export const generatePDFReport = (data: PDFReportData, options: PDFExportOptions
   addHeader()
 
   // Score de Saúde Financeira (novo)
-  if (options.includeSummary && data.analytics) {
+  if (options.includeAnalytics && data.analytics) {
     checkPageBreak(70)
     
     doc.setFontSize(18)
@@ -343,37 +343,8 @@ export const generatePDFReport = (data: PDFReportData, options: PDFExportOptions
     }
   }
 
-  // Gráficos (simulação textual)
-  if (options.includeCharts && data.summaryData.chartData.length > 0) {
-    checkPageBreak(100)
-
-    doc.setFontSize(16)
-    doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2])
-    doc.text('DISTRIBUIÇÃO POR TIPO', margin, yPosition)
-    yPosition += 15
-
-    // Simular gráfico de pizza com texto
-    const total = data.summaryData.chartData.reduce((acc, item) => acc + item.value, 0)
-    
-    data.summaryData.chartData
-      .filter(item => {
-        if (options.transactionType === 'receita') return item.name === 'Receitas'
-        if (options.transactionType === 'despesa') return item.name === 'Despesas'
-        return true
-      })
-      .forEach(item => {
-        const percentage = total > 0 ? ((item.value / total) * 100).toFixed(1) : '0.0'
-        doc.setFontSize(12)
-        doc.setTextColor(0, 0, 0)
-        doc.text(`${item.name}: ${formatCurrency(item.value)} (${percentage}%)`, margin + 10, yPosition)
-        yPosition += 8
-      })
-
-    yPosition += 15
-  }
-
   // Insights Inteligentes (novo)
-  if (options.includeSummary && data.analytics && data.analytics.insights.length > 0) {
+  if (options.includeAnalytics && data.analytics && data.analytics.insights.length > 0) {
     checkPageBreak(80)
 
     doc.setFontSize(16)
