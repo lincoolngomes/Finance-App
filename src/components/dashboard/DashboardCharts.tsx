@@ -243,7 +243,9 @@ export function DashboardCharts({ transacoes, recentTransacoes, contas = [], lem
                     tick={(props) => {
                       const { x, y, payload } = props
                       const dataPoint = monthlyBalanceData.find(d => d.month === payload.value)
-                      const isSelected = dataPoint?.monthKey === selectedMonth
+                      // Normalizar selectedMonth para comparação (pode vir como "0" ou "00")
+                      const normalizedSelected = selectedMonth ? String(parseInt(selectedMonth)).padStart(2, '0') : ''
+                      const isSelected = dataPoint?.monthKey === normalizedSelected
                       
                       return (
                         <g transform={`translate(${x},${y})`}>
