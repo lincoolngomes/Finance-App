@@ -2,8 +2,8 @@
 CREATE TABLE IF NOT EXISTS investimentos (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-  tipo VARCHAR(50) NOT NULL, -- 'acao', 'renda_fixa', 'cripto', 'fii', 'etf'
-  codigo VARCHAR(20) NOT NULL, -- Ticker/código do ativo (ex: PETR4, BTC, etc)
+  tipo VARCHAR(50) NOT NULL, -- 'acao', 'renda_fixa', 'cripto', 'fii', 'etf', 'fundo', 'previdencia'
+  codigo VARCHAR(50) NOT NULL, -- Ticker/código do ativo (ex: PETR4, BTC, CDB-2025, etc)
   nome VARCHAR(200) NOT NULL,
   instituicao VARCHAR(200),
   quantidade DECIMAL(18, 8) NOT NULL DEFAULT 0,

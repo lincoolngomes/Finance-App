@@ -6,7 +6,7 @@ import { useToast } from './use-toast'
 export interface Investimento {
   id: string
   user_id: string
-  tipo: 'acao' | 'renda_fixa' | 'cripto' | 'fii' | 'etf'
+  tipo: 'acao' | 'renda_fixa' | 'cripto' | 'fii' | 'etf' | 'fundo' | 'previdencia'
   codigo: string
   nome: string
   instituicao?: string
@@ -90,11 +90,20 @@ export const useInvestments = () => {
 
       if (error) throw error
 
-      // Buscar cotações atualizadas
+      // Buscar cotações atualizadas (apenas para ativos com cotação)
       const investimentosComCotacao = await Promise.all(
         (data || []).map(async (inv) => {
-          const cotacao = await getCotacaoAtual(inv.codigo, inv.tipo)
-          const valor_atual = cotacao ? inv.quantidade * cotacao : inv.valor_total
+          // Renda fixa, fundos e previdência não têm cotação - valor = saldo aplicado
+          const temCotacao = ['acao', 'fii', 'etf', 'cripto'].includes(inv.tipo)
+          
+          let cotacao = null
+          let valor_atual = inv.valor_total
+          
+          if (temCotacao) {
+            cotacao = await getCotacaoAtual(inv.codigo, inv.tipo)
+            valor_atual = cotacao ? inv.quantidade * cotacao : inv.valor_total
+          }
+          
           const rentabilidade = valor_atual - inv.valor_total
           const rentabilidade_percentual = inv.valor_total > 0 
             ? (rentabilidade / inv.valor_total) * 100 

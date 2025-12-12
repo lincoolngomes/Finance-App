@@ -19,7 +19,7 @@ export const AddTransactionDialog = ({ open, onClose }: AddTransactionDialogProp
   const [step, setStep] = useState<'tipo' | 'investimento' | 'transacao'>('tipo')
   
   const [tipoTransacao, setTipoTransacao] = useState<'compra' | 'venda'>('compra')
-  const [tipoAtivo, setTipoAtivo] = useState<'acao' | 'renda_fixa' | 'cripto' | 'fii' | 'etf'>('acao')
+  const [tipoAtivo, setTipoAtivo] = useState<'acao' | 'renda_fixa' | 'cripto' | 'fii' | 'etf' | 'fundo' | 'previdencia'>('acao')
   const [codigo, setCodigo] = useState('')
   const [nome, setNome] = useState('')
   const [instituicao, setInstituicao] = useState('')
@@ -120,8 +120,10 @@ export const AddTransactionDialog = ({ open, onClose }: AddTransactionDialogProp
                   <SelectItem value="acao">📈 Ação</SelectItem>
                   <SelectItem value="fii">🏢 FII (Fundo Imobiliário)</SelectItem>
                   <SelectItem value="etf">📊 ETF</SelectItem>
-                  <SelectItem value="renda_fixa">💰 Renda Fixa</SelectItem>
+                  <SelectItem value="renda_fixa">💰 Renda Fixa (CDB, LCI, LCA, etc)</SelectItem>
                   <SelectItem value="cripto">₿ Criptomoeda</SelectItem>
+                  <SelectItem value="fundo">🎯 Fundo de Investimento</SelectItem>
+                  <SelectItem value="previdencia">🏦 Previdência Privada</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -133,10 +135,19 @@ export const AddTransactionDialog = ({ open, onClose }: AddTransactionDialogProp
             
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <Label htmlFor="codigo">Código/Ticker *</Label>
+                <Label htmlFor="codigo">
+                  {['renda_fixa', 'fundo', 'previdencia'].includes(tipoAtivo) ? 'Identificador *' : 'Código/Ticker *'}
+                </Label>
                 <Input
                   id="codigo"
-                  placeholder={tipoAtivo === 'acao' ? 'Ex: PETR4' : tipoAtivo === 'cripto' ? 'Ex: BTC' : 'Ex: HGLG11'}
+                  placeholder={
+                    tipoAtivo === 'acao' ? 'Ex: PETR4' : 
+                    tipoAtivo === 'cripto' ? 'Ex: BTC' : 
+                    tipoAtivo === 'fii' ? 'Ex: HGLG11' :
+                    tipoAtivo === 'renda_fixa' ? 'Ex: CDB-2025' :
+                    tipoAtivo === 'fundo' ? 'Ex: FUNDO-XP' :
+                    'Ex: PREV-BB'
+                  }
                   value={codigo}
                   onChange={(e) => setCodigo(e.target.value.toUpperCase())}
                   required
@@ -147,7 +158,12 @@ export const AddTransactionDialog = ({ open, onClose }: AddTransactionDialogProp
                 <Label htmlFor="nome">Nome do Ativo *</Label>
                 <Input
                   id="nome"
-                  placeholder="Ex: Petrobras PN"
+                  placeholder={
+                    tipoAtivo === 'renda_fixa' ? 'Ex: CDB 120% CDI 2025' :
+                    tipoAtivo === 'fundo' ? 'Ex: Fundo Multimercado XP' :
+                    tipoAtivo === 'previdencia' ? 'Ex: PGBL Banco do Brasil' :
+                    'Ex: Petrobras PN'
+                  }
                   value={nome}
                   onChange={(e) => setNome(e.target.value)}
                   required
@@ -170,33 +186,59 @@ export const AddTransactionDialog = ({ open, onClose }: AddTransactionDialogProp
           <div className="space-y-4 border-t pt-4">
             <h3 className="font-semibold text-teal-600">Dados da Transação</h3>
             
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="quantidade">Quantidade *</Label>
-                <Input
-                  id="quantidade"
-                  type="number"
-                  step="0.00000001"
-                  placeholder="0.00"
-                  value={quantidade}
-                  onChange={(e) => setQuantidade(e.target.value)}
-                  required
-                />
+            {/* Para renda fixa, fundos e previdência: usar campo de valor ao invés de quantidade */}
+            {['renda_fixa', 'fundo', 'previdencia'].includes(tipoAtivo) ? (
+              <div className="space-y-4">
+                <div>
+                  <Label htmlFor="valorAplicado">Valor {tipoTransacao === 'compra' ? 'Aplicado' : 'Resgatado'} *</Label>
+                  <Input
+                    id="valorAplicado"
+                    type="number"
+                    step="0.01"
+                    placeholder="0.00"
+                    value={precoUnitario}
+                    onChange={(e) => {
+                      setPrecoUnitario(e.target.value)
+                      setQuantidade('1') // Sempre 1 para estes tipos
+                    }}
+                    required
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {tipoAtivo === 'renda_fixa' && 'Valor total do investimento em renda fixa'}
+                    {tipoAtivo === 'fundo' && 'Valor aplicado no fundo'}
+                    {tipoAtivo === 'previdencia' && 'Valor da contribuição'}
+                  </p>
+                </div>
               </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="quantidade">Quantidade *</Label>
+                  <Input
+                    id="quantidade"
+                    type="number"
+                    step={tipoAtivo === 'cripto' ? '0.00000001' : '1'}
+                    placeholder="0.00"
+                    value={quantidade}
+                    onChange={(e) => setQuantidade(e.target.value)}
+                    required
+                  />
+                </div>
 
-              <div>
-                <Label htmlFor="precoUnitario">Preço Unitário *</Label>
-                <Input
-                  id="precoUnitario"
-                  type="number"
-                  step="0.01"
-                  placeholder="0.00"
-                  value={precoUnitario}
-                  onChange={(e) => setPrecoUnitario(e.target.value)}
-                  required
-                />
+                <div>
+                  <Label htmlFor="precoUnitario">Preço Unitário *</Label>
+                  <Input
+                    id="precoUnitario"
+                    type="number"
+                    step="0.01"
+                    placeholder="0.00"
+                    value={precoUnitario}
+                    onChange={(e) => setPrecoUnitario(e.target.value)}
+                    required
+                  />
+                </div>
               </div>
-            </div>
+            )}
 
             <div className="grid grid-cols-2 gap-4">
               <div>
