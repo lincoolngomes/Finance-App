@@ -95,7 +95,7 @@ export default function Investimentos() {
           className="bg-teal-600 hover:bg-teal-700"
         >
           <PlusCircle className="w-4 h-4 mr-2" />
-          Nova Transação
+          Nova Aplicação
         </Button>
       </div>
 
@@ -301,10 +301,8 @@ export default function Investimentos() {
                   <th className="text-left py-3 px-4 font-semibold text-muted-foreground text-sm">Código</th>
                   <th className="text-left py-3 px-4 font-semibold text-muted-foreground text-sm">Nome</th>
                   <th className="text-left py-3 px-4 font-semibold text-muted-foreground text-sm">Tipo</th>
-                  <th className="text-left py-3 px-4 font-semibold text-muted-foreground text-sm">Instituição</th>
-                  <th className="text-right py-3 px-4 font-semibold text-muted-foreground text-sm">Qtd/Saldo</th>
-                  <th className="text-right py-3 px-4 font-semibold text-muted-foreground text-sm">Preço Médio</th>
-                  <th className="text-right py-3 px-4 font-semibold text-muted-foreground text-sm">Cotação</th>
+                  <th className="text-left py-3 px-4 font-semibold text-muted-foreground text-sm">Detalhes</th>
+                  <th className="text-right py-3 px-4 font-semibold text-muted-foreground text-sm">Investido</th>
                   <th className="text-right py-3 px-4 font-semibold text-muted-foreground text-sm">Valor Atual</th>
                   <th className="text-right py-3 px-4 font-semibold text-muted-foreground text-sm">Rentabilidade</th>
                 </tr>
@@ -312,7 +310,6 @@ export default function Investimentos() {
               <tbody>
                 {investimentosFiltrados.map((inv) => {
                   const temCotacao = ['acao', 'fii', 'etf', 'cripto'].includes(inv.tipo)
-                  const mostrarQuantidade = temCotacao ? inv.quantidade.toFixed(temCotacao && inv.tipo !== 'cripto' ? 0 : 8) : '-'
                   
                   return (
                     <tr key={inv.id} className="border-b hover:bg-muted/50 transition-colors">
@@ -322,26 +319,68 @@ export default function Investimentos() {
                           <span className="font-mono font-semibold text-teal-600">{inv.codigo}</span>
                         </div>
                       </td>
-                      <td className="py-3 px-4 text-foreground">{inv.nome}</td>
+                      <td className="py-3 px-4">
+                        <div className="text-foreground font-medium">{inv.nome}</div>
+                        <div className="text-xs text-muted-foreground mt-0.5">{inv.instituicao || ''}</div>
+                      </td>
                       <td className="py-3 px-4">
                         <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-teal-100 dark:bg-teal-900 text-teal-700 dark:text-teal-100">
                           {TIPO_LABELS[inv.tipo]}
                         </span>
                       </td>
-                      <td className="py-3 px-4 text-muted-foreground text-sm">{inv.instituicao || '-'}</td>
-                      <td className="py-3 px-4 text-right font-mono text-sm">
-                        {mostrarQuantidade}
-                      </td>
-                      <td className="py-3 px-4 text-right font-mono text-sm">
-                        {formatCurrency(inv.preco_medio)}
-                      </td>
-                      <td className="py-3 px-4 text-right font-mono text-sm">
-                        {temCotacao && inv.cotacao_atual ? formatCurrency(inv.cotacao_atual) : '-'}
+                      <td className="py-3 px-4">
+                        {inv.tipo === 'renda_fixa' && inv.data_vencimento ? (
+                          <div className="text-sm">
+                            <div className="flex items-center gap-1 text-foreground">
+                              <span className="font-medium">
+                                {inv.tipo_rentabilidade === 'pos' && `${inv.taxa_percentual?.toFixed(2)}% CDI`}
+                                {inv.tipo_rentabilidade === 'pre' && `${inv.taxa_percentual?.toFixed(2)}% a.a.`}
+                                {inv.tipo_rentabilidade === 'ipca' && `IPCA + ${inv.taxa_percentual?.toFixed(2)}%`}
+                              </span>
+                            </div>
+                            <div className="text-xs text-muted-foreground mt-0.5">
+                              Venc: {new Date(inv.data_vencimento).toLocaleDateString('pt-BR')}
+                            </div>
+                            {inv.dias_ate_vencimento !== undefined && (
+                              <div className="text-xs text-muted-foreground">
+                                {inv.dias_ate_vencimento > 0 
+                                  ? `${inv.dias_ate_vencimento} dias restantes` 
+                                  : 'Vencido'}
+                              </div>
+                            )}
+                            <div className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+                              {inv.liquidez === 'diaria' && '💧 Liquidez diária'}
+                              {inv.liquidez === 'no_vencimento' && '🔒 Sem liquidez'}
+                              {inv.liquidez?.includes('carencia') && `⏱️ ${inv.liquidez.replace('_', ' ')}`}
+                            </div>
+                          </div>
+                        ) : temCotacao && inv.cotacao_atual ? (
+                          <div className="text-sm">
+                            <div className="text-foreground">
+                              {inv.quantidade.toFixed(inv.tipo === 'cripto' ? 8 : 0)} {inv.tipo === 'cripto' ? 'un' : 'ações'}
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              @ {formatCurrency(inv.cotacao_atual)}
+                            </div>
+                          </div>
+                        ) : (
+                          <span className="text-sm text-muted-foreground">-</span>
+                        )}
                       </td>
                       <td className="py-3 px-4 text-right">
-                        <span className="font-mono font-semibold">
+                        <div className="font-mono text-sm text-muted-foreground">
+                          {formatCurrency(inv.valor_total)}
+                        </div>
+                      </td>
+                      <td className="py-3 px-4 text-right">
+                        <div className="font-mono font-semibold">
                           {formatCurrency(inv.valor_atual || 0)}
-                        </span>
+                        </div>
+                        {inv.tipo === 'renda_fixa' && inv.rentabilidade_projetada && (
+                          <div className="text-xs text-blue-600 dark:text-blue-400 mt-0.5">
+                            Proj: +{inv.rentabilidade_projetada.toFixed(2)}%
+                          </div>
+                        )}
                       </td>
                       <td className="py-3 px-4 text-right">
                         <div className={`font-semibold ${inv.rentabilidade_percentual && inv.rentabilidade_percentual >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
@@ -353,6 +392,11 @@ export default function Investimentos() {
                         <div className="text-xs text-muted-foreground mt-0.5">
                           {inv.rentabilidade !== undefined ? formatCurrency(inv.rentabilidade) : '-'}
                         </div>
+                        {inv.tipo === 'renda_fixa' && inv.dias_aplicado && (
+                          <div className="text-xs text-muted-foreground mt-0.5">
+                            {inv.dias_aplicado} dias
+                          </div>
+                        )}
                       </td>
                     </tr>
                   )
@@ -364,7 +408,7 @@ export default function Investimentos() {
           <div className="text-center py-12">
             <Wallet className="w-16 h-16 text-muted-foreground/30 mx-auto mb-4" />
             <p className="text-muted-foreground text-lg">Nenhum investimento encontrado</p>
-            <p className="text-muted-foreground/60 text-sm mt-2">Clique em "Nova Transação" para começar</p>
+            <p className="text-muted-foreground/60 text-sm mt-2">Clique em "Nova Aplicação" para começar</p>
           </div>
         )}
       </Card>

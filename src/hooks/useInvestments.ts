@@ -16,12 +16,25 @@ export interface Investimento {
   data_primeira_compra?: string
   ativo: boolean
   observacoes?: string
+  // Campos específicos para Renda Fixa
+  tipo_rentabilidade?: 'pos' | 'pre' | 'ipca' | 'hibrido'
+  taxa_percentual?: number
+  indexador?: 'cdi' | 'ipca' | 'selic' | 'prefixado'
+  data_vencimento?: string
+  liquidez?: string
+  data_aplicacao?: string
+  valor_bruto_resgate?: number
+  ir_retido?: number
+  // Campos calculados
   created_at: string
   updated_at: string
   cotacao_atual?: number
   valor_atual?: number
   rentabilidade?: number
   rentabilidade_percentual?: number
+  dias_aplicado?: number
+  dias_ate_vencimento?: number
+  rentabilidade_projetada?: number
 }
 
 export interface TransacaoInvestimento {
@@ -98,10 +111,15 @@ export const useInvestments = () => {
           
           let cotacao = null
           let valor_atual = inv.valor_total
+          let dadosAdicionais: any = {}
           
           if (temCotacao) {
             cotacao = await getCotacaoAtual(inv.codigo, inv.tipo)
             valor_atual = cotacao ? inv.quantidade * cotacao : inv.valor_total
+          } else if (inv.tipo === 'renda_fixa' && inv.data_aplicacao && inv.data_vencimento) {
+            // Calcular rentabilidade de renda fixa com base na curva
+            dadosAdicionais = calcularRendaFixa(inv)
+            valor_atual = dadosAdicionais.valor_atual
           }
           
           const rentabilidade = valor_atual - inv.valor_total
@@ -111,6 +129,7 @@ export const useInvestments = () => {
 
           return {
             ...inv,
+            ...dadosAdicionais,
             cotacao_atual: cotacao,
             valor_atual,
             rentabilidade,
@@ -295,6 +314,65 @@ export const useInvestments = () => {
         variant: 'destructive'
       })
       return false
+    }
+  }
+
+  // Calcular rentabilidade de renda fixa
+  const calcularRendaFixa = (inv: any) => {
+    const dataAplicacao = new Date(inv.data_aplicacao)
+    const dataVencimento = new Date(inv.data_vencimento)
+    const hoje = new Date()
+    
+    const diasAplicado = Math.floor((hoje.getTime() - dataAplicacao.getTime()) / (1000 * 60 * 60 * 24))
+    const diasAteVencimento = Math.floor((dataVencimento.getTime() - hoje.getTime()) / (1000 * 60 * 60 * 24))
+    const diasTotais = Math.floor((dataVencimento.getTime() - dataAplicacao.getTime()) / (1000 * 60 * 60 * 24))
+    
+    let taxaAnual = inv.taxa_percentual || 0
+    
+    // Para taxas pós-fixadas, multiplicar pelo indexador (CDI estimado ~13.65% aa em 2025)
+    if (inv.tipo_rentabilidade === 'pos' && inv.indexador === 'cdi') {
+      const cdiEstimado = 13.65 // Taxa Selic atual
+      taxaAnual = (taxaAnual / 100) * cdiEstimado
+    } else if (inv.tipo_rentabilidade === 'ipca') {
+      const ipcaEstimado = 4.5 // IPCA estimado
+      taxaAnual = taxaAnual + ipcaEstimado
+    }
+    
+    // Calcular rendimento bruto acumulado (juros compostos diários)
+    const taxaDiaria = Math.pow(1 + (taxaAnual / 100), 1 / 252) - 1 // 252 dias úteis
+    const fatorRendimento = Math.pow(1 + taxaDiaria, diasAplicado)
+    const valorBruto = inv.valor_total * fatorRendimento
+    
+    // Calcular IR (tabela regressiva)
+    let aliquotaIR = 0.225 // 22,5% até 180 dias
+    if (diasAplicado > 720) aliquotaIR = 0.15 // 15% acima de 720 dias
+    else if (diasAplicado > 360) aliquotaIR = 0.175 // 17,5% de 361 a 720 dias
+    else if (diasAplicado > 180) aliquotaIR = 0.20 // 20% de 181 a 360 dias
+    
+    const rendimentoBruto = valorBruto - inv.valor_total
+    const irRetido = rendimentoBruto * aliquotaIR
+    const valorLiquido = valorBruto - irRetido
+    
+    // Projeção no vencimento
+    const fatorVencimento = Math.pow(1 + taxaDiaria, diasTotais)
+    const valorBrutoVencimento = inv.valor_total * fatorVencimento
+    const rendimentoVencimento = valorBrutoVencimento - inv.valor_total
+    
+    let aliquotaIRVencimento = 0.15
+    if (diasTotais <= 720) aliquotaIRVencimento = 0.175
+    if (diasTotais <= 360) aliquotaIRVencimento = 0.20
+    if (diasTotais <= 180) aliquotaIRVencimento = 0.225
+    
+    const irVencimento = rendimentoVencimento * aliquotaIRVencimento
+    const rentabilidadeProjetada = ((valorBrutoVencimento - irVencimento) / inv.valor_total - 1) * 100
+    
+    return {
+      valor_atual: valorLiquido,
+      valor_bruto_resgate: valorBruto,
+      ir_retido: irRetido,
+      dias_aplicado: diasAplicado,
+      dias_ate_vencimento: diasAteVencimento,
+      rentabilidade_projetada: rentabilidadeProjetada
     }
   }
 

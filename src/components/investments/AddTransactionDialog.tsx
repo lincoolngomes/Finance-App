@@ -28,6 +28,14 @@ export const AddTransactionDialog = ({ open, onClose }: AddTransactionDialogProp
   const [taxa, setTaxa] = useState('')
   const [dataTransacao, setDataTransacao] = useState(new Date().toISOString().split('T')[0])
   const [observacoes, setObservacoes] = useState('')
+  
+  // Campos específicos de renda fixa
+  const [tipoRentabilidade, setTipoRentabilidade] = useState<'pos' | 'pre' | 'ipca' | 'hibrido'>('pos')
+  const [taxaPercentual, setTaxaPercentual] = useState('')
+  const [indexador, setIndexador] = useState<'cdi' | 'ipca' | 'selic' | 'prefixado'>('cdi')
+  const [dataVencimento, setDataVencimento] = useState('')
+  const [liquidez, setLiquidez] = useState('no_vencimento')
+  const [dataAplicacao, setDataAplicacao] = useState(new Date().toISOString().split('T')[0])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -35,12 +43,24 @@ export const AddTransactionDialog = ({ open, onClose }: AddTransactionDialogProp
 
     try {
       // 1. Criar ou buscar investimento
-      const investimento = await getOrCreateInvestimento({
+      const dadosInvestimento: any = {
         tipo: tipoAtivo,
         codigo: codigo.toUpperCase(),
         nome,
         instituicao: instituicao || undefined
-      })
+      }
+      
+      // Adicionar campos específicos de renda fixa
+      if (tipoAtivo === 'renda_fixa') {
+        dadosInvestimento.tipo_rentabilidade = tipoRentabilidade
+        dadosInvestimento.taxa_percentual = parseFloat(taxaPercentual)
+        dadosInvestimento.indexador = indexador
+        dadosInvestimento.data_vencimento = dataVencimento
+        dadosInvestimento.liquidez = liquidez
+        dadosInvestimento.data_aplicacao = dataAplicacao
+      }
+      
+      const investimento = await getOrCreateInvestimento(dadosInvestimento)
 
       if (!investimento) {
         setLoading(false)
@@ -81,6 +101,12 @@ export const AddTransactionDialog = ({ open, onClose }: AddTransactionDialogProp
     setTaxa('')
     setDataTransacao(new Date().toISOString().split('T')[0])
     setObservacoes('')
+    setTipoRentabilidade('pos')
+    setTaxaPercentual('')
+    setIndexador('cdi')
+    setDataVencimento('')
+    setLiquidez('no_vencimento')
+    setDataAplicacao(new Date().toISOString().split('T')[0])
   }
 
   const valorTotal = quantidade && precoUnitario 
@@ -91,21 +117,21 @@ export const AddTransactionDialog = ({ open, onClose }: AddTransactionDialogProp
     <Dialog open={open} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Nova Transação de Investimento</DialogTitle>
+          <DialogTitle>Nova Aplicação</DialogTitle>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Step 1: Tipo de Transação */}
           <div className="space-y-4">
             <div>
-              <Label>Tipo de Transação</Label>
+              <Label>Tipo de Operação</Label>
               <Select value={tipoTransacao} onValueChange={(v: any) => setTipoTransacao(v)}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="compra">💰 Compra</SelectItem>
-                  <SelectItem value="venda">💵 Venda</SelectItem>
+                  <SelectItem value="compra">💰 Aplicação</SelectItem>
+                  <SelectItem value="venda">💵 Resgate</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -182,6 +208,88 @@ export const AddTransactionDialog = ({ open, onClose }: AddTransactionDialogProp
             </div>
           </div>
 
+          {/* Campos específicos de Renda Fixa */}
+          {tipoAtivo === 'renda_fixa' && (
+            <div className="space-y-4 border-t pt-4">
+              <h3 className="font-semibold text-teal-600">Características da Renda Fixa</h3>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="tipoRentabilidade">Tipo de Rentabilidade *</Label>
+                  <Select value={tipoRentabilidade} onValueChange={(v: any) => setTipoRentabilidade(v)}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="pos">Pós-fixado (% do CDI)</SelectItem>
+                      <SelectItem value="pre">Pré-fixado (% ao ano)</SelectItem>
+                      <SelectItem value="ipca">IPCA+ (% + inflação)</SelectItem>
+                      <SelectItem value="hibrido">Híbrido</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div>
+                  <Label htmlFor="taxaPercentual">
+                    {tipoRentabilidade === 'pos' ? 'Taxa (% do CDI) *' : 
+                     tipoRentabilidade === 'ipca' ? 'Taxa (% + IPCA) *' : 
+                     'Taxa (% ao ano) *'}
+                  </Label>
+                  <Input
+                    id="taxaPercentual"
+                    type="number"
+                    step="0.01"
+                    placeholder={tipoRentabilidade === 'pos' ? 'Ex: 120.00' : 'Ex: 13.50'}
+                    value={taxaPercentual}
+                    onChange={(e) => setTaxaPercentual(e.target.value)}
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="dataAplicacao">Data de Aplicação *</Label>
+                  <Input
+                    id="dataAplicacao"
+                    type="date"
+                    value={dataAplicacao}
+                    onChange={(e) => setDataAplicacao(e.target.value)}
+                    required
+                  />
+                </div>
+
+                <div>
+                  <Label htmlFor="dataVencimento">Data de Vencimento *</Label>
+                  <Input
+                    id="dataVencimento"
+                    type="date"
+                    value={dataVencimento}
+                    onChange={(e) => setDataVencimento(e.target.value)}
+                    required
+                  />
+                </div>
+              </div>
+
+              <div>
+                <Label htmlFor="liquidez">Liquidez *</Label>
+                <Select value={liquidez} onValueChange={setLiquidez}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="diaria">Liquidez Diária</SelectItem>
+                    <SelectItem value="no_vencimento">Apenas no Vencimento</SelectItem>
+                    <SelectItem value="carencia_30">Carência de 30 dias</SelectItem>
+                    <SelectItem value="carencia_90">Carência de 90 dias</SelectItem>
+                    <SelectItem value="carencia_180">Carência de 180 dias</SelectItem>
+                    <SelectItem value="carencia_360">Carência de 360 dias</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          )}
+
           {/* Step 3: Dados da Transação */}
           <div className="space-y-4 border-t pt-4">
             <h3 className="font-semibold text-teal-600">Dados da Transação</h3>
@@ -204,7 +312,7 @@ export const AddTransactionDialog = ({ open, onClose }: AddTransactionDialogProp
                     required
                   />
                   <p className="text-xs text-muted-foreground mt-1">
-                    {tipoAtivo === 'renda_fixa' && 'Valor total do investimento em renda fixa'}
+                    {tipoAtivo === 'renda_fixa' && 'Valor total aplicado no investimento'}
                     {tipoAtivo === 'fundo' && 'Valor aplicado no fundo'}
                     {tipoAtivo === 'previdencia' && 'Valor da contribuição'}
                   </p>

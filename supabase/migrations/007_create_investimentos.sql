@@ -12,6 +12,15 @@ CREATE TABLE IF NOT EXISTS investimentos (
   data_primeira_compra TIMESTAMP WITH TIME ZONE,
   ativo BOOLEAN DEFAULT true,
   observacoes TEXT,
+  -- Campos específicos para Renda Fixa
+  tipo_rentabilidade VARCHAR(20), -- 'pos', 'pre', 'ipca', 'hibrido'
+  taxa_percentual DECIMAL(8, 4), -- Taxa anual (ex: 13.50 para 13,5% ou 120.00 para 120% do CDI)
+  indexador VARCHAR(20), -- 'cdi', 'ipca', 'selic', 'prefixado'
+  data_vencimento DATE,
+  liquidez VARCHAR(20), -- 'diaria', 'no_vencimento', 'mensal', 'carencia_90', 'carencia_180', etc
+  data_aplicacao DATE,
+  valor_bruto_resgate DECIMAL(18, 2), -- Valor projetado no vencimento
+  ir_retido DECIMAL(18, 2), -- Imposto de renda estimado
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
