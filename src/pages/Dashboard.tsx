@@ -219,11 +219,6 @@ export default function Dashboard() {
         setFilterYear={setFilterYear}
         transactionCount={filteredTransacoes.length}
       />
-      {/* Quick diagnostic: show selected month/year and counts */}
-      <div className="text-sm text-muted-foreground mb-2">
-        Filtro: <b>{new Date(0, parseInt(filterMonth)).toLocaleDateString('pt-BR', { month: 'long' })}</b> / <b>{filterYear}</b> • Transações carregadas: <b>{transacoes.length}</b> • Transações filtradas: <b>{filteredTransacoes.length}</b>
-      </div>
-      {/* debug panel removed */}
       
       <DashboardStats stats={stats} />
       
