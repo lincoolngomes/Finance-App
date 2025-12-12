@@ -471,7 +471,6 @@ export function DashboardCharts({ transacoes, recentTransacoes, contas = [], lem
                   </div>
                 )
               })()}
-              </div>
             </CardContent>
           </Card>
 
