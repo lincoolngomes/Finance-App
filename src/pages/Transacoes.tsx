@@ -508,38 +508,57 @@ const Transacoes: React.FC = () => {
     
     console.log('Tentando excluir IDs:', selectedIds, 'User ID:', user.id)
     
+    // Mostrar loading
+    toast({
+      title: "Excluindo...",
+      description: `Excluindo ${selectedIds.length} transações...`,
+    })
+    
     try {
       // Deletar um por um para evitar problemas com RLS
       let errors = []
       let deleted = 0
       
       for (const id of selectedIds) {
-        const { error } = await supabase
-          .from('transacoes')
-          .delete()
-          .eq('id', id)
-          .eq('userid', user.id)
-        
-        if (error) {
-          console.error(`Erro ao excluir transação ${id}:`, error)
-          errors.push(error)
-        } else {
-          deleted++
+        try {
+          const { error, data } = await supabase
+            .from('transacoes')
+            .delete()
+            .eq('id', id)
+            .eq('userid', user.id)
+            .select()
+          
+          console.log(`Tentativa de excluir ${id}:`, { error, data })
+          
+          if (error) {
+            console.error(`Erro ao excluir transação ${id}:`, error)
+            errors.push({ id, error })
+          } else {
+            deleted++
+          }
+        } catch (networkError: any) {
+          console.error(`Erro de rede ao excluir ${id}:`, networkError)
+          errors.push({ id, error: networkError })
         }
       }
       
-      if (errors.length > 0) {
-        throw new Error(`Falha ao excluir ${errors.length} de ${selectedIds.length} transações`)
+      if (deleted > 0) {
+        toast({ 
+          title: `${deleted} transações excluídas!`,
+          description: errors.length > 0 ? `${errors.length} falharam` : undefined,
+          variant: errors.length > 0 ? "default" : "default"
+        })
+        setSelectedIds([])
+        fetchTransacoes()
+      } else {
+        throw new Error(`Nenhuma transação foi excluída. Verifique sua conexão com o servidor.`)
       }
       
-      toast({ title: `${deleted} transações excluídas com sucesso!` })
-      setSelectedIds([])
-      fetchTransacoes()
     } catch (error: any) {
       console.error('Erro final:', error)
       toast({
         title: "Erro ao excluir transações",
-        description: error.message || "Erro de conexão ou permissão. Verifique o console para detalhes.",
+        description: "Verifique sua conexão com o servidor Supabase. Erro: " + (error.message || "Failed to fetch"),
         variant: "destructive",
       })
     }
