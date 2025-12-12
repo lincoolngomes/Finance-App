@@ -340,7 +340,22 @@ export default function Relatorios() {
         transactions,
         summaryData,
         filters,
-        userName: user?.user_metadata?.nome || user?.email || 'Usuário'
+        userName: user?.user_metadata?.nome || user?.email || 'Usuário',
+        analytics: {
+          saudeFinanceira: analytics.saudeFinanceira,
+          taxaPoupanca: analytics.taxaPoupanca,
+          taxaGasto: analytics.taxaGasto,
+          mediaDiaria: analytics.mediaDiaria,
+          mediaSemanal: analytics.mediaSemanal,
+          mediaMensal: analytics.mediaMensal,
+          ticketMedio: analytics.ticketMedio,
+          maiorDespesa: analytics.maiorDespesa,
+          maiorDespesaItem: analytics.maiorDespesaItem,
+          categoriaMaisGasta: analytics.categoriaMaisGasta,
+          projecaoMes: analytics.projecaoMes,
+          tendencia: analytics.tendencia,
+          insights: analytics.insights
+        }
       }
       generatePDFReport(reportData, options)
       toast({

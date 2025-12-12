@@ -30,6 +30,21 @@ interface PDFReportData {
     period: string
   }
   userName: string
+  analytics?: {
+    saudeFinanceira: number
+    taxaPoupanca: number
+    taxaGasto: number
+    mediaDiaria: number
+    mediaSemanal: number
+    mediaMensal: number
+    ticketMedio: number
+    maiorDespesa: number
+    maiorDespesaItem?: { estabelecimento: string }
+    categoriaMaisGasta?: [string, { total: number }]
+    projecaoMes: number
+    tendencia: number
+    insights: string[]
+  }
 }
 
 export const generatePDFReport = (data: PDFReportData, options: PDFExportOptions) => {
@@ -144,6 +159,68 @@ export const generatePDFReport = (data: PDFReportData, options: PDFExportOptions
   // Adicionar cabeçalho
   addHeader()
 
+  // Score de Saúde Financeira (novo)
+  if (options.includeSummary && data.analytics) {
+    checkPageBreak(70)
+    
+    doc.setFontSize(18)
+    doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2])
+    doc.text('ANÁLISE FINANCEIRA AVANÇADA', margin, yPosition)
+    yPosition += 12
+
+    // Score de Saúde
+    doc.setFontSize(14)
+    doc.setTextColor(0, 0, 0)
+    doc.text('Score de Saúde Financeira', margin, yPosition)
+    yPosition += 8
+
+    const scoreColor = data.analytics.saudeFinanceira >= 80 ? [34, 197, 94] : 
+                       data.analytics.saudeFinanceira >= 60 ? [59, 130, 246] :
+                       data.analytics.saudeFinanceira >= 40 ? [234, 179, 8] : [239, 68, 68]
+    
+    doc.setFontSize(32)
+    doc.setTextColor(scoreColor[0], scoreColor[1], scoreColor[2])
+    doc.text(data.analytics.saudeFinanceira.toFixed(0), margin + 10, yPosition)
+    
+    doc.setFontSize(12)
+    doc.setTextColor(100, 100, 100)
+    const classificacao = data.analytics.saudeFinanceira >= 80 ? 'Excelente' :
+                          data.analytics.saudeFinanceira >= 60 ? 'Bom' :
+                          data.analytics.saudeFinanceira >= 40 ? 'Regular' : 'Crítico'
+    doc.text(`/ 100 (${classificacao})`, margin + 30, yPosition)
+    yPosition += 15
+
+    // Métricas Principais
+    const metricsData = [
+      ['Taxa de Poupança', `${data.analytics.taxaPoupanca.toFixed(1)}%`],
+      ['Taxa de Gasto', `${data.analytics.taxaGasto.toFixed(1)}%`],
+      ['Média Diária', formatCurrency(data.analytics.mediaDiaria)],
+      ['Média Semanal', formatCurrency(data.analytics.mediaSemanal)],
+      ['Média Mensal', formatCurrency(data.analytics.mediaMensal)],
+      ['Ticket Médio', formatCurrency(data.analytics.ticketMedio)],
+      ['Tendência (7 dias)', `${data.analytics.tendencia > 0 ? '+' : ''}${data.analytics.tendencia.toFixed(1)}%`]
+    ]
+
+    doc.autoTable({
+      head: [['Métrica', 'Valor']],
+      body: metricsData,
+      startY: yPosition,
+      styles: { fontSize: 10, cellPadding: 4 },
+      headStyles: { 
+        fillColor: [20, 184, 166], // Teal
+        textColor: 255,
+        fontStyle: 'bold'
+      },
+      columnStyles: {
+        1: { halign: 'right', fontStyle: 'bold' }
+      },
+      margin: { left: margin, right: margin },
+      tableWidth: 'auto'
+    })
+
+    yPosition = (doc as any).lastAutoTable.finalY + 15
+  }
+
   // Resumo financeiro
   if (options.includeSummary) {
     checkPageBreak(60)
@@ -169,6 +246,19 @@ export const generatePDFReport = (data: PDFReportData, options: PDFExportOptions
     }
     
     summaryData.push(['Total de Transações', filteredTransactions.length.toString()])
+
+    // Adiciona informações extras se analytics disponível
+    if (data.analytics) {
+      summaryData.push(['Maior Despesa', formatCurrency(data.analytics.maiorDespesa)])
+      if (data.analytics.maiorDespesaItem) {
+        summaryData.push(['  Local', data.analytics.maiorDespesaItem.estabelecimento])
+      }
+      if (data.analytics.categoriaMaisGasta) {
+        summaryData.push(['Categoria Top', data.analytics.categoriaMaisGasta[0]])
+        summaryData.push(['  Valor', formatCurrency(data.analytics.categoriaMaisGasta[1].total)])
+      }
+      summaryData.push(['Projeção Fim do Mês', formatCurrency(data.analytics.projecaoMes)])
+    }
 
     doc.autoTable({
       head: [['Descrição', 'Valor']],
@@ -280,6 +370,35 @@ export const generatePDFReport = (data: PDFReportData, options: PDFExportOptions
       })
 
     yPosition += 15
+  }
+
+  // Insights Inteligentes (novo)
+  if (options.includeSummary && data.analytics && data.analytics.insights.length > 0) {
+    checkPageBreak(80)
+
+    doc.setFontSize(16)
+    doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2])
+    doc.text('INSIGHTS INTELIGENTES', margin, yPosition)
+    yPosition += 12
+
+    doc.setFontSize(10)
+    doc.setTextColor(0, 0, 0)
+
+    data.analytics.insights.forEach((insight, index) => {
+      checkPageBreak(15)
+      
+      // Desenha círculo de bullet
+      doc.setFillColor(20, 184, 166) // Teal
+      doc.circle(margin + 2, yPosition - 1, 1.5, 'F')
+      
+      // Texto do insight (remove emojis para PDF)
+      const cleanInsight = insight.replace(/[^\w\s\u00C0-\u017F:.,!?%()/-]/g, '')
+      const lines = doc.splitTextToSize(cleanInsight, pageWidth - margin * 2 - 10)
+      doc.text(lines, margin + 7, yPosition)
+      yPosition += lines.length * 5 + 3
+    })
+
+    yPosition += 10
   }
 
   // Detalhes das transações
