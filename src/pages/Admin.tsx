@@ -348,45 +348,69 @@ export default function Admin() {
 
       {/* Stats Cards - Compacto */}
       <div className="grid gap-4 grid-cols-2 sm:grid-cols-2 md:grid-cols-4">
-        <div className="bg-gradient-to-r from-blue-500 to-blue-600 rounded-lg p-3 sm:p-4 text-white">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-blue-100 text-xs sm:text-sm">Total Usuários</p>
-              <p className="text-xl sm:text-2xl font-bold">{users.length}</p>
+        <Card className="overflow-hidden border-l-4 border-l-blue-500 hover:shadow-lg transition-all">
+          <CardContent className="p-0">
+            <div className="bg-gradient-to-r from-blue-500/20 to-blue-500/5 p-4 border-b border-border/50">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-muted-foreground mb-1">Total Usuários</p>
+                  <p className="text-2xl font-bold">{users.length}</p>
+                </div>
+                <div className="w-12 h-12 rounded-full bg-blue-500/20 flex items-center justify-center">
+                  <Users className="h-6 w-6 text-blue-500" />
+                </div>
+              </div>
             </div>
-            <Users className="h-6 w-6 sm:h-8 sm:w-8 text-blue-200" />
-          </div>
-        </div>
+          </CardContent>
+        </Card>
         
-        <div className="bg-gradient-to-r from-green-500 to-green-600 rounded-lg p-3 sm:p-4 text-white">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-green-100 text-xs sm:text-sm">Premium</p>
-              <p className="text-xl sm:text-2xl font-bold">{users.filter(u => u.subscription_status === 'premium').length}</p>
+        <Card className="overflow-hidden border-l-4 border-l-green-500 hover:shadow-lg transition-all">
+          <CardContent className="p-0">
+            <div className="bg-gradient-to-r from-green-500/20 to-green-500/5 p-4 border-b border-border/50">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-muted-foreground mb-1">Premium</p>
+                  <p className="text-2xl font-bold">{users.filter(u => u.subscription_status === 'premium').length}</p>
+                </div>
+                <div className="w-12 h-12 rounded-full bg-green-500/20 flex items-center justify-center">
+                  <Shield className="h-6 w-6 text-green-500" />
+                </div>
+              </div>
             </div>
-            <Shield className="h-6 w-6 sm:h-8 sm:w-8 text-green-200" />
-          </div>
-        </div>
+          </CardContent>
+        </Card>
         
-        <div className="bg-gradient-to-r from-purple-500 to-purple-600 rounded-lg p-3 sm:p-4 text-white">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-purple-100 text-xs sm:text-sm">Ativos</p>
-              <p className="text-xl sm:text-2xl font-bold">{users.filter(u => u.is_active).length}</p>
+        <Card className="overflow-hidden border-l-4 border-l-purple-500 hover:shadow-lg transition-all">
+          <CardContent className="p-0">
+            <div className="bg-gradient-to-r from-purple-500/20 to-purple-500/5 p-4 border-b border-border/50">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-muted-foreground mb-1">Ativos</p>
+                  <p className="text-2xl font-bold">{users.filter(u => u.is_active).length}</p>
+                </div>
+                <div className="w-12 h-12 rounded-full bg-purple-500/20 flex items-center justify-center">
+                  <Users className="h-6 w-6 text-purple-500" />
+                </div>
+              </div>
             </div>
-            <Users className="h-6 w-6 sm:h-8 sm:w-8 text-purple-200" />
-          </div>
-        </div>
+          </CardContent>
+        </Card>
         
-        <div className="bg-gradient-to-r from-red-500 to-red-600 rounded-lg p-3 sm:p-4 text-white">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-red-100 text-xs sm:text-sm">Admins</p>
-              <p className="text-xl sm:text-2xl font-bold">{users.filter(u => u.role === 'admin').length}</p>
+        <Card className="overflow-hidden border-l-4 border-l-red-500 hover:shadow-lg transition-all">
+          <CardContent className="p-0">
+            <div className="bg-gradient-to-r from-red-500/20 to-red-500/5 p-4 border-b border-border/50">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-muted-foreground mb-1">Admins</p>
+                  <p className="text-2xl font-bold">{users.filter(u => u.role === 'admin').length}</p>
+                </div>
+                <div className="w-12 h-12 rounded-full bg-red-500/20 flex items-center justify-center">
+                  <Shield className="h-6 w-6 text-red-500" />
+                </div>
+              </div>
             </div>
-            <Shield className="h-6 w-6 sm:h-8 sm:w-8 text-red-200" />
-          </div>
-        </div>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Tabela de Usuários */}
@@ -486,15 +510,27 @@ export default function Admin() {
 
       {/* Edit User Dialog */}
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>{selectedUser?.id ? 'Editar Usuário' : 'Criar Novo Usuário'}</DialogTitle>
-            <DialogDescription>
-              {selectedUser?.id 
-                ? 'Faça as alterações necessárias no usuário selecionado.'
-                : 'Preencha as informações para criar um novo usuário no sistema.'
-              }
-            </DialogDescription>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto bg-black/70 backdrop-blur-sm border-primary/20">
+          {/* Header com gradiente e ícone */}
+          <DialogHeader className="bg-gradient-to-r from-primary/10 to-transparent p-4 -m-6 mb-4 border-b border-primary/20">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center">
+                {selectedUser?.id ? (
+                  <Edit className="h-6 w-6 text-primary" />
+                ) : (
+                  <UserPlus className="h-6 w-6 text-primary" />
+                )}
+              </div>
+              <div>
+                <DialogTitle className="text-lg font-bold">{selectedUser?.id ? 'Editar Usuário' : 'Criar Novo Usuário'}</DialogTitle>
+                <DialogDescription className="text-xs">
+                  {selectedUser?.id 
+                    ? 'Faça as alterações necessárias no usuário selecionado.'
+                    : 'Preencha as informações para criar um novo usuário no sistema.'
+                  }
+                </DialogDescription>
+              </div>
+            </div>
           </DialogHeader>
           
           {selectedUser && (

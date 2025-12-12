@@ -2,6 +2,8 @@
 import { useState } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Label } from '@/components/ui/label';
 import { CategoriesList } from '@/components/categories/CategoriesList';
 import { CategoryForm } from '@/components/categories/CategoryForm';
 import { useCategories } from '@/hooks/useCategories';
@@ -11,6 +13,7 @@ import { toast } from '@/hooks/use-toast';
 export default function Categorias() {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState<any>(null);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const { categories, isLoading } = useCategories();
 
   // Debug: Log das categorias para identificar duplicadas
@@ -30,6 +33,20 @@ export default function Categorias() {
   if (duplicadas.length > 0) {
     console.warn('⚠️ Categorias duplicadas encontradas:', duplicadas.map(c => ({ id: c.id, nome: c.nome })));
   }
+
+  const handleToggleSelect = (id: string) => {
+    setSelectedIds(prev => 
+      prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]
+    );
+  };
+
+  const handleSelectAll = () => {
+    if (selectedIds.length === categories.length) {
+      setSelectedIds([]);
+    } else {
+      setSelectedIds(categories.map(c => c.id));
+    }
+  };
 
   const handleEditCategory = (category: any) => {
     setEditingCategory(category);
@@ -74,6 +91,34 @@ export default function Categorias() {
     }
   };
 
+  const handleDeleteSelected = async () => {
+    if (selectedIds.length === 0) return;
+
+    if (!confirm(`Deseja remover ${selectedIds.length} categoria(s) selecionada(s)? Esta ação não pode ser desfeita.`)) {
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('categorias')
+        .delete()
+        .in('id', selectedIds);
+
+      if (error) throw error;
+
+      toast({ title: `${selectedIds.length} categoria(s) removida(s) com sucesso!` });
+      setSelectedIds([]);
+      window.location.reload();
+    } catch (error: any) {
+      console.error('Erro ao remover categorias:', error);
+      toast({
+        title: "Erro ao remover categorias",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -81,6 +126,8 @@ export default function Categorias() {
       </div>
     );
   }
+
+  const isAllSelected = categories.length > 0 && selectedIds.length === categories.length;
 
   return (
     <div className="space-y-6">
@@ -92,14 +139,25 @@ export default function Categorias() {
           </p>
         </div>
         <div className="flex gap-2 w-full sm:w-auto">
-          {duplicadas.length > 0 && (
+          {selectedIds.length > 0 && (
             <Button 
-              onClick={handleRemoveDuplicates} 
+              onClick={handleDeleteSelected} 
               variant="destructive"
               className="gap-2 flex-1 sm:flex-initial"
             >
               <Trash2 className="h-4 w-4" />
-              <span className="hidden sm:inline">Remover {duplicadas.length} Duplicadas</span>
+              <span className="hidden sm:inline">Excluir {selectedIds.length} Selecionadas</span>
+              <span className="sm:hidden">Excluir ({selectedIds.length})</span>
+            </Button>
+          )}
+          {duplicadas.length > 0 && selectedIds.length === 0 && (
+            <Button 
+              onClick={handleRemoveDuplicates} 
+              variant="outline"
+              className="gap-2 flex-1 sm:flex-initial border-red-500 text-red-500 hover:bg-red-500/10"
+            >
+              <Trash2 className="h-4 w-4" />
+              <span className="hidden sm:inline">Limpar {duplicadas.length} Duplicadas</span>
               <span className="sm:hidden">Limpar ({duplicadas.length})</span>
             </Button>
           )}
@@ -111,9 +169,25 @@ export default function Categorias() {
         </div>
       </div>
 
+      {/* Checkbox Selecionar Tudo */}
+      {categories.length > 0 && (
+        <div className="flex items-center gap-2">
+          <Checkbox
+            checked={isAllSelected}
+            onCheckedChange={handleSelectAll}
+            id="select-all"
+          />
+          <Label htmlFor="select-all" className="text-sm font-medium cursor-pointer">
+            Selecionar todas ({categories.length})
+          </Label>
+        </div>
+      )}
+
       <CategoriesList 
         categories={categories} 
         onEdit={handleEditCategory}
+        selectedIds={selectedIds}
+        onToggleSelect={handleToggleSelect}
       />
 
       {isFormOpen && (

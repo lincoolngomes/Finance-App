@@ -731,81 +731,124 @@ const Transacoes: React.FC = () => {
 
       {/* Dialog de criação/edição de transação */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-md w-full">
-          <DialogHeader>
-            <DialogTitle>{editingTransaction ? 'Editar Transação' : 'Nova Transação'}</DialogTitle>
-            <DialogDescription>
-              {editingTransaction ? 'Edite os dados da transação.' : 'Preencha os dados para criar uma nova transação.'}
-            </DialogDescription>
+        <DialogContent className="max-w-md w-full bg-black/70 backdrop-blur-sm border-primary/20">
+          {/* Header com gradiente e ícone */}
+          <DialogHeader className="bg-gradient-to-r from-primary/10 to-transparent p-4 -m-6 mb-4 border-b border-primary/20">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center">
+                <svg className="w-6 h-6 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                </svg>
+              </div>
+              <div>
+                <DialogTitle className="text-lg font-bold">{editingTransaction ? 'Editar Transação' : 'Nova Transação'}</DialogTitle>
+                <DialogDescription className="text-xs">
+                  {editingTransaction ? 'Edite os dados da transação.' : 'Preencha os dados para criar uma nova transação.'}
+                </DialogDescription>
+              </div>
+            </div>
           </DialogHeader>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <Label htmlFor="quando">Data</Label>
-              <Input
-                id="quando"
-                type="date"
-                value={formData.quando}
-                onChange={e => setFormData({ ...formData, quando: e.target.value })}
-                required
-              />
+          <form onSubmit={handleSubmit} className="space-y-4 pt-2">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="quando" className="text-sm font-medium flex items-center gap-2">
+                  <svg className="w-4 h-4 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                  Data
+                </Label>
+                <Input
+                  id="quando"
+                  type="date"
+                  className="bg-background/50"
+                  value={formData.quando}
+                  onChange={e => setFormData({ ...formData, quando: e.target.value })}
+                  required
+                />
+              </div>
+              <div>
+                <Label htmlFor="valor" className="text-sm font-medium flex items-center gap-2">
+                  <svg className="w-4 h-4 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  Valor
+                </Label>
+                <Input
+                  id="valor"
+                  type="number"
+                  step="0.01"
+                  className="bg-background/50"
+                  value={formData.valor}
+                  onChange={e => setFormData({ ...formData, valor: Number(e.target.value) })}
+                  required
+                />
+              </div>
             </div>
             <div>
-              <Label htmlFor="estabelecimento">Estabelecimento</Label>
+              <Label htmlFor="estabelecimento" className="text-sm font-medium flex items-center gap-2">
+                <svg className="w-4 h-4 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                </svg>
+                Estabelecimento
+              </Label>
               <Input
                 id="estabelecimento"
+                className="bg-background/50"
                 value={formData.estabelecimento}
                 onChange={e => setFormData({ ...formData, estabelecimento: e.target.value })}
                 required
               />
             </div>
-            <div>
-              <Label htmlFor="valor">Valor</Label>
-              <Input
-                id="valor"
-                type="number"
-                value={formData.valor}
-                onChange={e => setFormData({ ...formData, valor: Number(e.target.value) })}
-                required
-              />
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="tipo" className="text-sm font-medium">Tipo</Label>
+                <Select value={formData.tipo} onValueChange={value => setFormData({ ...formData, tipo: value })}>
+                  <SelectTrigger className="h-9 text-sm bg-background/50">
+                    <SelectValue placeholder="Selecione o tipo" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="receita">Receita</SelectItem>
+                    <SelectItem value="despesa">Despesa</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label htmlFor="metodo" className="text-sm font-medium">Método</Label>
+                <Select value={formData.metodo} onValueChange={value => setFormData({ ...formData, metodo: value })}>
+                  <SelectTrigger className="h-9 text-sm bg-background/50">
+                    <SelectValue placeholder="Selecione o método" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="pix">PIX</SelectItem>
+                    <SelectItem value="debito">Débito</SelectItem>
+                    <SelectItem value="cartao_credito">Cartão de Crédito</SelectItem>
+                    <SelectItem value="transferencia">Transferência</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
             <div>
-              <Label htmlFor="tipo">Tipo</Label>
-              <Select value={formData.tipo} onValueChange={value => setFormData({ ...formData, tipo: value })}>
-                <SelectTrigger className="h-9 text-sm">
-                  <SelectValue placeholder="Selecione o tipo" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="receita">Receita</SelectItem>
-                  <SelectItem value="despesa">Despesa</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label htmlFor="metodo">Método</Label>
-              <Select value={formData.metodo} onValueChange={value => setFormData({ ...formData, metodo: value })}>
-                <SelectTrigger className="h-9 text-sm">
-                  <SelectValue placeholder="Selecione o método" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="pix">PIX</SelectItem>
-                  <SelectItem value="debito">Débito</SelectItem>
-                  <SelectItem value="cartao_credito">Cartão de Crédito</SelectItem>
-                  <SelectItem value="transferencia">Transferência</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label htmlFor="category_id">Categoria</Label>
+              <Label htmlFor="category_id" className="text-sm font-medium flex items-center gap-2">
+                <svg className="w-4 h-4 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
+                </svg>
+                Categoria
+              </Label>
               <CategorySelector
                 value={formData.category_id}
                 onValueChange={value => setFormData({ ...formData, category_id: value })}
                 placeholder="Selecione a categoria"
                 allValue=""
-                className="h-9 text-sm"
+                className="h-9 text-sm bg-background/50"
               />
             </div>
             <div>
-              <Label htmlFor="account_id">Conta</Label>
+              <Label htmlFor="account_id" className="text-sm font-medium flex items-center gap-2">
+                <svg className="w-4 h-4 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                </svg>
+                Conta
+              </Label>
               <BankSelector
                 value={formData.account_id}
                 onValueChange={value => setFormData({ ...formData, account_id: value })}
@@ -814,7 +857,7 @@ const Transacoes: React.FC = () => {
             </div>
             {formData.metodo === 'cartao_credito' && (
               <div>
-                <Label htmlFor="card_account_id">Cartão</Label>
+                <Label htmlFor="card_account_id" className="text-sm font-medium">Cartão</Label>
                 <CardSelector
                   value={formData.account_id}
                   onValueChange={value => setFormData({ ...formData, account_id: value })}
@@ -823,19 +866,30 @@ const Transacoes: React.FC = () => {
               </div>
             )}
             <div>
-              <Label htmlFor="detalhes">Detalhes</Label>
+              <Label htmlFor="detalhes" className="text-sm font-medium flex items-center gap-2">
+                <svg className="w-4 h-4 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                Detalhes (opcional)
+              </Label>
               <Textarea
                 id="detalhes"
                 value={formData.detalhes}
                 onChange={e => setFormData({ ...formData, detalhes: e.target.value })}
-                className="min-h-[60px] text-sm resize-none"
+                className="min-h-[60px] text-sm resize-none bg-background/50"
               />
             </div>
-            <div className="flex justify-end gap-2">
+            <div className="bg-secondary/30 -mx-6 -mb-6 p-4 border-t border-border/50 flex justify-end gap-2">
               <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
+                <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
                 Cancelar
               </Button>
               <Button type="submit" className="bg-primary hover:bg-primary/90">
+                <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
                 {editingTransaction ? 'Salvar' : 'Adicionar'}
               </Button>
             </div>

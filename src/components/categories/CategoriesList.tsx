@@ -3,6 +3,7 @@ import { Edit, Trash2, Tag } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -19,9 +20,11 @@ import { useCategories, Category } from '@/hooks/useCategories';
 interface CategoriesListProps {
   categories: Category[];
   onEdit: (category: Category) => void;
+  selectedIds: string[];
+  onToggleSelect: (id: string) => void;
 }
 
-export function CategoriesList({ categories, onEdit }: CategoriesListProps) {
+export function CategoriesList({ categories, onEdit, selectedIds, onToggleSelect }: CategoriesListProps) {
   const { deleteCategory } = useCategories();
 
   if (categories.length === 0) {
@@ -51,12 +54,18 @@ export function CategoriesList({ categories, onEdit }: CategoriesListProps) {
     <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
       {categories.map((category, index) => {
         const colorClass = categoryColors[index % categoryColors.length];
+        const isSelected = selectedIds.includes(category.id);
         return (
-          <Card key={category.id} className={`overflow-hidden border-l-4 hover:shadow-lg transition-all ${colorClass.split(' ')[2]}`}>
+          <Card key={category.id} className={`overflow-hidden border-l-4 hover:shadow-lg transition-all ${colorClass.split(' ')[2]} ${isSelected ? 'ring-2 ring-primary' : ''}`}>
             <CardContent className="p-0">
-              {/* Header com gradiente */}
+              {/* Header com gradiente e checkbox */}
               <div className={`bg-gradient-to-r ${colorClass.split(' ')[0]} ${colorClass.split(' ')[1]} p-4 border-b border-border/50`}>
                 <div className="flex items-center gap-3">
+                  <Checkbox
+                    checked={isSelected}
+                    onCheckedChange={() => onToggleSelect(category.id)}
+                    className="mt-0"
+                  />
                   <div className="w-10 h-10 rounded-full bg-background/80 flex items-center justify-center">
                     <Tag className="h-5 w-5 text-primary" />
                   </div>
