@@ -569,9 +569,9 @@ export default function Calendario() {
             </div>
           </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="overflow-hidden">
           {/* Calendar Grid */}
-          <div className={`overflow-x-auto grid gap-2 ${
+          <div className={`grid gap-1 sm:gap-2 ${
             viewMode === 'month' ? 'grid-cols-7' : 
             viewMode === 'week' ? 'grid-cols-7' : 
             'grid-cols-1'
@@ -599,8 +599,8 @@ export default function Calendario() {
               return (
                 <Card 
                   key={day.toString()} 
-                  className={`min-h-[100px] sm:min-h-[120px] cursor-pointer hover:shadow-lg transition-all duration-200 overflow-hidden ${
-                    isToday ? 'ring-2 ring-primary border-l-4 border-l-primary' : 'border-l-4 border-l-transparent'
+                  className={`min-h-[80px] sm:min-h-[100px] lg:min-h-[120px] cursor-pointer hover:shadow-lg transition-all duration-200 overflow-hidden ${
+                    isToday ? 'ring-2 ring-primary border-l-2 sm:border-l-4 border-l-primary' : 'border-l-2 sm:border-l-4 border-l-transparent'
                   } ${
                     !isCurrentMonth ? 'opacity-50' : ''
                   } ${
