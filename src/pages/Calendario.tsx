@@ -714,7 +714,6 @@ export default function Calendario() {
                         ))}
                       </div>
                     </div>
-                    </div>
                   </CardContent>
                 </Card>
               )
