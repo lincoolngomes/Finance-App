@@ -176,20 +176,20 @@ export function DashboardCharts({ transacoes, recentTransacoes, contas = [], lem
       {/* Linha 1: Evolução Mensal (2/3) + Gastos por Categoria (1/3) */}
       <div className="grid gap-6 grid-cols-1 lg:grid-cols-3">
         {/* Evolução Mensal - 2/3 */}
-        <Card className="lg:col-span-2 overflow-hidden shadow-lg hover:shadow-xl transition-shadow duration-300 border-0 bg-gradient-to-br from-background to-muted/20">
-          <CardHeader className="border-b bg-gradient-to-r from-blue-500/10 via-cyan-500/10 to-blue-500/10 pb-4">
+        <Card className="lg:col-span-2 overflow-hidden border-0">
+          <CardHeader className="pb-3">
             <div className="flex items-center gap-3">
-              <div className="p-3 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-500 shadow-lg">
-                <span className="text-2xl">📈</span>
+              <div className="p-2.5 rounded-lg bg-blue-500/10">
+                <span className="text-xl">📈</span>
               </div>
               <div>
-                <CardTitle className="text-xl font-bold">Evolução Mensal</CardTitle>
-                <CardDescription className="text-sm">Comparação entre receitas e despesas mês a mês</CardDescription>
+                <CardTitle className="text-lg font-semibold">Evolução Mensal</CardTitle>
+                <CardDescription className="text-xs">Comparação entre receitas e despesas mês a mês</CardDescription>
               </div>
             </div>
           </CardHeader>
-          <CardContent className="pt-6">
-            <div className="h-[300px] md:h-[350px]">
+          <CardContent className="pt-0">
+            <div className="h-[280px]">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={monthlyBalanceData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="rgba(148, 163, 184, 0.2)" />
@@ -248,20 +248,20 @@ export function DashboardCharts({ transacoes, recentTransacoes, contas = [], lem
         </Card>
 
         {/* Gastos por Categoria - 1/3 */}
-        <Card className="overflow-hidden shadow-lg hover:shadow-xl transition-shadow duration-300 border-0 bg-gradient-to-br from-background to-muted/20">
-          <CardHeader className="border-b bg-gradient-to-r from-red-500/10 via-rose-500/10 to-red-500/10 pb-4">
+        <Card className="overflow-hidden border-0">
+          <CardHeader className="pb-3">
             <div className="flex items-center gap-3">
-              <div className="p-3 rounded-xl bg-gradient-to-br from-red-500 to-rose-500 shadow-lg">
-                <span className="text-2xl">💰</span>
+              <div className="p-2.5 rounded-lg bg-red-500/10">
+                <span className="text-xl">💰</span>
               </div>
               <div>
-                <CardTitle className="text-lg font-bold">Gastos por Categoria</CardTitle>
+                <CardTitle className="text-lg font-semibold">Gastos por Categoria</CardTitle>
                 <CardDescription className="text-xs">Distribuição dos gastos</CardDescription>
               </div>
             </div>
           </CardHeader>
-          <CardContent className="pt-6">
-            <div className="h-[250px] md:h-[300px] relative">
+          <CardContent className="pt-0">
+            <div className="h-[280px] relative">
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie
@@ -310,67 +310,59 @@ export function DashboardCharts({ transacoes, recentTransacoes, contas = [], lem
       </div>
 
       {/* Linha 2: Resumo do Período - Full Width */}
-      <Card className="overflow-hidden shadow-lg hover:shadow-xl transition-shadow duration-300 border-0 bg-gradient-to-br from-background to-muted/20">
-        <CardHeader className="border-b bg-gradient-to-r from-primary/10 via-primary/5 to-primary/10 pb-4">
+      <Card className="overflow-hidden border-0">
+        <CardHeader className="pb-4">
           <div className="flex items-center gap-3">
-            <div className="p-3 rounded-xl bg-gradient-to-br from-primary to-primary/80 shadow-lg">
-              <span className="text-2xl">📊</span>
+            <div className="p-2.5 rounded-lg bg-primary/10">
+              <span className="text-xl">📊</span>
             </div>
             <div>
-              <CardTitle className="text-xl font-bold">Resumo do Período</CardTitle>
-              <CardDescription className="text-sm">Estatísticas detalhadas do período selecionado</CardDescription>
+              <CardTitle className="text-lg font-semibold">Resumo do Período</CardTitle>
+              <CardDescription className="text-xs">Estatísticas detalhadas do período selecionado</CardDescription>
             </div>
           </div>
         </CardHeader>
-        <CardContent className="pt-6">
+        <CardContent className="pt-0">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="group relative overflow-hidden p-5 rounded-xl bg-gradient-to-br from-green-500/10 to-emerald-500/5 border border-green-500/20 hover:border-green-500/40 transition-all duration-300 hover:shadow-md">
-              <div className="flex items-start justify-between">
-                <div>
-                  <div className="text-sm font-medium text-muted-foreground mb-2">Receitas</div>
-                  <div className="text-2xl font-bold text-green-600 dark:text-green-500">
-                    {formatCurrency(stats.totalReceitas)}
-                  </div>
-                </div>
-                <div className="text-3xl opacity-20 group-hover:opacity-30 transition-opacity">💰</div>
+            <div className="p-4 rounded-lg border bg-card hover:shadow-md transition-all">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-2xl">💰</span>
+              </div>
+              <div className="text-xs font-medium text-muted-foreground mb-1">Receitas</div>
+              <div className="text-xl font-bold text-green-600 dark:text-green-500">
+                {formatCurrency(stats.totalReceitas)}
               </div>
             </div>
             
-            <div className="group relative overflow-hidden p-5 rounded-xl bg-gradient-to-br from-red-500/10 to-rose-500/5 border border-red-500/20 hover:border-red-500/40 transition-all duration-300 hover:shadow-md">
-              <div className="flex items-start justify-between">
-                <div>
-                  <div className="text-sm font-medium text-muted-foreground mb-2">Despesas</div>
-                  <div className="text-2xl font-bold text-red-600 dark:text-red-500">
-                    {formatCurrency(Math.abs(stats.totalDespesas))}
-                  </div>
-                </div>
-                <div className="text-3xl opacity-20 group-hover:opacity-30 transition-opacity">💸</div>
+            <div className="p-4 rounded-lg border bg-card hover:shadow-md transition-all">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-2xl">💸</span>
+              </div>
+              <div className="text-xs font-medium text-muted-foreground mb-1">Despesas</div>
+              <div className="text-xl font-bold text-red-600 dark:text-red-500">
+                {formatCurrency(Math.abs(stats.totalDespesas))}
               </div>
             </div>
             
-            <div className={`group relative overflow-hidden p-5 rounded-xl ${stats.saldo >= 0 ? 'bg-gradient-to-br from-blue-500/10 to-cyan-500/5 border border-blue-500/20 hover:border-blue-500/40' : 'bg-gradient-to-br from-orange-500/10 to-amber-500/5 border border-orange-500/20 hover:border-orange-500/40'} transition-all duration-300 hover:shadow-md`}>
-              <div className="flex items-start justify-between">
-                <div>
-                  <div className="text-sm font-medium text-muted-foreground mb-2">
-                    {stats.saldo >= 0 ? 'Saldo' : 'Déficit'}
-                  </div>
-                  <div className={`text-2xl font-bold ${stats.saldo >= 0 ? 'text-blue-600 dark:text-blue-500' : 'text-orange-600 dark:text-orange-500'}`}>
-                    {formatCurrency(stats.saldo)}
-                  </div>
-                </div>
-                <div className="text-3xl opacity-20 group-hover:opacity-30 transition-opacity">{stats.saldo >= 0 ? '📊' : '⚠️'}</div>
+            <div className="p-4 rounded-lg border bg-card hover:shadow-md transition-all">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-2xl">{stats.saldo >= 0 ? '📊' : '⚠️'}</span>
+              </div>
+              <div className="text-xs font-medium text-muted-foreground mb-1">
+                {stats.saldo >= 0 ? 'Saldo' : 'Déficit'}
+              </div>
+              <div className={`text-xl font-bold ${stats.saldo >= 0 ? 'text-blue-600 dark:text-blue-500' : 'text-orange-600 dark:text-orange-500'}`}>
+                {formatCurrency(stats.saldo)}
               </div>
             </div>
             
-            <div className="group relative overflow-hidden p-5 rounded-xl bg-gradient-to-br from-purple-500/10 to-violet-500/5 border border-purple-500/20 hover:border-purple-500/40 transition-all duration-300 hover:shadow-md">
-              <div className="flex items-start justify-between">
-                <div>
-                  <div className="text-sm font-medium text-muted-foreground mb-2">Transações</div>
-                  <div className="text-2xl font-bold text-purple-600 dark:text-purple-500">
-                    {stats.transacoesCount}
-                  </div>
-                </div>
-                <div className="text-3xl opacity-20 group-hover:opacity-30 transition-opacity">🔄</div>
+            <div className="p-4 rounded-lg border bg-card hover:shadow-md transition-all">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-2xl">🔄</span>
+              </div>
+              <div className="text-xs font-medium text-muted-foreground mb-1">Transações</div>
+              <div className="text-xl font-bold text-purple-600 dark:text-purple-500">
+                {stats.transacoesCount}
               </div>
             </div>
           </div>
@@ -380,19 +372,19 @@ export function DashboardCharts({ transacoes, recentTransacoes, contas = [], lem
       {/* Linha 3: Últimos Lançamentos (2/3) + Lembretes (1/3) */}
       <div className="grid gap-6 grid-cols-1 lg:grid-cols-3">
         {/* Últimos Lançamentos - 2/3 */}
-        <Card className="lg:col-span-2 overflow-hidden shadow-lg hover:shadow-xl transition-shadow duration-300 border-0 bg-gradient-to-br from-background to-muted/20">
-          <CardHeader className="border-b bg-gradient-to-r from-slate-500/10 via-slate-400/10 to-slate-500/10 pb-4">
+        <Card className="lg:col-span-2 overflow-hidden border-0">
+          <CardHeader className="pb-3">
             <div className="flex items-center gap-3">
-              <div className="p-3 rounded-xl bg-gradient-to-br from-slate-600 to-slate-500 shadow-lg">
-                <span className="text-2xl">📋</span>
+              <div className="p-2.5 rounded-lg bg-slate-500/10">
+                <span className="text-xl">📋</span>
               </div>
               <div>
-                <CardTitle className="text-xl font-bold">Últimos Lançamentos</CardTitle>
-                <CardDescription className="text-sm">Os 5 lançamentos mais recentes</CardDescription>
+                <CardTitle className="text-lg font-semibold">Últimos Lançamentos</CardTitle>
+                <CardDescription className="text-xs">Os 5 lançamentos mais recentes</CardDescription>
               </div>
             </div>
           </CardHeader>
-          <CardContent className="pt-6">
+          <CardContent className="pt-0">
             <div className="space-y-3">
               { (recentTransacoes ?? transacoes)
                 .slice()
@@ -405,20 +397,14 @@ export function DashboardCharts({ transacoes, recentTransacoes, contas = [], lem
                 .map((transacao) => (
                   <div 
                     key={transacao.id} 
-                    className="group flex items-center justify-between p-4 rounded-xl bg-gradient-to-r from-card to-card/50 border border-border/50 hover:border-border hover:shadow-md transition-all duration-200"
+                    className="flex items-center justify-between p-3 rounded-lg border bg-card hover:shadow-sm transition-all"
                   >
-                    <div className="flex items-center gap-4">
-                      <div className={`p-2 rounded-lg ${
-                        transacao.tipo === 'receita' 
-                          ? 'bg-green-500/10 border border-green-500/20' 
-                          : 'bg-red-500/10 border border-red-500/20'
-                      }`}>
-                        <div className={`w-2 h-2 rounded-full ${
-                          transacao.tipo === 'receita' ? 'bg-green-500' : 'bg-red-500'
-                        }`} />
-                      </div>
+                    <div className="flex items-center gap-3">
+                      <div className={`w-2 h-2 rounded-full ${
+                        transacao.tipo === 'receita' ? 'bg-green-500' : 'bg-red-500'
+                      }`} />
                     <div>
-                      <div className="font-semibold group-hover:text-primary transition-colors">
+                      <div className="font-medium text-sm">
                         {transacao.estabelecimento || 'Sem estabelecimento'}
                       </div>
                       <div className="text-xs text-muted-foreground">
@@ -432,8 +418,8 @@ export function DashboardCharts({ transacoes, recentTransacoes, contas = [], lem
                         </div>
                       </div>
                     </div>
-                    <div className={`font-bold ${
-                      transacao.tipo === 'receita' ? 'text-green-400' : 'text-red-400'
+                    <div className={`font-semibold text-sm ${
+                      transacao.tipo === 'receita' ? 'text-green-600 dark:text-green-500' : 'text-red-600 dark:text-red-500'
                     }`}>
                       {transacao.tipo === 'receita' ? '+' : '-'}{formatCurrency(Math.abs(transacao.valor || 0))}
                     </div>
@@ -451,38 +437,38 @@ export function DashboardCharts({ transacoes, recentTransacoes, contas = [], lem
 
         {/* Lembretes - 1/3 */}
         <div className="space-y-6">
-          <Card className="overflow-hidden shadow-lg hover:shadow-xl transition-shadow duration-300 border-0 bg-gradient-to-br from-background to-muted/20">
-            <CardHeader className="border-b bg-gradient-to-r from-purple-500/10 via-violet-500/10 to-purple-500/10 pb-4">
+          <Card className="overflow-hidden border-0">
+            <CardHeader className="pb-3">
               <div className="flex items-center gap-3">
-                <div className="p-3 rounded-xl bg-gradient-to-br from-purple-500 to-violet-500 shadow-lg">
-                  <Calendar className="h-5 w-5 text-white" />
+                <div className="p-2.5 rounded-lg bg-purple-500/10">
+                  <Calendar className="h-5 w-5 text-purple-600 dark:text-purple-500" />
                 </div>
-                <CardTitle className="text-lg font-bold">Próximo Lembrete</CardTitle>
+                <CardTitle className="text-lg font-semibold">Próximo Lembrete</CardTitle>
               </div>
             </CardHeader>
-            <CardContent className="pt-6">
+            <CardContent className="pt-0">
               {(() => {
                 const proximoLembrete = lembretes
                   .filter(l => l.data && new Date(l.data) >= new Date())
                   .sort((a, b) => new Date(a.data!).getTime() - new Date(b.data!).getTime())[0]
                 
                 return proximoLembrete ? (
-                  <div className="space-y-3 p-4 rounded-xl bg-gradient-to-br from-purple-500/5 to-violet-500/5 border border-purple-500/20">
-                    <p className="font-semibold text-base">{proximoLembrete.descricao}</p>
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <Calendar className="h-4 w-4" />
+                  <div className="space-y-2 p-4 rounded-lg border bg-card">
+                    <p className="font-medium text-sm">{proximoLembrete.descricao}</p>
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <Calendar className="h-3 w-3" />
                       <span>{new Date(proximoLembrete.data!).toLocaleDateString('pt-BR')}</span>
                     </div>
                     {proximoLembrete.valor && (
-                      <p className="text-lg font-bold text-purple-600 dark:text-purple-500">
+                      <p className="text-base font-semibold text-purple-600 dark:text-purple-500">
                         {formatCurrency(proximoLembrete.valor)}
                       </p>
                     )}
                   </div>
                 ) : (
-                  <div className="text-center py-8">
-                    <div className="text-4xl mb-2 opacity-20">📅</div>
-                    <p className="text-sm text-muted-foreground">Nenhum lembrete próximo</p>
+                  <div className="text-center py-6">
+                    <div className="text-3xl mb-1 opacity-20">📅</div>
+                    <p className="text-xs text-muted-foreground">Nenhum lembrete próximo</p>
                   </div>
                 )
               })()}
@@ -490,18 +476,18 @@ export function DashboardCharts({ transacoes, recentTransacoes, contas = [], lem
             </CardContent>
           </Card>
 
-          <Card className="overflow-hidden shadow-lg hover:shadow-xl transition-shadow duration-300 border-0 bg-gradient-to-br from-background to-muted/20">
-            <CardHeader className="border-b bg-gradient-to-r from-amber-500/10 via-yellow-500/10 to-amber-500/10 pb-4">
+          <Card className="overflow-hidden border-0">
+            <CardHeader className="pb-3">
               <div className="flex items-center gap-3">
-                <div className="p-3 rounded-xl bg-gradient-to-br from-amber-500 to-yellow-500 shadow-lg">
-                  <Lightbulb className="h-5 w-5 text-white" />
+                <div className="p-2.5 rounded-lg bg-amber-500/10">
+                  <Lightbulb className="h-5 w-5 text-amber-600 dark:text-amber-500" />
                 </div>
-                <CardTitle className="text-lg font-bold">Dica do Dia</CardTitle>
+                <CardTitle className="text-lg font-semibold">Dica do Dia</CardTitle>
               </div>
             </CardHeader>
-            <CardContent className="pt-6">
-              <div className="p-4 rounded-xl bg-gradient-to-br from-amber-500/5 to-yellow-500/5 border border-amber-500/20">
-                <p className="text-sm leading-relaxed">
+            <CardContent className="pt-0">
+              <div className="p-4 rounded-lg border bg-card">
+                <p className="text-xs leading-relaxed text-muted-foreground">
                   {dicas[new Date().getDate() % dicas.length]}
                 </p>
               </div>
