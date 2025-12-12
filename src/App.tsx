@@ -22,6 +22,7 @@ import Admin from "./pages/Admin";
 import Teste from "./pages/Teste";
 import Contas from "./pages/Contas";
 import Cartoes from "./pages/Cartoes";
+import Investimentos from "./pages/Investimentos";
 
 const queryClient = new QueryClient();
 
@@ -189,6 +190,14 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <Cartoes />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/investimentos"
+        element={
+          <ProtectedRoute>
+            <Investimentos />
           </ProtectedRoute>
         }
       />

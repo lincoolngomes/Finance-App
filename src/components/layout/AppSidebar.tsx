@@ -1,5 +1,5 @@
 import { NavLink, useLocation } from 'react-router-dom'
-import { Home, CreditCard, Calendar, CalendarDays, User, LogOut, Tag, FileText, Shield, TestTube, Bell, Wallet } from 'lucide-react'
+import { Home, CreditCard, Calendar, CalendarDays, User, LogOut, Tag, FileText, Shield, TestTube, Bell, Wallet, TrendingUp } from 'lucide-react'
 import {
   Sidebar,
   SidebarContent,
@@ -44,6 +44,7 @@ export function AppSidebar() {
     { title: 'Dashboard', url: '/dashboard', icon: Home },
     { title: 'Transações', url: '/transacoes', icon: CreditCard },
     { title: 'Contas', url: '/contas', icon: Wallet },
+    { title: 'Investimentos', url: '/investimentos', icon: TrendingUp },
     { title: 'Calendário', url: '/calendario', icon: CalendarDays },
     { title: 'Categorias', url: '/categorias', icon: Tag },
     { title: 'Cartões', url: '/cartoes', icon: CreditCard },
