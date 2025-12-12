@@ -178,17 +178,21 @@ export const generatePDFReport = (data: PDFReportData, options: PDFExportOptions
                        data.analytics.saudeFinanceira >= 60 ? [59, 130, 246] :
                        data.analytics.saudeFinanceira >= 40 ? [234, 179, 8] : [239, 68, 68]
     
-    doc.setFontSize(32)
+    // Score grande
+    doc.setFontSize(36)
     doc.setTextColor(scoreColor[0], scoreColor[1], scoreColor[2])
-    doc.text(data.analytics.saudeFinanceira.toFixed(0), margin + 10, yPosition)
+    doc.text(data.analytics.saudeFinanceira.toFixed(0), margin + 5, yPosition)
     
-    doc.setFontSize(12)
+    // Texto ao lado do score (mesma linha vertical)
+    doc.setFontSize(14)
     doc.setTextColor(100, 100, 100)
     const classificacao = data.analytics.saudeFinanceira >= 80 ? 'Excelente' :
                           data.analytics.saudeFinanceira >= 60 ? 'Bom' :
                           data.analytics.saudeFinanceira >= 40 ? 'Regular' : 'Crítico'
-    doc.text(`/ 100 (${classificacao})`, margin + 30, yPosition)
-    yPosition += 15
+    doc.text(`/ 100`, margin + 35, yPosition - 8)
+    doc.setFontSize(12)
+    doc.text(`(${classificacao})`, margin + 35, yPosition + 2)
+    yPosition += 18
 
     // Métricas Principais
     const metricsData = [
