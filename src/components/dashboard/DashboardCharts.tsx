@@ -2,7 +2,7 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { formatCurrency } from '@/utils/currency'
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line, Legend } from 'recharts'
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line, Legend, ReferenceLine } from 'recharts'
 import { Calendar, TrendingDown, TrendingUp } from 'lucide-react'
 import { useState } from 'react'
 
@@ -36,11 +36,13 @@ interface DashboardChartsProps {
   recentTransacoes?: Transacao[]
   contas?: any[]
   lembretes?: Lembrete[]
+  selectedMonth?: string
+  selectedYear?: string
 }
 
 const COLORS = ['#6366f1', '#8b5cf6', '#ec4899', '#06b6d4', '#10b981', '#f59e0b', '#ef4444', '#84cc16']
 
-export function DashboardCharts({ transacoes, recentTransacoes, contas = [], lembretes = [] }: DashboardChartsProps) {
+export function DashboardCharts({ transacoes, recentTransacoes, contas = [], lembretes = [], selectedMonth, selectedYear }: DashboardChartsProps) {
   const parseDateUniversal = (dateStr: any): Date | null => {
     if (!dateStr && dateStr !== 0) return null
     const s = String(dateStr).trim()
@@ -148,6 +150,7 @@ export function DashboardCharts({ transacoes, recentTransacoes, contas = [], lem
       const month = parseInt(key)
       const monthName = new Date(2000, month, 1).toLocaleDateString('pt-BR', { month: 'short' })
       return {
+        monthKey: key,
         month: monthName.charAt(0).toUpperCase() + monthName.slice(1),
         receitas: Math.round(monthlyData[key].receitas),
         despesas: Math.round(monthlyData[key].despesas)
@@ -231,7 +234,30 @@ export function DashboardCharts({ transacoes, recentTransacoes, contas = [], lem
                   <CartesianGrid strokeDasharray="3 3" stroke="rgba(148, 163, 184, 0.2)" />
                   <XAxis 
                     dataKey="month" 
-                    tick={{ fontSize: 12 }}
+                    tick={(props) => {
+                      const { x, y, payload } = props
+                      const dataPoint = monthlyBalanceData.find(d => d.month === payload.value)
+                      const isSelected = dataPoint?.monthKey === selectedMonth
+                      
+                      return (
+                        <g transform={`translate(${x},${y})`}>
+                          <text 
+                            x={0} 
+                            y={0} 
+                            dy={16} 
+                            textAnchor="middle" 
+                            fill={isSelected ? '#3b82f6' : 'rgba(148, 163, 184, 0.8)'}
+                            fontSize={12}
+                            fontWeight={isSelected ? 700 : 400}
+                          >
+                            {payload.value}
+                          </text>
+                          {isSelected && (
+                            <circle cx={0} cy={-10} r={3} fill="#3b82f6" />
+                          )}
+                        </g>
+                      )
+                    }}
                     tickLine={false}
                     axisLine={{ stroke: 'rgba(148, 163, 184, 0.3)' }}
                   />
@@ -261,12 +287,40 @@ export function DashboardCharts({ transacoes, recentTransacoes, contas = [], lem
                       return labels[value] || value
                     }}
                   />
+                  {selectedMonth && (
+                    <ReferenceLine 
+                      x={monthlyBalanceData.find(d => d.monthKey === selectedMonth)?.month}
+                      stroke="#3b82f6"
+                      strokeWidth={2}
+                      strokeDasharray="5 5"
+                      label={{ 
+                        value: 'Mês Selecionado', 
+                        position: 'top',
+                        fill: '#3b82f6',
+                        fontSize: 11,
+                        fontWeight: 600
+                      }}
+                    />
+                  )}
                   <Line 
                     type="monotone" 
                     dataKey="receitas" 
                     stroke="#10b981" 
                     strokeWidth={3}
-                    dot={{ fill: '#10b981', strokeWidth: 2, r: 5 }}
+                    dot={(props: any) => {
+                      const dataPoint = monthlyBalanceData.find(d => d.month === props.payload.month)
+                      const isSelected = dataPoint?.monthKey === selectedMonth
+                      return (
+                        <circle 
+                          cx={props.cx} 
+                          cy={props.cy} 
+                          r={isSelected ? 7 : 5} 
+                          fill="#10b981"
+                          stroke={isSelected ? '#3b82f6' : '#fff'}
+                          strokeWidth={isSelected ? 3 : 2}
+                        />
+                      )
+                    }}
                     activeDot={{ r: 7 }}
                   />
                   <Line 
@@ -274,7 +328,20 @@ export function DashboardCharts({ transacoes, recentTransacoes, contas = [], lem
                     dataKey="despesas" 
                     stroke="#ef4444" 
                     strokeWidth={3}
-                    dot={{ fill: '#ef4444', strokeWidth: 2, r: 5 }}
+                    dot={(props: any) => {
+                      const dataPoint = monthlyBalanceData.find(d => d.month === props.payload.month)
+                      const isSelected = dataPoint?.monthKey === selectedMonth
+                      return (
+                        <circle 
+                          cx={props.cx} 
+                          cy={props.cy} 
+                          r={isSelected ? 7 : 5} 
+                          fill="#ef4444"
+                          stroke={isSelected ? '#3b82f6' : '#fff'}
+                          strokeWidth={isSelected ? 3 : 2}
+                        />
+                      )
+                    }}
                     activeDot={{ r: 7 }}
                   />
                 </LineChart>

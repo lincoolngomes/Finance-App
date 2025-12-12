@@ -227,6 +227,8 @@ export default function Dashboard() {
         recentTransacoes={transacoes} 
         contas={contas}
         lembretes={lembretes}
+        selectedMonth={filterMonth}
+        selectedYear={filterYear}
       />
     </div>
   )
