@@ -63,16 +63,16 @@ export function DashboardStats({ stats }: DashboardStatsProps) {
         </CardContent>
       </Card>
 
-      <Card className="relative overflow-hidden bg-gradient-to-br from-purple-500/10 to-purple-600/5 border-purple-500/20 hover:shadow-lg transition-all">
-        <CardContent className="p-4">
-          <div className="flex items-start justify-between mb-3">
-            <div className="p-2 rounded-lg bg-purple-500/20">
-              <Calendar className="h-5 w-5 text-purple-600 dark:text-purple-500" />
+      <Card className="relative overflow-hidden bg-gradient-to-br from-teal-500/10 to-teal-600/5 border-teal-500/20 hover:shadow-lg transition-all">
+        <CardContent className="pt-6">
+          <div className="flex items-center justify-between">
+            <div className="p-2 rounded-lg bg-teal-500/20">
+              <Calendar className="h-5 w-5 text-teal-600 dark:text-teal-500" />
             </div>
           </div>
           <div>
             <p className="text-xs font-medium text-muted-foreground mb-1">Lembretes Ativos</p>
-            <p className="text-2xl font-bold text-purple-600 dark:text-purple-500 mb-0.5">{stats.lembretesCount}</p>
+            <p className="text-2xl font-bold text-teal-600 dark:text-teal-500 mb-0.5">{stats.lembretesCount}</p>
             <p className="text-xs text-muted-foreground">Este mês</p>
           </div>
         </CardContent>

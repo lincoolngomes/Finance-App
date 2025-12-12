@@ -76,8 +76,8 @@ function ImportarExtratoModal({ open, onClose, onImport }) {
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
       <div className="bg-card border rounded-lg shadow-2xl p-6 min-w-[350px] max-w-[90vw] max-h-[90vh] overflow-auto">
         <div className="flex items-center gap-3 mb-6">
-          <div className="p-2.5 rounded-lg bg-purple-500/10">
-            <svg className="h-6 w-6 text-purple-600 dark:text-purple-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <div className="p-2.5 rounded-lg bg-teal-500/10">
+            <svg className="h-6 w-6 text-teal-600 dark:text-teal-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
             </svg>
           </div>
@@ -95,7 +95,7 @@ function ImportarExtratoModal({ open, onClose, onImport }) {
                 type="file" 
                 accept=".csv" 
                 onChange={handleFileChange}
-                className="w-full p-3 rounded-lg border bg-background text-foreground file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-purple-500 file:text-white hover:file:bg-purple-600 cursor-pointer transition"
+                className="w-full p-3 rounded-lg border bg-background text-foreground file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-teal-500 file:text-white hover:file:bg-teal-600 cursor-pointer transition"
               />
               {csvFile && (
                 <p className="text-xs text-muted-foreground mt-2 flex items-center gap-1">

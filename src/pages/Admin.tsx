@@ -388,8 +388,8 @@ export default function Admin() {
                   <p className="text-xs text-muted-foreground mb-1">Ativos</p>
                   <p className="text-2xl font-bold">{users.filter(u => u.is_active).length}</p>
                 </div>
-                <div className="w-12 h-12 rounded-full bg-purple-500/20 flex items-center justify-center">
-                  <Users className="h-6 w-6 text-purple-500" />
+                <div className="w-12 h-12 rounded-full bg-teal-500/20 flex items-center justify-center">
+                  <Users className="h-6 w-6 text-teal-500" />
                 </div>
               </div>
             </div>

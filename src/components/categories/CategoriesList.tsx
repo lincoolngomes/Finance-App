@@ -44,7 +44,7 @@ export function CategoriesList({ categories, onEdit, selectedIds, onToggleSelect
   const categoryColors = [
     'from-blue-500/20 to-blue-500/5 border-l-blue-500',
     'from-green-500/20 to-green-500/5 border-l-green-500',
-    'from-purple-500/20 to-purple-500/5 border-l-purple-500',
+    'from-teal-500/20 to-teal-500/5 border-l-teal-500',
     'from-orange-500/20 to-orange-500/5 border-l-orange-500',
     'from-pink-500/20 to-pink-500/5 border-l-pink-500',
     'from-cyan-500/20 to-cyan-500/5 border-l-cyan-500',

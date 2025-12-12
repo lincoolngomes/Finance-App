@@ -10,9 +10,9 @@ import { generatePDFReport } from '@/utils/pdfGenerator'
 import { formatCurrency } from '@/utils/currency'
 import { LineChart, Line, BarChart, Bar, PieChart as RechartsPie, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Area, AreaChart, ComposedChart, Scatter, RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis } from 'recharts'
 
-const COLORS = ['#6366f1', '#8b5cf6', '#ec4899', '#06b6d4', '#10b981', '#f59e0b', '#ef4444', '#84cc16', '#06b6d4', '#f97316']
+const COLORS = ['#6366f1', '#14b8a6', '#ec4899', '#06b6d4', '#10b981', '#f59e0b', '#ef4444', '#84cc16', '#06b6d4', '#f97316']
 const GRADIENT_COLORS = [
-  { start: '#6366f1', end: '#8b5cf6' },
+  { start: '#6366f1', end: '#14b8a6' },
   { start: '#ec4899', end: '#f43f5e' },
   { start: '#06b6d4', end: '#0891b2' },
   { start: '#10b981', end: '#059669' },
@@ -408,7 +408,7 @@ export default function Relatorios() {
       ) : (
         <>
           {/* Indicador de Saúde Financeira */}
-          <Card className="border-0 bg-gradient-to-br from-indigo-500/10 via-purple-500/5 to-pink-500/10">
+          <Card className="border-0 bg-gradient-to-br from-indigo-500/10 via-teal-500/5 to-cyan-500/10">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Activity className="h-5 w-5" />
@@ -418,7 +418,7 @@ export default function Relatorios() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex items-center justify-between">
-                <div className="text-6xl font-bold bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">
+                <div className="text-6xl font-bold bg-gradient-to-r from-indigo-600 via-teal-600 to-cyan-600 bg-clip-text text-transparent">
                   {analytics.saudeFinanceira.toFixed(0)}
                 </div>
                 <div className="text-right">
@@ -498,13 +498,13 @@ export default function Relatorios() {
               </CardContent>
             </Card>
 
-            <Card className="border-0 bg-gradient-to-br from-purple-500/10 to-pink-500/5">
+            <Card className="border-0 bg-gradient-to-br from-teal-500/10 to-cyan-500/5">
               <CardHeader className="flex flex-row items-center justify-between pb-2">
                 <CardTitle className="text-sm font-medium">Ticket Médio</CardTitle>
-                <DollarSign className="h-4 w-4 text-purple-600" />
+                <DollarSign className="h-4 w-4 text-teal-600" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-purple-600">
+                <div className="text-2xl font-bold text-teal-600">
                   {formatCurrency(analytics.ticketMedio)}
                 </div>
                 <p className="text-xs text-muted-foreground mt-1">
@@ -731,15 +731,15 @@ export default function Relatorios() {
               </CardContent>
             </Card>
 
-            <Card className="border-0 bg-gradient-to-br from-violet-500/10 to-purple-500/5">
+            <Card className="border-0 bg-gradient-to-br from-teal-500/10 to-cyan-500/5">
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm font-medium flex items-center gap-2">
-                  <Clock className="h-4 w-4 text-violet-600" />
+                  <Clock className="h-4 w-4 text-teal-600" />
                   Média Semanal
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold text-violet-600">{formatCurrency(analytics.mediaSemanal)}</div>
+                <div className="text-2xl font-bold text-teal-600">{formatCurrency(analytics.mediaSemanal)}</div>
                 <p className="text-xs text-muted-foreground mt-1">Últimas {analytics.semanas} semanas</p>
               </CardContent>
             </Card>
@@ -881,7 +881,7 @@ export default function Relatorios() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-3xl font-bold text-purple-600">
+                <div className="text-3xl font-bold text-teal-600">
                   {analytics.frequenciaMedia.toFixed(1)}
                 </div>
                 <p className="text-xs text-muted-foreground mt-2">
@@ -973,7 +973,7 @@ export default function Relatorios() {
                     />
                     <Legend />
                     <Bar yAxisId="left" dataKey="gasto" fill="#f59e0b" name="Gasto Total" radius={[8, 8, 0, 0]} />
-                    <Bar yAxisId="right" dataKey="transacoes" fill="#8b5cf6" name="Nº Transações" radius={[8, 8, 0, 0]} />
+                    <Bar yAxisId="right" dataKey="transacoes" fill="#14b8a6" name="Nº Transações" radius={[8, 8, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               </div>

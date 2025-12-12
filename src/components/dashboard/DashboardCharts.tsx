@@ -618,7 +618,7 @@ export function DashboardCharts({ transacoes, recentTransacoes, contas = [], lem
                 <span className="text-2xl">🔄</span>
               </div>
               <div className="text-xs font-medium text-muted-foreground mb-1">Transações</div>
-              <div className="text-xl font-bold text-purple-600 dark:text-purple-500">
+              <div className="text-xl font-bold text-teal-600 dark:text-teal-500">
                 {stats.transacoesCount}
               </div>
             </div>
@@ -697,8 +697,8 @@ export function DashboardCharts({ transacoes, recentTransacoes, contas = [], lem
           <Card className="overflow-hidden border-0">
             <CardHeader className="pb-3">
               <div className="flex items-center gap-3">
-                <div className="p-2.5 rounded-lg bg-purple-500/10">
-                  <Calendar className="h-5 w-5 text-purple-600 dark:text-purple-500" />
+                <div className="p-2.5 rounded-lg bg-teal-500/10">
+                  <Calendar className="h-5 w-5 text-teal-600 dark:text-teal-500" />
                 </div>
                 <CardTitle className="text-lg font-semibold">Próximo Lembrete</CardTitle>
               </div>
@@ -717,7 +717,7 @@ export function DashboardCharts({ transacoes, recentTransacoes, contas = [], lem
                       <span>{new Date(proximoLembrete.data!).toLocaleDateString('pt-BR')}</span>
                     </div>
                     {proximoLembrete.valor && (
-                      <p className="text-base font-semibold text-purple-600 dark:text-purple-500">
+                      <p className="text-base font-semibold text-teal-600 dark:text-teal-500">
                         {formatCurrency(proximoLembrete.valor)}
                       </p>
                     )}
