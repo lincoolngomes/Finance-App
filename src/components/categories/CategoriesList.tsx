@@ -38,39 +38,74 @@ export function CategoriesList({ categories, onEdit }: CategoriesListProps) {
     );
   }
 
+  const categoryColors = [
+    'from-blue-500/20 to-blue-500/5 border-l-blue-500',
+    'from-green-500/20 to-green-500/5 border-l-green-500',
+    'from-purple-500/20 to-purple-500/5 border-l-purple-500',
+    'from-orange-500/20 to-orange-500/5 border-l-orange-500',
+    'from-pink-500/20 to-pink-500/5 border-l-pink-500',
+    'from-cyan-500/20 to-cyan-500/5 border-l-cyan-500',
+  ];
+
   return (
-    <div className="grid gap-4">
-      {categories.map((category) => (
-        <Card key={category.id} className="hover:shadow-sm transition-shadow">
-          <CardContent className="p-3 sm:p-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div className="flex-1">
-                <h3 className="font-medium text-sm sm:text-base">{category.nome}</h3>
-                {category.tags && (
-                  <div className="flex flex-wrap gap-1 mt-2">
-                    {category.tags.split(',').map((tag, index) => (
-                      <Badge key={index} variant="secondary" className="text-xs">
+    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      {categories.map((category, index) => {
+        const colorClass = categoryColors[index % categoryColors.length];
+        return (
+          <Card key={category.id} className={`overflow-hidden border-l-4 hover:shadow-lg transition-all ${colorClass.split(' ')[2]}`}>
+            <CardContent className="p-0">
+              {/* Header com gradiente */}
+              <div className={`bg-gradient-to-r ${colorClass.split(' ')[0]} ${colorClass.split(' ')[1]} p-4 border-b border-border/50`}>
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-background/80 flex items-center justify-center">
+                    <Tag className="h-5 w-5 text-primary" />
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="font-bold text-base">{category.nome}</h3>
+                    {category.tags && (
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        {category.tags.split(',').length} palavras-chave
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Tags */}
+              {category.tags && (
+                <div className="p-4">
+                  <div className="flex flex-wrap gap-1.5">
+                    {category.tags.split(',').slice(0, 6).map((tag, idx) => (
+                      <Badge key={idx} variant="secondary" className="text-xs">
                         {tag.trim()}
                       </Badge>
                     ))}
+                    {category.tags.split(',').length > 6 && (
+                      <Badge variant="outline" className="text-xs">
+                        +{category.tags.split(',').length - 6}
+                      </Badge>
+                    )}
                   </div>
-                )}
-              </div>
-              
-              <div className="flex items-center justify-end gap-1 sm:gap-2">
+                </div>
+              )}
+
+              {/* Footer com botões */}
+              <div className="bg-secondary/30 p-3 flex gap-2 justify-end border-t border-border/50">
                 <Button
                   variant="ghost"
                   size="sm"
                   onClick={() => onEdit(category)}
-                  className="h-8 w-8 p-0"
+                  className="h-8 gap-2"
                 >
-                  <Edit className="h-4 w-4" />
+                  <Edit className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">Editar</span>
                 </Button>
                 
                 <AlertDialog>
                   <AlertDialogTrigger asChild>
-                    <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                      <Trash2 className="h-4 w-4" />
+                    <Button variant="ghost" size="sm" className="h-8 gap-2 text-red-500 hover:text-red-600 hover:bg-red-500/10">
+                      <Trash2 className="h-3.5 w-3.5" />
+                      <span className="hidden sm:inline">Excluir</span>
                     </Button>
                   </AlertDialogTrigger>
                   <AlertDialogContent>
@@ -93,10 +128,10 @@ export function CategoriesList({ categories, onEdit }: CategoriesListProps) {
                   </AlertDialogContent>
                 </AlertDialog>
               </div>
-            </div>
-          </CardContent>
-        </Card>
-      ))}
+            </CardContent>
+          </Card>
+        );
+      })}
     </div>
   );
 }

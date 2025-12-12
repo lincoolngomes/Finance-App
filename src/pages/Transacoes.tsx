@@ -1126,76 +1126,100 @@ const Transacoes: React.FC = () => {
             </CardContent>
           </Card>
         ) : (
-          filteredTransacoes.map((transacao) => (
-            <Card key={transacao.id} className={`hover:shadow-md transition-shadow ${
-              selectedIds.includes(transacao.id) ? 'ring-2 ring-primary' : ''
-            }`}>
-              <CardContent className="p-3 sm:p-4 md:p-6">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-                  <div className="flex items-start gap-3 flex-1 min-w-0">
-                    <Checkbox
-                      checked={selectedIds.includes(transacao.id)}
-                      onCheckedChange={() => handleToggleSelect(transacao.id)}
-                      className="mt-1"
-                    />
-                    <div className="flex-1 min-w-0">
-                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3 mb-2">
-                      <div className="flex items-center gap-2 min-w-0 flex-1">
-                        {transacao.tipo === 'receita' ? (
-                          <TrendingUp className="h-4 w-4 sm:h-5 sm:w-5 text-green-600 flex-shrink-0" />
+          filteredTransacoes.map((transacao) => {
+            const isReceita = transacao.tipo === 'receita';
+            return (
+              <Card key={transacao.id} className={`overflow-hidden border-l-4 hover:shadow-lg transition-all ${
+                selectedIds.includes(transacao.id) ? 'ring-2 ring-primary' : ''
+              } ${isReceita ? 'border-l-green-500' : 'border-l-red-500'}`}>
+                <CardContent className="p-0">
+                  {/* Header com gradiente */}
+                  <div className={`bg-gradient-to-r p-4 border-b border-border/50 ${
+                    isReceita ? 'from-green-500/10 to-transparent' : 'from-red-500/10 to-transparent'
+                  }`}>
+                    <div className="flex items-center gap-3">
+                      <Checkbox
+                        checked={selectedIds.includes(transacao.id)}
+                        onCheckedChange={() => handleToggleSelect(transacao.id)}
+                      />
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                        isReceita ? 'bg-green-500/20' : 'bg-red-500/20'
+                      }`}>
+                        {isReceita ? (
+                          <TrendingUp className={`h-5 w-5 text-green-500`} />
                         ) : (
-                          <TrendingDown className="h-4 w-4 sm:h-5 sm:w-5 text-red-600 flex-shrink-0" />
+                          <TrendingDown className={`h-5 w-5 text-red-500`} />
                         )}
-                        <h3 className="font-semibold text-sm sm:text-base line-clamp-1">
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h3 className="font-bold text-sm sm:text-base line-clamp-1">
                           {transacao.estabelecimento || 'Sem estabelecimento'}
                         </h3>
+                        <p className="text-xs text-muted-foreground">
+                          {transacao.categorias?.nome || 'Sem categoria'}
+                        </p>
                       </div>
-                      {transacao.tipo === 'receita' ? (
-                        <Badge variant="default" className="self-start text-xs px-5 py-1.5 rounded-2xl bg-gradient-to-r from-green-500/90 to-green-700/90 text-white border-none font-bold tracking-wide shadow-md drop-shadow-sm" style={{letterSpacing: 0.5}}>
-                          Receita
+                      <div className="text-right">
+                        <p className={`text-base sm:text-lg font-bold ${isReceita ? 'text-green-500' : 'text-red-500'}`}>
+                          {isReceita ? '+' : '-'}{formatCurrency(Math.abs(transacao.valor || 0))}
+                        </p>
+                        <Badge variant={isReceita ? 'default' : 'destructive'} className={`text-xs mt-1 ${
+                          isReceita ? 'bg-green-500' : 'bg-red-500'
+                        }`}>
+                          {isReceita ? 'Receita' : 'Despesa'}
                         </Badge>
-                      ) : (
-                        <Badge variant="destructive" className="self-start text-xs px-5 py-1.5 rounded-2xl bg-gradient-to-r from-red-500/90 to-red-700/90 text-white border-none font-bold tracking-wide shadow-md drop-shadow-sm" style={{letterSpacing: 0.5}}>
-                          Despesa
-                        </Badge>
-                      )}
-                      <span className={`font-bold text-base sm:text-lg ${transacao.tipo === 'receita' ? 'text-green-600' : 'text-red-600'}`}>
-                        {transacao.tipo === 'receita' ? '+' : '-'}{formatCurrency(Math.abs(transacao.valor || 0))}
-                      </span>
-                    </div>
-                    <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
-                      <span>Categoria: {transacao.categorias?.nome || 'Sem categoria'}</span>
-                      <span>Conta: {accountsMap?.[transacao.account_id || '']?.name || 'Sem conta'}</span>
-                      <span>Data: {formatDate(transacao.quando)}</span>
-                    </div>
+                      </div>
                     </div>
                   </div>
-                  <div className="flex gap-2 mt-2 sm:mt-0">
-                    <Button size="sm" variant="outline" onClick={() => handleEdit(transacao)} aria-label="Editar transação">
-                      <Edit className="h-3 w-3 sm:h-4 sm:w-4" />
-                    </Button>
-                    <AlertDialog>
-                      <AlertDialogTrigger asChild>
-                        <Button size="sm" variant="outline" type="button" className="h-8 w-8 p-0 border-destructive text-destructive hover:bg-destructive hover:text-destructive-foreground" aria-label="Remover transação">
-                          <Trash2 className="h-3 w-3 sm:h-4 sm:w-4" />
+
+                  {/* Body */}
+                  <div className="p-4">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
+                        <div className="flex items-center gap-1.5">
+                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                          </svg>
+                          <span>{formatDate(transacao.quando)}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                          </svg>
+                          <span>{accountsMap?.[transacao.account_id || '']?.name || 'Sem conta'}</span>
+                        </div>
+                      </div>
+                      
+                      <div className="flex gap-2">
+                        <Button size="sm" variant="ghost" onClick={() => handleEdit(transacao)} className="h-8 gap-1.5" aria-label="Editar transação">
+                          <Edit className="h-3.5 w-3.5" />
+                          <span className="hidden sm:inline text-xs">Editar</span>
                         </Button>
-                      </AlertDialogTrigger>
-                      <AlertDialogContent>
-                        <AlertDialogHeader>
-                          <AlertDialogTitle>Remover transação</AlertDialogTitle>
-                          <AlertDialogDescription>Tem certeza que deseja remover esta transação? Esta ação não pode ser desfeita.</AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                          <AlertDialogAction onClick={() => handleDelete(transacao.id)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Remover</AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
+                        <AlertDialog>
+                          <AlertDialogTrigger asChild>
+                            <Button size="sm" variant="ghost" type="button" className="h-8 gap-1.5 text-red-500 hover:text-red-600 hover:bg-red-500/10" aria-label="Remover transação">
+                              <Trash2 className="h-3.5 w-3.5" />
+                              <span className="hidden sm:inline text-xs">Excluir</span>
+                            </Button>
+                          </AlertDialogTrigger>
+                          <AlertDialogContent>
+                            <AlertDialogHeader>
+                              <AlertDialogTitle>Remover transação</AlertDialogTitle>
+                              <AlertDialogDescription>Tem certeza que deseja remover esta transação? Esta ação não pode ser desfeita.</AlertDialogDescription>
+                            </AlertDialogHeader>
+                            <AlertDialogFooter>
+                              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                              <AlertDialogAction onClick={() => handleDelete(transacao.id)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Remover</AlertDialogAction>
+                            </AlertDialogFooter>
+                          </AlertDialogContent>
+                        </AlertDialog>
+                      </div>
+                    </div>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))
+                </CardContent>
+              </Card>
+            );
+          })
         )}
       </div>
     </div>

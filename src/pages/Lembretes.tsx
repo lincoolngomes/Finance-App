@@ -231,23 +231,38 @@ export default function Lembretes() {
                 <span className="sm:hidden">Novo</span>
               </Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-[425px]">
-              <DialogHeader>
-                <DialogTitle>
-                  {editingLembrete ? 'Editar Lembrete' : 'Novo Lembrete'}
-                </DialogTitle>
-                <DialogDescription>
-                  {editingLembrete 
-                    ? 'Faça as alterações necessárias no lembrete.' 
-                    : 'Adicione um novo lembrete para não esquecer pagamentos importantes.'}
-                </DialogDescription>
+            <DialogContent className="sm:max-w-[425px] bg-black/70 backdrop-blur-sm border-primary/20">
+              {/* Header com gradiente */}
+              <DialogHeader className="bg-gradient-to-r from-primary/10 to-transparent p-4 -m-6 mb-4 border-b border-primary/20">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center">
+                    <Calendar className="h-6 w-6 text-primary" />
+                  </div>
+                  <div>
+                    <DialogTitle className="text-lg font-bold">
+                      {editingLembrete ? 'Editar Lembrete' : 'Novo Lembrete'}
+                    </DialogTitle>
+                    <DialogDescription className="text-xs">
+                      {editingLembrete 
+                        ? 'Faça as alterações necessárias no lembrete.' 
+                        : 'Adicione um novo lembrete importante.'}
+                    </DialogDescription>
+                  </div>
+                </div>
               </DialogHeader>
-              <form onSubmit={handleSubmit} className="space-y-4">
+              
+              <form onSubmit={handleSubmit} className="space-y-5 pt-2">
                 <div className="space-y-2">
-                  <Label htmlFor="descricao">Descrição</Label>
+                  <Label htmlFor="descricao" className="text-sm font-medium flex items-center gap-2">
+                    <svg className="w-4 h-4 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    Descrição
+                  </Label>
                   <Textarea
                     id="descricao"
                     placeholder="Ex: Pagar conta de luz, Aniversário da Maria..."
+                    className="bg-background/50"
                     value={formData.descricao}
                     onChange={(e) => setFormData({...formData, descricao: e.target.value})}
                     required
@@ -255,30 +270,46 @@ export default function Lembretes() {
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="data">Data</Label>
+                    <Label htmlFor="data" className="text-sm font-medium flex items-center gap-2">
+                      <Calendar className="h-4 w-4 text-primary" />
+                      Data
+                    </Label>
                     <Input
                       id="data"
                       type="date"
+                      className="bg-background/50"
                       value={formData.data}
                       onChange={(e) => setFormData({...formData, data: e.target.value})}
                       required
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="valor">Valor (opcional)</Label>
+                    <Label htmlFor="valor" className="text-sm font-medium flex items-center gap-2">
+                      <svg className="w-4 h-4 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      Valor (opcional)
+                    </Label>
                     <Input
                       id="valor"
                       type="number"
                       step="0.01"
                       placeholder="0,00"
+                      className="bg-background/50"
                       value={formData.valor}
                       onChange={(e) => setFormData({...formData, valor: e.target.value})}
                     />
                   </div>
                 </div>
-                <Button type="submit" className="w-full bg-primary hover:bg-primary/90">
-                  {editingLembrete ? 'Atualizar' : 'Adicionar'} Lembrete
-                </Button>
+                
+                <div className="bg-secondary/30 -mx-6 -mb-6 p-4 border-t border-border/50">
+                  <Button type="submit" className="w-full gap-2">
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                    {editingLembrete ? 'Atualizar' : 'Adicionar'} Lembrete
+                  </Button>
+                </div>
               </form>
             </DialogContent>
           </Dialog>
@@ -315,53 +346,70 @@ export default function Lembretes() {
         ) : (
           lembretes.map((lembrete) => {
             const dateStatus = lembrete.data ? getDateStatus(lembrete.data) : null
+            const isLate = lembrete.data && isOverdue(lembrete.data)
             return (
-              <Card key={lembrete.id} className={`hover:shadow-md transition-shadow ${
-                lembrete.data && isOverdue(lembrete.data) ? 'border-destructive/50 bg-destructive/5 dark:border-destructive/30 dark:bg-destructive/10' : ''
+              <Card key={lembrete.id} className={`overflow-hidden border-l-4 hover:shadow-lg transition-all ${
+                isLate ? 'border-l-red-500' : 'border-l-primary'
               }`}>
-                <CardContent className="p-4 md:p-6">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                    <div className="flex-1">
-                      <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 mb-2">
-                        <div className="flex items-center gap-3">
-                          <Calendar className="h-5 w-5 text-primary" />
-                          <h3 className="font-semibold text-sm sm:text-base">{lembrete.descricao}</h3>
-                        </div>
-                        {dateStatus && (
-                          <Badge variant={dateStatus.variant} className="self-start">
-                            {dateStatus.label}
-                          </Badge>
-                        )}
+                <CardContent className="p-0">
+                  {/* Header com gradiente */}
+                  <div className={`bg-gradient-to-r p-4 border-b border-border/50 ${
+                    isLate ? 'from-red-500/20 to-red-500/5' : 'from-primary/10 to-transparent'
+                  }`}>
+                    <div className="flex items-center gap-3">
+                      <div className={`w-12 h-12 rounded-full flex items-center justify-center ${
+                        isLate ? 'bg-red-500/20' : 'bg-primary/20'
+                      }`}>
+                        <Calendar className={`h-6 w-6 ${isLate ? 'text-red-500' : 'text-primary'}`} />
                       </div>
-                      <div className="text-xs sm:text-sm text-muted-foreground space-y-1">
-                        {lembrete.data && (
-                          <div className="flex items-center gap-2">
-                            <Clock className="h-4 w-4" />
-                            <span>Data: {formatDate(lembrete.data)}</span>
-                          </div>
-                        )}
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <h3 className="font-bold text-base">{lembrete.descricao}</h3>
+                          {dateStatus && (
+                            <Badge variant={dateStatus.variant} className="text-xs">
+                              {dateStatus.label}
+                            </Badge>
+                          )}
+                        </div>
                         {lembrete.valor && (
-                          <p>Valor: {formatCurrency(lembrete.valor)}</p>
+                          <p className="text-sm text-muted-foreground mt-1">
+                            Valor: <span className="font-semibold text-foreground">{formatCurrency(lembrete.valor)}</span>
+                          </p>
                         )}
                       </div>
                     </div>
-                    <div className="flex justify-center sm:justify-end gap-2">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleEdit(lembrete)}
-                        className="border-primary text-primary hover:bg-primary hover:text-primary-foreground"
-                      >
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => handleDelete(lembrete.id)}
-                        className="border-destructive text-destructive hover:bg-destructive hover:text-destructive-foreground"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                  </div>
+
+                  {/* Body */}
+                  <div className="p-4">
+                    <div className="flex items-center justify-between">
+                      {lembrete.data && (
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                          <Clock className="h-4 w-4" />
+                          <span>{formatDate(lembrete.data)}</span>
+                        </div>
+                      )}
+                      
+                      <div className="flex gap-2 ml-auto">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleEdit(lembrete)}
+                          className="h-8 gap-2"
+                        >
+                          <Edit className="h-3.5 w-3.5" />
+                          <span className="hidden sm:inline">Editar</span>
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => handleDelete(lembrete.id)}
+                          className="h-8 gap-2 text-red-500 hover:text-red-600 hover:bg-red-500/10"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                          <span className="hidden sm:inline">Excluir</span>
+                        </Button>
+                      </div>
                     </div>
                   </div>
                 </CardContent>
