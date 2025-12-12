@@ -304,7 +304,6 @@ export function DashboardCharts({ transacoes, recentTransacoes, contas = [], lem
                 </PieChart>
               </ResponsiveContainer>
             </div>
-            </div>
           </CardContent>
         </Card>
       </div>
