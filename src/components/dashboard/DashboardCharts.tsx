@@ -2,6 +2,7 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { formatCurrency } from '@/utils/currency'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line, Legend } from 'recharts'
+import { Calendar, Lightbulb } from 'lucide-react'
 
 interface Transacao {
   id: number
@@ -19,15 +20,34 @@ interface Transacao {
   }
 }
 
+interface Lembrete {
+  id: number
+  created_at: string
+  userid: string | null
+  descricao: string | null
+  data: string | null
+  valor: number | null
+}
+
 interface DashboardChartsProps {
   transacoes: Transacao[]
   recentTransacoes?: Transacao[]
   contas?: any[]
+  lembretes?: Lembrete[]
 }
 
 const COLORS = ['#6366f1', '#8b5cf6', '#ec4899', '#06b6d4', '#10b981', '#f59e0b', '#ef4444', '#84cc16']
 
-export function DashboardCharts({ transacoes, recentTransacoes, contas = [] }: DashboardChartsProps) {
+const dicas = [
+  "💡 Sempre registre suas despesas no mesmo dia para não esquecer",
+  "💡 Defina metas mensais de economia e acompanhe seu progresso",
+  "💡 Categorize suas despesas para identificar onde gasta mais",
+  "💡 Configure lembretes para não perder datas de pagamento",
+  "💡 Revise seus gastos semanalmente para manter o controle",
+  "💡 Separe uma quantia fixa para emergências todo mês"
+]
+
+export function DashboardCharts({ transacoes, recentTransacoes, contas = [], lembretes = [] }: DashboardChartsProps) {
   const parseDateUniversal = (dateStr: any): Date | null => {
     if (!dateStr && dateStr !== 0) return null
     const s = String(dateStr).trim()
@@ -152,228 +172,148 @@ export function DashboardCharts({ transacoes, recentTransacoes, contas = [] }: D
   const monthlyBalanceData = getMonthlyBalanceData()
 
   return (
-    <div className="grid gap-6 md:grid-cols-2">
-      <Card className="shadow-lg border border-red-500/20 bg-gradient-to-br from-red-900/90 to-rose-900/90 dark:from-red-950/50 dark:to-rose-950/50 backdrop-blur-sm">
-        <CardHeader className="pb-4">
-          <CardTitle className="text-xl font-bold">
-            <span className="text-red-400">💰</span>{' '}
-            <span className="bg-gradient-to-r from-red-400 to-rose-400 bg-clip-text text-transparent">
-              Gastos por Categoria
-            </span>
-          </CardTitle>
-          <CardDescription className="text-sm text-red-300/70">
-            Distribuição dos seus gastos no período selecionado
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="h-[250px] md:h-[300px] relative">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={categoriesData}
-                  cx="50%"
-                  cy="50%"
-                  labelLine={false}
-                  label={false}
-                  outerRadius="70%"
-                  innerRadius="30%"
-                  paddingAngle={2}
-                  fill="#8884d8"
-                  dataKey="value"
-                >
-                  {categoriesData.map((entry, index) => (
-                    <Cell 
-                      key={`cell-${index}`} 
-                      fill={COLORS[index % COLORS.length]}
-                      stroke="rgba(255,255,255,0.2)"
-                      strokeWidth={2}
-                    />
-                  ))}
-                </Pie>
-                <Tooltip 
-                  formatter={(value, name, props) => {
-                    const totalValue = categoriesData.reduce((sum, item) => sum + item.value, 0)
-                    const percentage = totalValue > 0 ? ((Number(value) / totalValue) * 100).toFixed(1) : 0
-                    return [
-                      `${formatCurrency(Number(value))} (${percentage}%)`, 
-                      props.payload.name
-                    ]
-                  }}
-                  labelStyle={{ color: '#ffffff', fontWeight: 'bold' }}
-                  contentStyle={{ 
-                    backgroundColor: 'rgba(15, 23, 42, 0.95)', 
-                    border: '1px solid rgba(239, 68, 68, 0.3)',
-                    borderRadius: '12px',
-                    boxShadow: '0 8px 32px rgba(0, 0, 0, 0.3)',
-                    backdropFilter: 'blur(16px)',
-                    color: '#ffffff !important'
-                  }}
-                  itemStyle={{ color: '#ffffff' }}
-                />
-              </PieChart>
-            </ResponsiveContainer>
-            
+    <div className="space-y-6">
+      {/* Linha 1: Evolução Mensal (2/3) + Gastos por Categoria (1/3) */}
+      <div className="grid gap-6 grid-cols-1 lg:grid-cols-3">
+        {/* Evolução Mensal - 2/3 */}
+        <Card className="lg:col-span-2 shadow-lg border border-cyan-500/20 bg-gradient-to-br from-cyan-950/50 to-slate-950/50 backdrop-blur-sm">
+          <CardHeader className="pb-4">
+            <CardTitle className="text-xl font-bold">
+              <span className="text-cyan-400">📈</span>{' '}
+              <span className="bg-gradient-to-r from-cyan-400 to-blue-400 bg-clip-text text-transparent">
+                Evolução Mensal
+              </span>
+            </CardTitle>
+            <CardDescription className="text-sm text-cyan-300/70">
+              Comparação entre receitas e despesas mês a mês
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="h-[300px] md:h-[350px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={monthlyBalanceData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(6, 182, 212, 0.2)" />
+                  <XAxis 
+                    dataKey="month" 
+                    tick={{ fontSize: 12, fill: '#e2e8f0' }}
+                    tickLine={false}
+                    axisLine={{ stroke: 'rgba(6, 182, 212, 0.3)' }}
+                  />
+                  <YAxis 
+                    tickFormatter={(value) => `R$ ${(value / 1000).toFixed(0)}k`}
+                    tick={{ fontSize: 12, fill: '#cbd5e1' }}
+                    tickLine={false}
+                    axisLine={{ stroke: 'rgba(6, 182, 212, 0.3)' }}
+                  />
+                  <Tooltip 
+                    formatter={(value: number, name: string) => {
+                      const label = name === 'receitas' ? 'Receitas' : 'Despesas'
+                      return [formatCurrency(value), label]
+                    }}
+                    labelStyle={{ color: '#e2e8f0', fontWeight: 'bold' }}
+                    contentStyle={{ 
+                      backgroundColor: 'rgba(15, 23, 42, 0.95)', 
+                      border: '1px solid rgba(6, 182, 212, 0.3)',
+                      borderRadius: '12px',
+                      boxShadow: '0 8px 32px rgba(0, 0, 0, 0.3)',
+                      backdropFilter: 'blur(16px)'
+                    }}
+                    itemStyle={{ color: '#e2e8f0' }}
+                  />
+                  <Legend 
+                    wrapperStyle={{ paddingTop: '20px' }}
+                    iconType="line"
+                    formatter={(value) => <span style={{ color: '#e2e8f0', fontSize: '14px', fontWeight: 500 }}>{value === 'receitas' ? 'Receitas' : 'Despesas'}</span>}
+                  />
+                  <Line 
+                    type="monotone" 
+                    dataKey="receitas" 
+                    stroke="#10b981" 
+                    strokeWidth={3}
+                    dot={{ fill: '#10b981', strokeWidth: 2, r: 5 }}
+                    activeDot={{ r: 7 }}
+                  />
+                  <Line 
+                    type="monotone" 
+                    dataKey="despesas" 
+                    stroke="#ef4444" 
+                    strokeWidth={3}
+                    dot={{ fill: '#ef4444', strokeWidth: 2, r: 5 }}
+                    activeDot={{ r: 7 }}
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </CardContent>
+        </Card>
 
-          </div>
-        </CardContent>
-      </Card>
+        {/* Gastos por Categoria - 1/3 */}
+        <Card className="shadow-lg border border-red-500/20 bg-gradient-to-br from-red-900/90 to-rose-900/90 dark:from-red-950/50 dark:to-rose-950/50 backdrop-blur-sm">
+          <CardHeader className="pb-4">
+            <CardTitle className="text-xl font-bold">
+              <span className="text-red-400">💰</span>{' '}
+              <span className="bg-gradient-to-r from-red-400 to-rose-400 bg-clip-text text-transparent">
+                Gastos por Categoria
+              </span>
+            </CardTitle>
+            <CardDescription className="text-sm text-red-300/70">
+              Distribuição dos seus gastos
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="h-[250px] md:h-[300px] relative">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={categoriesData}
+                    cx="50%"
+                    cy="50%"
+                    labelLine={false}
+                    label={false}
+                    outerRadius="70%"
+                    innerRadius="30%"
+                    paddingAngle={2}
+                    fill="#8884d8"
+                    dataKey="value"
+                  >
+                    {categoriesData.map((entry, index) => (
+                      <Cell 
+                        key={`cell-${index}`} 
+                        fill={COLORS[index % COLORS.length]}
+                        stroke="rgba(255,255,255,0.2)"
+                        strokeWidth={2}
+                      />
+                    ))}
+                  </Pie>
+                  <Tooltip 
+                    formatter={(value, name, props) => {
+                      const totalValue = categoriesData.reduce((sum, item) => sum + item.value, 0)
+                      const percentage = totalValue > 0 ? ((Number(value) / totalValue) * 100).toFixed(1) : 0
+                      return [
+                        `${formatCurrency(Number(value))} (${percentage}%)`, 
+                        props.payload.name
+                      ]
+                    }}
+                    labelStyle={{ color: '#ffffff', fontWeight: 'bold' }}
+                    contentStyle={{ 
+                      backgroundColor: 'rgba(15, 23, 42, 0.95)', 
+                      border: '1px solid rgba(239, 68, 68, 0.3)',
+                      borderRadius: '12px',
+                      boxShadow: '0 8px 32px rgba(0, 0, 0, 0.3)',
+                      backdropFilter: 'blur(16px)',
+                      color: '#ffffff !important'
+                    }}
+                    itemStyle={{ color: '#ffffff' }}
+                  />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
 
-      <Card className="shadow-lg border border-emerald-500/20 bg-gradient-to-br from-emerald-900/90 to-teal-900/90 dark:from-emerald-950/50 dark:to-red-950/50 backdrop-blur-sm">
-        <CardHeader className="pb-4">
-          <CardTitle className="text-xl font-bold">
-            <span className="text-emerald-400">📊</span>{' '}
-            <span className="bg-gradient-to-r from-emerald-400 to-red-400 bg-clip-text text-transparent">
-              Receitas vs Despesas
-            </span>
-          </CardTitle>
-          <CardDescription className="text-sm text-emerald-300/70">
-            Comparação entre receitas e despesas do período
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="h-[250px] md:h-[300px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart 
-                data={receitasDespesasData} 
-                margin={{ top: 30, right: 30, left: 40, bottom: 20 }}
-                barCategoryGap="30%"
-              >
-                <CartesianGrid 
-                  strokeDasharray="3 3" 
-                  stroke="rgba(34, 197, 94, 0.2)"
-                  horizontal={true}
-                  vertical={false}
-                />
-                <XAxis 
-                  dataKey="name" 
-                  tick={{ fontSize: 14, fontWeight: 500, fill: '#e2e8f0' }}
-                  tickLine={false}
-                  axisLine={false}
-                />
-                <YAxis 
-                  tickFormatter={(value) => formatCurrency(value).replace('R$', 'R$')}
-                  tick={{ fontSize: 12, fill: '#cbd5e1' }}
-                  tickLine={false}
-                  axisLine={false}
-                />
-                <Tooltip 
-                  formatter={(value) => [formatCurrency(Number(value)), 'Valor']}
-                  labelStyle={{ color: '#e2e8f0', fontWeight: 'bold' }}
-                  contentStyle={{ 
-                    backgroundColor: 'rgba(15, 23, 42, 0.95)', 
-                    border: '1px solid rgba(34, 197, 94, 0.3)',
-                    borderRadius: '12px',
-                    boxShadow: '0 8px 32px rgba(0, 0, 0, 0.3)',
-                    backdropFilter: 'blur(16px)'
-                  }}
-                  cursor={false}
-                />
-                <Bar 
-                  dataKey="value" 
-                  radius={[8, 8, 0, 0]}
-                  fill="url(#colorGradient)"
-                >
-                  {receitasDespesasData.map((entry, index) => (
-                    <Cell 
-                      key={`cell-${index}`} 
-                      fill={entry.name === 'Receitas' 
-                        ? 'url(#receitas)' 
-                        : 'url(#despesas)'
-                      } 
-                    />
-                  ))}
-                </Bar>
-                
-                {/* Gradientes */}
-                <defs>
-                  <linearGradient id="receitas" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#10b981" stopOpacity={1}/>
-                    <stop offset="100%" stopColor="#059669" stopOpacity={0.8}/>
-                  </linearGradient>
-                  <linearGradient id="despesas" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#ef4444" stopOpacity={1}/>
-                    <stop offset="100%" stopColor="#dc2626" stopOpacity={0.8}/>
-                  </linearGradient>
-                </defs>
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Novo gráfico de evolução mensal */}
-      <Card className="md:col-span-2 shadow-lg border border-cyan-500/20 bg-gradient-to-br from-cyan-950/50 to-slate-950/50 backdrop-blur-sm">
-        <CardHeader className="pb-4">
-          <CardTitle className="text-xl font-bold">
-            <span className="text-cyan-400">📊</span>{' '}
-            <span className="bg-gradient-to-r from-cyan-400 to-blue-400 bg-clip-text text-transparent">
-              Evolução Mensal
-            </span>
-          </CardTitle>
-          <CardDescription className="text-sm text-cyan-300/70">
-            Comparação entre receitas e despesas do período selecionado
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="h-[300px] md:h-[350px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={monthlyBalanceData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(6, 182, 212, 0.2)" />
-                <XAxis 
-                  dataKey="month" 
-                  tick={{ fontSize: 12, fill: '#e2e8f0' }}
-                  tickLine={false}
-                  axisLine={{ stroke: 'rgba(6, 182, 212, 0.3)' }}
-                />
-                <YAxis 
-                  tickFormatter={(value) => `R$ ${(value / 1000).toFixed(0)}k`}
-                  tick={{ fontSize: 12, fill: '#cbd5e1' }}
-                  tickLine={false}
-                  axisLine={{ stroke: 'rgba(6, 182, 212, 0.3)' }}
-                />
-                <Tooltip 
-                  formatter={(value: number, name: string) => {
-                    const label = name === 'receitas' ? 'Receitas' : 'Despesas'
-                    return [formatCurrency(value), label]
-                  }}
-                  labelStyle={{ color: '#e2e8f0', fontWeight: 'bold' }}
-                  contentStyle={{ 
-                    backgroundColor: 'rgba(15, 23, 42, 0.95)', 
-                    border: '1px solid rgba(6, 182, 212, 0.3)',
-                    borderRadius: '12px',
-                    boxShadow: '0 8px 32px rgba(0, 0, 0, 0.3)',
-                    backdropFilter: 'blur(16px)'
-                  }}
-                  itemStyle={{ color: '#e2e8f0' }}
-                />
-                <Legend 
-                  wrapperStyle={{ paddingTop: '20px' }}
-                  iconType="line"
-                  formatter={(value) => <span style={{ color: '#e2e8f0', fontSize: '14px', fontWeight: 500 }}>{value === 'receitas' ? 'Receitas' : 'Despesas'}</span>}
-                />
-                <Line 
-                  type="monotone" 
-                  dataKey="receitas" 
-                  stroke="#10b981" 
-                  strokeWidth={3}
-                  dot={{ fill: '#10b981', strokeWidth: 2, r: 5 }}
-                  activeDot={{ r: 7 }}
-                />
-                <Line 
-                  type="monotone" 
-                  dataKey="despesas" 
-                  stroke="#ef4444" 
-                  strokeWidth={3}
-                  dot={{ fill: '#ef4444', strokeWidth: 2, r: 5 }}
-                  activeDot={{ r: 7 }}
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card className="md:col-span-2 shadow-lg border border-blue-500/20 bg-gradient-to-br from-blue-950/50 to-slate-950/50 backdrop-blur-sm">
+      {/* Linha 2: Resumo do Período - Full Width */}
+      <Card className="shadow-lg border border-blue-500/20 bg-gradient-to-br from-blue-950/50 to-slate-950/50 backdrop-blur-sm">
         <CardHeader className="pb-6">
           <CardTitle className="text-xl font-bold">
             <span className="text-blue-400">📈</span>{' '}
@@ -434,66 +374,122 @@ export function DashboardCharts({ transacoes, recentTransacoes, contas = [] }: D
         </CardContent>
       </Card>
 
-      {/* Últimos Lançamentos */}
-      <Card className="md:col-span-2 shadow-lg border border-slate-500/20 bg-gradient-to-br from-slate-900/80 to-slate-800/60 backdrop-blur-sm">
-        <CardHeader className="pb-4">
-          <CardTitle className="text-xl font-bold bg-gradient-to-r from-slate-300 to-slate-100 bg-clip-text text-transparent">
-            📋 Últimos Lançamentos
-          </CardTitle>
-          <CardDescription className="text-sm text-slate-400">
-            Os 5 lançamentos mais recentes
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-3">
-            { (recentTransacoes ?? transacoes)
-              .slice()
-              .sort((a, b) => {
-                const aTime = parseDateUniversal(a.quando ?? a.created_at)?.getTime() || 0
-                const bTime = parseDateUniversal(b.quando ?? b.created_at)?.getTime() || 0
-                return bTime - aTime
-              })
-              .slice(0, 5)
-              .map((transacao) => (
-                <div 
-                  key={transacao.id} 
-                  className="flex items-center justify-between p-4 rounded-xl bg-slate-800/50 border border-slate-700/50 hover:bg-slate-700/50 transition-colors"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className={`w-3 h-3 rounded-full ${
-                      transacao.tipo === 'receita' ? 'bg-green-500' : 'bg-red-500'
-                    }`} />
-                    <div>
-                      <div className="font-medium text-slate-200">
-                        {transacao.estabelecimento || 'Sem estabelecimento'}
-                      </div>
-                      <div className="text-sm text-slate-400">
-                        {transacao.categorias?.nome || 'Sem categoria'} • {
-                          (() => {
-                            const raw = transacao.quando ?? transacao.created_at
-                            const parsed = parseDateUniversal(raw)
-                            return parsed ? parsed.toLocaleDateString('pt-BR', { timeZone: 'UTC' }) : String(raw || '')
-                          })()
-                        }
+      {/* Linha 3: Últimos Lançamentos (2/3) + Lembretes (1/3) */}
+      <div className="grid gap-6 grid-cols-1 lg:grid-cols-3">
+        {/* Últimos Lançamentos - 2/3 */}
+        <Card className="lg:col-span-2 shadow-lg border border-slate-500/20 bg-gradient-to-br from-slate-900/80 to-slate-800/60 backdrop-blur-sm">
+          <CardHeader className="pb-4">
+            <CardTitle className="text-xl font-bold bg-gradient-to-r from-slate-300 to-slate-100 bg-clip-text text-transparent">
+              📋 Últimos Lançamentos
+            </CardTitle>
+            <CardDescription className="text-sm text-slate-400">
+              Os 5 lançamentos mais recentes
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              { (recentTransacoes ?? transacoes)
+                .slice()
+                .sort((a, b) => {
+                  const aTime = parseDateUniversal(a.quando ?? a.created_at)?.getTime() || 0
+                  const bTime = parseDateUniversal(b.quando ?? b.created_at)?.getTime() || 0
+                  return bTime - aTime
+                })
+                .slice(0, 5)
+                .map((transacao) => (
+                  <div 
+                    key={transacao.id} 
+                    className="flex items-center justify-between p-4 rounded-xl bg-slate-800/50 border border-slate-700/50 hover:bg-slate-700/50 transition-colors"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={`w-3 h-3 rounded-full ${
+                        transacao.tipo === 'receita' ? 'bg-green-500' : 'bg-red-500'
+                      }`} />
+                      <div>
+                        <div className="font-medium text-slate-200">
+                          {transacao.estabelecimento || 'Sem estabelecimento'}
+                        </div>
+                        <div className="text-sm text-slate-400">
+                          {transacao.categorias?.nome || 'Sem categoria'} • {
+                            (() => {
+                              const raw = transacao.quando ?? transacao.created_at
+                              const parsed = parseDateUniversal(raw)
+                              return parsed ? parsed.toLocaleDateString('pt-BR', { timeZone: 'UTC' }) : String(raw || '')
+                            })()
+                          }
+                        </div>
                       </div>
                     </div>
+                    <div className={`font-bold ${
+                      transacao.tipo === 'receita' ? 'text-green-400' : 'text-red-400'
+                    }`}>
+                      {transacao.tipo === 'receita' ? '+' : '-'}{formatCurrency(Math.abs(transacao.valor || 0))}
+                    </div>
                   </div>
-                  <div className={`font-bold ${
-                    transacao.tipo === 'receita' ? 'text-green-400' : 'text-red-400'
-                  }`}>
-                    {transacao.tipo === 'receita' ? '+' : '-'}{formatCurrency(Math.abs(transacao.valor || 0))}
-                  </div>
+                ))
+              }
+              {(recentTransacoes ?? transacoes).length === 0 && (
+                <div className="text-center py-8 text-slate-400">
+                  Nenhuma transação encontrada
                 </div>
-              ))
-            }
-            {(recentTransacoes ?? transacoes).length === 0 && (
-              <div className="text-center py-8 text-slate-400">
-                Nenhuma transação encontrada
-              </div>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Lembretes - 1/3 */}
+        <div className="space-y-6">
+          <Card className="shadow-lg border border-purple-500/20 bg-gradient-to-br from-purple-950/50 to-slate-950/50 backdrop-blur-sm">
+            <CardHeader className="pb-4">
+              <CardTitle className="flex items-center gap-2 text-lg font-bold">
+                <Calendar className="h-5 w-5 text-purple-400" />
+                <span className="bg-gradient-to-r from-purple-400 to-violet-400 bg-clip-text text-transparent">
+                  Próximo Lembrete
+                </span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {(() => {
+                const proximoLembrete = lembretes
+                  .filter(l => l.data && new Date(l.data) >= new Date())
+                  .sort((a, b) => new Date(a.data!).getTime() - new Date(b.data!).getTime())[0]
+                
+                return proximoLembrete ? (
+                  <div className="space-y-2 p-4 rounded-xl bg-purple-900/20 border border-purple-500/20">
+                    <p className="font-medium text-purple-200">{proximoLembrete.descricao}</p>
+                    <p className="text-sm text-purple-300/70">
+                      {new Date(proximoLembrete.data!).toLocaleDateString('pt-BR')}
+                    </p>
+                    {proximoLembrete.valor && (
+                      <p className="text-sm font-medium text-purple-400">
+                        {formatCurrency(proximoLembrete.valor)}
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <p className="text-purple-300/50 text-center py-4">Nenhum lembrete próximo</p>
+                )
+              })()}
+            </CardContent>
+          </Card>
+
+          <Card className="shadow-lg border border-amber-500/20 bg-gradient-to-br from-amber-950/50 to-slate-950/50 backdrop-blur-sm">
+            <CardHeader className="pb-4">
+              <CardTitle className="flex items-center gap-2 text-lg font-bold">
+                <Lightbulb className="h-5 w-5 text-amber-400" />
+                <span className="bg-gradient-to-r from-amber-400 to-yellow-400 bg-clip-text text-transparent">
+                  Dica do Dia
+                </span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-sm text-amber-200/80 p-4 rounded-xl bg-amber-900/20 border border-amber-500/20">
+                {dicas[new Date().getDate() % dicas.length]}
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
     </div>
   )
 }
