@@ -569,9 +569,9 @@ export default function Calendario() {
             </div>
           </div>
         </CardHeader>
-        <CardContent className="overflow-hidden">
+        <CardContent className="overflow-hidden p-4 sm:p-6">
           {/* Calendar Grid */}
-          <div className={`grid gap-1 sm:gap-2 ${
+          <div className={`grid gap-2 ${
             viewMode === 'month' ? 'grid-cols-7' : 
             viewMode === 'week' ? 'grid-cols-7' : 
             'grid-cols-1'
