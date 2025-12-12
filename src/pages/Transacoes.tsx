@@ -506,59 +506,71 @@ const Transacoes: React.FC = () => {
       return
     }
     
-    console.log('Tentando excluir IDs:', selectedIds, 'User ID:', user.id)
+    console.log(`Tentando excluir ${selectedIds.length} transações em lotes`)
     
     // Mostrar loading
-    toast({
+    const loadingToast = toast({
       title: "Excluindo...",
-      description: `Excluindo ${selectedIds.length} transações...`,
+      description: `Processando ${selectedIds.length} transações em lotes...`,
     })
     
     try {
-      // Deletar um por um para evitar problemas com RLS
-      let errors = []
       let deleted = 0
+      let errors = []
+      const batchSize = 50 // Processar 50 por vez
       
-      for (const id of selectedIds) {
+      // Dividir em lotes
+      for (let i = 0; i < selectedIds.length; i += batchSize) {
+        const batch = selectedIds.slice(i, i + batchSize)
+        
+        console.log(`Processando lote ${Math.floor(i/batchSize) + 1} de ${Math.ceil(selectedIds.length/batchSize)}`)
+        
+        // Deletar lote com .in()
         try {
           const { error, data } = await supabase
             .from('transacoes')
             .delete()
-            .eq('id', id)
+            .in('id', batch)
             .eq('userid', user.id)
             .select()
           
-          console.log(`Tentativa de excluir ${id}:`, { error, data })
-          
           if (error) {
-            console.error(`Erro ao excluir transação ${id}:`, error)
-            errors.push({ id, error })
+            console.error(`Erro no lote:`, error)
+            errors.push(error)
           } else {
-            deleted++
+            deleted += data?.length || 0
+            console.log(`Lote excluído: ${data?.length || 0} itens`)
           }
-        } catch (networkError: any) {
-          console.error(`Erro de rede ao excluir ${id}:`, networkError)
-          errors.push({ id, error: networkError })
+          
+          // Atualizar progresso
+          toast({
+            title: "Excluindo...",
+            description: `${deleted} de ${selectedIds.length} excluídas...`,
+          })
+          
+        } catch (batchError: any) {
+          console.error(`Erro de rede no lote:`, batchError)
+          errors.push(batchError)
         }
       }
       
       if (deleted > 0) {
         toast({ 
           title: `${deleted} transações excluídas!`,
-          description: errors.length > 0 ? `${errors.length} falharam` : undefined,
+          description: errors.length > 0 ? `Alguns lotes falharam` : "Todas excluídas com sucesso",
           variant: errors.length > 0 ? "default" : "default"
         })
         setSelectedIds([])
         fetchTransacoes()
       } else {
-        throw new Error(`Nenhuma transação foi excluída. Verifique sua conexão com o servidor.`)
+        throw new Error(`Nenhuma transação foi excluída.`)
       }
       
     } catch (error: any) {
       console.error('Erro final:', error)
       toast({
         title: "Erro ao excluir transações",
-        description: "Verifique sua conexão com o servidor Supabase. Erro: " + (error.message || "Failed to fetch"),
+        description: error.message || "Erro de conexão com o servidor",
         variant: "destructive",
       })
     }
