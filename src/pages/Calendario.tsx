@@ -600,8 +600,8 @@ export default function Calendario() {
               return (
                 <Card 
                   key={day.toString()} 
-                  className={`min-h-[80px] sm:min-h-[100px] lg:min-h-[120px] cursor-pointer hover:shadow-lg transition-all duration-200 overflow-hidden ${
-                    isToday ? 'ring-2 ring-primary border-l-2 sm:border-l-4 border-l-primary' : 'border-l-2 sm:border-l-4 border-l-transparent'
+                  className={`min-h-[80px] sm:min-h-[100px] lg:min-h-[120px] cursor-pointer hover:shadow-lg transition-all duration-200 relative ${
+                    isToday ? 'ring-2 ring-primary' : ''
                   } ${
                     !isCurrentMonth ? 'opacity-50' : ''
                   } ${
@@ -614,6 +614,9 @@ export default function Calendario() {
                     handleDrop(e, day)
                   }}
                 >
+                  {isToday && (
+                    <div className="absolute left-0 top-0 bottom-0 w-1 bg-primary rounded-l-lg" />
+                  )}
                   <CardContent className="p-0">
                     {/* Header do dia */}
                     <div className={`p-2 border-b border-border/50 ${isToday ? 'bg-gradient-to-r from-primary/10 to-transparent' : 'bg-secondary/20'}`}>
