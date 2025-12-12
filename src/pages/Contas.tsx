@@ -177,8 +177,11 @@ function ImportarExtratoModal({ open, onClose, onImport, contas }) {
   const [importFeedback, setImportFeedback] = useState(null);
 
   const handleImportar = async () => {
+    console.log('Iniciando importação...', { lancamentos: lancamentos.length, contaId: contaSelecionada });
+    setLoading(true);
     try {
       const result = await onImport(lancamentos, contaSelecionada, regrasTexto);
+      console.log('Resultado da importação:', result);
       if (result && typeof result === 'object' && ('success' in result)) {
         setImportFeedback(result);
       } else {
@@ -191,10 +194,13 @@ function ImportarExtratoModal({ open, onClose, onImport, contas }) {
       setLancamentos([]);
       setCsvFile(null);
     } catch (e) {
+      console.error('Erro ao importar:', e);
       setImportFeedback({
         success: false,
         message: `Erro ao importar: ${e.message || e}`
       });
+    } finally {
+      setLoading(false);
     }
     // Modal não fecha automaticamente, mostra feedback
   };
@@ -450,11 +456,18 @@ function ImportarExtratoModal({ open, onClose, onImport, contas }) {
                 Voltar
               </button>
               <button
-                className={`px-4 py-2 rounded bg-blue-600 text-white font-bold hover:bg-blue-500 transition ${lancamentos.length === 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
+                className={`px-4 py-2 rounded bg-blue-600 text-white font-bold hover:bg-blue-500 transition flex items-center gap-2 ${(lancamentos.length === 0 || loading) ? 'opacity-50 cursor-not-allowed' : ''}`}
                 onClick={handleImportar}
-                disabled={lancamentos.length === 0}
+                disabled={lancamentos.length === 0 || loading}
               >
-                Finalizar Importação
+                {loading ? (
+                  <>
+                    <span className="loader border-2 border-t-2 border-white rounded-full w-4 h-4 animate-spin"></span>
+                    Importando...
+                  </>
+                ) : (
+                  'Finalizar Importação'
+                )}
               </button>
             </div>
           </>
