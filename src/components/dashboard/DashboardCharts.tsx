@@ -4,7 +4,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { formatCurrency } from '@/utils/currency'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line, Legend, ReferenceLine } from 'recharts'
 import { Calendar, TrendingDown, TrendingUp } from 'lucide-react'
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 
 interface Transacao {
   id: number
@@ -38,11 +38,12 @@ interface DashboardChartsProps {
   lembretes?: Lembrete[]
   selectedMonth?: string
   selectedYear?: string
+  allTransactions?: Transacao[]
 }
 
 const COLORS = ['#6366f1', '#8b5cf6', '#ec4899', '#06b6d4', '#10b981', '#f59e0b', '#ef4444', '#84cc16']
 
-export function DashboardCharts({ transacoes, recentTransacoes, contas = [], lembretes = [], selectedMonth, selectedYear }: DashboardChartsProps) {
+export function DashboardCharts({ transacoes, recentTransacoes, contas = [], lembretes = [], selectedMonth, selectedYear, allTransactions }: DashboardChartsProps) {
   const parseDateUniversal = (dateStr: any): Date | null => {
     if (!dateStr && dateStr !== 0) return null
     const s = String(dateStr).trim()
@@ -66,7 +67,7 @@ export function DashboardCharts({ transacoes, recentTransacoes, contas = [], lem
   }
 
   // Usa transações globais para stats do "Resumo do Período"
-  const allTransacoes = recentTransacoes || transacoes
+  const allTransacoes = allTransactions || recentTransacoes || transacoes
 
   if (import.meta.env.DEV) {
     const sample = allTransacoes.slice(0, 10).map(t => ({
@@ -121,19 +122,22 @@ export function DashboardCharts({ transacoes, recentTransacoes, contas = [], lem
 
   // Função para gerar dados mensais do ano selecionado
   const getMonthlyBalanceData = () => {
+    const currentYear = selectedYear ? parseInt(selectedYear) : new Date().getFullYear()
     const monthlyData: { [key: string]: { receitas: number; despesas: number } } = {}
     
     // Inicializar todos os 12 meses do ano
     for (let month = 0; month < 12; month++) {
       const monthKey = String(month).padStart(2, '0')
-      const monthName = new Date(2000, month, 1).toLocaleDateString('pt-BR', { month: 'short' })
       monthlyData[monthKey] = { receitas: 0, despesas: 0 }
     }
 
-    // Agrupar transações por mês (usando transações filtradas)
-    transacoes.forEach(t => {
+    // Agrupar transações por mês (usando TODAS as transações do ano selecionado)
+    allTransacoes.forEach(t => {
       const date = parseDateUniversal(t.quando || t.created_at)
       if (!date) return
+      
+      // Filtrar apenas transações do ano selecionado
+      if (date.getUTCFullYear() !== currentYear) return
 
       const monthKey = String(date.getUTCMonth()).padStart(2, '0')
       if (monthlyData[monthKey]) {
@@ -181,7 +185,9 @@ export function DashboardCharts({ transacoes, recentTransacoes, contas = [], lem
   const despesasDataAll = getCategoriesData('despesa')
   const receitasData = getCategoriesData('receita')
   const receitasDespesasData = getReceitasDespesasData()
-  const monthlyBalanceData = getMonthlyBalanceData()
+  
+  // Recalcula dados mensais quando ano mudar
+  const monthlyBalanceData = useMemo(() => getMonthlyBalanceData(), [selectedYear, allTransacoes])
 
   // Filtrar categorias visíveis
   const despesasData = despesasDataAll.filter(c => !hiddenCategories.has(c.name))

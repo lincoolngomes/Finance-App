@@ -164,12 +164,12 @@ export default function Dashboard() {
   }, [transacoes, contas])
 
   const stats = useMemo(() => {
-    // Usa valores globais (todas as transações), não apenas filtradas
-    const totalReceitas = transacoes
+    // Usa transações FILTRADAS do mês/ano selecionado
+    const totalReceitas = filteredTransacoes
       .filter(t => t.tipo === 'receita')
       .reduce((acc, t) => acc + Math.abs(Number(t.valor) || 0), 0)
     
-    const totalDespesas = transacoes
+    const totalDespesas = filteredTransacoes
       .filter(t => t.tipo === 'despesa')
       .reduce((acc, t) => acc + Math.abs(Number(t.valor) || 0), 0)
     
@@ -190,7 +190,7 @@ export default function Dashboard() {
       transacoesCount: filteredTransacoes.length,
       lembretesCount
     }
-  }, [transacoes, filteredTransacoes, lembretes, filterMonth, filterYear, saldoAtual])
+  }, [filteredTransacoes, lembretes, filterMonth, filterYear, saldoAtual])
 
   // (debug logs removed)
 
@@ -229,6 +229,7 @@ export default function Dashboard() {
         lembretes={lembretes}
         selectedMonth={filterMonth}
         selectedYear={filterYear}
+        allTransactions={transacoes}
       />
     </div>
   )
