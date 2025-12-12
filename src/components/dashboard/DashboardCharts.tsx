@@ -189,7 +189,7 @@ export function DashboardCharts({ transacoes, recentTransacoes, contas = [], lem
             </div>
           </CardHeader>
           <CardContent className="pt-0">
-            <div className="h-[280px]">
+            <div className="h-[320px] md:h-[360px]">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={monthlyBalanceData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="rgba(148, 163, 184, 0.2)" />
