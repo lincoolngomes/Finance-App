@@ -1,8 +1,10 @@
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { formatCurrency } from '@/utils/currency'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line, Legend } from 'recharts'
-import { Calendar, Lightbulb } from 'lucide-react'
+import { Calendar, TrendingDown, TrendingUp } from 'lucide-react'
+import { useState } from 'react'
 
 interface Transacao {
   id: number
@@ -37,15 +39,6 @@ interface DashboardChartsProps {
 }
 
 const COLORS = ['#6366f1', '#8b5cf6', '#ec4899', '#06b6d4', '#10b981', '#f59e0b', '#ef4444', '#84cc16']
-
-const dicas = [
-  "💡 Sempre registre suas despesas no mesmo dia para não esquecer",
-  "💡 Defina metas mensais de economia e acompanhe seu progresso",
-  "💡 Categorize suas despesas para identificar onde gasta mais",
-  "💡 Configure lembretes para não perder datas de pagamento",
-  "💡 Revise seus gastos semanalmente para manter o controle",
-  "💡 Separe uma quantia fixa para emergências todo mês"
-]
 
 export function DashboardCharts({ transacoes, recentTransacoes, contas = [], lembretes = [] }: DashboardChartsProps) {
   const parseDateUniversal = (dateStr: any): Date | null => {
@@ -84,11 +77,14 @@ export function DashboardCharts({ transacoes, recentTransacoes, contas = [], lem
     console.debug('DashboardCharts sample dates:', sample)
   }
 
-  const getCategoriesData = () => {
+  const [modalOpen, setModalOpen] = useState(false)
+  const [selectedCategory, setSelectedCategory] = useState<{ name: string, tipo: 'receita' | 'despesa' } | null>(null)
+
+  const getCategoriesData = (tipo: 'receita' | 'despesa') => {
     const categorias: { [key: string]: number } = {}
     
     transacoes.forEach(t => {
-      if (t.categorias?.nome && t.valor && t.tipo === 'despesa') {
+      if (t.categorias?.nome && t.valor && t.tipo === tipo) {
         categorias[t.categorias.nome] = (categorias[t.categorias.nome] || 0) + Math.abs(t.valor)
       }
     })
@@ -97,6 +93,17 @@ export function DashboardCharts({ transacoes, recentTransacoes, contas = [], lem
       .map(([name, value]) => ({ name, value }))
       .sort((a, b) => b.value - a.value)
       .slice(0, 6) // Limitar a 6 categorias para melhor visualização
+  }
+
+  const getCategoryTransactions = (categoryName: string, tipo: 'receita' | 'despesa') => {
+    return transacoes
+      .filter(t => t.categorias?.nome === categoryName && t.tipo === tipo)
+      .sort((a, b) => {
+        const dateA = parseDateUniversal(a.quando)
+        const dateB = parseDateUniversal(b.quando)
+        if (!dateA || !dateB) return 0
+        return dateB.getTime() - dateA.getTime()
+      })
   }
 
   const getReceitasDespesasData = () => {
@@ -167,9 +174,24 @@ export function DashboardCharts({ transacoes, recentTransacoes, contas = [], lem
     lembretesCount: 0
   }
 
-  const categoriesData = getCategoriesData()
+  const despesasData = getCategoriesData('despesa')
+  const receitasData = getCategoriesData('receita')
   const receitasDespesasData = getReceitasDespesasData()
   const monthlyBalanceData = getMonthlyBalanceData()
+
+  const totalDespesasCategoria = despesasData.reduce((sum, c) => sum + c.value, 0)
+  const totalReceitasCategoria = receitasData.reduce((sum, c) => sum + c.value, 0)
+
+  const handleCategoryClick = (categoryName: string, tipo: 'receita' | 'despesa') => {
+    setSelectedCategory({ name: categoryName, tipo })
+    setModalOpen(true)
+  }
+
+  const selectedTransactions = selectedCategory 
+    ? getCategoryTransactions(selectedCategory.name, selectedCategory.tipo)
+    : []
+
+  const totalSelectedCategory = selectedTransactions.reduce((sum, t) => sum + Math.abs(t.valor || 0), 0)
 
   return (
     <div className="space-y-6">
@@ -265,7 +287,7 @@ export function DashboardCharts({ transacoes, recentTransacoes, contas = [], lem
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie
-                    data={categoriesData}
+                    data={despesasData}
                     cx="50%"
                     cy="50%"
                     labelLine={false}
@@ -276,7 +298,7 @@ export function DashboardCharts({ transacoes, recentTransacoes, contas = [], lem
                     fill="#8884d8"
                     dataKey="value"
                   >
-                    {categoriesData.map((entry, index) => (
+                    {despesasData.map((entry, index) => (
                       <Cell 
                         key={`cell-${index}`} 
                         fill={COLORS[index % COLORS.length]}
@@ -287,7 +309,7 @@ export function DashboardCharts({ transacoes, recentTransacoes, contas = [], lem
                   </Pie>
                   <Tooltip 
                     formatter={(value, name, props) => {
-                      const totalValue = categoriesData.reduce((sum, item) => sum + item.value, 0)
+                      const totalValue = despesasData.reduce((sum, item) => sum + item.value, 0)
                       const percentage = totalValue > 0 ? ((Number(value) / totalValue) * 100).toFixed(1) : 0
                       return [
                         `${formatCurrency(Number(value))} (${percentage}%)`, 
@@ -308,7 +330,124 @@ export function DashboardCharts({ transacoes, recentTransacoes, contas = [], lem
         </Card>
       </div>
 
-      {/* Linha 2: Resumo do Período - Full Width */}
+      {/* Linha 2: Receitas e Despesas por Categoria */}
+      <div className="grid gap-6 grid-cols-1 lg:grid-cols-2">
+        {/* Receitas por Categoria */}
+        <Card className="overflow-hidden border-0">
+          <CardHeader className="pb-3">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 rounded-lg bg-green-500/10">
+                <TrendingUp className="h-5 w-5 text-green-600 dark:text-green-500" />
+              </div>
+              <div>
+                <CardTitle className="text-lg font-semibold">Receitas por Categoria</CardTitle>
+                <CardDescription className="text-xs">Top categorias com mais receitas</CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="pt-0">
+            {receitasData.length > 0 ? (
+              <div className="space-y-3">
+                {receitasData.map((category, index) => {
+                  const percentage = totalReceitasCategoria > 0 ? ((category.value / totalReceitasCategoria) * 100).toFixed(1) : 0
+                  const barPercentage = (category.value / Math.max(...receitasData.map(c => c.value))) * 100
+                  
+                  return (
+                    <div 
+                      key={index} 
+                      className="space-y-1.5 cursor-pointer hover:bg-accent/50 p-2 rounded-lg transition-colors"
+                      onClick={() => handleCategoryClick(category.name, 'receita')}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-medium text-muted-foreground truncate max-w-[140px]">
+                          {category.name}
+                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-semibold text-green-600 dark:text-green-500">
+                            {percentage}%
+                          </span>
+                          <span className="text-xs font-semibold text-foreground">
+                            {formatCurrency(category.value)}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="relative h-2 bg-muted rounded-full overflow-hidden">
+                        <div 
+                          className="absolute h-full bg-gradient-to-r from-green-500 to-emerald-600 rounded-full transition-all duration-500 ease-out"
+                          style={{ width: `${barPercentage}%` }}
+                        />
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            ) : (
+              <div className="flex items-center justify-center h-32">
+                <p className="text-xs text-muted-foreground">Nenhuma receita registrada</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Despesas por Categoria */}
+        <Card className="overflow-hidden border-0">
+          <CardHeader className="pb-3">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 rounded-lg bg-red-500/10">
+                <TrendingDown className="h-5 w-5 text-red-600 dark:text-red-500" />
+              </div>
+              <div>
+                <CardTitle className="text-lg font-semibold">Despesas por Categoria</CardTitle>
+                <CardDescription className="text-xs">Top categorias com mais gastos</CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="pt-0">
+            {despesasData.length > 0 ? (
+              <div className="space-y-3">
+                {despesasData.map((category, index) => {
+                  const percentage = totalDespesasCategoria > 0 ? ((category.value / totalDespesasCategoria) * 100).toFixed(1) : 0
+                  const barPercentage = (category.value / Math.max(...despesasData.map(c => c.value))) * 100
+                  
+                  return (
+                    <div 
+                      key={index} 
+                      className="space-y-1.5 cursor-pointer hover:bg-accent/50 p-2 rounded-lg transition-colors"
+                      onClick={() => handleCategoryClick(category.name, 'despesa')}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-medium text-muted-foreground truncate max-w-[140px]">
+                          {category.name}
+                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-semibold text-red-600 dark:text-red-500">
+                            {percentage}%
+                          </span>
+                          <span className="text-xs font-semibold text-foreground">
+                            {formatCurrency(category.value)}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="relative h-2 bg-muted rounded-full overflow-hidden">
+                        <div 
+                          className="absolute h-full bg-gradient-to-r from-red-500 to-rose-600 rounded-full transition-all duration-500 ease-out"
+                          style={{ width: `${barPercentage}%` }}
+                        />
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            ) : (
+              <div className="flex items-center justify-center h-32">
+                <p className="text-xs text-muted-foreground">Nenhuma despesa registrada</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Linha 3: Resumo do Período - Full Width */}
       <Card className="overflow-hidden border-0">
         <CardHeader className="pb-4">
           <div className="flex items-center gap-3">
@@ -368,7 +507,7 @@ export function DashboardCharts({ transacoes, recentTransacoes, contas = [], lem
         </CardContent>
       </Card>
 
-      {/* Linha 3: Últimos Lançamentos (2/3) + Lembretes (1/3) */}
+      {/* Linha 4: Últimos Lançamentos (2/3) + Lembretes (1/3) */}
       <div className="grid gap-6 grid-cols-1 lg:grid-cols-3">
         {/* Últimos Lançamentos - 2/3 */}
         <Card className="lg:col-span-2 overflow-hidden border-0">
@@ -474,25 +613,101 @@ export function DashboardCharts({ transacoes, recentTransacoes, contas = [], lem
             </CardContent>
           </Card>
 
-          <Card className="overflow-hidden border-0">
-            <CardHeader className="pb-3">
-              <div className="flex items-center gap-3">
-                <div className="p-2.5 rounded-lg bg-amber-500/10">
-                  <Lightbulb className="h-5 w-5 text-amber-600 dark:text-amber-500" />
-                </div>
-                <CardTitle className="text-lg font-semibold">Dica do Dia</CardTitle>
-              </div>
-            </CardHeader>
-            <CardContent className="pt-0">
-              <div className="p-4 rounded-lg border bg-card">
-                <p className="text-xs leading-relaxed text-muted-foreground">
-                  {dicas[new Date().getDate() % dicas.length]}
-                </p>
-              </div>
-            </CardContent>
-          </Card>
+
         </div>
       </div>
+
+      {/* Modal de Lançamentos por Categoria */}
+      <Dialog open={modalOpen} onOpenChange={setModalOpen}>
+        <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-3">
+              <div className={`p-2 rounded-lg ${
+                selectedCategory?.tipo === 'receita' ? 'bg-green-500/10' : 'bg-red-500/10'
+              }`}>
+                {selectedCategory?.tipo === 'receita' ? (
+                  <TrendingUp className="h-5 w-5 text-green-600 dark:text-green-500" />
+                ) : (
+                  <TrendingDown className="h-5 w-5 text-red-600 dark:text-red-500" />
+                )}
+              </div>
+              {selectedCategory?.name}
+            </DialogTitle>
+            <DialogDescription>
+              {selectedTransactions.length} lançamento(s) • Total: {formatCurrency(totalSelectedCategory)}
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-3 mt-4">
+            {selectedTransactions.length > 0 ? (
+              selectedTransactions.map((transacao) => {
+                const percentage = totalSelectedCategory > 0 
+                  ? ((Math.abs(transacao.valor || 0) / totalSelectedCategory) * 100).toFixed(1) 
+                  : 0
+                
+                return (
+                  <div 
+                    key={transacao.id} 
+                    className="p-4 rounded-lg border bg-card hover:shadow-md transition-all"
+                  >
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <div className={`w-2 h-2 rounded-full ${
+                            transacao.tipo === 'receita' ? 'bg-green-500' : 'bg-red-500'
+                          }`} />
+                          <span className="font-semibold text-sm">
+                            {transacao.estabelecimento || 'Sem estabelecimento'}
+                          </span>
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          {(() => {
+                            const raw = transacao.quando ?? transacao.created_at
+                            const parsed = parseDateUniversal(raw)
+                            return parsed ? parsed.toLocaleDateString('pt-BR', { timeZone: 'UTC' }) : String(raw || '')
+                          })()}
+                        </div>
+                        {transacao.detalhes && (
+                          <div className="text-xs text-muted-foreground mt-1">
+                            {transacao.detalhes}
+                          </div>
+                        )}
+                      </div>
+                      <div className="text-right">
+                        <div className={`font-bold text-lg ${
+                          transacao.tipo === 'receita' 
+                            ? 'text-green-600 dark:text-green-500' 
+                            : 'text-red-600 dark:text-red-500'
+                        }`}>
+                          {formatCurrency(Math.abs(transacao.valor || 0))}
+                        </div>
+                        <div className={`text-xs font-semibold ${
+                          transacao.tipo === 'receita' 
+                            ? 'text-green-600/70 dark:text-green-500/70' 
+                            : 'text-red-600/70 dark:text-red-500/70'
+                        }`}>
+                          {percentage}%
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="pt-2 border-t">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-muted-foreground">Categoria</span>
+                        <span className="font-medium">{transacao.categorias?.nome || 'Sem categoria'}</span>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })
+            ) : (
+              <div className="text-center py-8">
+                <p className="text-sm text-muted-foreground">Nenhum lançamento encontrado</p>
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
