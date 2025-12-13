@@ -109,6 +109,7 @@ export const useInvestments = () => {
         }
         const data = JSON.parse(cached)
         console.log('✅ Dados do cache carregados:', data.length, 'investimentos')
+        console.log('⚠️ Nota: Valores de renda fixa serão recalculados na próxima busca')
         return data
       }
       console.log('❌ Nenhum cache encontrado')
@@ -644,15 +645,23 @@ export const useInvestments = () => {
     const now = Date.now()
     const CACHE_DURATION = 5 * 60 * 1000 // 5 minutos
     
-    // Se tem cache válido (menos de 5 minutos), não recarrega
+    // Verificar se mudou o dia (para recalcular renda fixa)
+    const ultimaAtualizacao = new Date(lastFetchTimeRef.current)
+    const hoje = new Date()
+    const mudouDia = ultimaAtualizacao.getDate() !== hoje.getDate() || 
+                     ultimaAtualizacao.getMonth() !== hoje.getMonth() ||
+                     ultimaAtualizacao.getFullYear() !== hoje.getFullYear()
+    
+    // Se tem cache válido (menos de 5 minutos) E não mudou o dia, não recarrega
     const tempoDecorrido = now - lastFetchTimeRef.current
-    const cacheValido = tempoDecorrido < CACHE_DURATION && investimentos.length > 0
+    const cacheValido = tempoDecorrido < CACHE_DURATION && investimentos.length > 0 && !mudouDia
     
     console.log('🔍 useInvestments Effect:', {
       user: !!user,
       isInitialMount: isInitialMount.current,
       investimentosLength: investimentos.length,
       tempoDecorrido: Math.round(tempoDecorrido / 1000) + 's',
+      mudouDia,
       cacheValido,
       lastFetchTime: lastFetchTimeRef.current
     })
@@ -663,10 +672,11 @@ export const useInvestments = () => {
       previousMes.current = mesKey
       
       console.log('📌 Primeira montagem - cache válido?', cacheValido)
+      console.log('📌 Mudou o dia?', mudouDia)
       
-      // Só busca se não tem cache válido
-      if (!cacheValido) {
-        console.log('🔄 Buscando dados do servidor...')
+      // Só busca se não tem cache válido OU se mudou o dia (para recalcular renda fixa)
+      if (!cacheValido || mudouDia) {
+        console.log('🔄 Buscando dados do servidor... (recalcular renda fixa)')
         fetchInvestimentos()
       } else {
         console.log('✅ Usando cache, setando loading = false')
