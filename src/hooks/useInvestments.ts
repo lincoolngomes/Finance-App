@@ -665,7 +665,7 @@ export const useInvestments = () => {
 
     const mesKey = `${mesReferencia.getMonth()}-${mesReferencia.getFullYear()}`
     const now = Date.now()
-    const CACHE_DURATION = 5 * 60 * 1000 // 5 minutos
+    const CACHE_DURATION = 30 * 1000 // 30 segundos (para testes)
     
     // Verificar se mudou o dia (para recalcular renda fixa)
     const ultimaAtualizacao = new Date(lastFetchTimeRef.current)
