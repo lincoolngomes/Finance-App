@@ -573,8 +573,11 @@ export const useInvestments = () => {
             valorLiquido = valorBruto - irRetido
             
             console.log('💸 Imposto de Renda:', {
+              diasAplicado,
               aliquota: (aliquotaIR * 100).toFixed(2) + '%',
+              rendimentoBruto: rendimentoBrutoValor.toFixed(2),
               irRetido: irRetido.toFixed(2),
+              valorBruto: valorBruto.toFixed(2),
               valorLiquido: valorLiquido.toFixed(2)
             })
           } else {
