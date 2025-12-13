@@ -534,32 +534,29 @@ export const useInvestments = () => {
           console.log('🏦 CDI Real do Banco Central - Fator:', fatorCDI.toFixed(6))
           
           // Taxa percentual vem como 101.00 (101% do CDI)
-          // Multiplicador: 101% = 1.01, 100% = 1.00
+          // Rendimento CDI = fatorCDI - 1 (ex: 1.38 - 1 = 0.38 = 38%)
+          const rendimentoCDI = fatorCDI - 1
+          
+          // Aplicar percentual: 101% do CDI = rendimento × 1.01
           const multiplicador = inv.taxa_percentual / 100
+          const rendimentoAplicado = rendimentoCDI * multiplicador
           
-          console.log('📊 Multiplicador CDI:', {
-            taxaContratada: inv.taxa_percentual + '% do CDI',
-            multiplicador: multiplicador.toFixed(4)
-          })
-          
-          // Aplicar multiplicador no fator CDI diretamente
-          // Fator final = fatorCDI elevado ao multiplicador (composição)
-          // Mas como o fator CDI já é composto, aplicamos o percentual sobre o rendimento
-          const valorBruto = inv.valor_total * Math.pow(fatorCDI, multiplicador)
-          
+          // Valor final = valor inicial × (1 + rendimento)
+          const valorBruto = inv.valor_total * (1 + rendimentoAplicado)
           const rendimentoBrutoValor = valorBruto - inv.valor_total
           
-          console.log('💰 Cálculo Renda Fixa (Pós-fixado CDI Real):', {
-            codigo: inv.codigo,
+          console.log('📊 Cálculo detalhado:', {
             taxaContratada: inv.taxa_percentual + '% do CDI',
             fatorCDI: fatorCDI.toFixed(6),
+            rendimentoCDI: (rendimentoCDI * 100).toFixed(2) + '%',
             multiplicador: multiplicador.toFixed(4),
-            fatorFinalComMultiplicador: Math.pow(fatorCDI, multiplicador).toFixed(6),
-            valorInvestido: inv.valor_total.toFixed(2),
+            rendimentoAplicado: (rendimentoAplicado * 100).toFixed(2) + '%',
+            valorInicial: inv.valor_total.toFixed(2),
             valorBruto: valorBruto.toFixed(2),
-            rendimentoBruto: rendimentoBrutoValor.toFixed(2),
-            rendimentoPercentual: ((rendimentoBrutoValor / inv.valor_total) * 100).toFixed(2) + '%'
+            rendimento: rendimentoBrutoValor.toFixed(2)
           })
+          
+
           
           // Calcular IR
           let aliquotaIR = 0

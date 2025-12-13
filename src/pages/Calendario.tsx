@@ -83,6 +83,15 @@ export default function Calendario() {
         });
         return;
       }
+      console.log('📊 Transações carregadas:', data?.length || 0)
+      if (data && data.length > 0) {
+        console.log('📋 Primeiras 3 transações:', data.slice(0, 3).map(t => ({
+          id: t.id,
+          estabelecimento: t.estabelecimento,
+          quando: t.quando,
+          valor: t.valor
+        })))
+      }
       setTransacoes(data || []);
     } catch (error) {
       console.error('Erro:', error);
@@ -106,14 +115,30 @@ export default function Calendario() {
     const targetDateString = format(date, 'yyyy-MM-dd')
     
     const filteredTransactions = transacoes.filter(t => {
-      if (!t.quando) return false
+      if (!t.quando) {
+        console.log('⚠️ Transação sem data "quando":', t.estabelecimento, t.id)
+        return false
+      }
       
       // Extrair apenas a parte da data (YYYY-MM-DD) da string quando
       const transactionDateString = t.quando.includes('T') ? t.quando.split('T')[0] : t.quando
       const isMatch = transactionDateString === targetDateString
       
+      if (isMatch) {
+        console.log('✅ Match encontrado:', {
+          estabelecimento: t.estabelecimento,
+          dataBusca: targetDateString,
+          dataTransacao: transactionDateString
+        })
+      }
+      
       return isMatch
     })
+    
+    // Debug: mostrar total de transações
+    if (filteredTransactions.length > 0) {
+      console.log(`📅 Data ${format(date, 'dd/MM/yyyy')}: ${filteredTransactions.length} transação(ões)`)
+    }
     
     return filteredTransactions
   }
