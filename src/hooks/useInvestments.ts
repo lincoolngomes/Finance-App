@@ -85,6 +85,11 @@ export const useInvestments = () => {
   const { user } = useAuth()
   const { toast } = useToast()
   
+  // Refs devem ser declarados primeiro
+  const isInitialMount = useRef(true)
+  const previousMes = useRef<string>('')
+  const lastFetchTimeRef = useRef<number>(0)
+  
   // Tentar recuperar dados e timestamp do sessionStorage
   const [investimentos, setInvestimentos] = useState<Investimento[]>(() => {
     try {
@@ -113,9 +118,6 @@ export const useInvestments = () => {
     }
   })
   const [mesReferencia, setMesReferencia] = useState<Date>(new Date())
-  const isInitialMount = useRef(true)
-  const previousMes = useRef<string>('')
-  const lastFetchTimeRef = useRef<number>(0)
 
   // Buscar investimentos com useCallback para evitar recriação
   const fetchInvestimentos = useCallback(async () => {
