@@ -164,12 +164,34 @@ export const useInvestments = () => {
               // Calcular rentabilidade de renda fixa com base na curva
               // Usar data_aplicacao ou data_primeira_compra como fallback
               const dataBase = inv.data_aplicacao || inv.data_primeira_compra
+              
+              console.log('🔍 Verificando dados de renda fixa:', {
+                codigo: inv.codigo,
+                tipo: inv.tipo,
+                data_aplicacao: inv.data_aplicacao,
+                data_primeira_compra: inv.data_primeira_compra,
+                dataBase,
+                data_vencimento: inv.data_vencimento,
+                taxa_percentual: inv.taxa_percentual,
+                tipo_rentabilidade: inv.tipo_rentabilidade,
+                indexador: inv.indexador,
+                liquidez: inv.liquidez
+              })
+              
               if (dataBase && inv.data_vencimento && inv.taxa_percentual) {
+                console.log('✅ Dados válidos, calculando renda fixa...')
                 dadosAdicionais = calcularRendaFixa({
                   ...inv,
                   data_aplicacao: dataBase
                 })
                 valor_atual = dadosAdicionais.valor_atual
+              } else {
+                console.log('❌ Dados insuficientes para calcular renda fixa')
+                console.log('Faltando:', {
+                  dataBase: !dataBase,
+                  data_vencimento: !inv.data_vencimento,
+                  taxa_percentual: !inv.taxa_percentual
+                })
               }
             }
             
