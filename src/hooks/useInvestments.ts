@@ -88,6 +88,7 @@ export const useInvestments = () => {
   const [transacoes, setTransacoes] = useState<TransacaoInvestimento[]>([])
   const [loading, setLoading] = useState(true)
   const [mesReferencia, setMesReferencia] = useState<Date>(new Date())
+  const [dataLoaded, setDataLoaded] = useState(false)
 
   // Buscar investimentos
   const fetchInvestimentos = async () => {
@@ -151,6 +152,7 @@ export const useInvestments = () => {
       )
 
       setInvestimentos(investimentosComCotacao)
+      setDataLoaded(true)
     } catch (error: any) {
       toast({
         title: 'Erro ao buscar investimentos',
@@ -506,10 +508,17 @@ export const useInvestments = () => {
   }
 
   useEffect(() => {
-    if (user) {
+    if (user && !dataLoaded) {
       fetchInvestimentos()
     }
-  }, [user, mesReferencia])
+  }, [user])
+
+  // Recarregar apenas quando o mês mudar e já tiver dados carregados
+  useEffect(() => {
+    if (user && dataLoaded) {
+      fetchInvestimentos()
+    }
+  }, [mesReferencia])
 
   return {
     investimentos,

@@ -33,8 +33,25 @@ const TIPO_EMOJIS: Record<string, string> = {
 export default function Investimentos() {
   const { investimentos, loading, mesReferencia, setMesReferencia, getResumo } = useInvestments()
   const [showAddDialog, setShowAddDialog] = useState(false)
-  const [filtroTipo, setFiltroTipo] = useState<string>('todos')
-  const [filtroInstituicao, setFiltroInstituicao] = useState<string>('todas')
+  
+  // Persistir filtros no localStorage
+  const [filtroTipo, setFiltroTipo] = useState<string>(() => {
+    return localStorage.getItem('investimentos_filtro_tipo') || 'todos'
+  })
+  const [filtroInstituicao, setFiltroInstituicao] = useState<string>(() => {
+    return localStorage.getItem('investimentos_filtro_instituicao') || 'todas'
+  })
+
+  // Salvar filtros quando mudarem
+  const handleFiltroTipoChange = (value: string) => {
+    setFiltroTipo(value)
+    localStorage.setItem('investimentos_filtro_tipo', value)
+  }
+
+  const handleFiltroInstituicaoChange = (value: string) => {
+    setFiltroInstituicao(value)
+    localStorage.setItem('investimentos_filtro_instituicao', value)
+  }
 
   const resumo = getResumo()
 
@@ -198,7 +215,7 @@ export default function Investimentos() {
       <Card className="p-4">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <Select value={filtroTipo} onValueChange={setFiltroTipo}>
+            <Select value={filtroTipo} onValueChange={handleFiltroTipoChange}>
               <SelectTrigger>
                 <SelectValue placeholder="Filtrar por tipo" />
               </SelectTrigger>
@@ -216,7 +233,7 @@ export default function Investimentos() {
           </div>
 
           <div>
-            <Select value={filtroInstituicao} onValueChange={setFiltroInstituicao}>
+            <Select value={filtroInstituicao} onValueChange={handleFiltroInstituicaoChange}>
               <SelectTrigger>
                 <SelectValue placeholder="Filtrar por instituição" />
               </SelectTrigger>

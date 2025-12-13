@@ -178,6 +178,11 @@ export const AddTransactionDialog = ({ open, onClose }: AddTransactionDialogProp
                   onChange={(e) => setCodigo(e.target.value.toUpperCase())}
                   required
                 />
+                {['renda_fixa', 'fundo', 'previdencia'].includes(tipoAtivo) && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    💡 Use um código único para identificar este investimento (Ex: CDB-BTG-2025, FUNDO-XP-MULT, PGBL-BB)
+                  </p>
+                )}
               </div>
 
               <div>
