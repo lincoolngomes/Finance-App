@@ -6,6 +6,7 @@ import { useInvestments, Investimento } from '@/hooks/useInvestments'
 import { formatCurrency } from '@/utils/currency'
 import { AddTransactionDialog } from '@/components/investments/AddTransactionDialog'
 import { EditInvestmentDialog } from '@/components/investments/EditInvestmentDialog'
+import { ResgateDialog } from '@/components/investments/ResgateDialog'
 import { supabase } from '@/lib/supabase'
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid, AreaChart, Area, Legend } from 'recharts'
 import { TrendingUp, TrendingDown, DollarSign, Wallet, PlusCircle, Calendar, Building2, ChevronLeft, ChevronRight, Edit } from 'lucide-react'
@@ -45,6 +46,7 @@ export default function Investimentos() {
   const { investimentos, loading, mesReferencia, setMesReferencia, getResumo, deletarInvestimento } = useInvestments()
   const [showAddDialog, setShowAddDialog] = useState(false)
   const [showEditDialog, setShowEditDialog] = useState(false)
+  const [showResgateDialog, setShowResgateDialog] = useState(false)
   const [selectedInvestimento, setSelectedInvestimento] = useState<Investimento | null>(null)
   
   // Seleção múltipla
@@ -336,14 +338,6 @@ export default function Investimentos() {
           <h1 className="text-3xl font-bold text-foreground">Investimentos</h1>
           <p className="text-muted-foreground mt-1">Controle e acompanhe seus investimentos</p>
         </div>
-
-        <Button
-          onClick={() => setShowAddDialog(true)}
-          className="bg-teal-600 hover:bg-teal-700"
-        >
-          <PlusCircle className="w-4 h-4 mr-2" />
-          Nova Aplicação
-        </Button>
       </div>
       
       {/* Navegação de Mês */}
@@ -602,7 +596,26 @@ export default function Investimentos() {
       {/* Tabela de Ativos */}
       <Card className="p-6">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-semibold text-foreground">Meus Ativos</h3>
+          <div className="flex items-center gap-3">
+            <h3 className="text-lg font-semibold text-foreground">Meus Ativos</h3>
+            <Button
+              onClick={() => setShowAddDialog(true)}
+              size="sm"
+              className="bg-teal-600 hover:bg-teal-700"
+            >
+              <PlusCircle className="w-4 h-4 mr-2" />
+              Nova Aplicação
+            </Button>
+            <Button
+              onClick={() => setShowResgateDialog(true)}
+              size="sm"
+              variant="outline"
+              className="border-orange-600 text-orange-600 hover:bg-orange-50 dark:hover:bg-orange-950"
+            >
+              <DollarSign className="w-4 h-4 mr-2" />
+              Resgatar
+            </Button>
+          </div>
           
           {/* Toggle Modo Manual/Automático */}
           <div className="flex items-center gap-3">
@@ -780,7 +793,10 @@ export default function Investimentos() {
                         </td>
                         <td className="py-3 px-4">
                           <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-teal-100 dark:bg-teal-900 text-teal-700 dark:text-teal-100">
-                            {TIPO_LABELS[grupo.tipo]}
+                            {grupo.tipo === 'renda_fixa' 
+                              ? `Renda Fixa ${primeiroItem.tipo_rentabilidade === 'pos' ? 'Pós-fixada' : primeiroItem.tipo_rentabilidade === 'pre' ? 'Pré-fixada' : primeiroItem.tipo_rentabilidade === 'ipca' ? 'Híbrida (IPCA+)' : ''}`
+                              : TIPO_LABELS[grupo.tipo]
+                            }
                           </span>
                         </td>
                         <td className="py-3 px-4">
@@ -1088,6 +1104,7 @@ export default function Investimentos() {
       </Card>
 
       <AddTransactionDialog open={showAddDialog} onClose={() => setShowAddDialog(false)} />
+      <ResgateDialog open={showResgateDialog} onClose={() => setShowResgateDialog(false)} />
       <EditInvestmentDialog 
         open={showEditDialog} 
         onClose={() => {
