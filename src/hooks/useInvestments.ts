@@ -85,22 +85,37 @@ export const useInvestments = () => {
   const { user } = useAuth()
   const { toast } = useToast()
   
-  // Tentar recuperar dados do sessionStorage
+  // Tentar recuperar dados e timestamp do sessionStorage
   const [investimentos, setInvestimentos] = useState<Investimento[]>(() => {
     try {
       const cached = sessionStorage.getItem('investimentos_cache')
-      return cached ? JSON.parse(cached) : []
+      if (cached) {
+        const cachedTime = sessionStorage.getItem('investimentos_cache_time')
+        if (cachedTime) {
+          lastFetchTimeRef.current = parseInt(cachedTime)
+        }
+        return JSON.parse(cached)
+      }
+      return []
     } catch {
       return []
     }
   })
   
   const [transacoes, setTransacoes] = useState<TransacaoInvestimento[]>([])
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(() => {
+    // Se tem cache, não precisa loading inicial
+    try {
+      const cached = sessionStorage.getItem('investimentos_cache')
+      return !cached
+    } catch {
+      return true
+    }
+  })
   const [mesReferencia, setMesReferencia] = useState<Date>(new Date())
   const isInitialMount = useRef(true)
   const previousMes = useRef<string>('')
-  const lastFetchTime = useRef<number>(0)
+  const lastFetchTimeRef = useRef<number>(0)
 
   // Buscar investimentos com useCallback para evitar recriação
   const fetchInvestimentos = useCallback(async () => {
@@ -167,8 +182,10 @@ export const useInvestments = () => {
       
       // Salvar no sessionStorage para persistir durante a sessão
       try {
+        const timestamp = Date.now()
         sessionStorage.setItem('investimentos_cache', JSON.stringify(investimentosComCotacao))
-        lastFetchTime.current = Date.now()
+        sessionStorage.setItem('investimentos_cache_time', timestamp.toString())
+        lastFetchTimeRef.current = timestamp
       } catch (error) {
         console.error('Erro ao salvar cache:', error)
       }
@@ -285,7 +302,8 @@ export const useInvestments = () => {
 
       // Limpar cache para forçar atualização
       sessionStorage.removeItem('investimentos_cache')
-      lastFetchTime.current = 0
+      sessionStorage.removeItem('investimentos_cache_time')
+      lastFetchTimeRef.current = 0
       
       fetchInvestimentos()
       fetchTransacoes()
@@ -317,7 +335,8 @@ export const useInvestments = () => {
 
       // Limpar cache para forçar atualização
       sessionStorage.removeItem('investimentos_cache')
-      lastFetchTime.current = 0
+      sessionStorage.removeItem('investimentos_cache_time')
+      lastFetchTimeRef.current = 0
       
       fetchInvestimentos()
       return true
@@ -348,7 +367,8 @@ export const useInvestments = () => {
 
       // Limpar cache para forçar atualização
       sessionStorage.removeItem('investimentos_cache')
-      lastFetchTime.current = 0
+      sessionStorage.removeItem('investimentos_cache_time')
+      lastFetchTimeRef.current = 0
       
       fetchInvestimentos()
       return true
@@ -546,7 +566,7 @@ export const useInvestments = () => {
     const CACHE_DURATION = 5 * 60 * 1000 // 5 minutos
     
     // Se tem cache válido (menos de 5 minutos), não recarrega
-    const cacheValido = (now - lastFetchTime.current) < CACHE_DURATION && investimentos.length > 0
+    const cacheValido = (now - lastFetchTimeRef.current) < CACHE_DURATION && investimentos.length > 0
     
     // Carregar na primeira montagem
     if (isInitialMount.current) {
@@ -573,7 +593,8 @@ export const useInvestments = () => {
   useEffect(() => {
     if (!user) {
       sessionStorage.removeItem('investimentos_cache')
-      lastFetchTime.current = 0
+      sessionStorage.removeItem('investimentos_cache_time')
+      lastFetchTimeRef.current = 0
     }
   }, [user])
 
