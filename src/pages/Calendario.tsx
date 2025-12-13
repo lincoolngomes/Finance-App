@@ -89,8 +89,15 @@ export default function Calendario() {
           id: t.id,
           estabelecimento: t.estabelecimento,
           quando: t.quando,
+          quandoTipo: typeof t.quando,
           valor: t.valor
         })))
+        
+        // Contar quantas têm o campo quando
+        const comQuando = data.filter(t => t.quando).length
+        const semQuando = data.filter(t => !t.quando).length
+        console.log('📈 Transações COM campo "quando":', comQuando)
+        console.log('📉 Transações SEM campo "quando":', semQuando)
       }
       setTransacoes(data || []);
     } catch (error) {
