@@ -83,6 +83,15 @@ export default function Calendario() {
         });
         return;
       }
+      
+      console.log('✅ Transações carregadas:', data?.length || 0)
+      if (data && data.length > 0) {
+        console.log('📅 Primeiras 5 datas:', data.slice(0, 5).map(t => ({
+          estabelecimento: t.estabelecimento,
+          quando: t.quando
+        })))
+      }
+      
       setTransacoes(data || []);
     } catch (error) {
       console.error('Erro:', error);
@@ -111,23 +120,33 @@ export default function Calendario() {
         return false
       }
       
-      const transactionDateString = dataTransacao.includes('T') ? dataTransacao.split('T')[0] : dataTransacao
+      // Extrair apenas a data (sem hora)
+      let transactionDateString: string
+      
+      if (typeof dataTransacao === 'string') {
+        // Se tem horário ISO (2024-12-13T10:00:00)
+        if (dataTransacao.includes('T')) {
+          transactionDateString = dataTransacao.split('T')[0]
+        } 
+        // Se tem horário com espaço (2024-12-13 10:00:00)
+        else if (dataTransacao.includes(' ')) {
+          transactionDateString = dataTransacao.split(' ')[0]
+        }
+        // Se está no formato brasileiro DD/MM/YYYY
+        else if (dataTransacao.includes('/')) {
+          const [dia, mes, ano] = dataTransacao.split('/')
+          transactionDateString = `${ano}-${mes.padStart(2, '0')}-${dia.padStart(2, '0')}`
+        }
+        // Se já é só data no formato ISO
+        else {
+          transactionDateString = dataTransacao
+        }
+      } else {
+        return false
+      }
+      
       return transactionDateString === targetDateString
     })
-    
-    // Debug apenas no dia 13
-    if (format(date, 'd') === '13') {
-      console.log('🔍 Debug dia 13:', {
-        dataBusca: targetDateString,
-        totalTransacoes: transacoes.length,
-        encontradas: filteredTransactions.length,
-        primeiras3: filteredTransactions.slice(0, 3).map(t => ({
-          estabelecimento: t.estabelecimento,
-          quando: t.quando,
-          created_at: t.created_at
-        }))
-      })
-    }
     
     return filteredTransactions
   }

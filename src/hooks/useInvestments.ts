@@ -531,24 +531,40 @@ export const useInvestments = () => {
             diasAplicado
           })
           
-          console.log('🏦 CDI Real do Banco Central - Fator:', fatorCDI.toFixed(6))
-          
-          // FÓRMULA CORRETA: valorBruto = valorInicial × fatorCDI^(taxa/100)
-          // Exemplo: 101% do CDI = fatorCDI^1.01
-          const expoente = inv.taxa_percentual / 100
-          const valorBruto = inv.valor_total * Math.pow(fatorCDI, expoente)
-          const rendimentoBrutoValor = valorBruto - inv.valor_total
-          
-          console.log('📊 Cálculo detalhado:', {
-            taxaContratada: inv.taxa_percentual + '% do CDI',
-            valorInicial: inv.valor_total.toFixed(2),
-            fatorCDI: fatorCDI.toFixed(6),
-            expoente: expoente.toFixed(4),
-            fatorFinal: Math.pow(fatorCDI, expoente).toFixed(6),
-            valorBruto: valorBruto.toFixed(2),
-            rendimento: rendimentoBrutoValor.toFixed(2),
-            rendimentoPercentual: ((rendimentoBrutoValor / inv.valor_total) * 100).toFixed(2) + '%'
+          console.log('🏦 CDI acumulado:', {
+            fator: fatorCDI.toFixed(6),
+            dataInicio: dataAplicacao.toLocaleDateString('pt-BR'),
+            dataFim: hoje.toLocaleDateString('pt-BR'),
+            dias: diasAplicado
           })
+          
+          // Testar diferentes fórmulas para encontrar qual bate
+          const expoente = inv.taxa_percentual / 100
+          
+          // Fórmula 1: Exponencial (atual)
+          const valor1 = inv.valor_total * Math.pow(fatorCDI, expoente)
+          
+          // Fórmula 2: Linear com rendimento
+          const rendCDI = fatorCDI - 1
+          const valor2 = inv.valor_total * (1 + (rendCDI * expoente))
+          
+          // Fórmula 3: Aplicar percentual direto no fator
+          const valor3 = inv.valor_total * (1 + ((fatorCDI - 1) * (inv.taxa_percentual / 100)))
+          
+          console.log('🧪 TESTE DE FÓRMULAS:', {
+            codigo: inv.codigo,
+            valorInicial: inv.valor_total.toFixed(2),
+            taxaContratada: inv.taxa_percentual + '% CDI',
+            fatorCDI: fatorCDI.toFixed(6),
+            formula1_Exponencial: valor1.toFixed(2),
+            formula2_Linear: valor2.toFixed(2),
+            formula3_Percentual: valor3.toFixed(2),
+            esperadoBanco: inv.codigo.includes('#1') ? '1804.34' : '30663.33'
+          })
+          
+          // Usar fórmula 1 por enquanto
+          const valorBruto = valor1
+          const rendimentoBrutoValor = valorBruto - inv.valor_total
           
 
           
