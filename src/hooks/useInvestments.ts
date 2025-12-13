@@ -84,12 +84,23 @@ export interface ResumoInvestimentos {
 export const useInvestments = () => {
   const { user } = useAuth()
   const { toast } = useToast()
-  const [investimentos, setInvestimentos] = useState<Investimento[]>([])
+  
+  // Tentar recuperar dados do sessionStorage
+  const [investimentos, setInvestimentos] = useState<Investimento[]>(() => {
+    try {
+      const cached = sessionStorage.getItem('investimentos_cache')
+      return cached ? JSON.parse(cached) : []
+    } catch {
+      return []
+    }
+  })
+  
   const [transacoes, setTransacoes] = useState<TransacaoInvestimento[]>([])
   const [loading, setLoading] = useState(true)
   const [mesReferencia, setMesReferencia] = useState<Date>(new Date())
   const isInitialMount = useRef(true)
   const previousMes = useRef<string>('')
+  const lastFetchTime = useRef<number>(0)
 
   // Buscar investimentos com useCallback para evitar recriação
   const fetchInvestimentos = useCallback(async () => {
@@ -153,6 +164,14 @@ export const useInvestments = () => {
       )
 
       setInvestimentos(investimentosComCotacao)
+      
+      // Salvar no sessionStorage para persistir durante a sessão
+      try {
+        sessionStorage.setItem('investimentos_cache', JSON.stringify(investimentosComCotacao))
+        lastFetchTime.current = Date.now()
+      } catch (error) {
+        console.error('Erro ao salvar cache:', error)
+      }
     } catch (error: any) {
       toast({
         title: 'Erro ao buscar investimentos',
@@ -264,6 +283,10 @@ export const useInvestments = () => {
         description: `${dados.tipo_transacao === 'compra' ? 'Compra' : 'Venda'} registrada com sucesso!`
       })
 
+      // Limpar cache para forçar atualização
+      sessionStorage.removeItem('investimentos_cache')
+      lastFetchTime.current = 0
+      
       fetchInvestimentos()
       fetchTransacoes()
       return true
@@ -292,6 +315,10 @@ export const useInvestments = () => {
         description: 'As informações foram atualizadas com sucesso!'
       })
 
+      // Limpar cache para forçar atualização
+      sessionStorage.removeItem('investimentos_cache')
+      lastFetchTime.current = 0
+      
       fetchInvestimentos()
       return true
     } catch (error: any) {
@@ -319,6 +346,10 @@ export const useInvestments = () => {
         description: 'O investimento foi removido com sucesso!'
       })
 
+      // Limpar cache para forçar atualização
+      sessionStorage.removeItem('investimentos_cache')
+      lastFetchTime.current = 0
+      
       fetchInvestimentos()
       return true
     } catch (error: any) {
@@ -511,12 +542,23 @@ export const useInvestments = () => {
     if (!user) return
 
     const mesKey = `${mesReferencia.getMonth()}-${mesReferencia.getFullYear()}`
+    const now = Date.now()
+    const CACHE_DURATION = 5 * 60 * 1000 // 5 minutos
+    
+    // Se tem cache válido (menos de 5 minutos), não recarrega
+    const cacheValido = (now - lastFetchTime.current) < CACHE_DURATION && investimentos.length > 0
     
     // Carregar na primeira montagem
     if (isInitialMount.current) {
       isInitialMount.current = false
       previousMes.current = mesKey
-      fetchInvestimentos()
+      
+      // Só busca se não tem cache válido
+      if (!cacheValido) {
+        fetchInvestimentos()
+      } else {
+        setLoading(false)
+      }
       return
     }
 
@@ -525,7 +567,15 @@ export const useInvestments = () => {
       previousMes.current = mesKey
       fetchInvestimentos()
     }
-  }, [user, mesReferencia, fetchInvestimentos])
+  }, [user, mesReferencia, fetchInvestimentos, investimentos.length])
+
+  // Limpar cache quando o usuário sair
+  useEffect(() => {
+    if (!user) {
+      sessionStorage.removeItem('investimentos_cache')
+      lastFetchTime.current = 0
+    }
+  }, [user])
 
   return {
     investimentos,
