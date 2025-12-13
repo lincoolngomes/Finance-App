@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -53,17 +53,22 @@ export default function Investimentos() {
     localStorage.setItem('investimentos_filtro_instituicao', value)
   }
 
-  const resumo = getResumo()
+  // Memoizar cálculos para evitar recálculos em cada render
+  const resumo = useMemo(() => getResumo(), [investimentos])
 
   // Filtrar investimentos
-  const investimentosFiltrados = investimentos.filter(inv => {
-    if (filtroTipo !== 'todos' && inv.tipo !== filtroTipo) return false
-    if (filtroInstituicao !== 'todas' && inv.instituicao !== filtroInstituicao) return false
-    return inv.ativo && inv.quantidade > 0
-  })
+  const investimentosFiltrados = useMemo(() => {
+    return investimentos.filter(inv => {
+      if (filtroTipo !== 'todos' && inv.tipo !== filtroTipo) return false
+      if (filtroInstituicao !== 'todas' && inv.instituicao !== filtroInstituicao) return false
+      return inv.ativo && inv.quantidade > 0
+    })
+  }, [investimentos, filtroTipo, filtroInstituicao])
 
   // Instituições únicas
-  const instituicoes = Array.from(new Set(investimentos.map(i => i.instituicao).filter(Boolean)))
+  const instituicoes = useMemo(() => {
+    return Array.from(new Set(investimentos.map(i => i.instituicao).filter(Boolean)))
+  }, [investimentos])
 
   // Navegar meses
   const proximoMes = () => {

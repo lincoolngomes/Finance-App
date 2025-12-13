@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from './useAuth'
 import { useToast } from './use-toast'
@@ -88,10 +88,11 @@ export const useInvestments = () => {
   const [transacoes, setTransacoes] = useState<TransacaoInvestimento[]>([])
   const [loading, setLoading] = useState(true)
   const [mesReferencia, setMesReferencia] = useState<Date>(new Date())
-  const [dataLoaded, setDataLoaded] = useState(false)
+  const isInitialMount = useRef(true)
+  const previousMes = useRef<string>('')
 
-  // Buscar investimentos
-  const fetchInvestimentos = async () => {
+  // Buscar investimentos com useCallback para evitar recriação
+  const fetchInvestimentos = useCallback(async () => {
     if (!user) return
 
     try {
@@ -152,7 +153,6 @@ export const useInvestments = () => {
       )
 
       setInvestimentos(investimentosComCotacao)
-      setDataLoaded(true)
     } catch (error: any) {
       toast({
         title: 'Erro ao buscar investimentos',
@@ -162,7 +162,7 @@ export const useInvestments = () => {
     } finally {
       setLoading(false)
     }
-  }
+  }, [user, toast])
 
   // Buscar transações
   const fetchTransacoes = async (investimentoId?: string) => {
@@ -508,17 +508,24 @@ export const useInvestments = () => {
   }
 
   useEffect(() => {
-    if (user && !dataLoaded) {
-      fetchInvestimentos()
-    }
-  }, [user])
+    if (!user) return
 
-  // Recarregar apenas quando o mês mudar e já tiver dados carregados
-  useEffect(() => {
-    if (user && dataLoaded) {
+    const mesKey = `${mesReferencia.getMonth()}-${mesReferencia.getFullYear()}`
+    
+    // Carregar na primeira montagem
+    if (isInitialMount.current) {
+      isInitialMount.current = false
+      previousMes.current = mesKey
+      fetchInvestimentos()
+      return
+    }
+
+    // Recarregar apenas se o mês mudou
+    if (previousMes.current !== mesKey) {
+      previousMes.current = mesKey
       fetchInvestimentos()
     }
-  }, [mesReferencia])
+  }, [user, mesReferencia, fetchInvestimentos])
 
   return {
     investimentos,
