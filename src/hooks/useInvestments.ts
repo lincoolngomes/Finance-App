@@ -2,6 +2,7 @@ import { useEffect, useState, useRef, useCallback } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from './useAuth'
 import { useToast } from './use-toast'
+import { buscarCDIAcumulado } from '@/utils/cdi'
 
 export interface Investimento {
   id: string
@@ -189,7 +190,7 @@ export const useInvestments = () => {
                 
                 if (dataBase && inv.data_vencimento && inv.taxa_percentual) {
                   console.log('✅ Dados válidos, calculando renda fixa...')
-                  dadosAdicionais = calcularRendaFixa({
+                  dadosAdicionais = await calcularRendaFixa({
                     ...inv,
                     data_aplicacao: dataBase
                   })
@@ -465,7 +466,7 @@ export const useInvestments = () => {
   }
 
   // Calcular rentabilidade de renda fixa
-  const calcularRendaFixa = (inv: any) => {
+  const calcularRendaFixa = async (inv: any) => {
     // Validar se tem as datas necessárias
     if (!inv.data_aplicacao || !inv.data_vencimento) {
       return {
@@ -491,10 +492,17 @@ export const useInvestments = () => {
     // Calcular taxa efetiva baseada no tipo de rentabilidade e indexador
     if (inv.tipo_rentabilidade === 'pos') {
       // Pós-fixado: percentual do indexador (ex: 101% do CDI)
-      let taxaIndexador = 13.65 // CDI/SELIC atual (dez/2024)
+      let taxaIndexador = 13.65 // Fallback
       
       if (inv.indexador === 'cdi' || inv.indexador === 'selic') {
-        taxaIndexador = 13.65
+        // Buscar CDI REAL acumulado do Banco Central
+        try {
+          taxaIndexador = await buscarCDIAcumulado(dataAplicacao, hoje)
+          console.log('🏦 CDI Real do Banco Central:', taxaIndexador.toFixed(2) + '% a.a.')
+        } catch (error) {
+          console.warn('⚠️ Erro ao buscar CDI, usando taxa fixa:', error)
+          taxaIndexador = 13.65
+        }
       } else if (inv.indexador === 'ipca') {
         taxaIndexador = 4.5 // IPCA projetado 2025
       }
@@ -505,7 +513,7 @@ export const useInvestments = () => {
       console.log('💰 Cálculo Renda Fixa (Pós-fixado):', {
         codigo: inv.codigo,
         taxaContratada: inv.taxa_percentual + '% do CDI',
-        cdiAtual: taxaIndexador + '%',
+        cdiReal: taxaIndexador.toFixed(2) + '% a.a.',
         taxaEfetiva: taxaAnualEfetiva.toFixed(2) + '% a.a.',
         valorInvestido: inv.valor_total
       })
