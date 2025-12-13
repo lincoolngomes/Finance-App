@@ -94,15 +94,27 @@ export const useInvestments = () => {
   const [investimentos, setInvestimentos] = useState<Investimento[]>(() => {
     try {
       const cached = sessionStorage.getItem('investimentos_cache')
+      const cachedTime = sessionStorage.getItem('investimentos_cache_time')
+      
+      console.log('🚀 Inicializando useInvestments:', {
+        temCache: !!cached,
+        temCachedTime: !!cachedTime,
+        cachedDataLength: cached ? JSON.parse(cached).length : 0
+      })
+      
       if (cached) {
-        const cachedTime = sessionStorage.getItem('investimentos_cache_time')
         if (cachedTime) {
           lastFetchTimeRef.current = parseInt(cachedTime)
+          console.log('⏰ Cache timestamp carregado:', new Date(parseInt(cachedTime)).toLocaleString())
         }
-        return JSON.parse(cached)
+        const data = JSON.parse(cached)
+        console.log('✅ Dados do cache carregados:', data.length, 'investimentos')
+        return data
       }
+      console.log('❌ Nenhum cache encontrado')
       return []
-    } catch {
+    } catch (error) {
+      console.error('⚠️ Erro ao carregar cache:', error)
       return []
     }
   })
@@ -568,17 +580,31 @@ export const useInvestments = () => {
     const CACHE_DURATION = 5 * 60 * 1000 // 5 minutos
     
     // Se tem cache válido (menos de 5 minutos), não recarrega
-    const cacheValido = (now - lastFetchTimeRef.current) < CACHE_DURATION && investimentos.length > 0
+    const tempoDecorrido = now - lastFetchTimeRef.current
+    const cacheValido = tempoDecorrido < CACHE_DURATION && investimentos.length > 0
+    
+    console.log('🔍 useInvestments Effect:', {
+      user: !!user,
+      isInitialMount: isInitialMount.current,
+      investimentosLength: investimentos.length,
+      tempoDecorrido: Math.round(tempoDecorrido / 1000) + 's',
+      cacheValido,
+      lastFetchTime: lastFetchTimeRef.current
+    })
     
     // Carregar na primeira montagem
     if (isInitialMount.current) {
       isInitialMount.current = false
       previousMes.current = mesKey
       
+      console.log('📌 Primeira montagem - cache válido?', cacheValido)
+      
       // Só busca se não tem cache válido
       if (!cacheValido) {
+        console.log('🔄 Buscando dados do servidor...')
         fetchInvestimentos()
       } else {
+        console.log('✅ Usando cache, setando loading = false')
         setLoading(false)
       }
       return
@@ -586,6 +612,7 @@ export const useInvestments = () => {
 
     // Recarregar apenas se o mês mudou
     if (previousMes.current !== mesKey) {
+      console.log('📅 Mês mudou, recarregando...')
       previousMes.current = mesKey
       fetchInvestimentos()
     }
