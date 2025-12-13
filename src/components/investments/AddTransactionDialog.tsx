@@ -255,15 +255,27 @@ export const AddTransactionDialog = ({ open, onClose }: AddTransactionDialogProp
                 </div>
               </div>
 
-              <div>
-                <Label htmlFor="dataVencimento">Data de Vencimento *</Label>
-                <Input
-                  id="dataVencimento"
-                  type="date"
-                  value={dataVencimento}
-                  onChange={(e) => setDataVencimento(e.target.value)}
-                  required
-                />
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="dataAplicacaoRF">Data de Aplicação *</Label>
+                  <Input
+                    id="dataAplicacaoRF"
+                    type="date"
+                    value={dataTransacao}
+                    onChange={(e) => setDataTransacao(e.target.value)}
+                    required
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="dataVencimento">Data de Vencimento *</Label>
+                  <Input
+                    id="dataVencimento"
+                    type="date"
+                    value={dataVencimento}
+                    onChange={(e) => setDataVencimento(e.target.value)}
+                    required
+                  />
+                </div>
               </div>
 
               <div>
@@ -283,17 +295,17 @@ export const AddTransactionDialog = ({ open, onClose }: AddTransactionDialogProp
                 </Select>
               </div>
 
-              <div className="flex items-center space-x-2 p-3 bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800 rounded-lg">
+              <div className="flex items-center space-x-2 p-3 bg-muted/30 border rounded-lg">
                 <input
                   type="checkbox"
                   id="isentoIR"
                   checked={isentoIR}
                   onChange={(e) => setIsentoIR(e.target.checked)}
-                  className="w-4 h-4 text-green-600 rounded focus:ring-green-500"
+                  className="w-4 h-4 text-purple-600 rounded focus:ring-purple-500"
                 />
                 <Label htmlFor="isentoIR" className="text-sm cursor-pointer">
-                  <span className="font-medium text-green-700 dark:text-green-300">✓ Isento de Imposto de Renda</span>
-                  <p className="text-xs text-green-600 dark:text-green-400 mt-0.5">
+                  <span className="font-medium">✓ Isento de Imposto de Renda</span>
+                  <p className="text-xs text-muted-foreground mt-0.5">
                     Marque para LCI, LCA, CRI, CRA ou Debêntures Incentivadas (sem retenção de IR)
                   </p>
                 </Label>

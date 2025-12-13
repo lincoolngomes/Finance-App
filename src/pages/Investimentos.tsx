@@ -7,7 +7,7 @@ import { formatCurrency } from '@/utils/currency'
 import { AddTransactionDialog } from '@/components/investments/AddTransactionDialog'
 import { EditInvestmentDialog } from '@/components/investments/EditInvestmentDialog'
 import { supabase } from '@/lib/supabase'
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid, LineChart, Line, Legend } from 'recharts'
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid, AreaChart, Area, Legend } from 'recharts'
 import { TrendingUp, TrendingDown, DollarSign, Wallet, PlusCircle, Calendar, Building2, ChevronLeft, ChevronRight, Edit } from 'lucide-react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
@@ -218,29 +218,39 @@ export default function Investimentos() {
     }
   }
   
-  // Calcular evolução mensal (últimos 12 meses)
+  // Calcular evolução mensal (últimos 12 meses) - saldo no último dia útil
   const dadosEvolucao = useMemo(() => {
-    const meses: { mes: string, saldo: number, aplicado: number }[] = []
+    const meses: { mes: string, saldo: number }[] = []
     const hoje = new Date()
     
     for (let i = 11; i >= 0; i--) {
-      const mesReferencia = new Date(hoje.getFullYear(), hoje.getMonth() - i, 1)
-      const mesNome = mesReferencia.toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' })
+      const mesRef = new Date(hoje.getFullYear(), hoje.getMonth() - i, 1)
+      const mesNome = mesRef.toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' })
+      
+      // Obter último dia útil do mês
+      const ultimoDiaDoMes = new Date(mesRef.getFullYear(), mesRef.getMonth() + 1, 0)
+      const diaSemana = ultimoDiaDoMes.getDay()
+      
+      // Se cair no fim de semana, voltar para sexta-feira
+      if (diaSemana === 0) { // Domingo
+        ultimoDiaDoMes.setDate(ultimoDiaDoMes.getDate() - 2)
+      } else if (diaSemana === 6) { // Sábado
+        ultimoDiaDoMes.setDate(ultimoDiaDoMes.getDate() - 1)
+      }
       
       // Filtrar investimentos que existiam naquele mês
       const investimentosDoMes = investimentos.filter(inv => {
         if (!inv.data_aplicacao) return false
         const dataAplicacao = new Date(inv.data_aplicacao)
-        return dataAplicacao <= mesReferencia && inv.ativo
+        return dataAplicacao <= ultimoDiaDoMes && inv.ativo
       })
       
+      // Somar valores atuais (que já vem calculados pelo hook)
       const saldoTotal = investimentosDoMes.reduce((sum, inv) => sum + (inv.valor_atual || 0), 0)
-      const aplicadoTotal = investimentosDoMes.reduce((sum, inv) => sum + inv.valor_total, 0)
       
       meses.push({
         mes: mesNome.replace('.', ''),
-        saldo: saldoTotal,
-        aplicado: aplicadoTotal
+        saldo: saldoTotal
       })
     }
     
@@ -422,11 +432,17 @@ export default function Investimentos() {
             <TrendingUp className="w-5 h-5 text-teal-600" />
             Evolução do Patrimônio
           </h2>
-          <p className="text-sm text-muted-foreground mt-1">Últimos 12 meses</p>
+          <p className="text-sm text-muted-foreground mt-1">Últimos 12 meses (saldo no último dia útil)</p>
         </div>
         <div className="h-80">
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={dadosEvolucao}>
+            <AreaChart data={dadosEvolucao}>
+              <defs>
+                <linearGradient id="colorSaldo" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#14b8a6" stopOpacity={0.8}/>
+                  <stop offset="95%" stopColor="#14b8a6" stopOpacity={0.1}/>
+                </linearGradient>
+              </defs>
               <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
               <XAxis 
                 dataKey="mes" 
@@ -444,26 +460,17 @@ export default function Investimentos() {
                   border: '1px solid hsl(var(--border))',
                   borderRadius: '8px'
                 }}
-                formatter={(value: number) => [`R$ ${value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, '']}
+                formatter={(value: number) => [`R$ ${value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, 'Saldo']}
               />
-              <Legend />
-              <Line 
-                type="monotone" 
-                dataKey="aplicado" 
-                stroke="#94a3b8" 
-                strokeWidth={2}
-                name="Valor Aplicado"
-                dot={{ fill: '#94a3b8', r: 4 }}
-              />
-              <Line 
+              <Area 
                 type="monotone" 
                 dataKey="saldo" 
                 stroke="#14b8a6" 
                 strokeWidth={3}
-                name="Saldo Atual"
-                dot={{ fill: '#14b8a6', r: 5 }}
+                fillOpacity={1}
+                fill="url(#colorSaldo)"
               />
-            </LineChart>
+            </AreaChart>
           </ResponsiveContainer>
         </div>
       </Card>

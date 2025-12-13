@@ -22,6 +22,7 @@ export const EditInvestmentDialog = ({ open, onClose, investimento }: EditInvest
   const [nome, setNome] = useState('')
   const [instituicao, setInstituicao] = useState('')
   const [observacoes, setObservacoes] = useState('')
+  const [valorAplicado, setValorAplicado] = useState('')
   
   // Campos específicos de renda fixa
   const [tipoRentabilidade, setTipoRentabilidade] = useState<'pos' | 'pre' | 'ipca' | 'hibrido'>('pos')
@@ -41,6 +42,7 @@ export const EditInvestmentDialog = ({ open, onClose, investimento }: EditInvest
       setNome(investimento.nome)
       setInstituicao(investimento.instituicao || '')
       setObservacoes(investimento.observacoes || '')
+      setValorAplicado(investimento.valor_total?.toString() || '0')
       
       if (investimento.tipo === 'renda_fixa') {
         setTipoRentabilidade(investimento.tipo_rentabilidade || 'pos')
@@ -100,6 +102,18 @@ export const EditInvestmentDialog = ({ open, onClose, investimento }: EditInvest
         dadosAtualizados.isento_ir = isentoIR
       }
 
+      // Atualizar valor aplicado separadamente (campo gerado)
+      if (valorAplicado && parseFloat(valorAplicado) !== investimento.valor_total) {
+        const { supabase } = await import('@/lib/supabase')
+        await supabase
+          .from('investimentos')
+          .update({ 
+            valor_total: parseFloat(valorAplicado),
+            quantidade: investimento.tipo === 'renda_fixa' ? 1 : Math.max(1, investimento.quantidade)
+          })
+          .eq('id', investimento.id)
+      }
+      
       const sucesso = await atualizarInvestimento(investimento.id, dadosAtualizados)
       
       if (sucesso) {
@@ -195,6 +209,21 @@ export const EditInvestmentDialog = ({ open, onClose, investimento }: EditInvest
                 placeholder="Itaú"
               />
             </div>
+            
+            <div>
+              <Label htmlFor="valorAplicado">Valor Aplicado (R$)</Label>
+              <Input
+                id="valorAplicado"
+                type="number"
+                step="0.01"
+                value={valorAplicado}
+                onChange={(e) => setValorAplicado(e.target.value)}
+                placeholder="1000.00"
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Valor total investido neste ativo
+              </p>
+            </div>
           </div>
 
           {/* Campos de Renda Fixa */}
@@ -278,18 +307,18 @@ export const EditInvestmentDialog = ({ open, onClose, investimento }: EditInvest
               </div>
 
               {/* Isenção de IR */}
-              <div className="flex items-center gap-2 border-l-4 border-l-green-500 pl-4 py-2 bg-green-50 dark:bg-green-950/20">
+              <div className="flex items-center gap-2 p-3 bg-muted/30 border rounded-lg">
                 <input
                   type="checkbox"
                   id="isentoIR"
                   checked={isentoIR}
                   onChange={(e) => setIsentoIR(e.target.checked)}
-                  className="w-4 h-4 text-green-600"
+                  className="w-4 h-4 text-purple-600"
                 />
                 <Label htmlFor="isentoIR" className="cursor-pointer flex-1">
-                  <span className="font-medium">Isento de Imposto de Renda</span>
+                  <span className="font-medium">✓ Isento de Imposto de Renda</span>
                   <p className="text-xs text-muted-foreground mt-0.5">
-                    ✅ LCI, LCA, CRI, CRA, Debêntures Incentivadas
+                    LCI, LCA, CRI, CRA, Debêntures Incentivadas
                   </p>
                 </Label>
               </div>
