@@ -109,7 +109,7 @@ export default function Calendario() {
       if (!t.quando) return false
       
       // Extrair apenas a parte da data (YYYY-MM-DD) da string quando
-      const transactionDateString = t.quando.split('T')[0]
+      const transactionDateString = t.quando.includes('T') ? t.quando.split('T')[0] : t.quando
       const isMatch = transactionDateString === targetDateString
       
       return isMatch

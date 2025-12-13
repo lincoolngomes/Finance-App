@@ -525,47 +525,43 @@ export const useInvestments = () => {
             codigo: inv.codigo,
             taxa_percentual_bruto: inv.taxa_percentual,
             tipo: typeof inv.taxa_percentual,
-            valorInvestido: inv.valor_total
+            valorInvestido: inv.valor_total,
+            dataAplicacao: dataAplicacao.toLocaleDateString('pt-BR'),
+            dataCalculo: hoje.toLocaleDateString('pt-BR'),
+            diasAplicado
           })
           
           console.log('🏦 CDI Real do Banco Central - Fator:', fatorCDI.toFixed(6))
           
-          // Taxa percentual pode vir como 101 (101%) ou 101.000 (101%)
-          // Normalizar: se vier como 101.000, dividir por 100
-          let percentualNormalizado = inv.taxa_percentual
-          if (percentualNormalizado > 200) {
-            percentualNormalizado = percentualNormalizado / 100
-            console.log('🔄 Percentual normalizado de', inv.taxa_percentual, '→', percentualNormalizado + '%')
-          } else {
-            console.log('✓ Percentual já normalizado:', percentualNormalizado + '%')
-          }
+          // Taxa percentual vem como 101.00 (101% do CDI)
+          // Multiplicador: 101% = 1.01, 100% = 1.00
+          const multiplicador = inv.taxa_percentual / 100
           
-          // 100% do CDI = fator × 1.0, 101% do CDI = fator × 1.01
-          const multiplicador = percentualNormalizado / 100
+          console.log('📊 Multiplicador CDI:', {
+            taxaContratada: inv.taxa_percentual + '% do CDI',
+            multiplicador: multiplicador.toFixed(4)
+          })
           
-          // Rendimento = (fatorCDI - 1) × percentual
-          // ValorFinal = valorInicial × (1 + rendimento)
-          const rendimentoCDI = fatorCDI - 1
-          const rendimentoAplicado = rendimentoCDI * multiplicador
-          const fatorFinal = 1 + rendimentoAplicado
-          const valorBruto = inv.valor_total * fatorFinal
+          // Aplicar multiplicador no fator CDI diretamente
+          // Fator final = fatorCDI elevado ao multiplicador (composição)
+          // Mas como o fator CDI já é composto, aplicamos o percentual sobre o rendimento
+          const valorBruto = inv.valor_total * Math.pow(fatorCDI, multiplicador)
+          
+          const rendimentoBrutoValor = valorBruto - inv.valor_total
           
           console.log('💰 Cálculo Renda Fixa (Pós-fixado CDI Real):', {
             codigo: inv.codigo,
-            taxaOriginal: inv.taxa_percentual,
-            taxaNormalizada: percentualNormalizado + '% do CDI',
+            taxaContratada: inv.taxa_percentual + '% do CDI',
             fatorCDI: fatorCDI.toFixed(6),
-            rendimentoCDI: (rendimentoCDI * 100).toFixed(2) + '%',
             multiplicador: multiplicador.toFixed(4),
-            rendimentoAplicado: (rendimentoAplicado * 100).toFixed(2) + '%',
-            fatorFinal: fatorFinal.toFixed(6),
+            fatorFinalComMultiplicador: Math.pow(fatorCDI, multiplicador).toFixed(6),
             valorInvestido: inv.valor_total.toFixed(2),
             valorBruto: valorBruto.toFixed(2),
-            rendimento: (valorBruto - inv.valor_total).toFixed(2)
+            rendimentoBruto: rendimentoBrutoValor.toFixed(2),
+            rendimentoPercentual: ((rendimentoBrutoValor / inv.valor_total) * 100).toFixed(2) + '%'
           })
           
           // Calcular IR
-          const rendimentoBruto = valorBruto - inv.valor_total
           let aliquotaIR = 0
           let irRetido = 0
           let valorLiquido = valorBruto
@@ -576,7 +572,7 @@ export const useInvestments = () => {
             else if (diasAplicado > 360) aliquotaIR = 0.175
             else if (diasAplicado > 180) aliquotaIR = 0.20
             
-            irRetido = rendimentoBruto * aliquotaIR
+            irRetido = rendimentoBrutoValor * aliquotaIR
             valorLiquido = valorBruto - irRetido
             
             console.log('💸 Imposto de Renda:', {
@@ -588,20 +584,19 @@ export const useInvestments = () => {
             console.log('✅ Investimento ISENTO de IR')
           }
           
-          // Projeção vencimento
-          const diasTotais = Math.floor((dataVencimento.getTime() - dataAplicacao.getTime()) / (1000 * 60 * 60 * 24))
-          const rendimentoVencimento = rendimentoAplicado // Mesmo rendimento percentual
-          const fatorVencimentoFinal = 1 + rendimentoVencimento
-          const valorBrutoVencimento = inv.valor_total * fatorVencimentoFinal
+          // Projeção vencimento (apenas para referência, não usado no cálculo atual)
+          const diasTotaisFull = Math.floor((dataVencimento.getTime() - dataAplicacao.getTime()) / (1000 * 60 * 60 * 24))
+          // Para simplificar, usar proporcional do rendimento atual
+          const valorBrutoVencimento = valorBruto // Manter o valor atual por enquanto
           const rendimentoEmReaisVencimento = valorBrutoVencimento - inv.valor_total
           
           let valorLiquidoVencimento = valorBrutoVencimento
           
           if (!inv.isento_ir) {
             let aliquotaIRVenc = 0.15
-            if (diasTotais <= 180) aliquotaIRVenc = 0.225
-            else if (diasTotais <= 360) aliquotaIRVenc = 0.20
-            else if (diasTotais <= 720) aliquotaIRVenc = 0.175
+            if (diasTotaisFull <= 180) aliquotaIRVenc = 0.225
+            else if (diasTotaisFull <= 360) aliquotaIRVenc = 0.20
+            else if (diasTotaisFull <= 720) aliquotaIRVenc = 0.175
             
             valorLiquidoVencimento = valorBrutoVencimento - (rendimentoEmReaisVencimento * aliquotaIRVenc)
           }
