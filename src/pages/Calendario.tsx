@@ -102,23 +102,32 @@ export default function Calendario() {
 
   // Filtrar transações por data
   const getTransactionsForDate = (date: Date) => {
-    // Converter a data para string no formato YYYY-MM-DD para comparação direta
     const targetDateString = format(date, 'yyyy-MM-dd')
     
     const filteredTransactions = transacoes.filter(t => {
-      // Usar 'quando' se existir, senão usar 'created_at'
       const dataTransacao = t.quando || t.created_at
       
       if (!dataTransacao) {
         return false
       }
       
-      // Extrair apenas a parte da data (YYYY-MM-DD)
       const transactionDateString = dataTransacao.includes('T') ? dataTransacao.split('T')[0] : dataTransacao
-      const isMatch = transactionDateString === targetDateString
-      
-      return isMatch
+      return transactionDateString === targetDateString
     })
+    
+    // Debug apenas no dia 13
+    if (format(date, 'd') === '13') {
+      console.log('🔍 Debug dia 13:', {
+        dataBusca: targetDateString,
+        totalTransacoes: transacoes.length,
+        encontradas: filteredTransactions.length,
+        primeiras3: filteredTransactions.slice(0, 3).map(t => ({
+          estabelecimento: t.estabelecimento,
+          quando: t.quando,
+          created_at: t.created_at
+        }))
+      })
+    }
     
     return filteredTransactions
   }

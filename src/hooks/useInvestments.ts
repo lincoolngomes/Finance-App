@@ -533,27 +533,21 @@ export const useInvestments = () => {
           
           console.log('🏦 CDI Real do Banco Central - Fator:', fatorCDI.toFixed(6))
           
-          // Taxa percentual vem como 101.00 (101% do CDI)
-          // Rendimento CDI = fatorCDI - 1 (ex: 1.38 - 1 = 0.38 = 38%)
-          const rendimentoCDI = fatorCDI - 1
-          
-          // Aplicar percentual: 101% do CDI = rendimento × 1.01
-          const multiplicador = inv.taxa_percentual / 100
-          const rendimentoAplicado = rendimentoCDI * multiplicador
-          
-          // Valor final = valor inicial × (1 + rendimento)
-          const valorBruto = inv.valor_total * (1 + rendimentoAplicado)
+          // FÓRMULA CORRETA: valorBruto = valorInicial × fatorCDI^(taxa/100)
+          // Exemplo: 101% do CDI = fatorCDI^1.01
+          const expoente = inv.taxa_percentual / 100
+          const valorBruto = inv.valor_total * Math.pow(fatorCDI, expoente)
           const rendimentoBrutoValor = valorBruto - inv.valor_total
           
           console.log('📊 Cálculo detalhado:', {
             taxaContratada: inv.taxa_percentual + '% do CDI',
-            fatorCDI: fatorCDI.toFixed(6),
-            rendimentoCDI: (rendimentoCDI * 100).toFixed(2) + '%',
-            multiplicador: multiplicador.toFixed(4),
-            rendimentoAplicado: (rendimentoAplicado * 100).toFixed(2) + '%',
             valorInicial: inv.valor_total.toFixed(2),
+            fatorCDI: fatorCDI.toFixed(6),
+            expoente: expoente.toFixed(4),
+            fatorFinal: Math.pow(fatorCDI, expoente).toFixed(6),
             valorBruto: valorBruto.toFixed(2),
-            rendimento: rendimentoBrutoValor.toFixed(2)
+            rendimento: rendimentoBrutoValor.toFixed(2),
+            rendimentoPercentual: ((rendimentoBrutoValor / inv.valor_total) * 100).toFixed(2) + '%'
           })
           
 
