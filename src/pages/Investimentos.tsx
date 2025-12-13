@@ -137,15 +137,22 @@ export default function Investimentos() {
             Anterior
           </Button>
           
-          <div className="flex items-center gap-2">
-            <Calendar className="w-4 h-4 text-teal-600" />
-            <span className="font-semibold">
-              {mesReferencia.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }).replace(/^\w/, c => c.toUpperCase())}
-            </span>
+          <div className="flex flex-col items-center gap-1">
+            <div className="flex items-center gap-2">
+              <Calendar className="w-4 h-4 text-teal-600" />
+              <span className="font-semibold">
+                {mesReferencia.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }).replace(/^\w/, c => c.toUpperCase())}
+              </span>
+              {!mesAtualSelecionado && (
+                <Button variant="link" size="sm" onClick={mesAtual} className="text-teal-600 h-auto p-0">
+                  (Mês atual)
+                </Button>
+              )}
+            </div>
             {!mesAtualSelecionado && (
-              <Button variant="link" size="sm" onClick={mesAtual} className="text-teal-600 h-auto p-0">
-                (Mês atual)
-              </Button>
+              <p className="text-xs text-muted-foreground">
+                📊 Valores calculados até o último dia útil do mês
+              </p>
             )}
           </div>
 
@@ -328,7 +335,8 @@ export default function Investimentos() {
                   <th className="text-left py-3 px-4 font-semibold text-muted-foreground text-sm">Tipo</th>
                   <th className="text-left py-3 px-4 font-semibold text-muted-foreground text-sm">Detalhes</th>
                   <th className="text-right py-3 px-4 font-semibold text-muted-foreground text-sm">Investido</th>
-                  <th className="text-right py-3 px-4 font-semibold text-muted-foreground text-sm">Valor Atual</th>
+                  <th className="text-right py-3 px-4 font-semibold text-muted-foreground text-sm">Valor Bruto</th>
+                  <th className="text-right py-3 px-4 font-semibold text-muted-foreground text-sm">Valor Líquido</th>
                   <th className="text-right py-3 px-4 font-semibold text-muted-foreground text-sm">Rentabilidade</th>
                   <th className="text-center py-3 px-4 font-semibold text-muted-foreground text-sm">Ações</th>
                 </tr>
@@ -399,12 +407,27 @@ export default function Investimentos() {
                         </div>
                       </td>
                       <td className="py-3 px-4 text-right">
-                        <div className="font-mono font-semibold">
-                          {formatCurrency(inv.valor_atual || 0)}
+                        <div className="font-mono font-semibold text-foreground">
+                          {formatCurrency(inv.valor_bruto || inv.valor_atual || 0)}
                         </div>
                         {inv.tipo === 'renda_fixa' && inv.rentabilidade_projetada && (
                           <div className="text-xs text-blue-600 dark:text-blue-400 mt-0.5">
                             Proj: +{inv.rentabilidade_projetada.toFixed(2)}%
+                          </div>
+                        )}
+                      </td>
+                      <td className="py-3 px-4 text-right">
+                        <div className="font-mono font-semibold text-foreground">
+                          {formatCurrency(inv.valor_atual || 0)}
+                        </div>
+                        {inv.tipo === 'renda_fixa' && inv.ir_retido && inv.ir_retido > 0 && (
+                          <div className="text-xs text-orange-600 dark:text-orange-400 mt-0.5">
+                            IR ({inv.aliquota_ir ? (inv.aliquota_ir * 100).toFixed(1) : '0'}%): -{formatCurrency(inv.ir_retido)}
+                          </div>
+                        )}
+                        {inv.tipo === 'renda_fixa' && inv.isento_ir && (
+                          <div className="text-xs text-green-600 dark:text-green-400 mt-0.5">
+                            ✓ Isento IR
                           </div>
                         )}
                       </td>

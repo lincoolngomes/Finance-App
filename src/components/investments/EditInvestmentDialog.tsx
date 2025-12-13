@@ -32,6 +32,7 @@ export const EditInvestmentDialog = ({ open, onClose, investimento }: EditInvest
   const [dataAplicacao, setDataAplicacao] = useState('')
   const [valorAtualManual, setValorAtualManual] = useState('')
   const [usarValorManual, setUsarValorManual] = useState(false)
+  const [isentoIR, setIsentoIR] = useState(false)
 
   // Carregar dados do investimento quando abrir o diálogo
   useEffect(() => {
@@ -55,6 +56,9 @@ export const EditInvestmentDialog = ({ open, onClose, investimento }: EditInvest
           setValorAtualManual(investimento.valor_atual_manual.toString())
           setUsarValorManual(true)
         }
+        
+        // @ts-ignore - campo customizado
+        setIsentoIR(investimento.isento_ir || false)
       }
     }
   }, [open, investimento])
@@ -90,6 +94,10 @@ export const EditInvestmentDialog = ({ open, onClose, investimento }: EditInvest
           // @ts-ignore
           dadosAtualizados.valor_atual_manual = null
         }
+        
+        // Isenção de IR
+        // @ts-ignore - campo customizado
+        dadosAtualizados.isento_ir = isentoIR
       }
 
       const sucesso = await atualizarInvestimento(investimento.id, dadosAtualizados)
@@ -267,6 +275,23 @@ export const EditInvestmentDialog = ({ open, onClose, investimento }: EditInvest
                     </SelectContent>
                   </Select>
                 </div>
+              </div>
+
+              {/* Isenção de IR */}
+              <div className="flex items-center gap-2 border-l-4 border-l-green-500 pl-4 py-2 bg-green-50 dark:bg-green-950/20">
+                <input
+                  type="checkbox"
+                  id="isentoIR"
+                  checked={isentoIR}
+                  onChange={(e) => setIsentoIR(e.target.checked)}
+                  className="w-4 h-4 text-green-600"
+                />
+                <Label htmlFor="isentoIR" className="cursor-pointer flex-1">
+                  <span className="font-medium">Isento de Imposto de Renda</span>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    ✅ LCI, LCA, CRI, CRA, Debêntures Incentivadas
+                  </p>
+                </Label>
               </div>
 
               <div className="grid grid-cols-2 gap-4">

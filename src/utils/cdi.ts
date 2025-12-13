@@ -44,8 +44,8 @@ export async function buscarCDIAcumulado(dataInicio: Date, dataFim: Date): Promi
     const dados: CDIData[] = await response.json()
 
     if (!dados || dados.length === 0) {
-      console.warn('⚠️ Nenhum dado de CDI retornado, usando taxa fixa')
-      return 13.65 // Taxa atual como fallback
+      console.warn('⚠️ Nenhum dado de CDI retornado, usando fator neutro')
+      return 1.0 // Fator neutro como fallback
     }
 
     // Calcular CDI acumulado (juros compostos)
@@ -56,21 +56,20 @@ export async function buscarCDIAcumulado(dataInicio: Date, dataFim: Date): Promi
       fatorAcumulado *= (1 + taxaDiaria)
     }
 
-    // Converter para taxa equivalente anual
     const diasUteis = dados.length
-    const taxaAnual = (Math.pow(fatorAcumulado, 252 / diasUteis) - 1) * 100
-
-    console.log(`✅ CDI calculado: ${taxaAnual.toFixed(2)}% a.a. (${diasUteis} dias úteis)`)
+    
+    // Retornar o fator acumulado diretamente
+    console.log(`✅ CDI acumulado: Fator ${fatorAcumulado.toFixed(6)} (${diasUteis} dias úteis)`)
 
     // Salvar no cache
-    cdiCache.set(cacheKey, taxaAnual)
+    cdiCache.set(cacheKey, fatorAcumulado)
 
-    return taxaAnual
+    return fatorAcumulado
 
   } catch (error) {
     console.error('❌ Erro ao buscar CDI:', error)
-    // Retornar taxa fixa atual como fallback
-    return 13.65
+    // Retornar fator neutro como fallback
+    return 1.0
   }
 }
 

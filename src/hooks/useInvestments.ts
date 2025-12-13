@@ -26,7 +26,11 @@ export interface Investimento {
   data_aplicacao?: string
   valor_bruto_resgate?: number
   ir_retido?: number
+  isento_ir?: boolean
+  valor_atual_manual?: number
+  aliquota_ir?: number
   // Campos calculados
+  valor_bruto?: number
   created_at: string
   updated_at: string
   cotacao_atual?: number
@@ -193,7 +197,7 @@ export const useInvestments = () => {
                   dadosAdicionais = await calcularRendaFixa({
                     ...inv,
                     data_aplicacao: dataBase
-                  })
+                  }, undefined) // undefined usa mesReferencia automaticamente
                   valor_atual = dadosAdicionais.valor_atual
                 } else {
                   console.log('❌ Dados insuficientes para calcular renda fixa')
@@ -253,7 +257,7 @@ export const useInvestments = () => {
     } finally {
       setLoading(false)
     }
-  }, [user, toast])
+  }, [user, toast, mesReferencia])
 
   // Buscar transações
   const fetchTransacoes = async (investimentoId?: string) => {
@@ -321,6 +325,7 @@ export const useInvestments = () => {
         dadosInsert.data_vencimento = dados.data_vencimento
         dadosInsert.liquidez = dados.liquidez
         dadosInsert.data_aplicacao = dados.data_aplicacao
+        dadosInsert.isento_ir = dados.isento_ir || false
         
         console.log('💰 Campos de renda fixa adicionados:', {
           tipo_rentabilidade: dadosInsert.tipo_rentabilidade,
@@ -328,7 +333,8 @@ export const useInvestments = () => {
           indexador: dadosInsert.indexador,
           data_vencimento: dadosInsert.data_vencimento,
           liquidez: dadosInsert.liquidez,
-          data_aplicacao: dadosInsert.data_aplicacao
+          data_aplicacao: dadosInsert.data_aplicacao,
+          isento_ir: dadosInsert.isento_ir
         })
       }
 
@@ -466,7 +472,7 @@ export const useInvestments = () => {
   }
 
   // Calcular rentabilidade de renda fixa
-  const calcularRendaFixa = async (inv: any) => {
+  const calcularRendaFixa = async (inv: any, dataReferencia?: Date) => {
     // Validar se tem as datas necessárias
     if (!inv.data_aplicacao || !inv.data_vencimento) {
       return {
@@ -481,11 +487,38 @@ export const useInvestments = () => {
 
     const dataAplicacao = new Date(inv.data_aplicacao)
     const dataVencimento = new Date(inv.data_vencimento)
-    const hoje = new Date()
+    
+    // Se não passou data de referência, usar o último dia útil do mês de referência
+    let hoje: Date
+    if (dataReferencia) {
+      hoje = dataReferencia
+    } else {
+      // Pegar último dia útil do mês de referência
+      const ultimoDiaDoMes = new Date(mesReferencia.getFullYear(), mesReferencia.getMonth() + 1, 0)
+      const diaSemana = ultimoDiaDoMes.getDay()
+      
+      // Se cair no fim de semana, voltar para sexta-feira
+      if (diaSemana === 0) { // Domingo
+        ultimoDiaDoMes.setDate(ultimoDiaDoMes.getDate() - 2)
+      } else if (diaSemana === 6) { // Sábado
+        ultimoDiaDoMes.setDate(ultimoDiaDoMes.getDate() - 1)
+      }
+      
+      hoje = ultimoDiaDoMes
+    }
     
     const diasAplicado = Math.floor((hoje.getTime() - dataAplicacao.getTime()) / (1000 * 60 * 60 * 24))
     const diasAteVencimento = Math.floor((dataVencimento.getTime() - hoje.getTime()) / (1000 * 60 * 60 * 24))
     const diasTotais = Math.floor((dataVencimento.getTime() - dataAplicacao.getTime()) / (1000 * 60 * 60 * 24))
+    
+    console.log('📅 PERÍODO DE CÁLCULO:', {
+      dataReferencia: hoje.toLocaleDateString('pt-BR'),
+      mesReferencia: `${mesReferencia.toLocaleString('pt-BR', { month: 'long' })} de ${mesReferencia.getFullYear()}`,
+      dataAplicacao: dataAplicacao.toLocaleDateString('pt-BR'),
+      dataVencimento: dataVencimento.toLocaleDateString('pt-BR'),
+      diasAplicado,
+      diasAteVencimento
+    })
     
     let taxaAnualEfetiva = inv.taxa_percentual || 0
     
@@ -495,25 +528,122 @@ export const useInvestments = () => {
       let taxaIndexador = 13.65 // Fallback
       
       if (inv.indexador === 'cdi' || inv.indexador === 'selic') {
-        // Buscar CDI REAL acumulado do Banco Central
+        // Buscar CDI REAL acumulado do Banco Central (retorna fator composto)
         try {
-          taxaIndexador = await buscarCDIAcumulado(dataAplicacao, hoje)
-          console.log('🏦 CDI Real do Banco Central:', taxaIndexador.toFixed(2) + '% a.a.')
+          const fatorCDI = await buscarCDIAcumulado(dataAplicacao, hoje)
+          
+          console.log('🔍 DADOS DO INVESTIMENTO:', {
+            codigo: inv.codigo,
+            taxa_percentual_bruto: inv.taxa_percentual,
+            tipo: typeof inv.taxa_percentual,
+            valorInvestido: inv.valor_total
+          })
+          
+          console.log('🏦 CDI Real do Banco Central - Fator:', fatorCDI.toFixed(6))
+          
+          // Taxa percentual pode vir como 101 (101%) ou 101.000 (101%)
+          // Normalizar: se vier como 101.000, dividir por 100
+          let percentualNormalizado = inv.taxa_percentual
+          if (percentualNormalizado > 200) {
+            percentualNormalizado = percentualNormalizado / 100
+            console.log('🔄 Percentual normalizado de', inv.taxa_percentual, '→', percentualNormalizado + '%')
+          } else {
+            console.log('✓ Percentual já normalizado:', percentualNormalizado + '%')
+          }
+          
+          // 100% do CDI = fator × 1.0, 101% do CDI = fator × 1.01
+          const multiplicador = percentualNormalizado / 100
+          
+          // Rendimento = (fatorCDI - 1) × percentual
+          // ValorFinal = valorInicial × (1 + rendimento)
+          const rendimentoCDI = fatorCDI - 1
+          const rendimentoAplicado = rendimentoCDI * multiplicador
+          const fatorFinal = 1 + rendimentoAplicado
+          const valorBruto = inv.valor_total * fatorFinal
+          
+          console.log('💰 Cálculo Renda Fixa (Pós-fixado CDI Real):', {
+            codigo: inv.codigo,
+            taxaOriginal: inv.taxa_percentual,
+            taxaNormalizada: percentualNormalizado + '% do CDI',
+            fatorCDI: fatorCDI.toFixed(6),
+            rendimentoCDI: (rendimentoCDI * 100).toFixed(2) + '%',
+            multiplicador: multiplicador.toFixed(4),
+            rendimentoAplicado: (rendimentoAplicado * 100).toFixed(2) + '%',
+            fatorFinal: fatorFinal.toFixed(6),
+            valorInvestido: inv.valor_total.toFixed(2),
+            valorBruto: valorBruto.toFixed(2),
+            rendimento: (valorBruto - inv.valor_total).toFixed(2)
+          })
+          
+          // Calcular IR
+          const rendimentoBruto = valorBruto - inv.valor_total
+          let aliquotaIR = 0
+          let irRetido = 0
+          let valorLiquido = valorBruto
+          
+          if (!inv.isento_ir) {
+            aliquotaIR = 0.225
+            if (diasAplicado > 720) aliquotaIR = 0.15
+            else if (diasAplicado > 360) aliquotaIR = 0.175
+            else if (diasAplicado > 180) aliquotaIR = 0.20
+            
+            irRetido = rendimentoBruto * aliquotaIR
+            valorLiquido = valorBruto - irRetido
+            
+            console.log('💸 Imposto de Renda:', {
+              aliquota: (aliquotaIR * 100).toFixed(2) + '%',
+              irRetido: irRetido.toFixed(2),
+              valorLiquido: valorLiquido.toFixed(2)
+            })
+          } else {
+            console.log('✅ Investimento ISENTO de IR')
+          }
+          
+          // Projeção vencimento
+          const diasTotais = Math.floor((dataVencimento.getTime() - dataAplicacao.getTime()) / (1000 * 60 * 60 * 24))
+          const rendimentoVencimento = rendimentoAplicado // Mesmo rendimento percentual
+          const fatorVencimentoFinal = 1 + rendimentoVencimento
+          const valorBrutoVencimento = inv.valor_total * fatorVencimentoFinal
+          const rendimentoEmReaisVencimento = valorBrutoVencimento - inv.valor_total
+          
+          let valorLiquidoVencimento = valorBrutoVencimento
+          
+          if (!inv.isento_ir) {
+            let aliquotaIRVenc = 0.15
+            if (diasTotais <= 180) aliquotaIRVenc = 0.225
+            else if (diasTotais <= 360) aliquotaIRVenc = 0.20
+            else if (diasTotais <= 720) aliquotaIRVenc = 0.175
+            
+            valorLiquidoVencimento = valorBrutoVencimento - (rendimentoEmReaisVencimento * aliquotaIRVenc)
+          }
+          
+          const rentabilidadeProjetada = ((valorLiquidoVencimento - inv.valor_total) / inv.valor_total) * 100
+          
+          return {
+            valor_atual: valorLiquido,
+            valor_bruto: valorBruto,
+            valor_bruto_resgate: valorBruto,
+            ir_retido: irRetido,
+            aliquota_ir: aliquotaIR,
+            dias_aplicado: diasAplicado,
+            dias_ate_vencimento: diasAteVencimento,
+            rentabilidade_projetada: rentabilidadeProjetada
+          }
+          
         } catch (error) {
-          console.warn('⚠️ Erro ao buscar CDI, usando taxa fixa:', error)
+          console.warn('⚠️ Erro ao buscar CDI, usando cálculo tradicional:', error)
           taxaIndexador = 13.65
         }
       } else if (inv.indexador === 'ipca') {
         taxaIndexador = 4.5 // IPCA projetado 2025
       }
       
-      // Taxa contratada é % do indexador (ex: 101% do CDI = 1.01 * 13.65 = 13.7865%)
+      // Cálculo tradicional (fallback)
       taxaAnualEfetiva = (taxaAnualEfetiva / 100) * taxaIndexador
       
-      console.log('💰 Cálculo Renda Fixa (Pós-fixado):', {
+      console.log('💰 Cálculo Renda Fixa (Fallback):', {
         codigo: inv.codigo,
-        taxaContratada: inv.taxa_percentual + '% do CDI',
-        cdiReal: taxaIndexador.toFixed(2) + '% a.a.',
+        taxaContratada: inv.taxa_percentual + '% do indexador',
         taxaEfetiva: taxaAnualEfetiva.toFixed(2) + '% a.a.',
         valorInvestido: inv.valor_total
       })
@@ -554,34 +684,56 @@ export const useInvestments = () => {
     })
     
     // Calcular IR (tabela regressiva do imposto de renda)
-    let aliquotaIR = 0.225 // 22,5% até 180 dias
-    if (diasAplicado > 720) aliquotaIR = 0.15       // 15% acima de 720 dias (2 anos)
-    else if (diasAplicado > 360) aliquotaIR = 0.175 // 17,5% de 361 a 720 dias
-    else if (diasAplicado > 180) aliquotaIR = 0.20  // 20% de 181 a 360 dias
-    
     const rendimentoBruto = valorBruto - inv.valor_total
-    const irRetido = rendimentoBruto * aliquotaIR
-    const valorLiquido = valorBruto - irRetido
+    let aliquotaIR = 0
+    let irRetido = 0
+    let valorLiquido = valorBruto
+    
+    // Se não for isento, calcular IR
+    if (!inv.isento_ir) {
+      aliquotaIR = 0.225 // 22,5% até 180 dias
+      if (diasAplicado > 720) aliquotaIR = 0.15       // 15% acima de 720 dias (2 anos)
+      else if (diasAplicado > 360) aliquotaIR = 0.175 // 17,5% de 361 a 720 dias
+      else if (diasAplicado > 180) aliquotaIR = 0.20  // 20% de 181 a 360 dias
+      
+      irRetido = rendimentoBruto * aliquotaIR
+      valorLiquido = valorBruto - irRetido
+      
+      console.log('💸 Imposto de Renda:', {
+        aliquota: (aliquotaIR * 100).toFixed(2) + '%',
+        irRetido: irRetido.toFixed(2),
+        valorLiquido: valorLiquido.toFixed(2)
+      })
+    } else {
+      console.log('✅ Investimento ISENTO de IR (LCI/LCA/CRI/CRA)')
+    }
     
     // Projeção para o vencimento
     const fatorVencimento = Math.pow(1 + taxaDiaria, diasTotais)
     const valorBrutoVencimento = inv.valor_total * fatorVencimento
     const rendimentoVencimento = valorBrutoVencimento - inv.valor_total
     
-    // IR no vencimento
-    let aliquotaIRVencimento = 0.15 // Default para investimentos longos
-    if (diasTotais <= 180) aliquotaIRVencimento = 0.225
-    else if (diasTotais <= 360) aliquotaIRVencimento = 0.20
-    else if (diasTotais <= 720) aliquotaIRVencimento = 0.175
+    let valorLiquidoVencimento = valorBrutoVencimento
     
-    const irVencimento = rendimentoVencimento * aliquotaIRVencimento
-    const valorLiquidoVencimento = valorBrutoVencimento - irVencimento
+    // IR no vencimento (se não for isento)
+    if (!inv.isento_ir) {
+      let aliquotaIRVencimento = 0.15 // Default para investimentos longos
+      if (diasTotais <= 180) aliquotaIRVencimento = 0.225
+      else if (diasTotais <= 360) aliquotaIRVencimento = 0.20
+      else if (diasTotais <= 720) aliquotaIRVencimento = 0.175
+      
+      const irVencimento = rendimentoVencimento * aliquotaIRVencimento
+      valorLiquidoVencimento = valorBrutoVencimento - irVencimento
+    }
+    
     const rentabilidadeProjetada = ((valorLiquidoVencimento - inv.valor_total) / inv.valor_total) * 100
     
     return {
       valor_atual: valorLiquido,
+      valor_bruto: valorBruto,
       valor_bruto_resgate: valorBruto,
       ir_retido: irRetido,
+      aliquota_ir: aliquotaIR,
       dias_aplicado: diasAplicado,
       dias_ate_vencimento: diasAteVencimento,
       rentabilidade_projetada: rentabilidadeProjetada

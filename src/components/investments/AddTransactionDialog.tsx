@@ -36,6 +36,7 @@ export const AddTransactionDialog = ({ open, onClose }: AddTransactionDialogProp
   const [dataVencimento, setDataVencimento] = useState('')
   const [liquidez, setLiquidez] = useState('no_vencimento')
   const [dataAplicacao, setDataAplicacao] = useState(new Date().toISOString().split('T')[0])
+  const [isentoIR, setIsentoIR] = useState(false)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -58,6 +59,7 @@ export const AddTransactionDialog = ({ open, onClose }: AddTransactionDialogProp
         dadosInvestimento.data_vencimento = dataVencimento
         dadosInvestimento.liquidez = liquidez
         dadosInvestimento.data_aplicacao = dataAplicacao
+        dadosInvestimento.isento_ir = isentoIR
       }
       
       const investimento = await getOrCreateInvestimento(dadosInvestimento)
@@ -107,6 +109,7 @@ export const AddTransactionDialog = ({ open, onClose }: AddTransactionDialogProp
     setDataVencimento('')
     setLiquidez('no_vencimento')
     setDataAplicacao(new Date().toISOString().split('T')[0])
+    setIsentoIR(false)
   }
 
   const valorTotal = quantidade && precoUnitario 
@@ -291,6 +294,22 @@ export const AddTransactionDialog = ({ open, onClose }: AddTransactionDialogProp
                     <SelectItem value="carencia_360">Carência de 360 dias</SelectItem>
                   </SelectContent>
                 </Select>
+              </div>
+
+              <div className="flex items-center space-x-2 p-3 bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800 rounded-lg">
+                <input
+                  type="checkbox"
+                  id="isentoIR"
+                  checked={isentoIR}
+                  onChange={(e) => setIsentoIR(e.target.checked)}
+                  className="w-4 h-4 text-green-600 rounded focus:ring-green-500"
+                />
+                <Label htmlFor="isentoIR" className="text-sm cursor-pointer">
+                  <span className="font-medium text-green-700 dark:text-green-300">✓ Isento de Imposto de Renda</span>
+                  <p className="text-xs text-green-600 dark:text-green-400 mt-0.5">
+                    Marque para LCI, LCA, CRI, CRA ou Debêntures Incentivadas (sem retenção de IR)
+                  </p>
+                </Label>
               </div>
             </div>
           )}
