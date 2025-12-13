@@ -303,6 +303,8 @@ export const useInvestments = () => {
         observacoes: dados.observacoes
       }
 
+      console.log('📝 Dados recebidos para criar investimento:', dados)
+
       // Adicionar campos específicos de renda fixa
       if (dados.tipo === 'renda_fixa') {
         dadosInsert.tipo_rentabilidade = dados.tipo_rentabilidade
@@ -311,7 +313,18 @@ export const useInvestments = () => {
         dadosInsert.data_vencimento = dados.data_vencimento
         dadosInsert.liquidez = dados.liquidez
         dadosInsert.data_aplicacao = dados.data_aplicacao
+        
+        console.log('💰 Campos de renda fixa adicionados:', {
+          tipo_rentabilidade: dadosInsert.tipo_rentabilidade,
+          taxa_percentual: dadosInsert.taxa_percentual,
+          indexador: dadosInsert.indexador,
+          data_vencimento: dadosInsert.data_vencimento,
+          liquidez: dadosInsert.liquidez,
+          data_aplicacao: dadosInsert.data_aplicacao
+        })
       }
+
+      console.log('💾 Inserindo no Supabase:', dadosInsert)
 
       const { data, error } = await supabase
         .from('investimentos')
@@ -319,7 +332,12 @@ export const useInvestments = () => {
         .select()
         .single()
 
-      if (error) throw error
+      if (error) {
+        console.error('❌ Erro ao inserir:', error)
+        throw error
+      }
+      
+      console.log('✅ Investimento criado:', data)
       return data
     } catch (error: any) {
       toast({
