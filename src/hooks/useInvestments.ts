@@ -674,9 +674,9 @@ export const useInvestments = () => {
                      ultimaAtualizacao.getMonth() !== hoje.getMonth() ||
                      ultimaAtualizacao.getFullYear() !== hoje.getFullYear()
     
-    // Se tem cache válido (menos de 5 minutos) E não mudou o dia, não recarrega
+    // DESABILITAR CACHE TEMPORARIAMENTE PARA DEBUG
     const tempoDecorrido = now - lastFetchTimeRef.current
-    const cacheValido = tempoDecorrido < CACHE_DURATION && investimentos.length > 0 && !mudouDia
+    const cacheValido = false // Sempre busca do servidor
     
     console.log('🔍 useInvestments Effect:', {
       user: !!user,
