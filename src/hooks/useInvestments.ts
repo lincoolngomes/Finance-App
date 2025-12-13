@@ -289,16 +289,13 @@ export const useInvestments = () => {
         return existente
       }
 
-      // Criar novo
+      // Criar novo (não incluir campos gerados automaticamente)
       const dadosInsert: any = {
         user_id: user.id,
         tipo: dados.tipo!,
         codigo: dados.codigo!,
         nome: dados.nome!,
         instituicao: dados.instituicao,
-        quantidade: 0,
-        preco_medio: 0,
-        valor_total: 0,
         ativo: true,
         observacoes: dados.observacoes
       }
