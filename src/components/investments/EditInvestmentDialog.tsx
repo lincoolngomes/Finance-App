@@ -30,6 +30,8 @@ export const EditInvestmentDialog = ({ open, onClose, investimento }: EditInvest
   const [dataVencimento, setDataVencimento] = useState('')
   const [liquidez, setLiquidez] = useState('no_vencimento')
   const [dataAplicacao, setDataAplicacao] = useState('')
+  const [valorAtualManual, setValorAtualManual] = useState('')
+  const [usarValorManual, setUsarValorManual] = useState(false)
 
   // Carregar dados do investimento quando abrir o diálogo
   useEffect(() => {
@@ -46,6 +48,13 @@ export const EditInvestmentDialog = ({ open, onClose, investimento }: EditInvest
         setDataVencimento(investimento.data_vencimento || '')
         setLiquidez(investimento.liquidez || 'no_vencimento')
         setDataAplicacao(investimento.data_aplicacao || '')
+        
+        // @ts-ignore - campo customizado
+        if (investimento.valor_atual_manual) {
+          // @ts-ignore
+          setValorAtualManual(investimento.valor_atual_manual.toString())
+          setUsarValorManual(true)
+        }
       }
     }
   }, [open, investimento])
@@ -72,6 +81,15 @@ export const EditInvestmentDialog = ({ open, onClose, investimento }: EditInvest
         dadosAtualizados.data_vencimento = dataVencimento || undefined
         dadosAtualizados.liquidez = liquidez
         dadosAtualizados.data_aplicacao = dataAplicacao || undefined
+        
+        // Valor atual manual (se informado)
+        if (usarValorManual && valorAtualManual) {
+          // @ts-ignore - campo customizado
+          dadosAtualizados.valor_atual_manual = parseFloat(valorAtualManual)
+        } else {
+          // @ts-ignore
+          dadosAtualizados.valor_atual_manual = null
+        }
       }
 
       const sucesso = await atualizarInvestimento(investimento.id, dadosAtualizados)
@@ -271,6 +289,39 @@ export const EditInvestmentDialog = ({ open, onClose, investimento }: EditInvest
                     onChange={(e) => setDataVencimento(e.target.value)}
                   />
                 </div>
+              </div>
+
+              {/* Valor Atual Manual */}
+              <div className="space-y-3 border-t pt-4 mt-4">
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id="usarValorManual"
+                    checked={usarValorManual}
+                    onChange={(e) => setUsarValorManual(e.target.checked)}
+                    className="w-4 h-4 text-teal-600"
+                  />
+                  <Label htmlFor="usarValorManual" className="cursor-pointer">
+                    Informar valor atual manualmente (sobrescreve cálculo automático)
+                  </Label>
+                </div>
+
+                {usarValorManual && (
+                  <div>
+                    <Label htmlFor="valorAtualManual">Valor Atual (R$)</Label>
+                    <Input
+                      id="valorAtualManual"
+                      type="number"
+                      step="0.01"
+                      value={valorAtualManual}
+                      onChange={(e) => setValorAtualManual(e.target.value)}
+                      placeholder="1728.69"
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      💡 Use o valor líquido que aparece no app do banco
+                    </p>
+                  </div>
+                )}
               </div>
             </div>
           )}
