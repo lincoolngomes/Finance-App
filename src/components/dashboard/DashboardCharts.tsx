@@ -149,17 +149,19 @@ export function DashboardCharts({ transacoes, recentTransacoes, contas = [], lem
       }
     })
 
-    // Converter para array
-    return Object.keys(monthlyData).map((key) => {
-      const month = parseInt(key)
-      const monthName = new Date(2000, month, 1).toLocaleDateString('pt-BR', { month: 'short' })
-      return {
-        monthKey: key,
-        month: monthName.charAt(0).toUpperCase() + monthName.slice(1),
-        receitas: Math.round(monthlyData[key].receitas),
-        despesas: Math.round(monthlyData[key].despesas)
-      }
-    })
+    // Converter para array ordenado (Janeiro a Dezembro)
+    return Object.keys(monthlyData)
+      .sort((a, b) => parseInt(a) - parseInt(b)) // Ordenar de 0 (Jan) a 11 (Dez)
+      .map((key) => {
+        const month = parseInt(key)
+        const monthName = new Date(2000, month, 1).toLocaleDateString('pt-BR', { month: 'short' })
+        return {
+          monthKey: key,
+          month: monthName.charAt(0).toUpperCase() + monthName.slice(1),
+          receitas: Math.round(monthlyData[key].receitas),
+          despesas: Math.round(monthlyData[key].despesas)
+        }
+      })
   }
 
   // Calcula stats usando TODAS as transações (global), não apenas filtradas
@@ -243,9 +245,8 @@ export function DashboardCharts({ transacoes, recentTransacoes, contas = [], lem
                     tick={(props) => {
                       const { x, y, payload } = props
                       const dataPoint = monthlyBalanceData.find(d => d.month === payload.value)
-                      // Normalizar selectedMonth para comparação (pode vir como "0" ou "00")
-                      const normalizedSelected = selectedMonth ? String(parseInt(selectedMonth)).padStart(2, '0') : ''
-                      const isSelected = dataPoint?.monthKey === normalizedSelected
+                      // selectedMonth já vem normalizado com 2 dígitos (00-11)
+                      const isSelected = dataPoint?.monthKey === selectedMonth
                       
                       return (
                         <g transform={`translate(${x},${y})`}>

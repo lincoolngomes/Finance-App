@@ -227,7 +227,7 @@ export default function Dashboard() {
         recentTransacoes={transacoes} 
         contas={contas}
         lembretes={lembretes}
-        selectedMonth={filterMonth}
+        selectedMonth={String(parseInt(filterMonth)).padStart(2, '0')}
         selectedYear={filterYear}
         allTransactions={transacoes}
       />
