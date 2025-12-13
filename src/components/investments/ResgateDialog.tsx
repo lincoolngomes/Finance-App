@@ -28,12 +28,20 @@ export const ResgateDialog = ({ open, onClose, selectedIds }: ResgateDialogProps
     (!selectedIds || selectedIds.size === 0 || selectedIds.has(inv.id))
   )
   
-  // Auto-selecionar se houver apenas um investimento disponível
+  // Auto-selecionar o primeiro investimento disponível ao abrir o dialog
   useEffect(() => {
-    if (investimentosDisponiveis.length === 1 && !investimentoSelecionado) {
+    if (open && investimentosDisponiveis.length > 0 && !investimentoSelecionado) {
       setInvestimentoSelecionado(investimentosDisponiveis[0].id)
     }
-  }, [investimentosDisponiveis, investimentoSelecionado])
+  }, [open, investimentosDisponiveis, investimentoSelecionado])
+  
+  // Resetar seleção ao fechar
+  useEffect(() => {
+    if (!open) {
+      setInvestimentoSelecionado('')
+      setValorResgate('')
+    }
+  }, [open])
   
   const investimentoAtual = investimentosDisponiveis.find(inv => inv.id === investimentoSelecionado)
   

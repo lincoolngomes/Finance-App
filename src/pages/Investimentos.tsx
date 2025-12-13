@@ -713,7 +713,10 @@ export default function Investimentos() {
                     else if (subtipo === 'ipca') categoriaLabel = 'Renda Fixa IPCA+'
                     else categoriaLabel = 'Renda Fixa'
                     
-                    categoriaLabel += isencao === 'isento' ? ' (Isento IR)' : ' (Tributado)'
+                    // Adiciona emoji de isento apenas se for isento
+                    if (isencao === 'isento') {
+                      categoriaLabel += ' ✅ Isento IR'
+                    }
                     categoriaIcon = '💰'
                   } else {
                     categoriaLabel = TIPO_LABELS[categoriaKey] || categoriaKey
