@@ -531,39 +531,11 @@ export const useInvestments = () => {
             diasAplicado
           })
           
-          console.log('🏦 CDI acumulado:', {
-            fator: fatorCDI.toFixed(6),
-            dataInicio: dataAplicacao.toLocaleDateString('pt-BR'),
-            dataFim: hoje.toLocaleDateString('pt-BR'),
-            dias: diasAplicado
-          })
-          
-          // Testar diferentes fórmulas para encontrar qual bate
-          const expoente = inv.taxa_percentual / 100
-          
-          // Fórmula 1: Exponencial (atual)
-          const valor1 = inv.valor_total * Math.pow(fatorCDI, expoente)
-          
-          // Fórmula 2: Linear com rendimento
-          const rendCDI = fatorCDI - 1
-          const valor2 = inv.valor_total * (1 + (rendCDI * expoente))
-          
-          // Fórmula 3: Aplicar percentual direto no fator
-          const valor3 = inv.valor_total * (1 + ((fatorCDI - 1) * (inv.taxa_percentual / 100)))
-          
-          console.log('🧪 TESTE DE FÓRMULAS:', {
-            codigo: inv.codigo,
-            valorInicial: inv.valor_total.toFixed(2),
-            taxaContratada: inv.taxa_percentual + '% CDI',
-            fatorCDI: fatorCDI.toFixed(6),
-            formula1_Exponencial: valor1.toFixed(2),
-            formula2_Linear: valor2.toFixed(2),
-            formula3_Percentual: valor3.toFixed(2),
-            esperadoBanco: inv.codigo.includes('#1') ? '1804.34' : '30663.33'
-          })
-          
-          // Usar fórmula 1 por enquanto
-          const valorBruto = valor1
+          // FÓRMULA CORRETA (testada com extrato do banco): Linear
+          // valorBruto = valorInicial × (1 + (rendimentoCDI × percentualContratado))
+          const rendimentoCDI = fatorCDI - 1 // Ex: 1.384160 - 1 = 0.384160 (38.416%)
+          const percentualContratado = inv.taxa_percentual / 100 // Ex: 101/100 = 1.01
+          const valorBruto = inv.valor_total * (1 + (rendimentoCDI * percentualContratado))
           const rendimentoBrutoValor = valorBruto - inv.valor_total
           
 
