@@ -558,16 +558,22 @@ export const useInvestments = () => {
           
 
           
-          // Calcular IR
+          // Calcular IR sobre o rendimento
           let aliquotaIR = 0
           let irRetido = 0
           let valorLiquido = valorBruto
           
-          if (!inv.isento_ir) {
-            aliquotaIR = 0.225
-            if (diasAplicado > 720) aliquotaIR = 0.15
-            else if (diasAplicado > 360) aliquotaIR = 0.175
-            else if (diasAplicado > 180) aliquotaIR = 0.20
+          if (!inv.isento_ir && rendimentoBrutoValor > 0) {
+            // Tabela regressiva de IR
+            if (diasAplicado <= 180) {
+              aliquotaIR = 0.225
+            } else if (diasAplicado <= 360) {
+              aliquotaIR = 0.20
+            } else if (diasAplicado <= 720) {
+              aliquotaIR = 0.175
+            } else {
+              aliquotaIR = 0.15
+            }
             
             irRetido = rendimentoBrutoValor * aliquotaIR
             valorLiquido = valorBruto - irRetido
