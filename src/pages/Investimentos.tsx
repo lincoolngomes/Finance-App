@@ -229,24 +229,24 @@ export default function Investimentos() {
         const meses: { mes: string, saldo: number }[] = []
         const hoje = new Date()
       
-      for (let i = 11; i >= 0; i--) {
+      // Incluir mês atual + 12 meses anteriores (total 13 meses)
+      for (let i = 12; i >= 0; i--) {
         const mesRef = new Date(hoje.getFullYear(), hoje.getMonth() - i, 1)
         const mesNome = mesRef.toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' })
         
-        // Obter último dia útil do mês
-        const ultimoDiaDoMes = new Date(mesRef.getFullYear(), mesRef.getMonth() + 1, 0)
-        const diaSemana = ultimoDiaDoMes.getDay()
+        // Para o mês atual, usar hoje como referência
+        const ultimoDiaDoMes = i === 0 
+          ? hoje 
+          : new Date(mesRef.getFullYear(), mesRef.getMonth() + 1, 0)
         
-        // Se cair no fim de semana, voltar para sexta-feira
-        if (diaSemana === 0) { // Domingo
-          ultimoDiaDoMes.setDate(ultimoDiaDoMes.getDate() - 2)
-        } else if (diaSemana === 6) { // Sábado
-          ultimoDiaDoMes.setDate(ultimoDiaDoMes.getDate() - 1)
-        }
-        
-        // Não calcular meses futuros
-        if (ultimoDiaDoMes > hoje) {
-          continue
+        // Se não for o mês atual e cair no fim de semana, voltar para sexta-feira
+        if (i !== 0) {
+          const diaSemana = ultimoDiaDoMes.getDay()
+          if (diaSemana === 0) { // Domingo
+            ultimoDiaDoMes.setDate(ultimoDiaDoMes.getDate() - 2)
+          } else if (diaSemana === 6) { // Sábado
+            ultimoDiaDoMes.setDate(ultimoDiaDoMes.getDate() - 1)
+          }
         }
         
         // Filtrar investimentos que existiam naquele mês
@@ -261,11 +261,8 @@ export default function Investimentos() {
         
         for (const inv of investimentosDoMes) {
           if (inv.tipo === 'renda_fixa' && inv.data_aplicacao) {
-            // Para o mês atual, usar o valor já calculado
-            const mesAtualSelecionado = ultimoDiaDoMes.getMonth() === hoje.getMonth() && 
-                                        ultimoDiaDoMes.getFullYear() === hoje.getFullYear()
-            
-            if (mesAtualSelecionado) {
+            // Para o mês atual (i === 0), usar o valor já calculado
+            if (i === 0) {
               saldoTotal += inv.valor_atual || inv.valor_total
             } else {
               // Para meses anteriores, calcular rentabilidade até aquela data
@@ -283,8 +280,8 @@ export default function Investimentos() {
               }
             }
           } else {
-            // Para outros tipos, usar valor_total
-            saldoTotal += inv.valor_total
+            // Para outros tipos, usar valor_atual no mês atual, valor_total nos anteriores
+            saldoTotal += i === 0 ? (inv.valor_atual || inv.valor_total) : inv.valor_total
           }
         }
         
@@ -645,6 +642,16 @@ export default function Investimentos() {
               </span>
               <div className="flex gap-2">
                 <Button
+                  size="sm"
+                  onClick={() => {
+                    setShowResgateDialog(true)
+                  }}
+                  className="bg-orange-600 hover:bg-orange-700"
+                >
+                  <DollarSign className="w-4 h-4 mr-2" />
+                  Resgatar
+                </Button>
+                <Button
                   variant="destructive"
                   size="sm"
                   onClick={handleBulkDelete}
@@ -792,12 +799,19 @@ export default function Investimentos() {
                           <div className="text-xs text-muted-foreground mt-0.5">{grupo.instituicao || ''}</div>
                         </td>
                         <td className="py-3 px-4">
-                          <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-teal-100 dark:bg-teal-900 text-teal-700 dark:text-teal-100">
-                            {grupo.tipo === 'renda_fixa' 
-                              ? `Renda Fixa ${primeiroItem.tipo_rentabilidade === 'pos' ? 'Pós-fixada' : primeiroItem.tipo_rentabilidade === 'pre' ? 'Pré-fixada' : primeiroItem.tipo_rentabilidade === 'ipca' ? 'Híbrida (IPCA+)' : ''}`
-                              : TIPO_LABELS[grupo.tipo]
-                            }
-                          </span>
+                          <div className="space-y-1">
+                            <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-teal-100 dark:bg-teal-900 text-teal-700 dark:text-teal-100">
+                              {grupo.tipo === 'renda_fixa' 
+                                ? primeiroItem.tipo_rentabilidade === 'pos' ? 'RF Pós-fixada' : primeiroItem.tipo_rentabilidade === 'pre' ? 'RF Pré-fixada' : primeiroItem.tipo_rentabilidade === 'ipca' ? 'RF Híbrida' : 'Renda Fixa'
+                                : TIPO_LABELS[grupo.tipo]
+                              }
+                            </span>
+                            {grupo.tipo === 'renda_fixa' && (
+                              <div className="text-xs text-muted-foreground">
+                                {primeiroItem.isento_ir ? '✅ Isento IR' : '📊 Tributável'}
+                              </div>
+                            )}
+                          </div>
                         </td>
                         <td className="py-3 px-4">
                           {primeiroItem.tipo === 'renda_fixa' && primeiroItem.data_vencimento ? (
@@ -1104,7 +1118,14 @@ export default function Investimentos() {
       </Card>
 
       <AddTransactionDialog open={showAddDialog} onClose={() => setShowAddDialog(false)} />
-      <ResgateDialog open={showResgateDialog} onClose={() => setShowResgateDialog(false)} />
+      <ResgateDialog 
+        open={showResgateDialog} 
+        onClose={() => {
+          setShowResgateDialog(false)
+          setSelectedIds(new Set())
+        }} 
+        selectedIds={selectedIds}
+      />
       <EditInvestmentDialog 
         open={showEditDialog} 
         onClose={() => {

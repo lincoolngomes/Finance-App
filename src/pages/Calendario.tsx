@@ -106,18 +106,11 @@ export default function Calendario() {
     const targetDateString = format(date, 'yyyy-MM-dd')
     
     const filteredTransactions = transacoes.filter(t => {
-      // Comparar diretamente as strings de data para evitar problemas de timezone
-      const transactionDateString = t.quando || format(new Date(t.created_at), 'yyyy-MM-dd')
-      const isMatch = transactionDateString === targetDateString
+      if (!t.quando) return false
       
-      // Log apenas para transações que têm 'quando' definido (movidas via drag & drop)
-      if (t.quando && isMatch) {
-        console.log('=== TRANSAÇÃO ENCONTRADA ===')
-        console.log('Data do calendário:', format(date, 'dd/MM/yyyy'))
-        console.log('String de busca:', targetDateString)
-        console.log('String da transação:', transactionDateString)
-        console.log('Match:', isMatch)
-      }
+      // Extrair apenas a parte da data (YYYY-MM-DD) da string quando
+      const transactionDateString = t.quando.split('T')[0]
+      const isMatch = transactionDateString === targetDateString
       
       return isMatch
     })

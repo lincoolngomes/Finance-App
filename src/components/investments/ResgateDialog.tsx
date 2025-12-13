@@ -10,9 +10,10 @@ import { formatCurrency, parseValorBR, formatarValorBR } from '@/utils/currency'
 interface ResgateDialogProps {
   open: boolean
   onClose: () => void
+  selectedIds?: Set<string>
 }
 
-export const ResgateDialog = ({ open, onClose }: ResgateDialogProps) => {
+export const ResgateDialog = ({ open, onClose, selectedIds }: ResgateDialogProps) => {
   const { investimentos, adicionarTransacao } = useInvestments()
   const [loading, setLoading] = useState(false)
   
@@ -21,9 +22,18 @@ export const ResgateDialog = ({ open, onClose }: ResgateDialogProps) => {
   const [dataResgate, setDataResgate] = useState(new Date().toISOString().split('T')[0])
   
   // Investimentos disponíveis para resgate (apenas ativos com saldo)
+  // Se há IDs selecionados, filtrar apenas esses, senão mostrar todos disponíveis
   const investimentosDisponiveis = investimentos.filter(inv => 
-    inv.ativo && inv.quantidade > 0 && inv.valor_atual > 0
+    inv.ativo && inv.quantidade > 0 && inv.valor_atual > 0 &&
+    (!selectedIds || selectedIds.size === 0 || selectedIds.has(inv.id))
   )
+  
+  // Auto-selecionar se houver apenas um investimento disponível
+  useEffect(() => {
+    if (investimentosDisponiveis.length === 1 && !investimentoSelecionado) {
+      setInvestimentoSelecionado(investimentosDisponiveis[0].id)
+    }
+  }, [investimentosDisponiveis, investimentoSelecionado])
   
   const investimentoAtual = investimentosDisponiveis.find(inv => inv.id === investimentoSelecionado)
   
