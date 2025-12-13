@@ -1,5 +1,5 @@
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
@@ -29,20 +29,26 @@ export interface ReportFilters {
 
 export function useReports() {
   const { user } = useAuth()
+  
+  // Inicializar com as datas do mês atual
+  const now = new Date()
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0]
+  const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0]
+  
   const [filters, setFilters] = useState<ReportFilters>({
-    startDate: '',
-    endDate: '',
+    startDate: startOfMonth,
+    endDate: endOfMonth,
     type: '',
     categoryId: '',
     period: 'month'
   })
 
-  const { data: transactions = [], isLoading } = useQuery({
-    queryKey: ['report-transactions', user?.id, filters],
+  const { data: allTransactions = [], isLoading } = useQuery({
+    queryKey: ['report-transactions', user?.id],
     queryFn: async () => {
       if (!user?.id) return []
       
-      let query = supabase
+      const { data, error } = await supabase
         .from('transacoes')
         .select(`
           *,
@@ -52,26 +58,7 @@ export function useReports() {
           )
         `)
         .eq('userid', user.id)
-
-      // Apply date filters
-      if (filters.startDate) {
-        query = query.gte('quando', filters.startDate)
-      }
-      if (filters.endDate) {
-        query = query.lte('quando', filters.endDate)
-      }
-
-      // Apply type filter
-      if (filters.type) {
-        query = query.eq('tipo', filters.type)
-      }
-
-      // Apply category filter
-      if (filters.categoryId) {
-        query = query.eq('category_id', filters.categoryId)
-      }
-
-      const { data, error } = await query.order('quando', { ascending: false })
+        .order('created_at', { ascending: false })
 
       if (error) {
         console.error('Erro ao buscar transações para relatório:', error)
@@ -82,6 +69,62 @@ export function useReports() {
     },
     enabled: !!user?.id,
   })
+
+  // Filter transactions on the client side
+  const transactions = useMemo(() => {
+    let filtered = [...allTransactions]
+
+    // Apply date filters - usa quando se disponível, senão usa created_at
+    if (filters.startDate || filters.endDate) {
+      filtered = filtered.filter(t => {
+        // Usa a mesma lógica do Dashboard para consistência
+        const raw = (t.quando || t.created_at || '').toString().trim()
+        if (!raw) return false
+        
+        // Tenta parsear dd/mm/yyyy primeiro
+        const dmYMatch = raw.match(/^(\d{1,2})\s*\/\s*(\d{1,2})\s*\/\s*(\d{2,4})/)
+        let dateObj: Date
+        
+        if (dmYMatch) {
+          const d = Number(dmYMatch[1])
+          const m = Number(dmYMatch[2])
+          const y = Number(dmYMatch[3])
+          const fullYear = y < 100 ? (2000 + y) : y
+          dateObj = new Date(Date.UTC(fullYear, m - 1, d))
+        } else {
+          // Tenta ISO ou outros formatos
+          const dtIso = new Date(raw)
+          if (isNaN(dtIso.getTime())) return false
+          dateObj = new Date(Date.UTC(dtIso.getUTCFullYear(), dtIso.getUTCMonth(), dtIso.getUTCDate()))
+        }
+        
+        if (isNaN(dateObj.getTime())) return false
+        
+        // Normaliza a data para comparação (apenas a parte da data, sem hora)
+        const year = dateObj.getUTCFullYear()
+        const month = String(dateObj.getUTCMonth() + 1).padStart(2, '0')
+        const day = String(dateObj.getUTCDate()).padStart(2, '0')
+        const transDate = `${year}-${month}-${day}`
+        
+        if (filters.startDate && transDate < filters.startDate) return false
+        if (filters.endDate && transDate > filters.endDate) return false
+        
+        return true
+      })
+    }
+
+    // Apply type filter
+    if (filters.type) {
+      filtered = filtered.filter(t => t.tipo === filters.type)
+    }
+
+    // Apply category filter
+    if (filters.categoryId) {
+      filtered = filtered.filter(t => t.category_id === filters.categoryId)
+    }
+
+    return filtered
+  }, [allTransactions, filters])
 
   // Calculate summary data
   const summaryData = useMemo(() => {

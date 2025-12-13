@@ -575,67 +575,7 @@ export function DashboardCharts({ transacoes, recentTransacoes, contas = [], lem
         </Card>
       </div>
 
-      {/* Linha 3: Resumo do Período - Full Width */}
-      <Card className="overflow-hidden border-0">
-        <CardHeader className="pb-4">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-lg bg-primary/10">
-              <span className="text-xl">📊</span>
-            </div>
-            <div>
-              <CardTitle className="text-lg font-semibold">Resumo do Período</CardTitle>
-              <CardDescription className="text-xs">Estatísticas detalhadas do período selecionado</CardDescription>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent className="pt-0">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="p-4 rounded-lg border bg-card hover:shadow-md transition-all">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-2xl">💰</span>
-              </div>
-              <div className="text-xs font-medium text-muted-foreground mb-1">Receitas</div>
-              <div className="text-xl font-bold text-green-600 dark:text-green-500">
-                {formatCurrency(stats.totalReceitas)}
-              </div>
-            </div>
-            
-            <div className="p-4 rounded-lg border bg-card hover:shadow-md transition-all">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-2xl">💸</span>
-              </div>
-              <div className="text-xs font-medium text-muted-foreground mb-1">Despesas</div>
-              <div className="text-xl font-bold text-red-600 dark:text-red-500">
-                {formatCurrency(Math.abs(stats.totalDespesas))}
-              </div>
-            </div>
-            
-            <div className="p-4 rounded-lg border bg-card hover:shadow-md transition-all">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-2xl">{stats.saldo >= 0 ? '📊' : '⚠️'}</span>
-              </div>
-              <div className="text-xs font-medium text-muted-foreground mb-1">
-                {stats.saldo >= 0 ? 'Saldo' : 'Déficit'}
-              </div>
-              <div className={`text-xl font-bold ${stats.saldo >= 0 ? 'text-blue-600 dark:text-blue-500' : 'text-orange-600 dark:text-orange-500'}`}>
-                {formatCurrency(stats.saldo)}
-              </div>
-            </div>
-            
-            <div className="p-4 rounded-lg border bg-card hover:shadow-md transition-all">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-2xl">🔄</span>
-              </div>
-              <div className="text-xs font-medium text-muted-foreground mb-1">Transações</div>
-              <div className="text-xl font-bold text-teal-600 dark:text-teal-500">
-                {stats.transacoesCount}
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Linha 4: Últimos Lançamentos (2/3) + Lembretes (1/3) */}
+      {/* Linha 3: Últimos Lançamentos (2/3) + Lembretes (1/3) */}
       <div className="grid gap-6 grid-cols-1 lg:grid-cols-3">
         {/* Últimos Lançamentos - 2/3 */}
         <Card className="lg:col-span-2 overflow-hidden border-0">

@@ -26,8 +26,52 @@ export default function Relatorios() {
 
   // Análises avançadas e inteligentes
   const analytics = useMemo(() => {
-    const receitas = transactions.filter(t => t.tipo === 'receita')
-    const despesas = transactions.filter(t => t.tipo === 'despesa')
+    try {
+      if (!transactions || transactions.length === 0) {
+        return {
+          totalReceitas: 0,
+          totalDespesas: 0,
+          saldo: 0,
+          mediaDiaria: 0,
+          mediaSemanal: 0,
+          mediaMensal: 0,
+          ticketMedio: 0,
+          ticketMedioReceita: 0,
+          maiorDespesa: 0,
+          menorDespesa: 0,
+          maiorDespesaItem: null,
+          maiorReceita: 0,
+          maiorReceitaItem: null,
+          categoriasDespesas: {},
+          categoriasReceitas: {},
+          topCategoriasDespesas: [],
+          categoriaMaisGasta: null,
+          categoriaTicketMaisAlto: null,
+          metodosPagamento: {},
+          metodoMaisUsado: null,
+          frequenciaMedia: 0,
+          taxaPoupanca: 0,
+          taxaGasto: 0,
+          saudeFinanceira: 50,
+          projecaoMes: 0,
+          economiaProjetada: 0,
+          tendencia: 0,
+          gastoUltimos7: 0,
+          gastoAnteriores7: 0,
+          insights: [],
+          metaEconomia: 0,
+          economizado: 0,
+          percentualMeta: 0,
+          receitasCount: 0,
+          despesasCount: 0,
+          dias: 1,
+          semanas: 1,
+          meses: 1
+        }
+      }
+
+      const receitas = transactions.filter(t => t.tipo === 'receita')
+      const despesas = transactions.filter(t => t.tipo === 'despesa')
     
     const totalReceitas = receitas.reduce((sum, t) => sum + Math.abs(Number(t.valor) || 0), 0)
     const totalDespesas = despesas.reduce((sum, t) => sum + Math.abs(Number(t.valor) || 0), 0)
@@ -200,10 +244,55 @@ export default function Relatorios() {
       semanas,
       meses
     }
+    } catch (error) {
+      console.error('Erro ao calcular analytics:', error)
+      return {
+        totalReceitas: 0,
+        totalDespesas: 0,
+        saldo: 0,
+        mediaDiaria: 0,
+        mediaSemanal: 0,
+        mediaMensal: 0,
+        ticketMedio: 0,
+        ticketMedioReceita: 0,
+        maiorDespesa: 0,
+        menorDespesa: 0,
+        maiorDespesaItem: null,
+        maiorReceita: 0,
+        maiorReceitaItem: null,
+        categoriasDespesas: {},
+        categoriasReceitas: {},
+        topCategoriasDespesas: [],
+        categoriaMaisGasta: null,
+        categoriaTicketMaisAlto: null,
+        metodosPagamento: {},
+        metodoMaisUsado: null,
+        frequenciaMedia: 0,
+        taxaPoupanca: 0,
+        taxaGasto: 0,
+        saudeFinanceira: 50,
+        projecaoMes: 0,
+        economiaProjetada: 0,
+        tendencia: 0,
+        gastoUltimos7: 0,
+        gastoAnteriores7: 0,
+        insights: [],
+        metaEconomia: 0,
+        economizado: 0,
+        percentualMeta: 0,
+        receitasCount: 0,
+        despesasCount: 0,
+        dias: 1,
+        semanas: 1,
+        meses: 1
+      }
+    }
   }, [transactions])
 
   // Dados para gráficos avançados
   const chartData = useMemo(() => {
+    try {
+      if (!transactions || transactions.length === 0) return []
     const byDay: { [key: string]: { receitas: number, despesas: number, count: number } } = {}
     
     transactions.forEach(t => {
@@ -227,106 +316,138 @@ export default function Relatorios() {
         transacoes: values.count
       }))
       .sort((a, b) => new Date(a.date.split('/').reverse().join('-')).getTime() - new Date(b.date.split('/').reverse().join('-')).getTime())
+    } catch (error) {
+      console.error('Erro ao calcular chartData:', error)
+      return []
+    }
   }, [transactions])
 
   const categoryData = useMemo(() => {
-    const categorias: { [key: string]: { total: number, count: number } } = {}
+    try {
+      if (!transactions || transactions.length === 0) return []
+      
+      const categorias: { [key: string]: { total: number, count: number } } = {}
     
-    transactions.filter(t => t.tipo === 'despesa').forEach(t => {
-      const cat = t.categorias?.nome || 'Sem categoria'
-      if (!categorias[cat]) categorias[cat] = { total: 0, count: 0 }
-      categorias[cat].total += Math.abs(Number(t.valor) || 0)
-      categorias[cat].count += 1
-    })
+      transactions.filter(t => t.tipo === 'despesa').forEach(t => {
+        const cat = t.categorias?.nome || 'Sem categoria'
+        if (!categorias[cat]) categorias[cat] = { total: 0, count: 0 }
+        categorias[cat].total += Math.abs(Number(t.valor) || 0)
+        categorias[cat].count += 1
+      })
     
-    return Object.entries(categorias)
-      .map(([name, data]) => ({ 
-        name, 
-        value: data.total,
-        count: data.count,
-        media: data.total / data.count
-      }))
-      .sort((a, b) => b.value - a.value)
-      .slice(0, 10)
+      return Object.entries(categorias)
+        .map(([name, data]) => ({ 
+          name, 
+          value: data.total,
+          count: data.count,
+          media: data.total / data.count
+        }))
+        .sort((a, b) => b.value - a.value)
+        .slice(0, 10)
+    } catch (error) {
+      console.error('Erro ao calcular categoryData:', error)
+      return []
+    }
   }, [transactions])
 
   const paymentMethodData = useMemo(() => {
-    const metodos: { [key: string]: number } = {}
-    
-    transactions.filter(t => t.tipo === 'despesa').forEach(t => {
-      const metodo = (t as any).metodo || 'Não especificado'
-      const label = metodo === 'pix' ? 'PIX' : 
-                    metodo === 'debito' ? 'Débito' :
-                    metodo === 'cartao_credito' ? 'Crédito' :
-                    metodo === 'transferencia' ? 'Transferência' : metodo
-      metodos[label] = (metodos[label] || 0) + Math.abs(Number(t.valor) || 0)
-    })
-    
-    return Object.entries(metodos)
-      .map(([name, value]) => ({ name, value }))
-      .sort((a, b) => b.value - a.value)
+    try {
+      const metodos: { [key: string]: number } = {}
+      
+      transactions.filter(t => t.tipo === 'despesa').forEach(t => {
+        const metodo = (t as any).metodo || 'Não especificado'
+        const label = metodo === 'pix' ? 'PIX' : 
+                      metodo === 'debito' ? 'Débito' :
+                      metodo === 'cartao_credito' ? 'Crédito' :
+                      metodo === 'transferencia' ? 'Transferência' : metodo
+        metodos[label] = (metodos[label] || 0) + Math.abs(Number(t.valor) || 0)
+      })
+      
+      return Object.entries(metodos)
+        .map(([name, value]) => ({ name, value }))
+        .sort((a, b) => b.value - a.value)
+    } catch (error) {
+      console.error('Erro ao calcular paymentMethodData:', error)
+      return []
+    }
   }, [transactions])
 
   const weekdayData = useMemo(() => {
-    const dias: { [key: string]: { total: number, count: number } } = {
-      'Dom': { total: 0, count: 0 },
-      'Seg': { total: 0, count: 0 },
-      'Ter': { total: 0, count: 0 },
-      'Qua': { total: 0, count: 0 },
-      'Qui': { total: 0, count: 0 },
-      'Sex': { total: 0, count: 0 },
-      'Sáb': { total: 0, count: 0 }
+    try {
+      const dias: { [key: string]: { total: number, count: number } } = {
+        'Dom': { total: 0, count: 0 },
+        'Seg': { total: 0, count: 0 },
+        'Ter': { total: 0, count: 0 },
+        'Qua': { total: 0, count: 0 },
+        'Qui': { total: 0, count: 0 },
+        'Sex': { total: 0, count: 0 },
+        'Sáb': { total: 0, count: 0 }
+      }
+      
+      transactions.filter(t => t.tipo === 'despesa').forEach(t => {
+        const date = new Date(t.quando || t.created_at)
+        const diaSemana = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'][date.getDay()]
+        if (dias[diaSemana]) {
+          dias[diaSemana].total += Math.abs(Number(t.valor) || 0)
+          dias[diaSemana].count += 1
+        }
+      })
+      
+      return Object.entries(dias).map(([dia, data]) => ({
+        dia,
+        gasto: data.total,
+        transacoes: data.count,
+        media: data.count > 0 ? data.total / data.count : 0
+      }))
+    } catch (error) {
+      console.error('Erro ao calcular weekdayData:', error)
+      return []
     }
-    
-    transactions.filter(t => t.tipo === 'despesa').forEach(t => {
-      const date = new Date(t.quando || t.created_at)
-      const diaSemana = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'][date.getDay()]
-      dias[diaSemana].total += Math.abs(Number(t.valor) || 0)
-      dias[diaSemana].count += 1
-    })
-    
-    return Object.entries(dias).map(([dia, data]) => ({
-      dia,
-      gasto: data.total,
-      transacoes: data.count,
-      media: data.count > 0 ? data.total / data.count : 0
-    }))
   }, [transactions])
 
   const monthlyComparison = useMemo(() => {
-    const meses: { [key: string]: { receitas: number, despesas: number } } = {}
-    
-    transactions.forEach(t => {
-      const date = new Date(t.quando || t.created_at)
-      const mes = date.toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' })
-      if (!meses[mes]) meses[mes] = { receitas: 0, despesas: 0 }
+    try {
+      const meses: { [key: string]: { receitas: number, despesas: number } } = {}
       
-      if (t.tipo === 'receita') {
-        meses[mes].receitas += Math.abs(Number(t.valor) || 0)
-      } else {
-        meses[mes].despesas += Math.abs(Number(t.valor) || 0)
-      }
-    })
-    
-    return Object.entries(meses)
-      .map(([mes, values]) => ({
-        mes,
-        receitas: values.receitas,
-        despesas: values.despesas,
-        saldo: values.receitas - values.despesas,
-        economia: values.receitas > 0 ? ((values.receitas - values.despesas) / values.receitas) * 100 : 0
-      }))
-      .sort((a, b) => {
-        const [mesA, anoA] = a.mes.split(' ')
-        const [mesB, anoB] = b.mes.split(' ')
-        return new Date(`20${anoA}-${mesA}-01`).getTime() - new Date(`20${anoB}-${mesB}-01`).getTime()
+      transactions.forEach(t => {
+        const date = new Date(t.quando || t.created_at)
+        const mes = date.toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' })
+        if (!meses[mes]) meses[mes] = { receitas: 0, despesas: 0 }
+        
+        if (t.tipo === 'receita') {
+          meses[mes].receitas += Math.abs(Number(t.valor) || 0)
+        } else {
+          meses[mes].despesas += Math.abs(Number(t.valor) || 0)
+        }
       })
+      
+      return Object.entries(meses)
+        .map(([mes, values]) => ({
+          mes,
+          receitas: values.receitas,
+          despesas: values.despesas,
+          saldo: values.receitas - values.despesas,
+          economia: values.receitas > 0 ? ((values.receitas - values.despesas) / values.receitas) * 100 : 0
+        }))
+        .sort((a, b) => {
+          const [mesA, anoA] = a.mes.split(' ')
+          const [mesB, anoB] = b.mes.split(' ')
+          return new Date(`20${anoA}-${mesA}-01`).getTime() - new Date(`20${anoB}-${mesB}-01`).getTime()
+        })
+    } catch (error) {
+      console.error('Erro ao calcular monthlyComparison:', error)
+      return []
+    }
   }, [transactions])
 
   const clearFilters = () => {
+    const now = new Date()
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0]
+    const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0]
+    
     setFilters({
-      startDate: '',
-      endDate: '',
+      startDate: startOfMonth,
+      endDate: endOfMonth,
       type: '',
       categoryId: '',
       period: 'month'
