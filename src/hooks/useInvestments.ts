@@ -159,10 +159,17 @@ export const useInvestments = () => {
             if (temCotacao) {
               cotacao = await getCotacaoAtual(inv.codigo, inv.tipo)
               valor_atual = cotacao ? inv.quantidade * cotacao : inv.valor_total
-            } else if (inv.tipo === 'renda_fixa' && inv.data_aplicacao && inv.data_vencimento) {
+            } else if (inv.tipo === 'renda_fixa') {
               // Calcular rentabilidade de renda fixa com base na curva
-              dadosAdicionais = calcularRendaFixa(inv)
-              valor_atual = dadosAdicionais.valor_atual
+              // Usar data_aplicacao ou data_primeira_compra como fallback
+              const dataBase = inv.data_aplicacao || inv.data_primeira_compra
+              if (dataBase && inv.data_vencimento && inv.taxa_percentual) {
+                dadosAdicionais = calcularRendaFixa({
+                  ...inv,
+                  data_aplicacao: dataBase
+                })
+                valor_atual = dadosAdicionais.valor_atual
+              }
             }
             
             const rentabilidade = valor_atual - inv.valor_total
@@ -260,19 +267,32 @@ export const useInvestments = () => {
       }
 
       // Criar novo
+      const dadosInsert: any = {
+        user_id: user.id,
+        tipo: dados.tipo!,
+        codigo: dados.codigo!,
+        nome: dados.nome!,
+        instituicao: dados.instituicao,
+        quantidade: 0,
+        preco_medio: 0,
+        valor_total: 0,
+        ativo: true,
+        observacoes: dados.observacoes
+      }
+
+      // Adicionar campos específicos de renda fixa
+      if (dados.tipo === 'renda_fixa') {
+        dadosInsert.tipo_rentabilidade = dados.tipo_rentabilidade
+        dadosInsert.taxa_percentual = dados.taxa_percentual
+        dadosInsert.indexador = dados.indexador
+        dadosInsert.data_vencimento = dados.data_vencimento
+        dadosInsert.liquidez = dados.liquidez
+        dadosInsert.data_aplicacao = dados.data_aplicacao
+      }
+
       const { data, error } = await supabase
         .from('investimentos')
-        .insert({
-          user_id: user.id,
-          tipo: dados.tipo!,
-          codigo: dados.codigo!,
-          nome: dados.nome!,
-          instituicao: dados.instituicao,
-          quantidade: 0,
-          preco_medio: 0,
-          ativo: true,
-          observacoes: dados.observacoes
-        })
+        .insert(dadosInsert)
         .select()
         .single()
 
@@ -422,7 +442,7 @@ export const useInvestments = () => {
     
     // Calcular taxa efetiva baseada no tipo de rentabilidade e indexador
     if (inv.tipo_rentabilidade === 'pos') {
-      // Pós-fixado: percentual do indexador (ex: 110% do CDI)
+      // Pós-fixado: percentual do indexador (ex: 101% do CDI)
       let taxaIndexador = 13.65 // CDI/SELIC atual (dez/2024)
       
       if (inv.indexador === 'cdi' || inv.indexador === 'selic') {
@@ -431,8 +451,16 @@ export const useInvestments = () => {
         taxaIndexador = 4.5 // IPCA projetado 2025
       }
       
-      // Taxa contratada é % do indexador (ex: 110% do CDI = 1.10 * 13.65)
+      // Taxa contratada é % do indexador (ex: 101% do CDI = 1.01 * 13.65 = 13.7865%)
       taxaAnualEfetiva = (taxaAnualEfetiva / 100) * taxaIndexador
+      
+      console.log('💰 Cálculo Renda Fixa (Pós-fixado):', {
+        codigo: inv.codigo,
+        taxaContratada: inv.taxa_percentual + '% do CDI',
+        cdiAtual: taxaIndexador + '%',
+        taxaEfetiva: taxaAnualEfetiva.toFixed(2) + '% a.a.',
+        valorInvestido: inv.valor_total
+      })
       
     } else if (inv.tipo_rentabilidade === 'ipca') {
       // IPCA+: taxa fixa + IPCA (ex: IPCA + 6.5%)
@@ -450,19 +478,24 @@ export const useInvestments = () => {
     }
     
     // Calcular rendimento bruto acumulado usando juros compostos
-    // Fórmula: VF = VP * (1 + i)^n
-    // Onde i = taxa diária e n = dias aplicados
+    // Fórmula: VF = VP * (1 + i)^n onde i = taxa diária e n = dias corridos
     
-    // Converter taxa anual para taxa diária usando dias úteis (252)
-    const taxaDiariaUtil = Math.pow(1 + (taxaAnualEfetiva / 100), 1 / 252) - 1
+    // Converter taxa anual para taxa diária (365 dias)
+    const taxaDiaria = Math.pow(1 + (taxaAnualEfetiva / 100), 1 / 365) - 1
     
-    // Calcular dias úteis aproximados (70% dos dias corridos é uma estimativa conservadora)
-    const diasUteisAplicado = Math.floor(diasAplicado * 0.7)
-    const diasUteisTotais = Math.floor(diasTotais * 0.7)
-    
-    // Aplicar juros compostos
-    const fatorRendimento = Math.pow(1 + taxaDiariaUtil, diasUteisAplicado)
+    // Aplicar juros compostos sobre dias corridos
+    const fatorRendimento = Math.pow(1 + taxaDiaria, diasAplicado)
     const valorBruto = inv.valor_total * fatorRendimento
+    
+    console.log('📊 Detalhes do Cálculo:', {
+      codigo: inv.codigo,
+      diasAplicado,
+      taxaDiaria: (taxaDiaria * 100).toFixed(4) + '%',
+      fatorRendimento: fatorRendimento.toFixed(6),
+      valorInvestido: inv.valor_total.toFixed(2),
+      valorBruto: valorBruto.toFixed(2),
+      rendimentoBruto: (valorBruto - inv.valor_total).toFixed(2)
+    })
     
     // Calcular IR (tabela regressiva do imposto de renda)
     let aliquotaIR = 0.225 // 22,5% até 180 dias
@@ -475,7 +508,7 @@ export const useInvestments = () => {
     const valorLiquido = valorBruto - irRetido
     
     // Projeção para o vencimento
-    const fatorVencimento = Math.pow(1 + taxaDiariaUtil, diasUteisTotais)
+    const fatorVencimento = Math.pow(1 + taxaDiaria, diasTotais)
     const valorBrutoVencimento = inv.valor_total * fatorVencimento
     const rendimentoVencimento = valorBrutoVencimento - inv.valor_total
     
