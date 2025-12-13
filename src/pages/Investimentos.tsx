@@ -7,7 +7,7 @@ import { formatCurrency } from '@/utils/currency'
 import { AddTransactionDialog } from '@/components/investments/AddTransactionDialog'
 import { EditInvestmentDialog } from '@/components/investments/EditInvestmentDialog'
 import { supabase } from '@/lib/supabase'
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts'
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid, LineChart, Line, Legend } from 'recharts'
 import { TrendingUp, TrendingDown, DollarSign, Wallet, PlusCircle, Calendar, Building2, ChevronLeft, ChevronRight, Edit } from 'lucide-react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
@@ -33,6 +33,12 @@ const TIPO_EMOJIS: Record<string, string> = {
   cripto: '₿',
   fundo: '🎯',
   previdencia: '🏦'
+}
+
+// Função helper para formatar datas corretamente (sem problemas de UTC)
+const formatarData = (dataString: string) => {
+  const [ano, mes, dia] = dataString.split('T')[0].split('-')
+  return new Date(parseInt(ano), parseInt(mes) - 1, parseInt(dia)).toLocaleDateString('pt-BR')
 }
 
 export default function Investimentos() {
@@ -211,6 +217,35 @@ export default function Investimentos() {
       setSelectedIds(new Set())
     }
   }
+  
+  // Calcular evolução mensal (últimos 12 meses)
+  const dadosEvolucao = useMemo(() => {
+    const meses: { mes: string, saldo: number, aplicado: number }[] = []
+    const hoje = new Date()
+    
+    for (let i = 11; i >= 0; i--) {
+      const mesReferencia = new Date(hoje.getFullYear(), hoje.getMonth() - i, 1)
+      const mesNome = mesReferencia.toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' })
+      
+      // Filtrar investimentos que existiam naquele mês
+      const investimentosDoMes = investimentos.filter(inv => {
+        if (!inv.data_aplicacao) return false
+        const dataAplicacao = new Date(inv.data_aplicacao)
+        return dataAplicacao <= mesReferencia && inv.ativo
+      })
+      
+      const saldoTotal = investimentosDoMes.reduce((sum, inv) => sum + (inv.valor_atual || 0), 0)
+      const aplicadoTotal = investimentosDoMes.reduce((sum, inv) => sum + inv.valor_total, 0)
+      
+      meses.push({
+        mes: mesNome.replace('.', ''),
+        saldo: saldoTotal,
+        aplicado: aplicadoTotal
+      })
+    }
+    
+    return meses
+  }, [investimentos])
 
   if (loading) {
     return (
@@ -377,6 +412,59 @@ export default function Investimentos() {
               </SelectContent>
             </Select>
           </div>
+        </div>
+      </Card>
+
+      {/* Gráfico de Evolução */}
+      <Card className="p-6">
+        <div className="mb-6">
+          <h2 className="text-xl font-bold text-foreground flex items-center gap-2">
+            <TrendingUp className="w-5 h-5 text-teal-600" />
+            Evolução do Patrimônio
+          </h2>
+          <p className="text-sm text-muted-foreground mt-1">Últimos 12 meses</p>
+        </div>
+        <div className="h-80">
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={dadosEvolucao}>
+              <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+              <XAxis 
+                dataKey="mes" 
+                className="text-xs"
+                tick={{ fill: 'currentColor' }}
+              />
+              <YAxis 
+                className="text-xs"
+                tick={{ fill: 'currentColor' }}
+                tickFormatter={(value) => `R$ ${(value / 1000).toFixed(0)}k`}
+              />
+              <Tooltip 
+                contentStyle={{ 
+                  backgroundColor: 'hsl(var(--background))',
+                  border: '1px solid hsl(var(--border))',
+                  borderRadius: '8px'
+                }}
+                formatter={(value: number) => [`R$ ${value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`, '']}
+              />
+              <Legend />
+              <Line 
+                type="monotone" 
+                dataKey="aplicado" 
+                stroke="#94a3b8" 
+                strokeWidth={2}
+                name="Valor Aplicado"
+                dot={{ fill: '#94a3b8', r: 4 }}
+              />
+              <Line 
+                type="monotone" 
+                dataKey="saldo" 
+                stroke="#14b8a6" 
+                strokeWidth={3}
+                name="Saldo Atual"
+                dot={{ fill: '#14b8a6', r: 5 }}
+              />
+            </LineChart>
+          </ResponsiveContainer>
         </div>
       </Card>
 
@@ -639,7 +727,7 @@ export default function Investimentos() {
                               ) : (
                                 <>
                                   <div className="text-xs text-muted-foreground mt-0.5">
-                                    Venc: {new Date(primeiroItem.data_vencimento).toLocaleDateString('pt-BR')}
+                                    Venc: {formatarData(primeiroItem.data_vencimento)}
                                   </div>
                                   {primeiroItem.dias_ate_vencimento !== undefined && (
                                     <div className="text-xs text-muted-foreground">
@@ -783,7 +871,7 @@ export default function Investimentos() {
                             </td>
                             <td className="py-2 px-4">
                               <div className="text-sm text-muted-foreground">
-                                {inv.data_aplicacao ? new Date(inv.data_aplicacao).toLocaleDateString('pt-BR') : '-'}
+                                {inv.data_aplicacao ? formatarData(inv.data_aplicacao) : '-'}
                               </div>
                             </td>
                             <td className="py-2 px-4">
@@ -793,7 +881,7 @@ export default function Investimentos() {
                               {inv.tipo === 'renda_fixa' && inv.data_vencimento ? (
                                 <div className="text-xs">
                                   <div className="text-muted-foreground">
-                                    Venc: {new Date(inv.data_vencimento).toLocaleDateString('pt-BR')}
+                                    Venc: {formatarData(inv.data_vencimento)}
                                   </div>
                                   {inv.dias_ate_vencimento !== undefined && (
                                     <div className="text-muted-foreground">
