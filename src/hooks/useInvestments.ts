@@ -418,44 +418,76 @@ export const useInvestments = () => {
     const diasAteVencimento = Math.floor((dataVencimento.getTime() - hoje.getTime()) / (1000 * 60 * 60 * 24))
     const diasTotais = Math.floor((dataVencimento.getTime() - dataAplicacao.getTime()) / (1000 * 60 * 60 * 24))
     
-    let taxaAnual = inv.taxa_percentual || 0
+    let taxaAnualEfetiva = inv.taxa_percentual || 0
     
-    // Para taxas pós-fixadas, multiplicar pelo indexador (CDI estimado ~13.65% aa em 2025)
-    if (inv.tipo_rentabilidade === 'pos' && inv.indexador === 'cdi') {
-      const cdiEstimado = 13.65 // Taxa Selic atual
-      taxaAnual = (taxaAnual / 100) * cdiEstimado
+    // Calcular taxa efetiva baseada no tipo de rentabilidade e indexador
+    if (inv.tipo_rentabilidade === 'pos') {
+      // Pós-fixado: percentual do indexador (ex: 110% do CDI)
+      let taxaIndexador = 13.65 // CDI/SELIC atual (dez/2024)
+      
+      if (inv.indexador === 'cdi' || inv.indexador === 'selic') {
+        taxaIndexador = 13.65
+      } else if (inv.indexador === 'ipca') {
+        taxaIndexador = 4.5 // IPCA projetado 2025
+      }
+      
+      // Taxa contratada é % do indexador (ex: 110% do CDI = 1.10 * 13.65)
+      taxaAnualEfetiva = (taxaAnualEfetiva / 100) * taxaIndexador
+      
     } else if (inv.tipo_rentabilidade === 'ipca') {
-      const ipcaEstimado = 4.5 // IPCA estimado
-      taxaAnual = taxaAnual + ipcaEstimado
+      // IPCA+: taxa fixa + IPCA (ex: IPCA + 6.5%)
+      const ipcaProjetado = 4.5
+      taxaAnualEfetiva = taxaAnualEfetiva + ipcaProjetado
+      
+    } else if (inv.tipo_rentabilidade === 'pre') {
+      // Pré-fixado: taxa já é a taxa efetiva anual
+      taxaAnualEfetiva = inv.taxa_percentual || 0
+      
+    } else if (inv.tipo_rentabilidade === 'hibrido') {
+      // Híbrido: combina pré + indexador (usar lógica similar ao IPCA+)
+      const indexadorProjetado = inv.indexador === 'ipca' ? 4.5 : 13.65
+      taxaAnualEfetiva = taxaAnualEfetiva + indexadorProjetado
     }
     
-    // Calcular rendimento bruto acumulado (juros compostos diários)
-    const taxaDiaria = Math.pow(1 + (taxaAnual / 100), 1 / 252) - 1 // 252 dias úteis
-    const fatorRendimento = Math.pow(1 + taxaDiaria, diasAplicado)
+    // Calcular rendimento bruto acumulado usando juros compostos
+    // Fórmula: VF = VP * (1 + i)^n
+    // Onde i = taxa diária e n = dias aplicados
+    
+    // Converter taxa anual para taxa diária usando dias úteis (252)
+    const taxaDiariaUtil = Math.pow(1 + (taxaAnualEfetiva / 100), 1 / 252) - 1
+    
+    // Calcular dias úteis aproximados (70% dos dias corridos é uma estimativa conservadora)
+    const diasUteisAplicado = Math.floor(diasAplicado * 0.7)
+    const diasUteisTotais = Math.floor(diasTotais * 0.7)
+    
+    // Aplicar juros compostos
+    const fatorRendimento = Math.pow(1 + taxaDiariaUtil, diasUteisAplicado)
     const valorBruto = inv.valor_total * fatorRendimento
     
-    // Calcular IR (tabela regressiva)
+    // Calcular IR (tabela regressiva do imposto de renda)
     let aliquotaIR = 0.225 // 22,5% até 180 dias
-    if (diasAplicado > 720) aliquotaIR = 0.15 // 15% acima de 720 dias
+    if (diasAplicado > 720) aliquotaIR = 0.15       // 15% acima de 720 dias (2 anos)
     else if (diasAplicado > 360) aliquotaIR = 0.175 // 17,5% de 361 a 720 dias
-    else if (diasAplicado > 180) aliquotaIR = 0.20 // 20% de 181 a 360 dias
+    else if (diasAplicado > 180) aliquotaIR = 0.20  // 20% de 181 a 360 dias
     
     const rendimentoBruto = valorBruto - inv.valor_total
     const irRetido = rendimentoBruto * aliquotaIR
     const valorLiquido = valorBruto - irRetido
     
-    // Projeção no vencimento
-    const fatorVencimento = Math.pow(1 + taxaDiaria, diasTotais)
+    // Projeção para o vencimento
+    const fatorVencimento = Math.pow(1 + taxaDiariaUtil, diasUteisTotais)
     const valorBrutoVencimento = inv.valor_total * fatorVencimento
     const rendimentoVencimento = valorBrutoVencimento - inv.valor_total
     
-    let aliquotaIRVencimento = 0.15
-    if (diasTotais <= 720) aliquotaIRVencimento = 0.175
-    if (diasTotais <= 360) aliquotaIRVencimento = 0.20
+    // IR no vencimento
+    let aliquotaIRVencimento = 0.15 // Default para investimentos longos
     if (diasTotais <= 180) aliquotaIRVencimento = 0.225
+    else if (diasTotais <= 360) aliquotaIRVencimento = 0.20
+    else if (diasTotais <= 720) aliquotaIRVencimento = 0.175
     
     const irVencimento = rendimentoVencimento * aliquotaIRVencimento
-    const rentabilidadeProjetada = ((valorBrutoVencimento - irVencimento) / inv.valor_total - 1) * 100
+    const valorLiquidoVencimento = valorBrutoVencimento - irVencimento
+    const rentabilidadeProjetada = ((valorLiquidoVencimento - inv.valor_total) / inv.valor_total) * 100
     
     return {
       valor_atual: valorLiquido,

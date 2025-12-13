@@ -2,11 +2,12 @@ import { useState, useMemo } from 'react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { useInvestments } from '@/hooks/useInvestments'
+import { useInvestments, Investimento } from '@/hooks/useInvestments'
 import { formatCurrency } from '@/utils/currency'
 import { AddTransactionDialog } from '@/components/investments/AddTransactionDialog'
+import { EditInvestmentDialog } from '@/components/investments/EditInvestmentDialog'
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts'
-import { TrendingUp, TrendingDown, DollarSign, Wallet, PlusCircle, Calendar, Building2, ChevronLeft, ChevronRight } from 'lucide-react'
+import { TrendingUp, TrendingDown, DollarSign, Wallet, PlusCircle, Calendar, Building2, ChevronLeft, ChevronRight, Edit } from 'lucide-react'
 
 const COLORS = ['#14b8a6', '#06b6d4', '#3b82f6', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#f97316']
 
@@ -33,6 +34,8 @@ const TIPO_EMOJIS: Record<string, string> = {
 export default function Investimentos() {
   const { investimentos, loading, mesReferencia, setMesReferencia, getResumo } = useInvestments()
   const [showAddDialog, setShowAddDialog] = useState(false)
+  const [showEditDialog, setShowEditDialog] = useState(false)
+  const [selectedInvestimento, setSelectedInvestimento] = useState<Investimento | null>(null)
   
   // Persistir filtros no localStorage
   const [filtroTipo, setFiltroTipo] = useState<string>(() => {
@@ -327,6 +330,7 @@ export default function Investimentos() {
                   <th className="text-right py-3 px-4 font-semibold text-muted-foreground text-sm">Investido</th>
                   <th className="text-right py-3 px-4 font-semibold text-muted-foreground text-sm">Valor Atual</th>
                   <th className="text-right py-3 px-4 font-semibold text-muted-foreground text-sm">Rentabilidade</th>
+                  <th className="text-center py-3 px-4 font-semibold text-muted-foreground text-sm">Ações</th>
                 </tr>
               </thead>
               <tbody>
@@ -420,6 +424,19 @@ export default function Investimentos() {
                           </div>
                         )}
                       </td>
+                      <td className="py-3 px-4 text-center">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setSelectedInvestimento(inv)
+                            setShowEditDialog(true)
+                          }}
+                          className="h-8 w-8 p-0"
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                      </td>
                     </tr>
                   )
                 })}
@@ -436,6 +453,14 @@ export default function Investimentos() {
       </Card>
 
       <AddTransactionDialog open={showAddDialog} onClose={() => setShowAddDialog(false)} />
+      <EditInvestmentDialog 
+        open={showEditDialog} 
+        onClose={() => {
+          setShowEditDialog(false)
+          setSelectedInvestimento(null)
+        }} 
+        investimento={selectedInvestimento}
+      />
     </div>
   )
 }
