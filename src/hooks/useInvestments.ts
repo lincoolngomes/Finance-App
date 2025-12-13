@@ -292,18 +292,7 @@ export const useInvestments = () => {
     if (!user) return null
 
     try {
-      // Verificar se já existe
-      const { data: existente } = await supabase
-        .from('investimentos')
-        .select('*')
-        .eq('user_id', user.id)
-        .eq('codigo', dados.codigo!)
-        .single()
-
-      if (existente) {
-        return existente
-      }
-
+      // Sempre criar novo investimento (permitir múltiplos lastros do mesmo código)
       // Criar novo (não incluir campos gerados automaticamente)
       const dadosInsert: any = {
         user_id: user.id,

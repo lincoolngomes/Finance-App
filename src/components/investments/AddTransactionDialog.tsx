@@ -35,7 +35,6 @@ export const AddTransactionDialog = ({ open, onClose }: AddTransactionDialogProp
   const [indexador, setIndexador] = useState<'cdi' | 'ipca' | 'selic' | 'prefixado'>('cdi')
   const [dataVencimento, setDataVencimento] = useState('')
   const [liquidez, setLiquidez] = useState('no_vencimento')
-  const [dataAplicacao, setDataAplicacao] = useState(new Date().toISOString().split('T')[0])
   const [isentoIR, setIsentoIR] = useState(false)
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -58,7 +57,7 @@ export const AddTransactionDialog = ({ open, onClose }: AddTransactionDialogProp
         dadosInvestimento.indexador = indexador
         dadosInvestimento.data_vencimento = dataVencimento
         dadosInvestimento.liquidez = liquidez
-        dadosInvestimento.data_aplicacao = dataAplicacao
+        dadosInvestimento.data_aplicacao = dataTransacao // Usa data de transação como aplicação
         dadosInvestimento.isento_ir = isentoIR
       }
       
@@ -108,7 +107,6 @@ export const AddTransactionDialog = ({ open, onClose }: AddTransactionDialogProp
     setIndexador('cdi')
     setDataVencimento('')
     setLiquidez('no_vencimento')
-    setDataAplicacao(new Date().toISOString().split('T')[0])
     setIsentoIR(false)
   }
 
@@ -167,25 +165,27 @@ export const AddTransactionDialog = ({ open, onClose }: AddTransactionDialogProp
                 <Label htmlFor="codigo">
                   {['renda_fixa', 'fundo', 'previdencia'].includes(tipoAtivo) ? 'Identificador *' : 'Código/Ticker *'}
                 </Label>
-                <Input
-                  id="codigo"
-                  placeholder={
-                    tipoAtivo === 'acao' ? 'Ex: PETR4' : 
-                    tipoAtivo === 'cripto' ? 'Ex: BTC' : 
-                    tipoAtivo === 'fii' ? 'Ex: HGLG11' :
-                    tipoAtivo === 'renda_fixa' ? 'Ex: CDB-2025' :
-                    tipoAtivo === 'fundo' ? 'Ex: FUNDO-XP' :
-                    'Ex: PREV-BB'
-                  }
-                  value={codigo}
-                  onChange={(e) => setCodigo(e.target.value.toUpperCase())}
-                  required
-                />
-                {['renda_fixa', 'fundo', 'previdencia'].includes(tipoAtivo) && (
-                  <p className="text-xs text-muted-foreground mt-1">
-                    💡 Use um código único para identificar este investimento (Ex: CDB-BTG-2025, FUNDO-XP-MULT, PGBL-BB)
-                  </p>
-                )}
+                <div className="relative">
+                  <Input
+                    id="codigo"
+                    placeholder={
+                      tipoAtivo === 'acao' ? 'Ex: PETR4' : 
+                      tipoAtivo === 'cripto' ? 'Ex: BTC' : 
+                      tipoAtivo === 'fii' ? 'Ex: HGLG11' :
+                      tipoAtivo === 'renda_fixa' ? 'Ex: CDB-2025' :
+                      tipoAtivo === 'fundo' ? 'Ex: FUNDO-XP' :
+                      'Ex: PREV-BB'
+                    }
+                    value={codigo}
+                    onChange={(e) => setCodigo(e.target.value.toUpperCase())}
+                    required
+                  />
+                  {['renda_fixa', 'fundo', 'previdencia'].includes(tipoAtivo) && (
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground cursor-help" title="Use um código único para identificar este investimento (Ex: CDB-BTG-2025, FUNDO-XP-MULT, PGBL-BB)">
+                      ℹ️
+                    </span>
+                  )}
+                </div>
               </div>
 
               <div>
@@ -255,28 +255,15 @@ export const AddTransactionDialog = ({ open, onClose }: AddTransactionDialogProp
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="dataAplicacao">Data de Aplicação *</Label>
-                  <Input
-                    id="dataAplicacao"
-                    type="date"
-                    value={dataAplicacao}
-                    onChange={(e) => setDataAplicacao(e.target.value)}
-                    required
-                  />
-                </div>
-
-                <div>
-                  <Label htmlFor="dataVencimento">Data de Vencimento *</Label>
-                  <Input
-                    id="dataVencimento"
-                    type="date"
-                    value={dataVencimento}
-                    onChange={(e) => setDataVencimento(e.target.value)}
-                    required
-                  />
-                </div>
+              <div>
+                <Label htmlFor="dataVencimento">Data de Vencimento *</Label>
+                <Input
+                  id="dataVencimento"
+                  type="date"
+                  value={dataVencimento}
+                  onChange={(e) => setDataVencimento(e.target.value)}
+                  required
+                />
               </div>
 
               <div>
@@ -373,20 +360,24 @@ export const AddTransactionDialog = ({ open, onClose }: AddTransactionDialogProp
             )}
 
             <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="taxa">Taxa/Corretagem</Label>
-                <Input
-                  id="taxa"
-                  type="number"
-                  step="0.01"
-                  placeholder="0.00"
-                  value={taxa}
-                  onChange={(e) => setTaxa(e.target.value)}
-                />
-              </div>
+              {tipoAtivo !== 'renda_fixa' && (
+                <div>
+                  <Label htmlFor="taxa">Taxa/Corretagem</Label>
+                  <Input
+                    id="taxa"
+                    type="number"
+                    step="0.01"
+                    placeholder="0.00"
+                    value={taxa}
+                    onChange={(e) => setTaxa(e.target.value)}
+                  />
+                </div>
+              )}
 
-              <div>
-                <Label htmlFor="dataTransacao">Data da Transação *</Label>
+              <div className={tipoAtivo === 'renda_fixa' ? 'col-span-2' : ''}>
+                <Label htmlFor="dataTransacao">
+                  {tipoAtivo === 'renda_fixa' ? 'Data de Aplicação *' : 'Data da Transação *'}
+                </Label>
                 <Input
                   id="dataTransacao"
                   type="date"
