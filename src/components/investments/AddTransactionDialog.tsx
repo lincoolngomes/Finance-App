@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { useInvestments } from '@/hooks/useInvestments'
-import { formatCurrency } from '@/utils/currency'
+import { formatCurrency, parseValorBR, formatarValorBR } from '@/utils/currency'
 
 interface AddTransactionDialogProps {
   open: boolean
@@ -69,14 +69,16 @@ export const AddTransactionDialog = ({ open, onClose }: AddTransactionDialogProp
       }
 
       // 2. Adicionar transação
-      const valorTotal = parseFloat(quantidade) * parseFloat(precoUnitario)
+      const qtd = parseFloat(quantidade)
+      const preco = parseValorBR(precoUnitario)
+      const valorTotal = qtd * preco
       const sucesso = await adicionarTransacao({
         investimento_id: investimento.id,
         tipo_transacao: tipoTransacao,
-        quantidade: parseFloat(quantidade),
-        preco_unitario: parseFloat(precoUnitario),
+        quantidade: qtd,
+        preco_unitario: preco,
         valor_total: valorTotal,
-        taxa: parseFloat(taxa) || 0,
+        taxa: parseValorBR(taxa) || 0,
         data_transacao: new Date(dataTransacao).toISOString(),
         observacoes
       })
@@ -111,7 +113,7 @@ export const AddTransactionDialog = ({ open, onClose }: AddTransactionDialogProp
   }
 
   const valorTotal = quantidade && precoUnitario 
-    ? parseFloat(quantidade) * parseFloat(precoUnitario) 
+    ? parseFloat(quantidade) * parseValorBR(precoUnitario) 
     : 0
 
   return (
@@ -324,12 +326,12 @@ export const AddTransactionDialog = ({ open, onClose }: AddTransactionDialogProp
                   <Label htmlFor="valorAplicado">Valor {tipoTransacao === 'compra' ? 'Aplicado' : 'Resgatado'} *</Label>
                   <Input
                     id="valorAplicado"
-                    type="number"
-                    step="0.01"
-                    placeholder="0.00"
+                    type="text"
+                    placeholder="0,00"
                     value={precoUnitario}
                     onChange={(e) => {
-                      setPrecoUnitario(e.target.value)
+                      const formatted = formatarValorBR(e.target.value)
+                      setPrecoUnitario(formatted)
                       setQuantidade('1') // Sempre 1 para estes tipos
                     }}
                     required
@@ -360,45 +362,41 @@ export const AddTransactionDialog = ({ open, onClose }: AddTransactionDialogProp
                   <Label htmlFor="precoUnitario">Preço Unitário *</Label>
                   <Input
                     id="precoUnitario"
-                    type="number"
-                    step="0.01"
-                    placeholder="0.00"
+                    type="text"
+                    placeholder="0,00"
                     value={precoUnitario}
-                    onChange={(e) => setPrecoUnitario(e.target.value)}
+                    onChange={(e) => setPrecoUnitario(formatarValorBR(e.target.value))}
                     required
                   />
                 </div>
               </div>
             )}
 
-            <div className="grid grid-cols-2 gap-4">
-              {tipoAtivo !== 'renda_fixa' && (
+            {tipoAtivo !== 'renda_fixa' && (
+              <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="taxa">Taxa/Corretagem</Label>
                   <Input
                     id="taxa"
-                    type="number"
-                    step="0.01"
-                    placeholder="0.00"
+                    type="text"
+                    placeholder="0,00"
                     value={taxa}
-                    onChange={(e) => setTaxa(e.target.value)}
+                    onChange={(e) => setTaxa(formatarValorBR(e.target.value))}
                   />
                 </div>
-              )}
 
-              <div className={tipoAtivo === 'renda_fixa' ? 'col-span-2' : ''}>
-                <Label htmlFor="dataTransacao">
-                  {tipoAtivo === 'renda_fixa' ? 'Data de Aplicação *' : 'Data da Transação *'}
-                </Label>
-                <Input
-                  id="dataTransacao"
-                  type="date"
-                  value={dataTransacao}
-                  onChange={(e) => setDataTransacao(e.target.value)}
-                  required
-                />
+                <div>
+                  <Label htmlFor="dataTransacao">Data da Transação *</Label>
+                  <Input
+                    id="dataTransacao"
+                    type="date"
+                    value={dataTransacao}
+                    onChange={(e) => setDataTransacao(e.target.value)}
+                    required
+                  />
+                </div>
               </div>
-            </div>
+            )}
 
             {valorTotal > 0 && (
               <div className="bg-teal-50 border border-teal-200 rounded-lg p-4">

@@ -496,7 +496,7 @@ function ImportarExtratoModal({ open, onClose, onImport, contas }) {
 
 import { Button } from "../components/ui/button";
 import { Card, CardContent } from "../components/ui/card";
-import { formatCurrency } from "../utils/currency";
+import { formatCurrency, parseValorBR, formatarValorBR } from "../utils/currency";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../hooks/useAuth";
 

@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { useInvestments, Investimento } from '@/hooks/useInvestments'
-import { formatCurrency } from '@/utils/currency'
+import { formatCurrency, parseValorBR, formatarValorBR } from '@/utils/currency'
 
 interface EditInvestmentDialogProps {
   open: boolean
@@ -82,7 +82,7 @@ export const EditInvestmentDialog = ({ open, onClose, investimento }: EditInvest
       // Adicionar campos de renda fixa se aplicável
       if (investimento.tipo === 'renda_fixa') {
         dadosAtualizados.tipo_rentabilidade = tipoRentabilidade
-        dadosAtualizados.taxa_percentual = parseFloat(taxaPercentual) || undefined
+        dadosAtualizados.taxa_percentual = parseValorBR(taxaPercentual) || undefined
         dadosAtualizados.indexador = indexador
         dadosAtualizados.data_vencimento = dataVencimento || undefined
         dadosAtualizados.liquidez = liquidez
@@ -91,7 +91,7 @@ export const EditInvestmentDialog = ({ open, onClose, investimento }: EditInvest
         // Valor atual manual (se informado)
         if (usarValorManual && valorAtualManual) {
           // @ts-ignore - campo customizado
-          dadosAtualizados.valor_atual_manual = parseFloat(valorAtualManual)
+          dadosAtualizados.valor_atual_manual = parseValorBR(valorAtualManual)
         } else {
           // @ts-ignore
           dadosAtualizados.valor_atual_manual = null
@@ -100,18 +100,6 @@ export const EditInvestmentDialog = ({ open, onClose, investimento }: EditInvest
         // Isenção de IR
         // @ts-ignore - campo customizado
         dadosAtualizados.isento_ir = isentoIR
-      }
-
-      // Atualizar valor aplicado separadamente (campo gerado)
-      if (valorAplicado && parseFloat(valorAplicado) !== investimento.valor_total) {
-        const { supabase } = await import('@/lib/supabase')
-        await supabase
-          .from('investimentos')
-          .update({ 
-            valor_total: parseFloat(valorAplicado),
-            quantidade: investimento.tipo === 'renda_fixa' ? 1 : Math.max(1, investimento.quantidade)
-          })
-          .eq('id', investimento.id)
       }
       
       const sucesso = await atualizarInvestimento(investimento.id, dadosAtualizados)
@@ -214,14 +202,13 @@ export const EditInvestmentDialog = ({ open, onClose, investimento }: EditInvest
               <Label htmlFor="valorAplicado">Valor Aplicado (R$)</Label>
               <Input
                 id="valorAplicado"
-                type="number"
-                step="0.01"
-                value={valorAplicado}
-                onChange={(e) => setValorAplicado(e.target.value)}
-                placeholder="1000.00"
+                type="text"
+                value={formatCurrency(investimento?.valor_total || 0)}
+                disabled
+                className="bg-muted/50 cursor-not-allowed"
               />
               <p className="text-xs text-muted-foreground mt-1">
-                Valor total investido neste ativo
+                💡 Para alterar o valor, adicione uma nova transação ou exclua o investimento
               </p>
             </div>
           </div>
@@ -276,16 +263,15 @@ export const EditInvestmentDialog = ({ open, onClose, investimento }: EditInvest
                   </Label>
                   <Input
                     id="taxaPercentual"
-                    type="number"
-                    step="0.01"
+                    type="text"
                     value={taxaPercentual}
-                    onChange={(e) => setTaxaPercentual(e.target.value)}
-                    placeholder={tipoRentabilidade === 'pos' ? '110' : '12.5'}
+                    onChange={(e) => setTaxaPercentual(formatarValorBR(e.target.value))}
+                    placeholder={tipoRentabilidade === 'pos' ? '110' : '12,5'}
                   />
                   <p className="text-xs text-muted-foreground mt-1">
                     {tipoRentabilidade === 'pos' && 'Ex: 110 para 110% do CDI'}
-                    {tipoRentabilidade === 'pre' && 'Ex: 12.5 para 12,5% ao ano'}
-                    {tipoRentabilidade === 'ipca' && 'Ex: 6.5 para IPCA + 6,5%'}
+                    {tipoRentabilidade === 'pre' && 'Ex: 12,5 para 12,5% ao ano'}
+                    {tipoRentabilidade === 'ipca' && 'Ex: 6,5 para IPCA + 6,5%'}
                   </p>
                 </div>
 
@@ -365,11 +351,10 @@ export const EditInvestmentDialog = ({ open, onClose, investimento }: EditInvest
                     <Label htmlFor="valorAtualManual">Valor Atual (R$)</Label>
                     <Input
                       id="valorAtualManual"
-                      type="number"
-                      step="0.01"
+                      type="text"
                       value={valorAtualManual}
-                      onChange={(e) => setValorAtualManual(e.target.value)}
-                      placeholder="1728.69"
+                      onChange={(e) => setValorAtualManual(formatarValorBR(e.target.value))}
+                      placeholder="1728,69"
                     />
                     <p className="text-xs text-muted-foreground mt-1">
                       💡 Use o valor líquido que aparece no app do banco

@@ -7,6 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea'
 import { CategorySelector } from './CategorySelector'
 import { BankSelector, CardSelector } from '../accounts/BankAndCardSelector'
+import { parseValorBR, formatarValorBR } from '@/utils/currency'
 
 interface TransactionFormData {
   quando: string
@@ -71,9 +72,13 @@ export function TransactionFormDialog({
             <Label htmlFor="valor">Valor</Label>
             <Input
               id="valor"
-              type="number"
-              value={formData.valor}
-              onChange={e => onFormDataChange({ ...formData, valor: Number(e.target.value) })}
+              type="text"
+              value={typeof formData.valor === 'number' ? formData.valor.toFixed(2).replace('.', ',') : formData.valor}
+              onChange={e => {
+                const formatted = formatarValorBR(e.target.value)
+                const numValue = parseValorBR(formatted)
+                onFormDataChange({ ...formData, valor: numValue })
+              }}
               required
             />
           </div>

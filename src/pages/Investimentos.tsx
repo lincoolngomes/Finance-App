@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo, useEffect } from 'react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -219,43 +219,103 @@ export default function Investimentos() {
   }
   
   // Calcular evolução mensal (últimos 12 meses) - saldo no último dia útil
-  const dadosEvolucao = useMemo(() => {
-    const meses: { mes: string, saldo: number }[] = []
-    const hoje = new Date()
-    
-    for (let i = 11; i >= 0; i--) {
-      const mesRef = new Date(hoje.getFullYear(), hoje.getMonth() - i, 1)
-      const mesNome = mesRef.toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' })
+  const [dadosEvolucao, setDadosEvolucao] = useState<{ mes: string, saldo: number }[]>([])
+  
+  useEffect(() => {
+    const calcularEvolucao = async () => {
+      try {
+        const meses: { mes: string, saldo: number }[] = []
+        const hoje = new Date()
       
-      // Obter último dia útil do mês
-      const ultimoDiaDoMes = new Date(mesRef.getFullYear(), mesRef.getMonth() + 1, 0)
-      const diaSemana = ultimoDiaDoMes.getDay()
-      
-      // Se cair no fim de semana, voltar para sexta-feira
-      if (diaSemana === 0) { // Domingo
-        ultimoDiaDoMes.setDate(ultimoDiaDoMes.getDate() - 2)
-      } else if (diaSemana === 6) { // Sábado
-        ultimoDiaDoMes.setDate(ultimoDiaDoMes.getDate() - 1)
+      for (let i = 11; i >= 0; i--) {
+        const mesRef = new Date(hoje.getFullYear(), hoje.getMonth() - i, 1)
+        const mesNome = mesRef.toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' })
+        
+        // Obter último dia útil do mês
+        const ultimoDiaDoMes = new Date(mesRef.getFullYear(), mesRef.getMonth() + 1, 0)
+        const diaSemana = ultimoDiaDoMes.getDay()
+        
+        // Se cair no fim de semana, voltar para sexta-feira
+        if (diaSemana === 0) { // Domingo
+          ultimoDiaDoMes.setDate(ultimoDiaDoMes.getDate() - 2)
+        } else if (diaSemana === 6) { // Sábado
+          ultimoDiaDoMes.setDate(ultimoDiaDoMes.getDate() - 1)
+        }
+        
+        // Não calcular meses futuros
+        if (ultimoDiaDoMes > hoje) {
+          continue
+        }
+        
+        // Filtrar investimentos que existiam naquele mês
+        const investimentosDoMes = investimentos.filter(inv => {
+          if (!inv.data_aplicacao) return false
+          const dataAplicacao = new Date(inv.data_aplicacao)
+          return dataAplicacao <= ultimoDiaDoMes && inv.ativo
+        })
+        
+        // Calcular saldo de cada investimento naquela data
+        let saldoTotal = 0
+        
+        for (const inv of investimentosDoMes) {
+          if (inv.tipo === 'renda_fixa' && inv.data_aplicacao) {
+            // Para o mês atual, usar o valor já calculado
+            const mesAtualSelecionado = ultimoDiaDoMes.getMonth() === hoje.getMonth() && 
+                                        ultimoDiaDoMes.getFullYear() === hoje.getFullYear()
+            
+            if (mesAtualSelecionado) {
+              saldoTotal += inv.valor_atual || inv.valor_total
+            } else {
+              // Para meses anteriores, calcular rentabilidade até aquela data
+              const dataAplicacao = new Date(inv.data_aplicacao)
+              const diasAplicadoNaqueleMs = Math.floor((ultimoDiaDoMes.getTime() - dataAplicacao.getTime()) / (1000 * 60 * 60 * 24))
+              
+              if (diasAplicadoNaqueleMs > 0 && inv.rentabilidade_percentual) {
+                // Usar rentabilidade proporcional aos dias
+                const diasAteHoje = Math.floor((hoje.getTime() - dataAplicacao.getTime()) / (1000 * 60 * 60 * 24))
+                const rentabilidadeProporcional = (inv.rentabilidade_percentual * diasAplicadoNaqueleMs) / diasAteHoje
+                const valorNaqueleMs = inv.valor_total * (1 + rentabilidadeProporcional / 100)
+                saldoTotal += valorNaqueleMs
+              } else {
+                saldoTotal += inv.valor_total
+              }
+            }
+          } else {
+            // Para outros tipos, usar valor_total
+            saldoTotal += inv.valor_total
+          }
+        }
+        
+        meses.push({
+          mes: mesNome.replace('.', ''),
+          saldo: saldoTotal
+        })
       }
       
-      // Filtrar investimentos que existiam naquele mês
-      const investimentosDoMes = investimentos.filter(inv => {
-        if (!inv.data_aplicacao) return false
-        const dataAplicacao = new Date(inv.data_aplicacao)
-        return dataAplicacao <= ultimoDiaDoMes && inv.ativo
-      })
-      
-      // Somar valores atuais (que já vem calculados pelo hook)
-      const saldoTotal = investimentosDoMes.reduce((sum, inv) => sum + (inv.valor_atual || 0), 0)
-      
-      meses.push({
-        mes: mesNome.replace('.', ''),
-        saldo: saldoTotal
-      })
+        setDadosEvolucao(meses)
+      } catch (error) {
+        console.error('Erro ao calcular evolução:', error)
+        // Fallback: usar dados simples
+        const mesesFallback: { mes: string, saldo: number }[] = []
+        const hoje = new Date()
+        for (let i = 11; i >= 0; i--) {
+          const mesRef = new Date(hoje.getFullYear(), hoje.getMonth() - i, 1)
+          const mesNome = mesRef.toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' })
+          mesesFallback.push({
+            mes: mesNome.replace('.', ''),
+            saldo: resumo.valorTotal
+          })
+        }
+        setDadosEvolucao(mesesFallback)
+      }
     }
     
-    return meses
-  }, [investimentos])
+    if (investimentos.length > 0) {
+      calcularEvolucao()
+    } else {
+      setDadosEvolucao([])
+    }
+  }, [investimentos, resumo.valorTotal])
 
   if (loading) {
     return (
@@ -453,6 +513,10 @@ export default function Investimentos() {
                 className="text-xs"
                 tick={{ fill: 'currentColor' }}
                 tickFormatter={(value) => `R$ ${(value / 1000).toFixed(0)}k`}
+                domain={[
+                  (dataMin: number) => Math.floor(dataMin * 0.95 / 1000) * 1000,
+                  (dataMax: number) => Math.ceil(dataMax * 1.05 / 1000) * 1000
+                ]}
               />
               <Tooltip 
                 contentStyle={{ 
@@ -469,6 +533,8 @@ export default function Investimentos() {
                 strokeWidth={3}
                 fillOpacity={1}
                 fill="url(#colorSaldo)"
+                dot={{ fill: '#14b8a6', strokeWidth: 2, r: 4 }}
+                activeDot={{ r: 6, strokeWidth: 2 }}
               />
             </AreaChart>
           </ResponsiveContainer>
