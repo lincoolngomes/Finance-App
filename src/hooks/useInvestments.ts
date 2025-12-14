@@ -569,8 +569,34 @@ export const useInvestments = () => {
       // Taxa já é a taxa efetiva anual
       const taxaAnual = inv.taxa_percentual / 100
       
-      // Calcular usando juros compostos por dias corridos
-      const fatorRendimento = Math.pow(1 + taxaAnual, diasAplicado / 365)
+      // IMPORTANTE: Bancos usam dias ÚTEIS (252 dias úteis no ano)
+      // Precisamos contar apenas dias úteis entre as datas
+      const contarDiasUteis = (dataInicio: Date, dataFim: Date): number => {
+        let count = 0
+        const current = new Date(dataInicio)
+        
+        while (current <= dataFim) {
+          const diaSemana = current.getDay()
+          // 0 = Domingo, 6 = Sábado
+          if (diaSemana !== 0 && diaSemana !== 6) {
+            count++
+          }
+          current.setDate(current.getDate() + 1)
+        }
+        
+        return count
+      }
+      
+      const diasUteis = contarDiasUteis(dataAplicacao, hoje)
+      
+      console.log('📅 Dias para cálculo:', {
+        diasCorridos: diasAplicado,
+        diasUteis: diasUteis,
+        usando: 'dias úteis (padrão bancário)'
+      })
+      
+      // Calcular usando juros compostos por dias ÚTEIS (252 dias úteis no ano)
+      const fatorRendimento = Math.pow(1 + taxaAnual, diasUteis / 252)
       const valorBruto = inv.valor_total * fatorRendimento
       const rendimentoBruto = valorBruto - inv.valor_total
       
@@ -590,6 +616,7 @@ export const useInvestments = () => {
       }
       
       console.log('✅ PRÉ-FIXADO calculado:', {
+        diasUteis: diasUteis,
         fatorRendimento: fatorRendimento.toFixed(6),
         valorBruto: valorBruto.toFixed(2),
         rendimentoBruto: rendimentoBruto.toFixed(2),
