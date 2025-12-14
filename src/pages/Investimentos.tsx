@@ -228,11 +228,10 @@ export default function Investimentos() {
       
       console.log(`🔄 Atualizando ${investimentosRendaFixa.length} investimentos para marcação: ${novoModo}`)
       
-      // Atualizar todos os investimentos de renda fixa
+      // Atualizar todos os investimentos de renda fixa (incluindo Tesouro, CRI, CRA, Debêntures)
       const { error } = await supabase
         .from('investimentos')
         .update({ tipo_marcacao: novoModo })
-        .eq('tipo', 'renda_fixa')
         .in('id', investimentosRendaFixa.map(inv => inv.id))
       
       if (error) throw error
