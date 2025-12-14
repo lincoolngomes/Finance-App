@@ -59,6 +59,11 @@ export default function Investimentos() {
   const [showValorManualDialog, setShowValorManualDialog] = useState(false)
   const [valorManualTemp, setValorManualTemp] = useState('')
   
+  // Modo de marcação (mercado vs curva)
+  const [modoMarcacao, setModoMarcacao] = useState<'curva' | 'mercado'>(() => {
+    return (localStorage.getItem('investimentos_modo_marcacao') as 'curva' | 'mercado') || 'curva'
+  })
+  
   // Agrupamento e expansão
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set())
   
@@ -190,6 +195,44 @@ export default function Investimentos() {
 
   const mesAtualSelecionado = mesReferencia.getMonth() === new Date().getMonth() && 
                               mesReferencia.getFullYear() === new Date().getFullYear()
+  
+  // Função para atualizar tipo de marcação de investimentos de renda fixa
+  const atualizarModoMarcacao = async (novoModo: 'curva' | 'mercado') => {
+    try {
+      const investimentosRendaFixa = investimentos.filter(inv => inv.tipo === 'renda_fixa')
+      
+      if (investimentosRendaFixa.length === 0) {
+        console.log('ℹ️ Nenhum investimento de renda fixa para atualizar')
+        return
+      }
+      
+      // Verificar se já estão no modo correto
+      const precisaAtualizar = investimentosRendaFixa.some(inv => inv.tipo_marcacao !== novoModo)
+      if (!precisaAtualizar) {
+        console.log('✅ Investimentos já estão no modo correto:', novoModo)
+        return
+      }
+      
+      console.log(`🔄 Atualizando ${investimentosRendaFixa.length} investimentos para marcação: ${novoModo}`)
+      
+      // Atualizar todos os investimentos de renda fixa
+      const { error } = await supabase
+        .from('investimentos')
+        .update({ tipo_marcacao: novoModo })
+        .eq('tipo', 'renda_fixa')
+        .in('id', investimentosRendaFixa.map(inv => inv.id))
+      
+      if (error) throw error
+      
+      console.log('✅ Modo de marcação atualizado com sucesso!')
+      
+      // Recarregar investimentos
+      window.location.reload()
+      
+    } catch (error) {
+      console.error('❌ Erro ao atualizar modo de marcação:', error)
+    }
+  }
   
   // Funções de seleção
   const toggleSelection = (id: string) => {
@@ -614,22 +657,58 @@ export default function Investimentos() {
             </Button>
           </div>
           
-          {/* Toggle Modo Manual/Automático */}
-          <div className="flex items-center gap-3">
-            <span className="text-sm text-muted-foreground">🤖 Automático</span>
-            <button
-              onClick={() => setModoManual(!modoManual)}
-              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 ${
-                modoManual ? 'bg-purple-600' : 'bg-gray-300 dark:bg-gray-600'
-              }`}
-            >
-              <span
-                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                  modoManual ? 'translate-x-6' : 'translate-x-1'
+          {/* Toggles de Modo */}
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+            {/* Toggle Modo Manual/Automático */}
+            <div className="flex items-center gap-3">
+              <span className="text-sm text-muted-foreground">🤖 Automático</span>
+              <button
+                onClick={() => setModoManual(!modoManual)}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 ${
+                  modoManual ? 'bg-purple-600' : 'bg-gray-300 dark:bg-gray-600'
                 }`}
-              />
-            </button>
-            <span className="text-sm text-muted-foreground">✏️ Manual</span>
+              >
+                <span
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                    modoManual ? 'translate-x-6' : 'translate-x-1'
+                  }`}
+                />
+              </button>
+              <span className="text-sm text-muted-foreground">✏️ Manual</span>
+            </div>
+            
+            {/* Toggle Marcação a Curva/Mercado */}
+            <div className="flex flex-col gap-1">
+              <div className="flex items-center gap-3">
+                <span className="text-sm text-muted-foreground">📊 Curva</span>
+                <button
+                  onClick={async () => {
+                    const novoModo = modoMarcacao === 'curva' ? 'mercado' : 'curva'
+                    setModoMarcacao(novoModo)
+                    localStorage.setItem('investimentos_modo_marcacao', novoModo)
+                    await atualizarModoMarcacao(novoModo)
+                  }}
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
+                    modoMarcacao === 'mercado' ? 'bg-blue-600' : 'bg-gray-300 dark:bg-gray-600'
+                  }`}
+                  title={modoMarcacao === 'curva' 
+                    ? 'Marcação a Curva: Valor calculado pela rentabilidade contratada' 
+                    : 'Marcação a Mercado: Preço atual de negociação'}
+                >
+                  <span
+                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                      modoMarcacao === 'mercado' ? 'translate-x-6' : 'translate-x-1'
+                    }`}
+                  />
+                </button>
+                <span className="text-sm text-muted-foreground">💹 Mercado</span>
+              </div>
+              <span className="text-[10px] text-muted-foreground italic">
+                {modoMarcacao === 'curva' 
+                  ? 'Calculado pela rentabilidade contratada' 
+                  : 'Preço atual de negociação (Tesouro/VU)'}
+              </span>
+            </div>
           </div>
         </div>
         
@@ -794,6 +873,12 @@ export default function Investimentos() {
                             )}
                             {grupo.hasManual && (
                               <span className="text-xs bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300 px-2 py-0.5 rounded">✏️ Manual</span>
+                            )}
+                            {grupo.tipo === 'renda_fixa' && grupo.items[0]?.tipo_marcacao === 'mercado' && (
+                              <span className="text-xs bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded">💹 Mercado</span>
+                            )}
+                            {grupo.tipo === 'renda_fixa' && grupo.items[0]?.tipo_marcacao === 'curva' && (
+                              <span className="text-xs bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 px-2 py-0.5 rounded">📊 Curva</span>
                             )}
                           </div>
                         </td>
