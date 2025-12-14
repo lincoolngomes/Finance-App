@@ -569,50 +569,23 @@ export const useInvestments = () => {
       // Taxa já é a taxa efetiva anual
       const taxaAnual = inv.taxa_percentual / 100
       
-      // IMPORTANTE: Mercado brasileiro usa DIAS ÚTEIS (excluindo sábados, domingos e feriados)
-      // Padrão: 252 dias úteis por ano
-      
-      // Contar dias úteis entre datas (excluindo fins de semana)
-      const contarDiasUteis = (inicio: Date, fim: Date): number => {
-        let count = 0
-        const current = new Date(inicio)
-        current.setHours(0, 0, 0, 0)
-        const end = new Date(fim)
-        end.setHours(0, 0, 0, 0)
-        
-        while (current <= end) {
-          const diaSemana = current.getDay()
-          // 0 = Domingo, 6 = Sábado - contar apenas dias úteis
-          if (diaSemana !== 0 && diaSemana !== 6) {
-            count++
-          }
-          current.setDate(current.getDate() + 1)
-        }
-        
-        return count
-      }
-      
-      const diasUteis = contarDiasUteis(dataAplicacao, hoje)
-      
-      // Calcular em anos usando base de 252 dias úteis
-      const anosUteis = diasUteis / 252
-      
-      // Juros COMPOSTOS com dias úteis
-      // Fórmula: VF = VP × (1 + taxa)^(dias_úteis/252)
-      const fatorRendimento = Math.pow(1 + taxaAnual, anosUteis)
+      // CONVENÇÃO: Dias corridos / 365 (padrão bancário brasileiro)
+      // Juros COMPOSTOS
+      // Fórmula: VF = VP × (1 + taxa)^(dias_corridos/365)
+      const anos = diasAplicado / 365
+      const fatorRendimento = Math.pow(1 + taxaAnual, anos)
       const valorBruto = inv.valor_total * fatorRendimento
       
-      console.log('📊 PRÉ-FIXADO (juros compostos + dias úteis/252):', {
+      console.log('📊 PRÉ-FIXADO (compostos, dias corridos/365):', {
         dataAplicacao: dataAplicacao.toLocaleDateString('pt-BR'),
         dataCalculo: hoje.toLocaleDateString('pt-BR'),
         diasCorridos: diasAplicado,
-        diasUteis: diasUteis,
-        anosUteis: anosUteis.toFixed(6),
+        anos: anos.toFixed(6),
         taxaAnual: (taxaAnual * 100).toFixed(3) + '%',
         fator: fatorRendimento.toFixed(8),
         valorInicial: inv.valor_total.toFixed(2),
         valorBruto: valorBruto.toFixed(2),
-        diferenca: (valorBruto - inv.valor_total).toFixed(2)
+        rendimento: (valorBruto - inv.valor_total).toFixed(2)
       })
       
       const rendimentoBruto = valorBruto - inv.valor_total
@@ -634,7 +607,7 @@ export const useInvestments = () => {
       
       console.log('✅ PRÉ-FIXADO calculado:', {
         diasCorridos: diasAplicado,
-        convencao: '360',
+        convencao: 'DC/365 (Atual/365)',
         fatorRendimento: fatorRendimento.toFixed(6),
         valorBruto: valorBruto.toFixed(2),
         rendimentoBruto: rendimentoBruto.toFixed(2),
