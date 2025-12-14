@@ -82,12 +82,29 @@ export async function buscarPrecosTesouroDireto(): Promise<TituloTesouroDireto[]
 export async function buscarPrecoTitulo(codigo: string): Promise<number | null> {
   try {
     const titulos = await buscarPrecosTesouroDireto()
-    const titulo = titulos.find(t => t.codigo === codigo || t.nome.includes(codigo))
+    
+    console.log('🔍 Buscando título:', codigo)
+    console.log('📋 Títulos disponíveis:', titulos.map(t => ({ codigo: t.codigo, nome: t.nome })))
+    
+    // Tentar busca exata primeiro
+    let titulo = titulos.find(t => t.codigo === codigo)
+    
+    // Se não encontrar, tentar busca por nome parcial
+    if (!titulo) {
+      // Normalizar código para busca (remover espaços, converter para maiúsculas)
+      const codigoNormalizado = codigo.toUpperCase().replace(/\s+/g, '')
+      titulo = titulos.find(t => 
+        t.codigo.toUpperCase().replace(/\s+/g, '') === codigoNormalizado ||
+        t.nome.toUpperCase().includes(codigoNormalizado) ||
+        codigoNormalizado.includes(t.nome.toUpperCase().split(' ')[0])
+      )
+    }
     
     if (titulo) {
       console.log('✅ Preço encontrado:', {
-        codigo,
-        titulo: titulo.nome,
+        codigoBuscado: codigo,
+        tituloEncontrado: titulo.nome,
+        codigoTitulo: titulo.codigo,
         preco: titulo.precoUnitario,
         data: titulo.dataReferencia
       })
@@ -95,6 +112,8 @@ export async function buscarPrecoTitulo(codigo: string): Promise<number | null> 
     }
 
     console.warn('⚠️ Título não encontrado:', codigo)
+    console.warn('Dica: Verifique se o código está correto. Exemplos válidos:', 
+      titulos.slice(0, 3).map(t => t.codigo))
     return null
   } catch (error) {
     console.error('❌ Erro ao buscar preço do título:', error)
