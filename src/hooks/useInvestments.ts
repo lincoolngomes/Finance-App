@@ -4,6 +4,8 @@ import { useAuth } from './useAuth'
 import { useToast } from './use-toast'
 import { buscarCDIAcumulado } from '@/utils/cdi'
 import { buscarIPCAAcumulado } from '@/utils/ipca'
+import { calcularMarcacaoMercadoTesouro } from '@/utils/tesouroDireto'
+import { calcularMarcacaoMercadoPorVU } from '@/utils/marcacaoMercado'
 
 export interface Investimento {
   id: string
@@ -30,6 +32,12 @@ export interface Investimento {
   isento_ir?: boolean
   valor_atual_manual?: number
   aliquota_ir?: number
+  // Marcação a Mercado
+  tipo_marcacao?: 'curva' | 'mercado' | 'manual'
+  percentual_vu?: number // % do VU para CRI/CRA/Debêntures
+  preco_mercado?: number // Preço unitário para Tesouro Direto
+  data_marcacao?: string
+  fonte_marcacao?: 'tesouro_direto' | 'manual' | 'api_secundario' | 'estimado'
   // Campos calculados
   valor_bruto?: number
   created_at: string
@@ -167,7 +175,7 @@ export const useInvestments = () => {
               cotacao = await getCotacaoAtual(inv.codigo, inv.tipo)
               valor_atual = cotacao ? inv.quantidade * cotacao : inv.valor_total
             } else if (inv.tipo === 'renda_fixa') {
-              // Verificar se tem valor manual informado
+              // 1. PRIORIDADE: Verificar se tem valor manual informado
               if (inv.valor_atual_manual && inv.valor_atual_manual > 0) {
                 console.log('📝 Usando valor manual informado:', inv.valor_atual_manual)
                 valor_atual = inv.valor_atual_manual
@@ -175,8 +183,43 @@ export const useInvestments = () => {
                   valor_atual: inv.valor_atual_manual,
                   usando_valor_manual: true
                 }
-              } else {
-                // Calcular rentabilidade de renda fixa com base na curva
+              }
+              // 2. MARCAÇÃO A MERCADO: Tesouro Direto
+              else if (inv.tipo_marcacao === 'mercado' && inv.codigo?.toLowerCase().includes('tesouro')) {
+                console.log('🏛️ Calculando por marcação a mercado (Tesouro Direto):', inv.codigo)
+                try {
+                  const resultado = await calcularMarcacaoMercadoTesouro(inv.quantidade, inv.codigo)
+                  if (resultado.precoUnitario) {
+                    valor_atual = resultado.valorAtual
+                    dadosAdicionais = {
+                      valor_atual: resultado.valorAtual,
+                      preco_mercado: resultado.precoUnitario,
+                      usando_marcacao_mercado: true,
+                      fonte_marcacao: 'tesouro_direto'
+                    }
+                  } else {
+                    // Fallback para cálculo a curva
+                    console.log('⚠️ Preço não encontrado, usando marcação a curva')
+                    inv.tipo_marcacao = 'curva'
+                  }
+                } catch (error) {
+                  console.error('❌ Erro na marcação a mercado, usando curva:', error)
+                  inv.tipo_marcacao = 'curva'
+                }
+              }
+              // 3. MARCAÇÃO A MERCADO: CRI/CRA/Debêntures (por % VU)
+              else if (inv.tipo_marcacao === 'mercado' && inv.percentual_vu) {
+                console.log('💼 Calculando por % do VU:', inv.percentual_vu + '%')
+                valor_atual = calcularMarcacaoMercadoPorVU(inv.valor_total, inv.percentual_vu)
+                dadosAdicionais = {
+                  valor_atual,
+                  percentual_vu: inv.percentual_vu,
+                  usando_marcacao_mercado: true,
+                  fonte_marcacao: inv.fonte_marcacao || 'manual'
+                }
+              }
+              // 4. FALLBACK: Calcular rentabilidade de renda fixa com base na curva
+              else {
                 // Usar data_aplicacao ou data_primeira_compra como fallback
                 const dataBase = inv.data_aplicacao || inv.data_primeira_compra
                 
