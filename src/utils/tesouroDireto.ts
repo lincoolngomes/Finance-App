@@ -57,12 +57,13 @@ export async function buscarPrecosTesouroDireto(): Promise<TituloTesouroDireto[]
       // Criar código único
       const codigo = `${tipo.replace(/\s+/g, '_')}_${vencimento?.replace(/\//g, '')}`
 
+      // Usar precoVenda como precoUnitario (é o que vale na marcação a mercado)
       titulos.push({
         codigo: codigo,
         nome: `${tipo} ${vencimento}`,
-        precoUnitario: parseFloat(precoVendaStr),
-        precoCompra: parseFloat(precoCompraStr),
-        precoVenda: parseFloat(precoVendaStr),
+        precoUnitario: parseFloat(precoVendaStr), // PU de venda (marcação a mercado)
+        precoCompra: parseFloat(precoCompraStr),  // PU de compra (referência)
+        precoVenda: parseFloat(precoVendaStr),    // PU de venda
         dataReferencia: dataBase,
         vencimento: vencimento,
         taxaCompra: taxaCompraStr ? parseFloat(taxaCompraStr) : undefined,
@@ -84,20 +85,33 @@ export async function buscarPrecoTitulo(codigo: string): Promise<number | null> 
     const titulos = await buscarPrecosTesouroDireto()
     
     console.log('🔍 Buscando título:', codigo)
-    console.log('📋 Títulos disponíveis:', titulos.map(t => ({ codigo: t.codigo, nome: t.nome })))
+    console.log('📋 Títulos disponíveis:', titulos.slice(0, 5).map(t => ({ codigo: t.codigo, nome: t.nome })))
     
     // Tentar busca exata primeiro
     let titulo = titulos.find(t => t.codigo === codigo)
     
-    // Se não encontrar, tentar busca por nome parcial
+    // Se não encontrar, tentar busca normalizada
     if (!titulo) {
-      // Normalizar código para busca (remover espaços, converter para maiúsculas)
-      const codigoNormalizado = codigo.toUpperCase().replace(/\s+/g, '')
+      const codigoNormalizado = codigo.toUpperCase().replace(/[\s_-]+/g, '')
       titulo = titulos.find(t => 
-        t.codigo.toUpperCase().replace(/\s+/g, '') === codigoNormalizado ||
-        t.nome.toUpperCase().includes(codigoNormalizado) ||
-        codigoNormalizado.includes(t.nome.toUpperCase().split(' ')[0])
+        t.codigo.toUpperCase().replace(/[\s_-]+/g, '') === codigoNormalizado
       )
+    }
+    
+    // Se ainda não encontrar, tentar busca por nome parcial
+    if (!titulo) {
+      // Extrair tipo e vencimento do código (ex: "Tesouro IPCA+ 2035" ou "NTNB_15052035")
+      const partesCodigo = codigo.split(/[\s_-]+/)
+      
+      // Buscar por tipo (IPCA+, Prefixado, SELIC) e vencimento
+      titulo = titulos.find(t => {
+        const nomeUpper = t.nome.toUpperCase()
+        // Verificar se contém tipo do título
+        const contemTipo = partesCodigo.some(parte => 
+          nomeUpper.includes(parte.toUpperCase()) && parte.length > 3
+        )
+        return contemTipo
+      })
     }
     
     if (titulo) {
