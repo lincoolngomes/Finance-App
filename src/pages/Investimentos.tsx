@@ -878,7 +878,19 @@ export default function Investimentos() {
                         </td>
                         <td className="py-3 px-4">
                           <div className="text-foreground font-medium">{grupo.nome}</div>
-                          <div className="text-xs text-muted-foreground mt-0.5">{grupo.instituicao || ''}</div>
+                          <div className="text-xs text-muted-foreground mt-0.5">
+                            {grupo.instituicao || ''}
+                            {grupo.tipo === 'renda_fixa' && primeiroItem.taxa_percentual && (
+                              <>
+                                {grupo.instituicao && ' • '}
+                                <span className="font-semibold text-teal-600 dark:text-teal-400">
+                                  {primeiroItem.tipo_rentabilidade === 'pos' && `${primeiroItem.taxa_percentual?.toFixed(2)}% ${primeiroItem.indexador?.toUpperCase()}`}
+                                  {primeiroItem.tipo_rentabilidade === 'pre' && `${primeiroItem.taxa_percentual?.toFixed(2)}% a.a.`}
+                                  {primeiroItem.tipo_rentabilidade === 'ipca' && `IPCA+${primeiroItem.taxa_percentual?.toFixed(2)}%`}
+                                </span>
+                              </>
+                            )}
+                          </div>
                         </td>
                         <td className="py-3 px-4">
                           <div className="space-y-1">
@@ -896,14 +908,29 @@ export default function Investimentos() {
                           </div>
                         </td>
                         <td className="py-3 px-4">
-                          {primeiroItem.tipo === 'renda_fixa' && primeiroItem.data_vencimento ? (
+                          {primeiroItem.tipo === 'renda_fixa' && primeiroItem.taxa_percentual ? (
                             <div className="text-sm">
-                              <div className="flex items-center gap-1 text-foreground">
-                                <span className="font-medium">
-                                  {primeiroItem.tipo_rentabilidade === 'pos' && `${primeiroItem.taxa_percentual?.toFixed(2)}% CDI`}
-                                  {primeiroItem.tipo_rentabilidade === 'pre' && `${primeiroItem.taxa_percentual?.toFixed(2)}% a.a.`}
-                                  {primeiroItem.tipo_rentabilidade === 'ipca' && `IPCA + ${primeiroItem.taxa_percentual?.toFixed(2)}%`}
-                                </span>
+                              <div className="flex items-center gap-1 text-foreground font-semibold">
+                                {primeiroItem.tipo_rentabilidade === 'pos' && primeiroItem.indexador === 'cdi' && (
+                                  <span className="text-teal-600 dark:text-teal-400">
+                                    {primeiroItem.taxa_percentual?.toFixed(2)}% do CDI
+                                  </span>
+                                )}
+                                {primeiroItem.tipo_rentabilidade === 'pos' && primeiroItem.indexador === 'selic' && (
+                                  <span className="text-teal-600 dark:text-teal-400">
+                                    {primeiroItem.taxa_percentual?.toFixed(2)}% da SELIC
+                                  </span>
+                                )}
+                                {primeiroItem.tipo_rentabilidade === 'pre' && (
+                                  <span className="text-blue-600 dark:text-blue-400">
+                                    {primeiroItem.taxa_percentual?.toFixed(2)}% a.a.
+                                  </span>
+                                )}
+                                {primeiroItem.tipo_rentabilidade === 'ipca' && (
+                                  <span className="text-purple-600 dark:text-purple-400">
+                                    IPCA + {primeiroItem.taxa_percentual?.toFixed(2)}%
+                                  </span>
+                                )}
                               </div>
                               {hasMultiple ? (
                                 <div className="text-xs text-muted-foreground mt-0.5">
@@ -1065,6 +1092,13 @@ export default function Investimentos() {
                             <td className="py-2 px-4">
                               {inv.tipo === 'renda_fixa' && inv.data_vencimento ? (
                                 <div className="text-xs">
+                                  {inv.taxa_percentual && (
+                                    <div className="font-semibold text-teal-600 dark:text-teal-400 mb-0.5">
+                                      {inv.tipo_rentabilidade === 'pos' && `${inv.taxa_percentual?.toFixed(2)}% ${inv.indexador?.toUpperCase()}`}
+                                      {inv.tipo_rentabilidade === 'pre' && `${inv.taxa_percentual?.toFixed(2)}% a.a.`}
+                                      {inv.tipo_rentabilidade === 'ipca' && `IPCA+${inv.taxa_percentual?.toFixed(2)}%`}
+                                    </div>
+                                  )}
                                   <div className="text-muted-foreground">
                                     Venc: {formatarData(inv.data_vencimento)}
                                   </div>
