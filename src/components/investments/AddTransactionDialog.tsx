@@ -50,8 +50,8 @@ export const AddTransactionDialog = ({ open, onClose }: AddTransactionDialogProp
         instituicao: instituicao || undefined
       }
       
-      // Adicionar campos específicos de renda fixa
-      if (tipoAtivo === 'renda_fixa') {
+      // Adicionar campos específicos de renda fixa (inclui Tesouro, CRI, CRA, Debêntures)
+      if (['renda_fixa', 'tesouro_direto', 'cri', 'cra', 'debenture'].includes(tipoAtivo)) {
         dadosInvestimento.tipo_rentabilidade = tipoRentabilidade
         dadosInvestimento.taxa_percentual = parseFloat(taxaPercentual)
         dadosInvestimento.indexador = indexador
@@ -169,7 +169,7 @@ export const AddTransactionDialog = ({ open, onClose }: AddTransactionDialogProp
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="codigo">
-                  {['renda_fixa', 'fundo', 'previdencia'].includes(tipoAtivo) ? 'Identificador *' : 'Código/Ticker *'}
+                  {['renda_fixa', 'tesouro_direto', 'cri', 'cra', 'debenture', 'fundo', 'previdencia'].includes(tipoAtivo) ? 'Identificador *' : 'Código/Ticker *'}
                 </Label>
                 <div className="relative">
                   <Input
@@ -179,6 +179,8 @@ export const AddTransactionDialog = ({ open, onClose }: AddTransactionDialogProp
                       tipoAtivo === 'cripto' ? 'Ex: BTC' : 
                       tipoAtivo === 'fii' ? 'Ex: HGLG11' :
                       tipoAtivo === 'renda_fixa' ? 'Ex: CDB-2025' :
+                      tipoAtivo === 'tesouro_direto' ? 'Ex: LFT1' :
+                      ['cri', 'cra', 'debenture'].includes(tipoAtivo) ? 'Ex: CRI-123' :
                       tipoAtivo === 'fundo' ? 'Ex: FUNDO-XP' :
                       'Ex: PREV-BB'
                     }
@@ -186,7 +188,7 @@ export const AddTransactionDialog = ({ open, onClose }: AddTransactionDialogProp
                     onChange={(e) => setCodigo(e.target.value.toUpperCase())}
                     required
                   />
-                  {['renda_fixa', 'fundo', 'previdencia'].includes(tipoAtivo) && (
+                  {['renda_fixa', 'tesouro_direto', 'cri', 'cra', 'debenture', 'fundo', 'previdencia'].includes(tipoAtivo) && (
                     <span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground cursor-help" title="Use um código único para identificar este investimento (Ex: CDB-BTG-2025, FUNDO-XP-MULT, PGBL-BB)">
                       ℹ️
                     </span>
@@ -200,6 +202,9 @@ export const AddTransactionDialog = ({ open, onClose }: AddTransactionDialogProp
                   id="nome"
                   placeholder={
                     tipoAtivo === 'renda_fixa' ? 'Ex: CDB 120% CDI 2025' :
+                    tipoAtivo === 'tesouro_direto' ? 'Ex: Tesouro Selic 2029' :
+                    ['cri', 'cra'].includes(tipoAtivo) ? 'Ex: CRI Rodobens 2030' :
+                    tipoAtivo === 'debenture' ? 'Ex: Debênture Eletrobras 2028' :
                     tipoAtivo === 'fundo' ? 'Ex: Fundo Multimercado XP' :
                     tipoAtivo === 'previdencia' ? 'Ex: PGBL Banco do Brasil' :
                     'Ex: Petrobras PN'
@@ -223,7 +228,7 @@ export const AddTransactionDialog = ({ open, onClose }: AddTransactionDialogProp
           </div>
 
           {/* Campos específicos de Renda Fixa */}
-          {tipoAtivo === 'renda_fixa' && (
+          {['renda_fixa', 'tesouro_direto', 'cri', 'cra', 'debenture'].includes(tipoAtivo) && (
             <div className="space-y-4 border-t pt-4">
               <h3 className="font-semibold text-teal-600">Características da Renda Fixa</h3>
               
@@ -341,7 +346,7 @@ export const AddTransactionDialog = ({ open, onClose }: AddTransactionDialogProp
                     required
                   />
                   <p className="text-xs text-muted-foreground mt-1">
-                    {tipoAtivo === 'renda_fixa' && 'Valor total aplicado no investimento'}
+                    {['renda_fixa', 'tesouro_direto', 'cri', 'cra', 'debenture'].includes(tipoAtivo) && 'Valor total aplicado no investimento'}
                     {tipoAtivo === 'fundo' && 'Valor aplicado no fundo'}
                     {tipoAtivo === 'previdencia' && 'Valor da contribuição'}
                   </p>
