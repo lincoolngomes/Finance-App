@@ -658,56 +658,50 @@ export default function Investimentos() {
           </div>
           
           {/* Toggles de Modo */}
-          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
+          <div className="flex items-center gap-6 bg-secondary/30 rounded-lg px-4 py-2.5">
             {/* Toggle Modo Manual/Automático */}
-            <div className="flex items-center gap-3">
-              <span className="text-sm text-muted-foreground">🤖 Automático</span>
+            <div className="flex items-center gap-2 border-r border-border pr-6">
+              <span className="text-xs font-medium text-muted-foreground">🤖 Auto</span>
               <button
                 onClick={() => setModoManual(!modoManual)}
-                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 ${
+                className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 ${
                   modoManual ? 'bg-purple-600' : 'bg-gray-300 dark:bg-gray-600'
                 }`}
+                title={modoManual ? 'Modo Manual: Valores informados manualmente' : 'Modo Automático: Valores calculados automaticamente'}
               >
                 <span
-                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                    modoManual ? 'translate-x-6' : 'translate-x-1'
+                  className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
+                    modoManual ? 'translate-x-5' : 'translate-x-0.5'
                   }`}
                 />
               </button>
-              <span className="text-sm text-muted-foreground">✏️ Manual</span>
+              <span className="text-xs font-medium text-muted-foreground">✏️ Manual</span>
             </div>
             
             {/* Toggle Marcação a Curva/Mercado */}
-            <div className="flex flex-col gap-1">
-              <div className="flex items-center gap-3">
-                <span className="text-sm text-muted-foreground">📊 Curva</span>
-                <button
-                  onClick={async () => {
-                    const novoModo = modoMarcacao === 'curva' ? 'mercado' : 'curva'
-                    setModoMarcacao(novoModo)
-                    localStorage.setItem('investimentos_modo_marcacao', novoModo)
-                    await atualizarModoMarcacao(novoModo)
-                  }}
-                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
-                    modoMarcacao === 'mercado' ? 'bg-blue-600' : 'bg-gray-300 dark:bg-gray-600'
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-medium text-muted-foreground">📊 Curva</span>
+              <button
+                onClick={async () => {
+                  const novoModo = modoMarcacao === 'curva' ? 'mercado' : 'curva'
+                  setModoMarcacao(novoModo)
+                  localStorage.setItem('investimentos_modo_marcacao', novoModo)
+                  await atualizarModoMarcacao(novoModo)
+                }}
+                className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
+                  modoMarcacao === 'mercado' ? 'bg-blue-600' : 'bg-gray-300 dark:bg-gray-600'
+                }`}
+                title={modoMarcacao === 'curva' 
+                  ? 'Marcação a Curva: Valor calculado pela rentabilidade contratada' 
+                  : 'Marcação a Mercado: Preço atual de negociação (Tesouro/VU)'}
+              >
+                <span
+                  className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
+                    modoMarcacao === 'mercado' ? 'translate-x-5' : 'translate-x-0.5'
                   }`}
-                  title={modoMarcacao === 'curva' 
-                    ? 'Marcação a Curva: Valor calculado pela rentabilidade contratada' 
-                    : 'Marcação a Mercado: Preço atual de negociação'}
-                >
-                  <span
-                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                      modoMarcacao === 'mercado' ? 'translate-x-6' : 'translate-x-1'
-                    }`}
-                  />
-                </button>
-                <span className="text-sm text-muted-foreground">💹 Mercado</span>
-              </div>
-              <span className="text-[10px] text-muted-foreground italic">
-                {modoMarcacao === 'curva' 
-                  ? 'Calculado pela rentabilidade contratada' 
-                  : 'Preço atual de negociação (Tesouro/VU)'}
-              </span>
+                />
+              </button>
+              <span className="text-xs font-medium text-muted-foreground">💹 Mercado</span>
             </div>
           </div>
         </div>
