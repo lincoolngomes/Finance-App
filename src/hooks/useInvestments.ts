@@ -569,19 +569,36 @@ export const useInvestments = () => {
       // Taxa já é a taxa efetiva anual
       const taxaAnual = inv.taxa_percentual / 100
       
-      // IMPORTANTE: Usar convenção exata do mercado brasileiro
-      // Diferentes bancos podem usar: dias corridos/360, dias úteis/252, ou dias corridos/365
-      // A maioria usa dias corridos / 360 para pré-fixados (convenção do mercado)
+      // IMPORTANTE: Bancos brasileiros usam diferentes convenções
+      // Vamos tentar a fórmula LINEAR para períodos menores que 1 ano
+      // que é comum em LCIs e produtos de crédito privado
       
-      console.log('📅 Dias para cálculo:', {
-        diasCorridos: diasAplicado,
-        convencao: 'dias corridos / 360 (padrão pré-fixado)'
-      })
+      const anos = diasAplicado / 360
       
-      // Fórmula padrão mercado brasileiro para pré-fixado:
-      // VF = VP × (1 + taxa)^(dias_corridos/360)
-      const fatorRendimento = Math.pow(1 + taxaAnual, diasAplicado / 360)
-      const valorBruto = inv.valor_total * fatorRendimento
+      // Se menos de 1 ano, usar juros SIMPLES (linear)
+      // Se mais de 1 ano, usar juros compostos
+      let valorBruto: number
+      
+      if (anos <= 1) {
+        // Juros simples: VF = VP × (1 + taxa × anos)
+        valorBruto = inv.valor_total * (1 + (taxaAnual * anos))
+        console.log('📊 Usando juros SIMPLES (< 1 ano):', {
+          diasCorridos: diasAplicado,
+          anos: anos.toFixed(4),
+          taxa: (taxaAnual * 100).toFixed(3) + '%',
+          fator: (1 + taxaAnual * anos).toFixed(6)
+        })
+      } else {
+        // Juros compostos: VF = VP × (1 + taxa)^anos
+        const fatorRendimento = Math.pow(1 + taxaAnual, anos)
+        valorBruto = inv.valor_total * fatorRendimento
+        console.log('📊 Usando juros COMPOSTOS (> 1 ano):', {
+          diasCorridos: diasAplicado,
+          anos: anos.toFixed(4),
+          fator: fatorRendimento.toFixed(6)
+        })
+      }
+      
       const rendimentoBruto = valorBruto - inv.valor_total
       
       // Calcular IR
