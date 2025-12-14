@@ -596,7 +596,117 @@ export default function Calendario() {
           </div>
         </CardHeader>
         <CardContent className="p-0">
-          <div className="p-1 sm:p-2 md:p-4">
+          {/* Mobile List View */}
+          <div className="md:hidden">
+            <div className="divide-y">
+              {daysToShow.map(day => {
+                const dayTransactions = getTransactionsForDate(day)
+                if (dayTransactions.length === 0 && viewMode === 'month' && !isSameMonth(day, currentDate)) return null
+                
+                const totalReceitas = dayTransactions.filter(t => t.tipo === 'receita').reduce((sum, t) => sum + (t.valor || 0), 0)
+                const totalDespesas = dayTransactions.filter(t => t.tipo === 'despesa').reduce((sum, t) => sum + Math.abs(t.valor || 0), 0)
+                const isToday = isSameDay(day, new Date())
+
+                return (
+                  <div key={day.toString()} className={`p-3 ${isToday ? 'bg-primary/5' : ''}`}>
+                    {/* Header da Data */}
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <h4 className={`text-sm font-bold ${isToday ? 'text-primary' : ''}`}>
+                          {format(day, 'EEEE, dd/MM', { locale: ptBR })}
+                        </h4>
+                        {isToday && (
+                          <Badge variant="default" className="text-[10px] h-4 px-1.5">Hoje</Badge>
+                        )}
+                        {dayTransactions.length > 0 && (
+                          <Badge variant="secondary" className="text-[10px] h-4 px-1.5">
+                            {dayTransactions.length}
+                          </Badge>
+                        )}
+                      </div>
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        onClick={() => openNewTransaction(day)}
+                        className="h-7 px-2"
+                      >
+                        <Plus className="h-3 w-3" />
+                      </Button>
+                    </div>
+
+                    {/* Resumo Financeiro */}
+                    {(totalReceitas > 0 || totalDespesas > 0) && (
+                      <div className="flex gap-3 mb-2 text-xs">
+                        {totalReceitas > 0 && (
+                          <div className="flex items-center gap-1">
+                            <TrendingUp className="h-3 w-3 text-green-600" />
+                            <span className="font-semibold text-green-600">{formatCurrency(totalReceitas)}</span>
+                          </div>
+                        )}
+                        {totalDespesas > 0 && (
+                          <div className="flex items-center gap-1">
+                            <TrendingDown className="h-3 w-3 text-red-600" />
+                            <span className="font-semibold text-red-600">{formatCurrency(totalDespesas)}</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Lista de Transações */}
+                    {dayTransactions.length > 0 ? (
+                      <div className="space-y-2">
+                        {dayTransactions.map(transaction => (
+                          <div
+                            key={transaction.id}
+                            className={`flex items-center gap-2 p-2 rounded-lg border-l-2 ${
+                              transaction.tipo === 'receita'
+                                ? 'border-l-green-500 bg-green-500/5'
+                                : 'border-l-red-500 bg-red-500/5'
+                            }`}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              openEditTransaction(transaction)
+                            }}
+                          >
+                            <div className="flex-1 min-w-0">
+                              <div className="font-medium text-sm truncate">
+                                {transaction.estabelecimento || 'Sem nome'}
+                              </div>
+                              <div className="text-xs text-muted-foreground truncate">
+                                {transaction.categorias?.nome}
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className={`text-sm font-bold ${
+                                transaction.tipo === 'receita' ? 'text-green-600' : 'text-red-600'
+                              }`}>
+                                {transaction.tipo === 'receita' ? '+' : '-'}
+                                {formatCurrency(Math.abs(transaction.valor || 0))}
+                              </span>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  handleDelete(transaction.id, transaction.estabelecimento)
+                                }}
+                                className="p-1 rounded hover:bg-red-100 dark:hover:bg-red-900/20 text-red-500"
+                              >
+                                <Trash2 className="h-3 w-3" />
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-muted-foreground italic">Nenhuma transação</p>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+
+          {/* Desktop Calendar Grid */}
+          <div className="hidden md:block p-1 sm:p-2 md:p-4">
             {/* Calendar Grid */}
             <div className={`grid gap-0.5 sm:gap-1 md:gap-2 ${
               viewMode === 'month' ? 'grid-cols-7' : 
@@ -745,6 +855,7 @@ export default function Calendario() {
                 </Card>
               )
             })}
+          </div>
           </div>
           </div>
         </CardContent>
