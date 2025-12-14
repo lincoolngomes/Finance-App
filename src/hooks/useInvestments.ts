@@ -188,7 +188,12 @@ export const useInvestments = () => {
               else if (inv.tipo_marcacao === 'mercado' && inv.tipo === 'tesouro_direto') {
                 console.log('🏛️ Calculando por marcação a mercado (Tesouro Direto):', inv.codigo)
                 try {
-                  const resultado = await calcularMarcacaoMercadoTesouro(inv.quantidade, inv.codigo)
+                  // Passar valor_total (valor aplicado) e preco_medio (PU na compra) se disponível
+                  const resultado = await calcularMarcacaoMercadoTesouro(
+                    inv.valor_total, 
+                    inv.codigo,
+                    inv.preco_medio > 0 ? inv.preco_medio : undefined
+                  )
                   if (resultado.precoUnitario) {
                     valor_atual = resultado.valorAtual
                     dadosAdicionais = {

@@ -104,21 +104,44 @@ export async function buscarPrecoTitulo(codigo: string): Promise<number | null> 
 
 /**
  * Calcula valor atual pela marcação a mercado (Tesouro Direto)
+ * @param valorAplicado - Valor total aplicado (não é quantidade de títulos)
+ * @param codigoTitulo - Código do título
+ * @param precoCompra - PU na data da compra (opcional, para cálculo preciso)
  */
 export async function calcularMarcacaoMercadoTesouro(
-  quantidade: number,
-  codigoTitulo: string
+  valorAplicado: number,
+  codigoTitulo: string,
+  precoCompra?: number
 ): Promise<{ valorAtual: number; precoUnitario: number | null }> {
-  const precoUnitario = await buscarPrecoTitulo(codigoTitulo)
+  const precoAtual = await buscarPrecoTitulo(codigoTitulo)
   
-  if (precoUnitario) {
-    const valorAtual = quantidade * precoUnitario
-    console.log('📊 Marcação a Mercado (Tesouro):', {
-      quantidade,
-      precoUnitario,
-      valorAtual
+  if (precoAtual && precoCompra && precoCompra > 0) {
+    // Se temos o PU de compra, calcular quantidade de títulos e valorizar pelo PU atual
+    const quantidadeTitulos = valorAplicado / precoCompra
+    const valorAtual = quantidadeTitulos * precoAtual
+    
+    console.log('📊 Marcação a Mercado (Tesouro - com PU compra):', {
+      valorAplicado,
+      precoCompra,
+      quantidadeTitulos: quantidadeTitulos.toFixed(6),
+      precoAtual,
+      valorAtual: valorAtual.toFixed(2),
+      variacao: ((valorAtual / valorAplicado - 1) * 100).toFixed(2) + '%'
     })
-    return { valorAtual, precoUnitario }
+    
+    return { valorAtual, precoUnitario: precoAtual }
+  } else if (precoAtual) {
+    // Fallback: assumir que quantidade = 1 e valor aplicado é o valor total
+    // Isso funciona se o usuário informou corretamente a quantidade de títulos
+    const valorAtual = valorAplicado * (precoAtual / 1000) // Normalizar por fração
+    
+    console.log('📊 Marcação a Mercado (Tesouro - sem PU compra):', {
+      valorAplicado,
+      precoAtual,
+      valorAtual: valorAtual.toFixed(2)
+    })
+    
+    return { valorAtual, precoUnitario: precoAtual }
   }
 
   console.warn('⚠️ Não foi possível obter preço de mercado, retornando null')

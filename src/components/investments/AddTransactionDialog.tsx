@@ -69,9 +69,24 @@ export const AddTransactionDialog = ({ open, onClose }: AddTransactionDialogProp
       }
 
       // 2. Adicionar transação
-      const qtd = parseFloat(quantidade)
-      const preco = parseValorBR(precoUnitario)
-      const valorTotal = qtd * preco
+      let qtd: number
+      let preco: number
+      let valorTotal: number
+      
+      if (tipoAtivo === 'tesouro_direto' && quantidade !== '1') {
+        // Tesouro com PU de compra informado
+        const puCompra = parseValorBR(quantidade)
+        const valorAplicado = parseValorBR(precoUnitario)
+        qtd = valorAplicado / puCompra // Quantidade de títulos
+        preco = puCompra // PU na compra
+        valorTotal = valorAplicado
+      } else {
+        // Outros tipos ou Tesouro sem PU
+        qtd = parseFloat(quantidade)
+        preco = parseValorBR(precoUnitario)
+        valorTotal = qtd * preco
+      }
+      
       const sucesso = await adicionarTransacao({
         investimento_id: investimento.id,
         tipo_transacao: tipoTransacao,
@@ -368,25 +383,42 @@ export const AddTransactionDialog = ({ open, onClose }: AddTransactionDialogProp
             {/* Para renda fixa, fundos e previdência: usar campo de valor ao invés de quantidade */}
             {['renda_fixa', 'tesouro_direto', 'cri', 'cra', 'debenture', 'fundo', 'previdencia'].includes(tipoAtivo) ? (
               <div className="space-y-4">
-                <div>
-                  <Label htmlFor="valorAplicado">Valor {tipoTransacao === 'compra' ? 'Aplicado' : 'Resgatado'} *</Label>
-                  <Input
-                    id="valorAplicado"
-                    type="text"
-                    placeholder="0,00"
-                    value={precoUnitario}
-                    onChange={(e) => {
-                      const formatted = formatarValorBR(e.target.value)
-                      setPrecoUnitario(formatted)
-                      setQuantidade('1') // Sempre 1 para estes tipos
-                    }}
-                    required
-                  />
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {['renda_fixa', 'tesouro_direto', 'cri', 'cra', 'debenture'].includes(tipoAtivo) && 'Valor total aplicado no investimento'}
-                    {tipoAtivo === 'fundo' && 'Valor aplicado no fundo'}
-                    {tipoAtivo === 'previdencia' && 'Valor da contribuição'}
-                  </p>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="valorAplicado">Valor {tipoTransacao === 'compra' ? 'Aplicado' : 'Resgatado'} *</Label>
+                    <Input
+                      id="valorAplicado"
+                      type="text"
+                      placeholder="0,00"
+                      value={precoUnitario}
+                      onChange={(e) => {
+                        const formatted = formatarValorBR(e.target.value)
+                        setPrecoUnitario(formatted)
+                        setQuantidade('1') // Sempre 1 para estes tipos
+                      }}
+                      required
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {['renda_fixa', 'tesouro_direto', 'cri', 'cra', 'debenture'].includes(tipoAtivo) && 'Valor total aplicado no investimento'}
+                      {tipoAtivo === 'fundo' && 'Valor aplicado no fundo'}
+                      {tipoAtivo === 'previdencia' && 'Valor da contribuição'}
+                    </p>
+                  </div>
+                  {tipoAtivo === 'tesouro_direto' && (
+                    <div>
+                      <Label htmlFor="puCompra">PU na Compra (opcional)</Label>
+                      <Input
+                        id="puCompra"
+                        type="text"
+                        placeholder="0,00"
+                        value={quantidade !== '1' ? quantidade : ''}
+                        onChange={(e) => setQuantidade(formatarValorBR(e.target.value))}
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">
+                        💡 Para marcação a mercado precisa. Se não souber, deixe em branco.
+                      </p>
+                    </div>
+                  )}
                 </div>
               </div>
             ) : (
