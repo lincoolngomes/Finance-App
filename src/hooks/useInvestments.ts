@@ -521,23 +521,34 @@ export const useInvestments = () => {
     const dataAplicacao = new Date(inv.data_aplicacao)
     const dataVencimento = new Date(inv.data_vencimento)
     
-    // Se não passou data de referência, usar o último dia útil do mês de referência
+    // Se não passou data de referência, usar a data atual ou último dia do mês
     let hoje: Date
     if (dataReferencia) {
       hoje = dataReferencia
     } else {
-      // Pegar último dia útil do mês de referência
-      const ultimoDiaDoMes = new Date(mesReferencia.getFullYear(), mesReferencia.getMonth() + 1, 0)
-      const diaSemana = ultimoDiaDoMes.getDay()
+      const agora = new Date()
+      const mesAtual = agora.getMonth()
+      const anoAtual = agora.getFullYear()
+      const mesRef = mesReferencia.getMonth()
+      const anoRef = mesReferencia.getFullYear()
       
-      // Se cair no fim de semana, voltar para sexta-feira
-      if (diaSemana === 0) { // Domingo
-        ultimoDiaDoMes.setDate(ultimoDiaDoMes.getDate() - 2)
-      } else if (diaSemana === 6) { // Sábado
-        ultimoDiaDoMes.setDate(ultimoDiaDoMes.getDate() - 1)
+      // Se o mês de referência é o mês atual, usar a data de hoje
+      if (mesRef === mesAtual && anoRef === anoAtual) {
+        hoje = agora
+      } else {
+        // Caso contrário, usar o último dia útil do mês de referência
+        const ultimoDiaDoMes = new Date(mesReferencia.getFullYear(), mesReferencia.getMonth() + 1, 0)
+        const diaSemana = ultimoDiaDoMes.getDay()
+        
+        // Se cair no fim de semana, voltar para sexta-feira
+        if (diaSemana === 0) { // Domingo
+          ultimoDiaDoMes.setDate(ultimoDiaDoMes.getDate() - 2)
+        } else if (diaSemana === 6) { // Sábado
+          ultimoDiaDoMes.setDate(ultimoDiaDoMes.getDate() - 1)
+        }
+        
+        hoje = ultimoDiaDoMes
       }
-      
-      hoje = ultimoDiaDoMes
     }
     
     const diasAplicado = Math.floor((hoje.getTime() - dataAplicacao.getTime()) / (1000 * 60 * 60 * 24))
