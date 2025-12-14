@@ -627,7 +627,7 @@ export default function Calendario() {
               return (
                 <Card 
                   key={day.toString()} 
-                  className={`min-h-[60px] sm:min-h-[80px] md:min-h-[100px] lg:min-h-[120px] cursor-pointer hover:shadow-lg transition-all duration-200 relative ${
+                  className={`min-h-[50px] sm:min-h-[70px] md:min-h-[100px] lg:min-h-[120px] cursor-pointer hover:shadow-lg transition-all duration-200 relative ${
                     isToday ? 'ring-2 ring-primary' : ''
                   } ${
                     !isCurrentMonth ? 'opacity-50' : ''
@@ -646,44 +646,40 @@ export default function Calendario() {
                   )}
                   <CardContent className="p-0">
                     {/* Header do dia */}
-                    <div className={`p-1 sm:p-2 border-b border-border/50 ${isToday ? 'bg-gradient-to-r from-primary/10 to-transparent' : 'bg-secondary/20'}`}>
+                    <div className={`p-0.5 sm:p-1 md:p-2 border-b border-border/50 ${isToday ? 'bg-gradient-to-r from-primary/10 to-transparent' : 'bg-secondary/20'}`}>
                       <div className="flex items-center justify-between">
-                        <span className={`text-[10px] sm:text-xs md:text-sm font-bold ${isToday ? 'text-primary' : ''}`}>
+                        <span className={`text-xs sm:text-sm md:text-base font-bold ${isToday ? 'text-primary' : ''}`}>
                           {format(day, viewMode === 'day' ? 'EEEE, dd/MM/yyyy' : 'd', { locale: ptBR })}
                         </span>
                         {dayTransactions.length > 0 && (
-                          <Badge variant={isToday ? "default" : "secondary"} className="text-[8px] sm:text-xs h-4 sm:h-5 px-1 sm:px-2">
+                          <Badge variant={isToday ? "default" : "secondary"} className="text-[8px] sm:text-[10px] h-3.5 sm:h-4 md:h-5 px-1 sm:px-1.5">
                             {dayTransactions.length}
                           </Badge>
                         )}
                       </div>
                     </div>
 
-                    <div className="p-1 sm:p-2">
+                    <div className="p-0.5 sm:p-1 md:p-2">
                       {/* Totals */}
                       {(totalReceitas > 0 || totalDespesas > 0) && (
-                        <div className="space-y-0.5 sm:space-y-1 mb-1 sm:mb-2 bg-secondary/30 rounded p-1 sm:p-1.5">
+                        <div className="space-y-0.5 mb-1">
                           {totalReceitas > 0 && (
-                            <div className="flex items-center gap-0.5 sm:gap-1 text-[9px] sm:text-xs">
-                              <div className="w-3 h-3 sm:w-4 sm:h-4 md:w-5 md:h-5 rounded-full bg-green-500/20 flex items-center justify-center flex-shrink-0">
-                                <TrendingUp className="h-2 w-2 sm:h-2.5 sm:w-2.5 md:h-3 md:w-3 text-green-600" />
-                              </div>
+                            <div className="flex items-center justify-center md:justify-start gap-1 text-[8px] sm:text-[10px] md:text-xs">
+                              <TrendingUp className="h-2.5 w-2.5 sm:h-3 sm:w-3 text-green-600 flex-shrink-0" />
                               <span className="font-semibold text-green-600 truncate">{formatCurrency(totalReceitas)}</span>
                             </div>
                           )}
                           {totalDespesas > 0 && (
-                            <div className="flex items-center gap-0.5 sm:gap-1 text-[9px] sm:text-xs">
-                              <div className="w-3 h-3 sm:w-4 sm:h-4 md:w-5 md:h-5 rounded-full bg-red-500/20 flex items-center justify-center flex-shrink-0">
-                                <TrendingDown className="h-2 w-2 sm:h-2.5 sm:w-2.5 md:h-3 md:w-3 text-red-600" />
-                              </div>
+                            <div className="flex items-center justify-center md:justify-start gap-1 text-[8px] sm:text-[10px] md:text-xs">
+                              <TrendingDown className="h-2.5 w-2.5 sm:h-3 sm:w-3 text-red-600 flex-shrink-0" />
                               <span className="font-semibold text-red-600 truncate">{formatCurrency(totalDespesas)}</span>
                             </div>
                           )}
                         </div>
                       )}
 
-                      {/* Transactions List */}
-                      <div className="space-y-0.5 sm:space-y-1 max-h-20 sm:max-h-28 md:max-h-32 overflow-y-auto">
+                      {/* Transactions List - Hidden on mobile, shown on larger screens */}
+                      <div className="hidden md:block space-y-0.5 sm:space-y-1 max-h-20 sm:max-h-28 md:max-h-32 overflow-y-auto">
                         {dayTransactions.map(transaction => (
                           <div 
                             key={transaction.id}
