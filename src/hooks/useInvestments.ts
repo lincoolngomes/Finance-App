@@ -578,19 +578,21 @@ export const useInvestments = () => {
       // Se menos de 1 ano, usar juros SIMPLES (linear)
       // Se mais de 1 ano, usar juros compostos
       let valorBruto: number
+      let fatorRendimento: number
       
       if (anos <= 1) {
         // Juros simples: VF = VP × (1 + taxa × anos)
-        valorBruto = inv.valor_total * (1 + (taxaAnual * anos))
+        fatorRendimento = 1 + (taxaAnual * anos)
+        valorBruto = inv.valor_total * fatorRendimento
         console.log('📊 Usando juros SIMPLES (< 1 ano):', {
           diasCorridos: diasAplicado,
           anos: anos.toFixed(4),
           taxa: (taxaAnual * 100).toFixed(3) + '%',
-          fator: (1 + taxaAnual * anos).toFixed(6)
+          fator: fatorRendimento.toFixed(6)
         })
       } else {
         // Juros compostos: VF = VP × (1 + taxa)^anos
-        const fatorRendimento = Math.pow(1 + taxaAnual, anos)
+        fatorRendimento = Math.pow(1 + taxaAnual, anos)
         valorBruto = inv.valor_total * fatorRendimento
         console.log('📊 Usando juros COMPOSTOS (> 1 ano):', {
           diasCorridos: diasAplicado,
