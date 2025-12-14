@@ -366,7 +366,7 @@ export const AddTransactionDialog = ({ open, onClose }: AddTransactionDialogProp
             <h3 className="font-semibold text-teal-600">Dados da Transação</h3>
             
             {/* Para renda fixa, fundos e previdência: usar campo de valor ao invés de quantidade */}
-            {['renda_fixa', 'fundo', 'previdencia'].includes(tipoAtivo) ? (
+            {['renda_fixa', 'tesouro_direto', 'cri', 'cra', 'debenture', 'fundo', 'previdencia'].includes(tipoAtivo) ? (
               <div className="space-y-4">
                 <div>
                   <Label htmlFor="valorAplicado">Valor {tipoTransacao === 'compra' ? 'Aplicado' : 'Resgatado'} *</Label>
@@ -418,7 +418,7 @@ export const AddTransactionDialog = ({ open, onClose }: AddTransactionDialogProp
               </div>
             )}
 
-            {tipoAtivo !== 'renda_fixa' && (
+            {!['renda_fixa', 'tesouro_direto', 'cri', 'cra', 'debenture', 'fundo', 'previdencia'].includes(tipoAtivo) && (
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="taxa">Taxa/Corretagem</Label>
