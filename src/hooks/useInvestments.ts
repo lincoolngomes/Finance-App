@@ -185,7 +185,7 @@ export const useInvestments = () => {
                 }
               }
               // 2. MARCAÇÃO A MERCADO: Tesouro Direto
-              else if (inv.tipo_marcacao === 'mercado' && inv.codigo?.toLowerCase().includes('tesouro')) {
+              else if (inv.tipo_marcacao === 'mercado' && inv.tipo === 'tesouro_direto') {
                 console.log('🏛️ Calculando por marcação a mercado (Tesouro Direto):', inv.codigo)
                 try {
                   const resultado = await calcularMarcacaoMercadoTesouro(inv.quantidade, inv.codigo)
