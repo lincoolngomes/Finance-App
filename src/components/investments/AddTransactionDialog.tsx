@@ -245,63 +245,35 @@ export const AddTransactionDialog = ({ open, onClose }: AddTransactionDialogProp
             <div className="space-y-4 border-t pt-4">
               <h3 className="font-semibold text-teal-600">Características da Renda Fixa</h3>
               
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="tipoRentabilidade">Tipo de Rentabilidade *</Label>
-                  <Select value={tipoRentabilidade} onValueChange={(v: any) => setTipoRentabilidade(v)}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {tipoAtivo === 'tesouro_direto' ? (
-                        <>
-                          <SelectItem value="pos">Tesouro Selic (pós-fixado)</SelectItem>
-                          <SelectItem value="pre">Tesouro Prefixado</SelectItem>
-                          <SelectItem value="ipca">Tesouro IPCA+ (híbrido)</SelectItem>
-                        </>
-                      ) : (
-                        <>
-                          <SelectItem value="pos">Pós-fixado (CDI/SELIC)</SelectItem>
-                          <SelectItem value="pre">Pré-fixado (% ao ano)</SelectItem>
-                          <SelectItem value="ipca">IPCA+ (% + inflação)</SelectItem>
-                          <SelectItem value="hibrido">Híbrido/Outro</SelectItem>
-                        </>
-                      )}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div>
-                  <Label htmlFor="indexador">Indexador *</Label>
-                  <Select value={indexador} onValueChange={setIndexador}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {tipoAtivo === 'tesouro_direto' ? (
-                        <>
-                          <SelectItem value="selic">SELIC</SelectItem>
-                          <SelectItem value="ipca">IPCA</SelectItem>
-                          <SelectItem value="prefixado">Prefixado</SelectItem>
-                        </>
-                      ) : (
-                        <>
-                          <SelectItem value="cdi">CDI</SelectItem>
-                          <SelectItem value="selic">SELIC</SelectItem>
-                          <SelectItem value="ipca">IPCA</SelectItem>
-                          <SelectItem value="prefixado">Prefixado</SelectItem>
-                        </>
-                      )}
-                    </SelectContent>
-                  </Select>
-                </div>
+              <div>
+                <Label htmlFor="tipoRentabilidade">Tipo de Rentabilidade *</Label>
+                <Select value={tipoRentabilidade} onValueChange={(v: any) => setTipoRentabilidade(v)}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {tipoAtivo === 'tesouro_direto' ? (
+                      <>
+                        <SelectItem value="pos">🏛️ Tesouro Selic (pós-fixado SELIC)</SelectItem>
+                        <SelectItem value="pre">📊 Tesouro Prefixado</SelectItem>
+                        <SelectItem value="ipca">📈 Tesouro IPCA+ (IPCA + taxa fixa)</SelectItem>
+                      </>
+                    ) : (
+                      <>
+                        <SelectItem value="pos">📈 Pós-fixado (CDI)</SelectItem>
+                        <SelectItem value="pre">📊 Pré-fixado (taxa fixa)</SelectItem>
+                        <SelectItem value="ipca">📉 IPCA+ (IPCA + taxa fixa)</SelectItem>
+                        <SelectItem value="hibrido">🔀 Híbrido/Outro</SelectItem>
+                      </>
+                    )}
+                  </SelectContent>
+                </Select>
               </div>
 
               <div>
                 <Label htmlFor="taxaPercentual">
-                  {tipoRentabilidade === 'pos' && indexador === 'cdi' ? 'Taxa (% do CDI) *' : 
-                   tipoRentabilidade === 'pos' && indexador === 'selic' && tipoAtivo === 'tesouro_direto' ? 'Spread (% a.a. - ágio/deságio) *' :
-                   tipoRentabilidade === 'pos' && indexador === 'selic' ? 'Taxa (% da SELIC) *' : 
+                  {tipoAtivo === 'tesouro_direto' && tipoRentabilidade === 'pos' ? 'Spread (% a.a. - ágio/deságio) *' :
+                   tipoRentabilidade === 'pos' ? 'Taxa (% do CDI) *' : 
                    tipoRentabilidade === 'ipca' ? 'Taxa Prefixada (% a.a. + IPCA) *' : 
                    'Taxa (% ao ano) *'}
                 </Label>
@@ -310,9 +282,8 @@ export const AddTransactionDialog = ({ open, onClose }: AddTransactionDialogProp
                   type="number"
                   step="0.01"
                   placeholder={
-                    tipoRentabilidade === 'pos' && indexador === 'cdi' ? 'Ex: 120.00 (120% do CDI)' :
-                    tipoRentabilidade === 'pos' && indexador === 'selic' && tipoAtivo === 'tesouro_direto' ? 'Ex: 0.15 ou -0.10 (SELIC + spread)' :
-                    tipoRentabilidade === 'pos' && indexador === 'selic' ? 'Ex: 100.00 (100% da SELIC)' :
+                    tipoAtivo === 'tesouro_direto' && tipoRentabilidade === 'pos' ? 'Ex: 0.15 ou -0.10 (SELIC + spread)' :
+                    tipoRentabilidade === 'pos' ? 'Ex: 120.00 (120% do CDI)' :
                     tipoRentabilidade === 'ipca' ? 'Ex: 6.50 (IPCA + 6,5%)' : 
                     'Ex: 13.50'
                   }
@@ -320,7 +291,7 @@ export const AddTransactionDialog = ({ open, onClose }: AddTransactionDialogProp
                   onChange={(e) => setTaxaPercentual(e.target.value)}
                   required
                 />
-                {tipoAtivo === 'tesouro_direto' && tipoRentabilidade === 'pos' && indexador === 'selic' && (
+                {tipoAtivo === 'tesouro_direto' && tipoRentabilidade === 'pos' && (
                   <p className="text-xs text-muted-foreground mt-1">
                     💡 Informe o ágio/deságio em % a.a. (ex: 0.15 para SELIC+0.15%, -0.10 para SELIC-0.10%)
                   </p>
