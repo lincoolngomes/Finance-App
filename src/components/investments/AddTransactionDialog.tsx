@@ -278,10 +278,20 @@ export const AddTransactionDialog = ({ open, onClose }: AddTransactionDialogProp
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="cdi">CDI</SelectItem>
-                      <SelectItem value="selic">SELIC</SelectItem>
-                      <SelectItem value="ipca">IPCA</SelectItem>
-                      <SelectItem value="prefixado">Prefixado</SelectItem>
+                      {tipoAtivo === 'tesouro_direto' ? (
+                        <>
+                          <SelectItem value="selic">SELIC</SelectItem>
+                          <SelectItem value="ipca">IPCA</SelectItem>
+                          <SelectItem value="prefixado">Prefixado</SelectItem>
+                        </>
+                      ) : (
+                        <>
+                          <SelectItem value="cdi">CDI</SelectItem>
+                          <SelectItem value="selic">SELIC</SelectItem>
+                          <SelectItem value="ipca">IPCA</SelectItem>
+                          <SelectItem value="prefixado">Prefixado</SelectItem>
+                        </>
+                      )}
                     </SelectContent>
                   </Select>
                 </div>
