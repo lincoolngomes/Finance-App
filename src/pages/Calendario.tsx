@@ -513,17 +513,17 @@ export default function Calendario() {
   }
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-2 sm:space-y-4 md:space-y-6 p-2 sm:p-4 md:p-6">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">📅 Calendário</h1>
-          <p className="text-muted-foreground">
+          <h1 className="text-xl sm:text-2xl md:text-3xl font-bold tracking-tight">📅 Calendário</h1>
+          <p className="text-xs sm:text-sm text-muted-foreground hidden sm:block">
             Visualize e gerencie suas transações por data
           </p>
         </div>
 
-        <Button onClick={() => openNewTransaction()} className="gap-2">
+        <Button onClick={() => openNewTransaction()} className="gap-2 w-full sm:w-auto">
           <Plus className="h-4 w-4" />
           Nova Transação
         </Button>
@@ -543,28 +543,28 @@ export default function Calendario() {
 
       {/* Controls */}
       <Card>
-        <CardHeader>
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-center gap-2 w-full sm:w-auto">
-              <Button variant="outline" size="sm" onClick={() => navigateDate('prev')}>
+        <CardHeader className="p-2 sm:p-4 md:p-6">
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center justify-between gap-2">
+              <Button variant="outline" size="sm" onClick={() => navigateDate('prev')} className="h-8">
                 <ChevronLeft className="h-4 w-4" />
               </Button>
-              <h3 className="text-base sm:text-lg font-semibold">
+              <h3 className="text-sm sm:text-base md:text-lg font-semibold flex-1 text-center">
                 {viewMode === 'month' && format(currentDate, 'MMMM yyyy', { locale: ptBR })}
-                {viewMode === 'week' && `Semana de ${format(getViewPeriod().start, 'dd/MM')} - ${format(getViewPeriod().end, 'dd/MM/yyyy')}`}
+                {viewMode === 'week' && `${format(getViewPeriod().start, 'dd/MM')} - ${format(getViewPeriod().end, 'dd/MM')}`}
                 {viewMode === 'day' && format(currentDate, 'dd/MM/yyyy', { locale: ptBR })}
               </h3>
-              <Button variant="outline" size="sm" onClick={() => navigateDate('next')}>
+              <Button variant="outline" size="sm" onClick={() => navigateDate('next')} className="h-8">
                 <ChevronRight className="h-4 w-4" />
               </Button>
             </div>
 
-            <div className="flex gap-2 w-full sm:w-auto">
+            <div className="flex gap-1 sm:gap-2">
               <Button 
                 variant={viewMode === 'day' ? 'default' : 'outline'} 
                 size="sm"
                 onClick={() => setViewMode('day')}
-                className="w-full sm:w-auto"
+                className="flex-1 h-8 text-xs sm:text-sm"
               >
                 Dia
               </Button>
@@ -572,7 +572,7 @@ export default function Calendario() {
                 variant={viewMode === 'week' ? 'default' : 'outline'} 
                 size="sm"
                 onClick={() => setViewMode('week')}
-                className="w-full sm:w-auto"
+                className="flex-1 h-8 text-xs sm:text-sm"
               >
                 Semana
               </Button>
@@ -580,7 +580,7 @@ export default function Calendario() {
                 variant={viewMode === 'month' ? 'default' : 'outline'} 
                 size="sm"
                 onClick={() => setViewMode('month')}
-                className="w-full sm:w-auto"
+                className="flex-1 h-8 text-xs sm:text-sm"
               >
                 Mês
               </Button>
@@ -588,7 +588,7 @@ export default function Calendario() {
                 variant="outline" 
                 size="sm"
                 onClick={() => setCurrentDate(new Date())}
-                className="w-full sm:w-auto"
+                className="flex-1 h-8 text-xs sm:text-sm"
               >
                 Hoje
               </Button>
@@ -596,9 +596,9 @@ export default function Calendario() {
           </div>
         </CardHeader>
         <CardContent className="p-0">
-          <div className="p-2 sm:p-4 md:p-6">
+          <div className="p-1 sm:p-2 md:p-4">
             {/* Calendar Grid */}
-            <div className={`grid gap-1 sm:gap-2 ${
+            <div className={`grid gap-0.5 sm:gap-1 md:gap-2 ${
               viewMode === 'month' ? 'grid-cols-7' : 
               viewMode === 'week' ? 'grid-cols-7' : 
               'grid-cols-1'
@@ -607,7 +607,7 @@ export default function Calendario() {
             {(viewMode === 'month' || viewMode === 'week') && (
               <>
                 {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map((day, index) => (
-                  <div key={day} className="p-1 sm:p-2 text-center font-semibold text-muted-foreground text-[10px] sm:text-xs md:text-sm">
+                  <div key={day} className="p-0.5 sm:p-1 md:p-2 text-center font-semibold text-muted-foreground text-[9px] sm:text-xs md:text-sm">
                     <span className="hidden sm:inline">{day}</span>
                     <span className="sm:hidden">{['D', 'S', 'T', 'Q', 'Q', 'S', 'S'][index]}</span>
                   </div>
@@ -627,7 +627,7 @@ export default function Calendario() {
               return (
                 <Card 
                   key={day.toString()} 
-                  className={`min-h-[50px] sm:min-h-[70px] md:min-h-[100px] lg:min-h-[120px] cursor-pointer hover:shadow-lg transition-all duration-200 relative ${
+                  className={`min-h-[45px] sm:min-h-[60px] md:min-h-[90px] lg:min-h-[120px] cursor-pointer hover:shadow-lg transition-all duration-200 relative ${
                     isToday ? 'ring-2 ring-primary' : ''
                   } ${
                     !isCurrentMonth ? 'opacity-50' : ''
@@ -647,12 +647,12 @@ export default function Calendario() {
                   <CardContent className="p-0">
                     {/* Header do dia */}
                     <div className={`p-0.5 sm:p-1 md:p-2 border-b border-border/50 ${isToday ? 'bg-gradient-to-r from-primary/10 to-transparent' : 'bg-secondary/20'}`}>
-                      <div className="flex items-center justify-between">
-                        <span className={`text-xs sm:text-sm md:text-base font-bold ${isToday ? 'text-primary' : ''}`}>
+                      <div className="flex items-center justify-between gap-1">
+                        <span className={`text-[11px] sm:text-sm md:text-base font-bold ${isToday ? 'text-primary' : ''}`}>
                           {format(day, viewMode === 'day' ? 'EEEE, dd/MM/yyyy' : 'd', { locale: ptBR })}
                         </span>
                         {dayTransactions.length > 0 && (
-                          <Badge variant={isToday ? "default" : "secondary"} className="text-[8px] sm:text-[10px] h-3.5 sm:h-4 md:h-5 px-1 sm:px-1.5">
+                          <Badge variant={isToday ? "default" : "secondary"} className="text-[7px] sm:text-[9px] h-3 sm:h-4 md:h-5 px-0.5 sm:px-1">
                             {dayTransactions.length}
                           </Badge>
                         )}
@@ -662,16 +662,16 @@ export default function Calendario() {
                     <div className="p-0.5 sm:p-1 md:p-2">
                       {/* Totals */}
                       {(totalReceitas > 0 || totalDespesas > 0) && (
-                        <div className="space-y-0.5 mb-1">
+                        <div className="space-y-0 sm:space-y-0.5 mb-0.5 sm:mb-1">
                           {totalReceitas > 0 && (
-                            <div className="flex items-center justify-center md:justify-start gap-1 text-[8px] sm:text-[10px] md:text-xs">
-                              <TrendingUp className="h-2.5 w-2.5 sm:h-3 sm:w-3 text-green-600 flex-shrink-0" />
+                            <div className="flex items-center justify-center md:justify-start gap-0.5 sm:gap-1 text-[7px] sm:text-[9px] md:text-xs">
+                              <TrendingUp className="h-2 w-2 sm:h-2.5 sm:w-2.5 md:h-3 md:w-3 text-green-600 flex-shrink-0" />
                               <span className="font-semibold text-green-600 truncate">{formatCurrency(totalReceitas)}</span>
                             </div>
                           )}
                           {totalDespesas > 0 && (
-                            <div className="flex items-center justify-center md:justify-start gap-1 text-[8px] sm:text-[10px] md:text-xs">
-                              <TrendingDown className="h-2.5 w-2.5 sm:h-3 sm:w-3 text-red-600 flex-shrink-0" />
+                            <div className="flex items-center justify-center md:justify-start gap-0.5 sm:gap-1 text-[7px] sm:text-[9px] md:text-xs">
+                              <TrendingDown className="h-2 w-2 sm:h-2.5 sm:w-2.5 md:h-3 md:w-3 text-red-600 flex-shrink-0" />
                               <span className="font-semibold text-red-600 truncate">{formatCurrency(totalDespesas)}</span>
                             </div>
                           )}
