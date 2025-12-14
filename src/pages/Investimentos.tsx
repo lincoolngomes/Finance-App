@@ -44,6 +44,11 @@ const TIPO_EMOJIS: Record<string, string> = {
   previdencia: '🏦'
 }
 
+// Função helper para verificar se é renda fixa
+const isRendaFixa = (tipo: string) => {
+  return ['renda_fixa', 'tesouro_direto', 'cri', 'cra', 'debenture'].includes(tipo)
+}
+
 // Função helper para formatar datas corretamente (sem problemas de UTC)
 const formatarData = (dataString: string) => {
   const [ano, mes, dia] = dataString.split('T')[0].split('-')
@@ -148,7 +153,7 @@ export default function Investimentos() {
     investimentosAgrupados.forEach(grupo => {
       let categoriaKey = ''
       
-      if (grupo.tipo === 'renda_fixa') {
+      if (isRendaFixa(grupo.tipo)) {
         // Para renda fixa: Tipo > Subtipo (pós/pré/ipca) > Isenção
         const subtipo = grupo.tipo_rentabilidade || 'outros'
         const isencao = grupo.isento_ir ? 'isento' : 'tributado'
@@ -207,7 +212,7 @@ export default function Investimentos() {
   // Função para atualizar tipo de marcação de investimentos de renda fixa
   const atualizarModoMarcacao = async (novoModo: 'curva' | 'mercado') => {
     try {
-      const investimentosRendaFixa = investimentos.filter(inv => inv.tipo === 'renda_fixa')
+      const investimentosRendaFixa = investimentos.filter(inv => isRendaFixa(inv.tipo))
       
       if (investimentosRendaFixa.length === 0) {
         console.log('ℹ️ Nenhum investimento de renda fixa para atualizar')
@@ -311,7 +316,7 @@ export default function Investimentos() {
         let saldoTotal = 0
         
         for (const inv of investimentosDoMes) {
-          if (inv.tipo === 'renda_fixa' && inv.data_aplicacao) {
+          if (isRendaFixa(inv.tipo) && inv.data_aplicacao) {
             // Para o mês atual (i === 0), usar o valor já calculado
             if (i === 0) {
               saldoTotal += inv.valor_atual || inv.valor_total
@@ -880,10 +885,10 @@ export default function Investimentos() {
                             {grupo.hasManual && (
                               <span className="text-xs bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300 px-2 py-0.5 rounded">✏️ Manual</span>
                             )}
-                            {grupo.tipo === 'renda_fixa' && grupo.items[0]?.tipo_marcacao === 'mercado' && (
+                            {isRendaFixa(grupo.tipo) && grupo.items[0]?.tipo_marcacao === 'mercado' && (
                               <span className="text-xs bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded">💹 Mercado</span>
                             )}
-                            {grupo.tipo === 'renda_fixa' && grupo.items[0]?.tipo_marcacao === 'curva' && (
+                            {isRendaFixa(grupo.tipo) && grupo.items[0]?.tipo_marcacao === 'curva' && (
                               <span className="text-xs bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 px-2 py-0.5 rounded">📊 Curva</span>
                             )}
                           </div>
@@ -892,7 +897,7 @@ export default function Investimentos() {
                           <div className="text-foreground font-medium">{grupo.nome}</div>
                           <div className="text-xs text-muted-foreground mt-0.5">
                             {grupo.instituicao || ''}
-                            {grupo.tipo === 'renda_fixa' && primeiroItem.taxa_percentual && (
+                            {isRendaFixa(grupo.tipo) && primeiroItem.taxa_percentual && (
                               <>
                                 {grupo.instituicao && ' • '}
                                 <span className="font-semibold text-teal-600 dark:text-teal-400">
@@ -907,12 +912,12 @@ export default function Investimentos() {
                         <td className="py-3 px-4">
                           <div className="space-y-1">
                             <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-teal-100 dark:bg-teal-900 text-teal-700 dark:text-teal-100">
-                              {grupo.tipo === 'renda_fixa' 
+                              {isRendaFixa(grupo.tipo) 
                                 ? primeiroItem.tipo_rentabilidade === 'pos' ? 'RF Pós-fixada' : primeiroItem.tipo_rentabilidade === 'pre' ? 'RF Pré-fixada' : primeiroItem.tipo_rentabilidade === 'ipca' ? 'RF Híbrida' : 'Renda Fixa'
                                 : TIPO_LABELS[grupo.tipo]
                               }
                             </span>
-                            {grupo.tipo === 'renda_fixa' && (
+                            {isRendaFixa(grupo.tipo) && (
                               <div className="text-xs text-muted-foreground">
                                 {primeiroItem.isento_ir ? '✅ Isento IR' : '📊 Tributável'}
                               </div>
@@ -920,7 +925,7 @@ export default function Investimentos() {
                           </div>
                         </td>
                         <td className="py-3 px-4">
-                          {primeiroItem.tipo === 'renda_fixa' && primeiroItem.taxa_percentual ? (
+                          {isRendaFixa(primeiroItem.tipo) && primeiroItem.taxa_percentual ? (
                             <div className="text-sm">
                               <div className="flex items-center gap-1 text-foreground font-semibold">
                                 {primeiroItem.tipo_rentabilidade === 'pos' && primeiroItem.indexador === 'cdi' && (
@@ -1102,7 +1107,7 @@ export default function Investimentos() {
                               <span className="text-xs text-muted-foreground">-</span>
                             </td>
                             <td className="py-2 px-4">
-                              {inv.tipo === 'renda_fixa' && inv.data_vencimento ? (
+                              {isRendaFixa(inv.tipo) && inv.data_vencimento ? (
                                 <div className="text-xs">
                                   {inv.taxa_percentual && (
                                     <div className="font-semibold text-teal-600 dark:text-teal-400 mb-0.5">
