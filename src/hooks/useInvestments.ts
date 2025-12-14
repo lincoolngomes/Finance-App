@@ -569,34 +569,18 @@ export const useInvestments = () => {
       // Taxa já é a taxa efetiva anual
       const taxaAnual = inv.taxa_percentual / 100
       
-      // IMPORTANTE: Bancos usam dias ÚTEIS (252 dias úteis no ano)
-      // Precisamos contar apenas dias úteis entre as datas
-      const contarDiasUteis = (dataInicio: Date, dataFim: Date): number => {
-        let count = 0
-        const current = new Date(dataInicio)
-        
-        while (current <= dataFim) {
-          const diaSemana = current.getDay()
-          // 0 = Domingo, 6 = Sábado
-          if (diaSemana !== 0 && diaSemana !== 6) {
-            count++
-          }
-          current.setDate(current.getDate() + 1)
-        }
-        
-        return count
-      }
-      
-      const diasUteis = contarDiasUteis(dataAplicacao, hoje)
+      // IMPORTANTE: Usar convenção exata do mercado brasileiro
+      // Diferentes bancos podem usar: dias corridos/360, dias úteis/252, ou dias corridos/365
+      // A maioria usa dias corridos / 360 para pré-fixados (convenção do mercado)
       
       console.log('📅 Dias para cálculo:', {
         diasCorridos: diasAplicado,
-        diasUteis: diasUteis,
-        usando: 'dias úteis (padrão bancário)'
+        convencao: 'dias corridos / 360 (padrão pré-fixado)'
       })
       
-      // Calcular usando juros compostos por dias ÚTEIS (252 dias úteis no ano)
-      const fatorRendimento = Math.pow(1 + taxaAnual, diasUteis / 252)
+      // Fórmula padrão mercado brasileiro para pré-fixado:
+      // VF = VP × (1 + taxa)^(dias_corridos/360)
+      const fatorRendimento = Math.pow(1 + taxaAnual, diasAplicado / 360)
       const valorBruto = inv.valor_total * fatorRendimento
       const rendimentoBruto = valorBruto - inv.valor_total
       
@@ -616,7 +600,8 @@ export const useInvestments = () => {
       }
       
       console.log('✅ PRÉ-FIXADO calculado:', {
-        diasUteis: diasUteis,
+        diasCorridos: diasAplicado,
+        convencao: '360',
         fatorRendimento: fatorRendimento.toFixed(6),
         valorBruto: valorBruto.toFixed(2),
         rendimentoBruto: rendimentoBruto.toFixed(2),
