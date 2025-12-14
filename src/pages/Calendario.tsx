@@ -596,9 +596,9 @@ export default function Calendario() {
           </div>
         </CardHeader>
         <CardContent className="p-0">
-          <div className="p-4 sm:p-6">
+          <div className="p-2 sm:p-4 md:p-6">
             {/* Calendar Grid */}
-            <div className={`grid gap-2 ${
+            <div className={`grid gap-1 sm:gap-2 ${
               viewMode === 'month' ? 'grid-cols-7' : 
               viewMode === 'week' ? 'grid-cols-7' : 
               'grid-cols-1'
@@ -606,9 +606,10 @@ export default function Calendario() {
             {/* Headers */}
             {(viewMode === 'month' || viewMode === 'week') && (
               <>
-                {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map(day => (
-                  <div key={day} className="p-2 text-center font-semibold text-muted-foreground text-xs sm:text-base">
-                    {day}
+                {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map((day, index) => (
+                  <div key={day} className="p-1 sm:p-2 text-center font-semibold text-muted-foreground text-[10px] sm:text-xs md:text-sm">
+                    <span className="hidden sm:inline">{day}</span>
+                    <span className="sm:hidden">{['D', 'S', 'T', 'Q', 'Q', 'S', 'S'][index]}</span>
                   </div>
                 ))}
               </>
@@ -626,7 +627,7 @@ export default function Calendario() {
               return (
                 <Card 
                   key={day.toString()} 
-                  className={`min-h-[80px] sm:min-h-[100px] lg:min-h-[120px] cursor-pointer hover:shadow-lg transition-all duration-200 relative ${
+                  className={`min-h-[60px] sm:min-h-[80px] md:min-h-[100px] lg:min-h-[120px] cursor-pointer hover:shadow-lg transition-all duration-200 relative ${
                     isToday ? 'ring-2 ring-primary' : ''
                   } ${
                     !isCurrentMonth ? 'opacity-50' : ''
@@ -645,44 +646,44 @@ export default function Calendario() {
                   )}
                   <CardContent className="p-0">
                     {/* Header do dia */}
-                    <div className={`p-2 border-b border-border/50 ${isToday ? 'bg-gradient-to-r from-primary/10 to-transparent' : 'bg-secondary/20'}`}>
+                    <div className={`p-1 sm:p-2 border-b border-border/50 ${isToday ? 'bg-gradient-to-r from-primary/10 to-transparent' : 'bg-secondary/20'}`}>
                       <div className="flex items-center justify-between">
-                        <span className={`text-xs sm:text-sm font-bold ${isToday ? 'text-primary' : ''}`}>
+                        <span className={`text-[10px] sm:text-xs md:text-sm font-bold ${isToday ? 'text-primary' : ''}`}>
                           {format(day, viewMode === 'day' ? 'EEEE, dd/MM/yyyy' : 'd', { locale: ptBR })}
                         </span>
                         {dayTransactions.length > 0 && (
-                          <Badge variant={isToday ? "default" : "secondary"} className="text-xs">
+                          <Badge variant={isToday ? "default" : "secondary"} className="text-[8px] sm:text-xs h-4 sm:h-5 px-1 sm:px-2">
                             {dayTransactions.length}
                           </Badge>
                         )}
                       </div>
                     </div>
 
-                    <div className="p-2">
+                    <div className="p-1 sm:p-2">
                       {/* Totals */}
                       {(totalReceitas > 0 || totalDespesas > 0) && (
-                        <div className="space-y-1 mb-2 bg-secondary/30 rounded p-1.5">
+                        <div className="space-y-0.5 sm:space-y-1 mb-1 sm:mb-2 bg-secondary/30 rounded p-1 sm:p-1.5">
                           {totalReceitas > 0 && (
-                            <div className="flex items-center gap-1 text-xs">
-                              <div className="w-5 h-5 rounded-full bg-green-500/20 flex items-center justify-center">
-                                <TrendingUp className="h-3 w-3 text-green-600" />
+                            <div className="flex items-center gap-0.5 sm:gap-1 text-[9px] sm:text-xs">
+                              <div className="w-3 h-3 sm:w-4 sm:h-4 md:w-5 md:h-5 rounded-full bg-green-500/20 flex items-center justify-center flex-shrink-0">
+                                <TrendingUp className="h-2 w-2 sm:h-2.5 sm:w-2.5 md:h-3 md:w-3 text-green-600" />
                               </div>
-                              <span className="font-semibold text-green-600">{formatCurrency(totalReceitas)}</span>
+                              <span className="font-semibold text-green-600 truncate">{formatCurrency(totalReceitas)}</span>
                             </div>
                           )}
                           {totalDespesas > 0 && (
-                            <div className="flex items-center gap-1 text-xs">
-                              <div className="w-5 h-5 rounded-full bg-red-500/20 flex items-center justify-center">
-                                <TrendingDown className="h-3 w-3 text-red-600" />
+                            <div className="flex items-center gap-0.5 sm:gap-1 text-[9px] sm:text-xs">
+                              <div className="w-3 h-3 sm:w-4 sm:h-4 md:w-5 md:h-5 rounded-full bg-red-500/20 flex items-center justify-center flex-shrink-0">
+                                <TrendingDown className="h-2 w-2 sm:h-2.5 sm:w-2.5 md:h-3 md:w-3 text-red-600" />
                               </div>
-                              <span className="font-semibold text-red-600">{formatCurrency(totalDespesas)}</span>
+                              <span className="font-semibold text-red-600 truncate">{formatCurrency(totalDespesas)}</span>
                             </div>
                           )}
                         </div>
                       )}
 
                       {/* Transactions List */}
-                      <div className="space-y-1 max-h-32 overflow-y-auto">
+                      <div className="space-y-0.5 sm:space-y-1 max-h-20 sm:max-h-28 md:max-h-32 overflow-y-auto">
                         {dayTransactions.map(transaction => (
                           <div 
                             key={transaction.id}
