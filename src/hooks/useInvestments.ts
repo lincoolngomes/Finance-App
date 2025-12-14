@@ -723,11 +723,13 @@ export const useInvestments = () => {
       
       if (inv.indexador === 'cdi' || inv.indexador === 'selic') {
         // Buscar CDI REAL acumulado do Banco Central (retorna fator composto)
+        // Nota: API do BCB usa mesma série para CDI e SELIC (série 12)
         try {
           const fatorCDI = await buscarCDIAcumulado(dataAplicacao, hoje)
           
           console.log('🔍 DADOS DO INVESTIMENTO:', {
             codigo: inv.codigo,
+            indexador: inv.indexador,
             taxa_percentual_bruto: inv.taxa_percentual,
             tipo: typeof inv.taxa_percentual,
             valorInvestido: inv.valor_total,
@@ -736,11 +738,32 @@ export const useInvestments = () => {
             diasAplicado
           })
           
-          // FÓRMULA CORRETA (testada com extrato do banco): Linear
-          // valorBruto = valorInicial × (1 + (rendimentoCDI × percentualContratado))
-          const rendimentoCDI = fatorCDI - 1 // Ex: 1.384160 - 1 = 0.384160 (38.416%)
-          const percentualContratado = inv.taxa_percentual / 100 // Ex: 101/100 = 1.01
-          const valorBruto = inv.valor_total * (1 + (rendimentoCDI * percentualContratado))
+          let valorBruto: number
+          
+          if (inv.indexador === 'selic' && inv.tipo === 'tesouro_direto') {
+            // Tesouro Selic: SELIC + spread (taxa já é o spread em % a.a.)
+            // Fórmula: VF = VP × fatorSELIC × (1 + spread)^(dias/365)
+            const spread = inv.taxa_percentual / 100 // Ex: 0.15 → 0.0015
+            const anos = diasAplicado / 365
+            const fatorSpread = Math.pow(1 + spread, anos)
+            valorBruto = inv.valor_total * fatorCDI * fatorSpread
+            
+            console.log('🏛️ TESOURO SELIC:', {
+              fatorSELIC: fatorCDI.toFixed(6),
+              spread: (spread * 100).toFixed(2) + '% a.a.',
+              anos: anos.toFixed(4),
+              fatorSpread: fatorSpread.toFixed(6),
+              valorBruto: valorBruto.toFixed(2)
+            })
+          } else {
+            // CDI ou SELIC padrão: percentual do indexador
+            // FÓRMULA CORRETA (testada com extrato do banco): Linear
+            // valorBruto = valorInicial × (1 + (rendimentoCDI × percentualContratado))
+            const rendimentoCDI = fatorCDI - 1 // Ex: 1.384160 - 1 = 0.384160 (38.416%)
+            const percentualContratado = inv.taxa_percentual / 100 // Ex: 101/100 = 1.01
+            valorBruto = inv.valor_total * (1 + (rendimentoCDI * percentualContratado))
+          }
+          
           const rendimentoBrutoValor = valorBruto - inv.valor_total
           
 

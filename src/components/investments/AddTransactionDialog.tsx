@@ -300,7 +300,8 @@ export const AddTransactionDialog = ({ open, onClose }: AddTransactionDialogProp
               <div>
                 <Label htmlFor="taxaPercentual">
                   {tipoRentabilidade === 'pos' && indexador === 'cdi' ? 'Taxa (% do CDI) *' : 
-                   tipoRentabilidade === 'pos' && indexador === 'selic' ? 'Taxa (% da SELIC ou + spread) *' : 
+                   tipoRentabilidade === 'pos' && indexador === 'selic' && tipoAtivo === 'tesouro_direto' ? 'Spread (% a.a. - ágio/deságio) *' :
+                   tipoRentabilidade === 'pos' && indexador === 'selic' ? 'Taxa (% da SELIC) *' : 
                    tipoRentabilidade === 'ipca' ? 'Taxa Prefixada (% a.a. + IPCA) *' : 
                    'Taxa (% ao ano) *'}
                 </Label>
@@ -310,7 +311,8 @@ export const AddTransactionDialog = ({ open, onClose }: AddTransactionDialogProp
                   step="0.01"
                   placeholder={
                     tipoRentabilidade === 'pos' && indexador === 'cdi' ? 'Ex: 120.00 (120% do CDI)' :
-                    tipoRentabilidade === 'pos' && indexador === 'selic' ? 'Ex: 100.00 ou 0.15 (SELIC + 0.15%)' :
+                    tipoRentabilidade === 'pos' && indexador === 'selic' && tipoAtivo === 'tesouro_direto' ? 'Ex: 0.15 ou -0.10 (SELIC + spread)' :
+                    tipoRentabilidade === 'pos' && indexador === 'selic' ? 'Ex: 100.00 (100% da SELIC)' :
                     tipoRentabilidade === 'ipca' ? 'Ex: 6.50 (IPCA + 6,5%)' : 
                     'Ex: 13.50'
                   }
@@ -318,9 +320,9 @@ export const AddTransactionDialog = ({ open, onClose }: AddTransactionDialogProp
                   onChange={(e) => setTaxaPercentual(e.target.value)}
                   required
                 />
-                {tipoAtivo === 'tesouro_direto' && tipoRentabilidade === 'pos' && (
+                {tipoAtivo === 'tesouro_direto' && tipoRentabilidade === 'pos' && indexador === 'selic' && (
                   <p className="text-xs text-muted-foreground mt-1">
-                    💡 Tesouro Selic geralmente é 100% da SELIC ou SELIC + spread pequeno (ex: 0.15%)
+                    💡 Informe o ágio/deságio em % a.a. (ex: 0.15 para SELIC+0.15%, -0.10 para SELIC-0.10%)
                   </p>
                 )}
                 {tipoRentabilidade === 'ipca' && (
