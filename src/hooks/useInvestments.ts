@@ -3,6 +3,7 @@ import { supabase } from '@/lib/supabase'
 import { useAuth } from './useAuth'
 import { useToast } from './use-toast'
 import { buscarCDIAcumulado } from '@/utils/cdi'
+import { buscarIPCAAcumulado } from '@/utils/ipca'
 
 export interface Investimento {
   id: string
@@ -511,7 +512,139 @@ export const useInvestments = () => {
     
     let taxaAnualEfetiva = inv.taxa_percentual || 0
     
-    // Calcular taxa efetiva baseada no tipo de rentabilidade e indexador
+    // ============================================
+    // TIPO 1: PRÉ-FIXADO
+    // ============================================
+    if (inv.tipo_rentabilidade === 'pre' || inv.indexador === 'prefixado') {
+      console.log('📊 Calculando PRÉ-FIXADO:', {
+        codigo: inv.codigo,
+        taxaAnual: inv.taxa_percentual + '% a.a.',
+        valorInvestido: inv.valor_total,
+        diasAplicado
+      })
+      
+      // Taxa já é a taxa efetiva anual
+      const taxaAnual = inv.taxa_percentual / 100
+      
+      // Calcular usando juros compostos por dias corridos
+      const fatorRendimento = Math.pow(1 + taxaAnual, diasAplicado / 365)
+      const valorBruto = inv.valor_total * fatorRendimento
+      const rendimentoBruto = valorBruto - inv.valor_total
+      
+      // Calcular IR
+      let aliquotaIR = 0
+      let irRetido = 0
+      let valorLiquido = valorBruto
+      
+      if (!inv.isento_ir && rendimentoBruto > 0) {
+        if (diasAplicado <= 180) aliquotaIR = 0.225
+        else if (diasAplicado <= 360) aliquotaIR = 0.20
+        else if (diasAplicado <= 720) aliquotaIR = 0.175
+        else aliquotaIR = 0.15
+        
+        irRetido = rendimentoBruto * aliquotaIR
+        valorLiquido = valorBruto - irRetido
+      }
+      
+      console.log('✅ PRÉ-FIXADO calculado:', {
+        fatorRendimento: fatorRendimento.toFixed(6),
+        valorBruto: valorBruto.toFixed(2),
+        rendimentoBruto: rendimentoBruto.toFixed(2),
+        aliquotaIR: (aliquotaIR * 100).toFixed(2) + '%',
+        irRetido: irRetido.toFixed(2),
+        valorLiquido: valorLiquido.toFixed(2)
+      })
+      
+      return {
+        valor_atual: valorLiquido,
+        valor_bruto: valorBruto,
+        valor_bruto_resgate: valorBruto,
+        ir_retido: irRetido,
+        aliquota_ir: aliquotaIR,
+        dias_aplicado: diasAplicado,
+        dias_ate_vencimento: diasAteVencimento,
+        rentabilidade_projetada: ((valorLiquido - inv.valor_total) / inv.valor_total) * 100
+      }
+    }
+    
+    // ============================================
+    // TIPO 2: IPCA+
+    // ============================================
+    if (inv.tipo_rentabilidade === 'ipca' || inv.indexador === 'ipca') {
+      console.log('📊 Calculando IPCA+:', {
+        codigo: inv.codigo,
+        taxaPrefixada: inv.taxa_percentual + '% a.a.',
+        valorInvestido: inv.valor_total,
+        diasAplicado
+      })
+      
+      try {
+        // Buscar IPCA real acumulado
+        const fatorIPCA = await buscarIPCAAcumulado(dataAplicacao, hoje)
+        const variacaoIPCA = (fatorIPCA - 1) * 100
+        
+        // Taxa prefixada (ex: 6.5% a.a.)
+        const taxaPrefixada = inv.taxa_percentual / 100
+        
+        // Fator da taxa prefixada pro período
+        const fatorPrefixado = Math.pow(1 + taxaPrefixada, diasAplicado / 365)
+        
+        // IPCA+ = (1 + taxa_prefixada) × (1 + IPCA) - 1
+        const fatorTotal = fatorPrefixado * fatorIPCA
+        const valorBruto = inv.valor_total * fatorTotal
+        const rendimentoBruto = valorBruto - inv.valor_total
+        
+        console.log('📈 Detalhes IPCA+:', {
+          fatorIPCA: fatorIPCA.toFixed(6),
+          variacaoIPCA: variacaoIPCA.toFixed(4) + '%',
+          fatorPrefixado: fatorPrefixado.toFixed(6),
+          fatorTotal: fatorTotal.toFixed(6),
+          valorBruto: valorBruto.toFixed(2),
+          rendimentoBruto: rendimentoBruto.toFixed(2)
+        })
+        
+        // Calcular IR
+        let aliquotaIR = 0
+        let irRetido = 0
+        let valorLiquido = valorBruto
+        
+        if (!inv.isento_ir && rendimentoBruto > 0) {
+          if (diasAplicado <= 180) aliquotaIR = 0.225
+          else if (diasAplicado <= 360) aliquotaIR = 0.20
+          else if (diasAplicado <= 720) aliquotaIR = 0.175
+          else aliquotaIR = 0.15
+          
+          irRetido = rendimentoBruto * aliquotaIR
+          valorLiquido = valorBruto - irRetido
+        }
+        
+        console.log('✅ IPCA+ calculado:', {
+          valorBruto: valorBruto.toFixed(2),
+          aliquotaIR: (aliquotaIR * 100).toFixed(2) + '%',
+          irRetido: irRetido.toFixed(2),
+          valorLiquido: valorLiquido.toFixed(2)
+        })
+        
+        return {
+          valor_atual: valorLiquido,
+          valor_bruto: valorBruto,
+          valor_bruto_resgate: valorBruto,
+          ir_retido: irRetido,
+          aliquota_ir: aliquotaIR,
+          dias_aplicado: diasAplicado,
+          dias_ate_vencimento: diasAteVencimento,
+          rentabilidade_projetada: ((valorLiquido - inv.valor_total) / inv.valor_total) * 100
+        }
+        
+      } catch (error) {
+        console.error('❌ Erro ao calcular IPCA+:', error)
+        // Fallback para cálculo estimado
+      }
+    }
+    
+    // ============================================
+    // TIPO 3: PÓS-FIXADO (CDI/SELIC)
+    // ============================================
     if (inv.tipo_rentabilidade === 'pos') {
       // Pós-fixado: percentual do indexador (ex: 101% do CDI)
       let taxaIndexador = 13.65 // Fallback
@@ -606,37 +739,29 @@ export const useInvestments = () => {
           console.warn('⚠️ Erro ao buscar CDI, usando cálculo tradicional:', error)
           taxaIndexador = 13.65
         }
-      } else if (inv.indexador === 'ipca') {
-        taxaIndexador = 4.5 // IPCA projetado 2025
       }
       
-      // Cálculo tradicional (fallback)
-      taxaAnualEfetiva = (taxaAnualEfetiva / 100) * taxaIndexador
-      
-      console.log('💰 Cálculo Renda Fixa (Fallback):', {
-        codigo: inv.codigo,
-        taxaContratada: inv.taxa_percentual + '% do indexador',
-        taxaEfetiva: taxaAnualEfetiva.toFixed(2) + '% a.a.',
-        valorInvestido: inv.valor_total
-      })
-      
+      // Se não conseguiu buscar dados reais, usar fallback
+      console.log('⚠️ Usando cálculo tradicional (fallback) para pós-fixado')
+    }
+    
+    // ============================================
+    // FALLBACK: Cálculo tradicional/estimado
+    // ============================================
+    console.log('📊 Calculando com método tradicional (fallback):', {
+      codigo: inv.codigo,
+      tipo_rentabilidade: inv.tipo_rentabilidade,
+      indexador: inv.indexador
+    })
+    
+    if (inv.tipo_rentabilidade === 'pos') {
+      taxaAnualEfetiva = (taxaAnualEfetiva / 100) * 13.65 // CDI estimado
     } else if (inv.tipo_rentabilidade === 'ipca') {
-      // IPCA+: taxa fixa + IPCA (ex: IPCA + 6.5%)
-      const ipcaProjetado = 4.5
-      taxaAnualEfetiva = taxaAnualEfetiva + ipcaProjetado
-      
-    } else if (inv.tipo_rentabilidade === 'pre') {
-      // Pré-fixado: taxa já é a taxa efetiva anual
-      taxaAnualEfetiva = inv.taxa_percentual || 0
-      
+      taxaAnualEfetiva = taxaAnualEfetiva + 4.5 // IPCA estimado
     } else if (inv.tipo_rentabilidade === 'hibrido') {
-      // Híbrido: combina pré + indexador (usar lógica similar ao IPCA+)
       const indexadorProjetado = inv.indexador === 'ipca' ? 4.5 : 13.65
       taxaAnualEfetiva = taxaAnualEfetiva + indexadorProjetado
     }
-    
-    // Calcular rendimento bruto acumulado usando juros compostos
-    // Fórmula: VF = VP * (1 + i)^n onde i = taxa diária e n = dias corridos
     
     // Converter taxa anual para taxa diária (365 dias)
     const taxaDiaria = Math.pow(1 + (taxaAnualEfetiva / 100), 1 / 365) - 1
