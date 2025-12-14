@@ -383,65 +383,65 @@ export default function Investimentos() {
       </Card>
 
       {/* Cards de Resumo */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card className="p-6 border-l-4 border-l-teal-600 bg-gradient-to-br from-teal-50 to-cyan-50 dark:from-teal-950 dark:to-cyan-950">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        <Card className="p-4 sm:p-6 border-l-4 border-l-teal-600 bg-gradient-to-br from-teal-50 to-cyan-50 dark:from-teal-950 dark:to-cyan-950">
           <div className="flex items-start justify-between">
-            <div>
-              <p className="text-sm font-medium text-muted-foreground">Patrimônio Total</p>
-              <p className="text-2xl font-bold mt-2 text-teal-600">{formatCurrency(resumo.valorTotal)}</p>
+            <div className="min-w-0 flex-1">
+              <p className="text-xs sm:text-sm font-medium text-muted-foreground">Patrimônio Total</p>
+              <p className="text-xl sm:text-2xl font-bold mt-1 sm:mt-2 text-teal-600 truncate">{formatCurrency(resumo.valorTotal)}</p>
             </div>
-            <DollarSign className="w-8 h-8 text-teal-600 opacity-50" />
+            <DollarSign className="w-6 h-6 sm:w-8 sm:h-8 text-teal-600 opacity-50 flex-shrink-0 ml-2" />
           </div>
         </Card>
 
-        <Card className="p-6 border-l-4 border-l-cyan-600 bg-gradient-to-br from-cyan-50 to-blue-50 dark:from-cyan-950 dark:to-blue-950">
+        <Card className="p-4 sm:p-6 border-l-4 border-l-cyan-600 bg-gradient-to-br from-cyan-50 to-blue-50 dark:from-cyan-950 dark:to-blue-950">
           <div className="flex items-start justify-between">
-            <div>
-              <p className="text-sm font-medium text-muted-foreground">Rentabilidade</p>
-              <p className={`text-2xl font-bold mt-2 ${resumo.rentabilidadePercentual >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+            <div className="min-w-0 flex-1">
+              <p className="text-xs sm:text-sm font-medium text-muted-foreground">Rentabilidade</p>
+              <p className={`text-xl sm:text-2xl font-bold mt-1 sm:mt-2 truncate ${resumo.rentabilidadePercentual >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                 {resumo.rentabilidadePercentual >= 0 ? '+' : ''}
                 {resumo.rentabilidadePercentual.toFixed(2)}%
               </p>
-              <p className="text-xs text-muted-foreground mt-1">
+              <p className="text-xs text-muted-foreground mt-1 truncate">
                 {formatCurrency(resumo.rentabilidadeTotal)}
               </p>
             </div>
             {resumo.rentabilidadePercentual >= 0 ? (
-              <TrendingUp className="w-8 h-8 text-green-600 opacity-50" />
+              <TrendingUp className="w-6 h-6 sm:w-8 sm:h-8 text-green-600 opacity-50 flex-shrink-0 ml-2" />
             ) : (
-              <TrendingDown className="w-8 h-8 text-red-600 opacity-50" />
+              <TrendingDown className="w-6 h-6 sm:w-8 sm:h-8 text-red-600 opacity-50 flex-shrink-0 ml-2" />
             )}
           </div>
         </Card>
 
-        <Card className="p-6 border-l-4 border-l-blue-600 bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950 dark:to-indigo-950">
+        <Card className="p-4 sm:p-6 border-l-4 border-l-blue-600 bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950 dark:to-indigo-950">
           <div className="flex items-start justify-between">
-            <div>
-              <p className="text-sm font-medium text-muted-foreground">Ativos</p>
-              <p className="text-2xl font-bold mt-2 text-blue-600">{resumo.quantidadeAtivos}</p>
-              <p className="text-xs text-muted-foreground mt-1">
+            <div className="min-w-0 flex-1">
+              <p className="text-xs sm:text-sm font-medium text-muted-foreground">Ativos</p>
+              <p className="text-xl sm:text-2xl font-bold mt-1 sm:mt-2 text-blue-600">{resumo.quantidadeAtivos}</p>
+              <p className="text-xs text-muted-foreground mt-1 truncate">
                 {resumo.porTipo.length} {resumo.porTipo.length === 1 ? 'tipo' : 'tipos'}
               </p>
             </div>
-            <Wallet className="w-8 h-8 text-blue-600 opacity-50" />
+            <Wallet className="w-6 h-6 sm:w-8 sm:h-8 text-blue-600 opacity-50 flex-shrink-0 ml-2" />
           </div>
         </Card>
 
-        <Card className="p-6 border-l-4 border-l-purple-600 bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-950 dark:to-pink-950">
+        <Card className="p-4 sm:p-6 border-l-4 border-l-purple-600 bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-950 dark:to-pink-950">
           <div className="flex items-start justify-between">
-            <div>
-              <p className="text-sm font-medium text-muted-foreground">Instituições</p>
-              <p className="text-2xl font-bold mt-2 text-purple-600">{resumo.porInstituicao.length}</p>
+            <div className="min-w-0 flex-1">
+              <p className="text-xs sm:text-sm font-medium text-muted-foreground">Instituições</p>
+              <p className="text-xl sm:text-2xl font-bold mt-1 sm:mt-2 text-purple-600">{resumo.porInstituicao.length}</p>
               <p className="text-xs text-muted-foreground mt-1">Corretoras</p>
             </div>
-            <Building2 className="w-8 h-8 text-purple-600 opacity-50" />
+            <Building2 className="w-6 h-6 sm:w-8 sm:h-8 text-purple-600 opacity-50 flex-shrink-0 ml-2" />
           </div>
         </Card>
       </div>
 
       {/* Filtros */}
-      <Card className="p-4">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <Card className="p-3 sm:p-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
           <div>
             <Select value={filtroTipo} onValueChange={handleFiltroTipoChange}>
               <SelectTrigger>
@@ -533,7 +533,7 @@ export default function Investimentos() {
       </Card>
 
       {/* Gráficos */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
         {/* Diversificação por Tipo */}
         <Card className="p-6">
           <h3 className="text-lg font-semibold mb-4 text-foreground">Diversificação por Tipo</h3>
