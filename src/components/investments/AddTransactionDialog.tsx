@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -91,6 +91,19 @@ export const AddTransactionDialog = ({ open, onClose }: AddTransactionDialogProp
       setLoading(false)
     }
   }
+
+  // Ajustar indexador automaticamente baseado no tipo de rentabilidade
+  useEffect(() => {
+    if (tipoRentabilidade === 'pos' && tipoAtivo === 'tesouro_direto') {
+      setIndexador('selic')
+    } else if (tipoRentabilidade === 'pos') {
+      setIndexador('cdi')
+    } else if (tipoRentabilidade === 'pre') {
+      setIndexador('prefixado')
+    } else if (tipoRentabilidade === 'ipca') {
+      setIndexador('ipca')
+    }
+  }, [tipoRentabilidade, tipoAtivo])
 
   const resetForm = () => {
     setStep('tipo')
@@ -240,30 +253,71 @@ export const AddTransactionDialog = ({ open, onClose }: AddTransactionDialogProp
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="pos">Pós-fixado (% do CDI)</SelectItem>
-                      <SelectItem value="pre">Pré-fixado (% ao ano)</SelectItem>
-                      <SelectItem value="ipca">IPCA+ (% + inflação)</SelectItem>
-                      <SelectItem value="hibrido">Híbrido</SelectItem>
+                      {tipoAtivo === 'tesouro_direto' ? (
+                        <>
+                          <SelectItem value="pos">Tesouro Selic (pós-fixado)</SelectItem>
+                          <SelectItem value="pre">Tesouro Prefixado</SelectItem>
+                          <SelectItem value="ipca">Tesouro IPCA+ (híbrido)</SelectItem>
+                        </>
+                      ) : (
+                        <>
+                          <SelectItem value="pos">Pós-fixado (CDI/SELIC)</SelectItem>
+                          <SelectItem value="pre">Pré-fixado (% ao ano)</SelectItem>
+                          <SelectItem value="ipca">IPCA+ (% + inflação)</SelectItem>
+                          <SelectItem value="hibrido">Híbrido/Outro</SelectItem>
+                        </>
+                      )}
                     </SelectContent>
                   </Select>
                 </div>
 
                 <div>
-                  <Label htmlFor="taxaPercentual">
-                    {tipoRentabilidade === 'pos' ? 'Taxa (% do CDI) *' : 
-                     tipoRentabilidade === 'ipca' ? 'Taxa (% + IPCA) *' : 
-                     'Taxa (% ao ano) *'}
-                  </Label>
-                  <Input
-                    id="taxaPercentual"
-                    type="number"
-                    step="0.01"
-                    placeholder={tipoRentabilidade === 'pos' ? 'Ex: 120.00' : 'Ex: 13.50'}
-                    value={taxaPercentual}
-                    onChange={(e) => setTaxaPercentual(e.target.value)}
-                    required
-                  />
+                  <Label htmlFor="indexador">Indexador *</Label>
+                  <Select value={indexador} onValueChange={setIndexador}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="cdi">CDI</SelectItem>
+                      <SelectItem value="selic">SELIC</SelectItem>
+                      <SelectItem value="ipca">IPCA</SelectItem>
+                      <SelectItem value="prefixado">Prefixado</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
+              </div>
+
+              <div>
+                <Label htmlFor="taxaPercentual">
+                  {tipoRentabilidade === 'pos' && indexador === 'cdi' ? 'Taxa (% do CDI) *' : 
+                   tipoRentabilidade === 'pos' && indexador === 'selic' ? 'Taxa (% da SELIC ou + spread) *' : 
+                   tipoRentabilidade === 'ipca' ? 'Taxa Prefixada (% a.a. + IPCA) *' : 
+                   'Taxa (% ao ano) *'}
+                </Label>
+                <Input
+                  id="taxaPercentual"
+                  type="number"
+                  step="0.01"
+                  placeholder={
+                    tipoRentabilidade === 'pos' && indexador === 'cdi' ? 'Ex: 120.00 (120% do CDI)' :
+                    tipoRentabilidade === 'pos' && indexador === 'selic' ? 'Ex: 100.00 ou 0.15 (SELIC + 0.15%)' :
+                    tipoRentabilidade === 'ipca' ? 'Ex: 6.50 (IPCA + 6,5%)' : 
+                    'Ex: 13.50'
+                  }
+                  value={taxaPercentual}
+                  onChange={(e) => setTaxaPercentual(e.target.value)}
+                  required
+                />
+                {tipoAtivo === 'tesouro_direto' && tipoRentabilidade === 'pos' && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    💡 Tesouro Selic geralmente é 100% da SELIC ou SELIC + spread pequeno (ex: 0.15%)
+                  </p>
+                )}
+                {tipoRentabilidade === 'ipca' && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    💡 Apenas a taxa prefixada (ex: IPCA + 6,5% → digite apenas 6.50)
+                  </p>
+                )}
               </div>
 
               <div className="grid grid-cols-2 gap-4">
