@@ -21,6 +21,10 @@ const TIPO_LABELS: Record<string, string> = {
   fii: 'FIIs',
   etf: 'ETFs',
   renda_fixa: 'Renda Fixa',
+  tesouro_direto: 'Tesouro Direto',
+  cri: 'CRI',
+  cra: 'CRA',
+  debenture: 'Debêntures',
   cripto: 'Criptomoedas',
   fundo: 'Fundos',
   previdencia: 'Previdência'
@@ -31,6 +35,10 @@ const TIPO_EMOJIS: Record<string, string> = {
   fii: '🏢',
   etf: '📊',
   renda_fixa: '💰',
+  tesouro_direto: '🏛️',
+  cri: '📄',
+  cra: '🌾',
+  debenture: '📜',
   cripto: '₿',
   fundo: '🎯',
   previdencia: '🏦'
@@ -495,7 +503,11 @@ export default function Investimentos() {
                 <SelectItem value="acao">📈 Ações</SelectItem>
                 <SelectItem value="fii">🏢 FIIs</SelectItem>
                 <SelectItem value="etf">📊 ETFs</SelectItem>
-                <SelectItem value="renda_fixa">💰 Renda Fixa</SelectItem>
+                <SelectItem value="renda_fixa">💰 Renda Fixa (CDB/LCI/LCA)</SelectItem>
+                <SelectItem value="tesouro_direto">🏛️ Tesouro Direto</SelectItem>
+                <SelectItem value="cri">📄 CRI</SelectItem>
+                <SelectItem value="cra">🌾 CRA</SelectItem>
+                <SelectItem value="debenture">📜 Debêntures</SelectItem>
                 <SelectItem value="cripto">₿ Criptomoedas</SelectItem>
                 <SelectItem value="fundo">🎯 Fundos</SelectItem>
                 <SelectItem value="previdencia">🏦 Previdência</SelectItem>

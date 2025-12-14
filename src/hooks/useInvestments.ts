@@ -174,7 +174,7 @@ export const useInvestments = () => {
             if (temCotacao) {
               cotacao = await getCotacaoAtual(inv.codigo, inv.tipo)
               valor_atual = cotacao ? inv.quantidade * cotacao : inv.valor_total
-            } else if (inv.tipo === 'renda_fixa') {
+            } else if (['renda_fixa', 'tesouro_direto', 'cri', 'cra', 'debenture'].includes(inv.tipo)) {
               // 1. PRIORIDADE: Verificar se tem valor manual informado
               if (inv.valor_atual_manual && inv.valor_atual_manual > 0) {
                 console.log('📝 Usando valor manual informado:', inv.valor_atual_manual)
@@ -350,8 +350,8 @@ export const useInvestments = () => {
 
       console.log('📝 Dados recebidos para criar investimento:', dados)
 
-      // Adicionar campos específicos de renda fixa
-      if (dados.tipo === 'renda_fixa') {
+      // Adicionar campos específicos de renda fixa (inclui Tesouro, CRI, CRA, Debêntures)
+      if (['renda_fixa', 'tesouro_direto', 'cri', 'cra', 'debenture'].includes(dados.tipo!)) {
         dadosInsert.tipo_rentabilidade = dados.tipo_rentabilidade
         dadosInsert.taxa_percentual = dados.taxa_percentual
         dadosInsert.indexador = dados.indexador

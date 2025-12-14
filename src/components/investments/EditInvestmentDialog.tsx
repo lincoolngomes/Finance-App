@@ -132,12 +132,16 @@ export const EditInvestmentDialog = ({ open, onClose, investimento }: EditInvest
 
   if (!investimento) return null
 
-  const isRendaFixa = investimento.tipo === 'renda_fixa'
+  const isRendaFixa = ['renda_fixa', 'tesouro_direto', 'cri', 'cra', 'debenture'].includes(investimento.tipo)
   const tipoLabel = {
     acao: 'Ação',
     fii: 'FII',
     etf: 'ETF',
     renda_fixa: 'Renda Fixa',
+    tesouro_direto: 'Tesouro Direto',
+    cri: 'CRI',
+    cra: 'CRA',
+    debenture: 'Debênture',
     cripto: 'Criptomoeda',
     fundo: 'Fundo',
     previdencia: 'Previdência'
