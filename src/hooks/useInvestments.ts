@@ -597,19 +597,22 @@ export const useInvestments = () => {
       // Calcular em anos usando base de 252 dias úteis
       const anosUteis = diasUteis / 252
       
-      // Bancos usam juros SIMPLES para pré-fixados (não compostos!)
-      // Fórmula: VF = VP × (1 + taxa × anos_úteis)
-      const fatorRendimento = 1 + (taxaAnual * anosUteis)
+      // Juros COMPOSTOS com dias úteis
+      // Fórmula: VF = VP × (1 + taxa)^(dias_úteis/252)
+      const fatorRendimento = Math.pow(1 + taxaAnual, anosUteis)
       const valorBruto = inv.valor_total * fatorRendimento
       
-      console.log('📊 Calculando PRÉ-FIXADO com dias úteis (juros simples):', {
+      console.log('📊 PRÉ-FIXADO (juros compostos + dias úteis/252):', {
+        dataAplicacao: dataAplicacao.toLocaleDateString('pt-BR'),
+        dataCalculo: hoje.toLocaleDateString('pt-BR'),
         diasCorridos: diasAplicado,
         diasUteis: diasUteis,
-        anosUteis: anosUteis.toFixed(4),
-        taxa: (taxaAnual * 100).toFixed(3) + '%',
-        fator: fatorRendimento.toFixed(6),
-        valorInicial: inv.valor_total,
-        valorBruto: valorBruto.toFixed(2)
+        anosUteis: anosUteis.toFixed(6),
+        taxaAnual: (taxaAnual * 100).toFixed(3) + '%',
+        fator: fatorRendimento.toFixed(8),
+        valorInicial: inv.valor_total.toFixed(2),
+        valorBruto: valorBruto.toFixed(2),
+        diferenca: (valorBruto - inv.valor_total).toFixed(2)
       })
       
       const rendimentoBruto = valorBruto - inv.valor_total
