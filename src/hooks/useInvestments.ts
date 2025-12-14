@@ -569,38 +569,48 @@ export const useInvestments = () => {
       // Taxa já é a taxa efetiva anual
       const taxaAnual = inv.taxa_percentual / 100
       
-      // IMPORTANTE: Bancos brasileiros usam diferentes convenções
-      // Vamos tentar a fórmula LINEAR para períodos menores que 1 ano
-      // que é comum em LCIs e produtos de crédito privado
+      // IMPORTANTE: Mercado brasileiro usa DIAS ÚTEIS (excluindo sábados, domingos e feriados)
+      // Padrão: 252 dias úteis por ano
       
-      // Testando com 365 dias (ano civil) que alguns bancos usam
-      const anos = diasAplicado / 365
-      
-      // Se menos de 1 ano, usar juros SIMPLES (linear)
-      // Se mais de 1 ano, usar juros compostos
-      let valorBruto: number
-      let fatorRendimento: number
-      
-      if (anos <= 1) {
-        // Juros simples: VF = VP × (1 + taxa × anos)
-        fatorRendimento = 1 + (taxaAnual * anos)
-        valorBruto = inv.valor_total * fatorRendimento
-        console.log('📊 Usando juros SIMPLES (< 1 ano):', {
-          diasCorridos: diasAplicado,
-          anos: anos.toFixed(4),
-          taxa: (taxaAnual * 100).toFixed(3) + '%',
-          fator: fatorRendimento.toFixed(6)
-        })
-      } else {
-        // Juros compostos: VF = VP × (1 + taxa)^anos
-        fatorRendimento = Math.pow(1 + taxaAnual, anos)
-        valorBruto = inv.valor_total * fatorRendimento
-        console.log('📊 Usando juros COMPOSTOS (> 1 ano):', {
-          diasCorridos: diasAplicado,
-          anos: anos.toFixed(4),
-          fator: fatorRendimento.toFixed(6)
-        })
+      // Contar dias úteis entre datas (excluindo fins de semana)
+      const contarDiasUteis = (inicio: Date, fim: Date): number => {
+        let count = 0
+        const current = new Date(inicio)
+        current.setHours(0, 0, 0, 0)
+        const end = new Date(fim)
+        end.setHours(0, 0, 0, 0)
+        
+        while (current <= end) {
+          const diaSemana = current.getDay()
+          // 0 = Domingo, 6 = Sábado - contar apenas dias úteis
+          if (diaSemana !== 0 && diaSemana !== 6) {
+            count++
+          }
+          current.setDate(current.getDate() + 1)
+        }
+        
+        return count
       }
+      
+      const diasUteis = contarDiasUteis(dataAplicacao, hoje)
+      
+      // Calcular em anos usando base de 252 dias úteis
+      const anosUteis = diasUteis / 252
+      
+      // Usar juros COMPOSTOS por dias úteis
+      // Fórmula: VF = VP × (1 + taxa)^(dias_úteis/252)
+      const fatorRendimento = Math.pow(1 + taxaAnual, anosUteis)
+      const valorBruto = inv.valor_total * fatorRendimento
+      
+      console.log('📊 Calculando PRÉ-FIXADO com dias úteis:', {
+        diasCorridos: diasAplicado,
+        diasUteis: diasUteis,
+        anosUteis: anosUteis.toFixed(4),
+        taxa: (taxaAnual * 100).toFixed(3) + '%',
+        fator: fatorRendimento.toFixed(6),
+        valorInicial: inv.valor_total,
+        valorBruto: valorBruto.toFixed(2)
+      })
       
       const rendimentoBruto = valorBruto - inv.valor_total
       
