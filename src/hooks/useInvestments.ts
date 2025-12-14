@@ -573,7 +573,8 @@ export const useInvestments = () => {
       // Vamos tentar a fórmula LINEAR para períodos menores que 1 ano
       // que é comum em LCIs e produtos de crédito privado
       
-      const anos = diasAplicado / 360
+      // Testando com 365 dias (ano civil) que alguns bancos usam
+      const anos = diasAplicado / 365
       
       // Se menos de 1 ano, usar juros SIMPLES (linear)
       // Se mais de 1 ano, usar juros compostos
