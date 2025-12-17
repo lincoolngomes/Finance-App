@@ -314,13 +314,13 @@ function ImportarExtratoModal({ open, onClose, onImport, contas }) {
             </div>
             <div className="overflow-x-auto max-h-[50vh] mb-2">
               <table className="min-w-full text-xs border-separate border-spacing-0 rounded-lg shadow-lg" style={{ borderCollapse: 'separate', borderSpacing: 0, background: '#18181b' }}>
-                <thead className="sticky top-0 z-10">
+                <thead className="sticky top-0">
                   <tr>
-                    <th className="p-2 text-blue-300 bg-zinc-900 border-b border-zinc-800 text-left sticky top-0" style={{ minWidth: 100, fontWeight: 700, fontSize: 13, letterSpacing: 1 }} onClick={() => handleSort('quando')}>Data</th>
-                    <th className="p-2 text-blue-300 bg-zinc-900 border-b border-zinc-800 text-left sticky top-0" style={{ minWidth: 180, fontWeight: 700, fontSize: 13, letterSpacing: 1 }} onClick={() => handleSort('estabelecimento')}>Descrição</th>
-                    <th className="p-2 text-blue-300 bg-zinc-900 border-b border-zinc-800 text-left sticky top-0" style={{ minWidth: 90, fontWeight: 700, fontSize: 13, letterSpacing: 1 }} onClick={() => handleSort('valor')}>Valor</th>
-                    <th className="p-2 text-blue-300 bg-zinc-900 border-b border-zinc-800 text-left sticky top-0" style={{ minWidth: 80, fontWeight: 700, fontSize: 13, letterSpacing: 1 }} onClick={() => handleSort('tipo')}>Tipo</th>
-                    <th className="p-2 text-blue-300 bg-zinc-900 border-b border-zinc-800 text-left sticky top-0" style={{ minWidth: 120, fontWeight: 700, fontSize: 13, letterSpacing: 1 }} onClick={() => handleSort('categoria')}>Categoria</th>
+                    <th className="p-2 text-blue-300 bg-zinc-900 border-b border-zinc-800 text-left " style={{ minWidth: 100, fontWeight: 700, fontSize: 13, letterSpacing: 1 }} onClick={() => handleSort('quando')}>Data</th>
+                    <th className="p-2 text-blue-300 bg-zinc-900 border-b border-zinc-800 text-left " style={{ minWidth: 180, fontWeight: 700, fontSize: 13, letterSpacing: 1 }} onClick={() => handleSort('estabelecimento')}>Descrição</th>
+                    <th className="p-2 text-blue-300 bg-zinc-900 border-b border-zinc-800 text-left " style={{ minWidth: 90, fontWeight: 700, fontSize: 13, letterSpacing: 1 }} onClick={() => handleSort('valor')}>Valor</th>
+                    <th className="p-2 text-blue-300 bg-zinc-900 border-b border-zinc-800 text-left " style={{ minWidth: 80, fontWeight: 700, fontSize: 13, letterSpacing: 1 }} onClick={() => handleSort('tipo')}>Tipo</th>
+                    <th className="p-2 text-blue-300 bg-zinc-900 border-b border-zinc-800 text-left " style={{ minWidth: 120, fontWeight: 700, fontSize: 13, letterSpacing: 1 }} onClick={() => handleSort('categoria')}>Categoria</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -407,13 +407,13 @@ function ImportarExtratoModal({ open, onClose, onImport, contas }) {
           <>
             <div className="overflow-x-auto max-h-[50vh] mb-2">
               <table className="min-w-full text-xs border-separate border-spacing-0 rounded-lg shadow-lg" style={{ borderCollapse: 'separate', borderSpacing: 0, background: '#18181b' }}>
-                <thead className="sticky top-0 z-10">
+                <thead className="sticky top-0">
                   <tr>
-                    <th className="p-2 text-blue-300 bg-zinc-900 border-b border-zinc-800 text-left sticky top-0" style={{ minWidth: 100, fontWeight: 700, fontSize: 13, letterSpacing: 1 }} onClick={() => handleSort('quando')}>Data</th>
-                    <th className="p-2 text-blue-300 bg-zinc-900 border-b border-zinc-800 text-left sticky top-0" style={{ minWidth: 180, fontWeight: 700, fontSize: 13, letterSpacing: 1 }} onClick={() => handleSort('estabelecimento')}>Descrição</th>
-                    <th className="p-2 text-blue-300 bg-zinc-900 border-b border-zinc-800 text-left sticky top-0" style={{ minWidth: 90, fontWeight: 700, fontSize: 13, letterSpacing: 1 }} onClick={() => handleSort('valor')}>Valor</th>
-                    <th className="p-2 text-blue-300 bg-zinc-900 border-b border-zinc-800 text-left sticky top-0" style={{ minWidth: 80, fontWeight: 700, fontSize: 13, letterSpacing: 1 }} onClick={() => handleSort('tipo')}>Tipo</th>
-                    <th className="p-2 text-blue-300 bg-zinc-900 border-b border-zinc-800 text-left sticky top-0" style={{ minWidth: 120, fontWeight: 700, fontSize: 13, letterSpacing: 1 }} onClick={() => handleSort('categoria')}>Categoria</th>
+                    <th className="p-2 text-blue-300 bg-zinc-900 border-b border-zinc-800 text-left " style={{ minWidth: 100, fontWeight: 700, fontSize: 13, letterSpacing: 1 }} onClick={() => handleSort('quando')}>Data</th>
+                    <th className="p-2 text-blue-300 bg-zinc-900 border-b border-zinc-800 text-left " style={{ minWidth: 180, fontWeight: 700, fontSize: 13, letterSpacing: 1 }} onClick={() => handleSort('estabelecimento')}>Descrição</th>
+                    <th className="p-2 text-blue-300 bg-zinc-900 border-b border-zinc-800 text-left " style={{ minWidth: 90, fontWeight: 700, fontSize: 13, letterSpacing: 1 }} onClick={() => handleSort('valor')}>Valor</th>
+                    <th className="p-2 text-blue-300 bg-zinc-900 border-b border-zinc-800 text-left " style={{ minWidth: 80, fontWeight: 700, fontSize: 13, letterSpacing: 1 }} onClick={() => handleSort('tipo')}>Tipo</th>
+                    <th className="p-2 text-blue-300 bg-zinc-900 border-b border-zinc-800 text-left " style={{ minWidth: 120, fontWeight: 700, fontSize: 13, letterSpacing: 1 }} onClick={() => handleSort('categoria')}>Categoria</th>
                   </tr>
                 </thead>
                 <tbody>
