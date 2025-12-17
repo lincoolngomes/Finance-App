@@ -1,4 +1,5 @@
 import type { Handler } from '@netlify/functions'
+import CeiCrawler from 'cei-crawler'
 
 /**
  * Netlify Function para importar posições do B3 CEI
@@ -45,91 +46,186 @@ export const handler: Handler = async (event) => {
       }
     }
 
-    // TODO: Implementar scraping do CEI da B3
-    // Por enquanto, retorna dados simulados
     console.log('🔐 Tentando autenticar no B3 CEI com CPF:', cpf.substring(0, 3) + '.***.***-**')
 
-    // NOTA: Para produção, você precisará usar uma biblioteca como:
-    // - cei-crawler (Python) via subprocess
-    // - puppeteer para scraping direto
-    // - ou uma API não-oficial como investimentos-b3
+    // Criar instância do crawler
+    const ceiCrawler = new CeiCrawler(cpf, senha, {
+      capDates: {
+        start: new Date(new Date().setMonth(new Date().getMonth() - 1)), // Último mês
+        end: new Date()
+      }
+    })
+
+    console.log('📥 Buscando dados do CEI...')
+
+    // Buscar dados
+    const consolidado = await ceiCrawler.getConsolidado()
     
-    // Simulação de resposta (remover em produção)
-    const mockData = {
-      acoes: [
-        {
-          tipo: 'acao' as const,
-          codigo: 'PETR4',
-          nome: 'PETROBRAS PN',
-          quantidade: 100,
-          precoMedio: 38.50,
-          valorAtual: 4200.00,
-          instituicao: 'XP Investimentos',
+    console.log('✅ Dados obtidos com sucesso!')
+
+    // Processar e mapear dados
+    const acoes: any[] = []
+    const fiis: any[] = []
+    const etfs: any[] = []
+    const rendaFixa: any[] = []
+    const tesouroDireto: any[] = []
+
+    // Processar ações e FIIs
+    if (consolidado.carteira) {
+      for (const item of consolidado.carteira) {
+        const posicao = {
+          codigo: item.ticker,
+          nome: item.nomeEmpresa || item.ticker,
+          quantidade: item.quantidade,
+          precoMedio: item.precoMedio,
+          valorAtual: item.valorAtual || (item.quantidade * item.precoAtual),
+          instituicao: item.instituicao || 'B3',
           dataReferencia: new Date().toISOString().split('T')[0],
-        },
-      ],
-      fiis: [
-        {
-          tipo: 'fii' as const,
-          codigo: 'HGLG11',
-          nome: 'CSHG LOGÍSTICA FII',
-          quantidade: 50,
-          precoMedio: 165.00,
-          valorAtual: 8500.00,
-          instituicao: 'XP Investimentos',
-          dataReferencia: new Date().toISOString().split('T')[0],
-        },
-      ],
-      etfs: [],
-      rendaFixa: [
-        {
-          tipo: 'renda_fixa' as const,
-          codigo: 'CDB-001',
-          nome: 'CDB Banco Inter 110% CDI',
-          valorInvestido: 10000.00,
-          valorAtual: 10850.00,
-          vencimento: '2026-12-31',
-          taxa: '110% CDI',
-          tipoRentabilidade: 'pos' as const,
-          instituicao: 'Banco Inter',
-          isento_ir: false,
-        },
-      ],
-      tesouroDireto: [
-        {
+        }
+
+        // Identificar tipo pelo ticker
+        if (item.ticker.endsWith('11')) {
+          fiis.push({ ...posicao, tipo: 'fii' as const })
+        } else if (item.ticker.startsWith('B') && item.ticker.length === 6) {
+          etfs.push({ ...posicao, tipo: 'etf' as const })
+        } else {
+          acoes.push({ ...posicao, tipo: 'acao' as const })
+        }
+      }
+    }
+
+    // Processar Tesouro Direto
+    if (consolidado.tesouroDireto) {
+      for (const item of consolidado.tesouroDireto) {
+        tesouroDireto.push({
           tipo: 'tesouro_direto' as const,
-          codigo: 'Tesouro IPCA+ 2029',
-          nome: 'Tesouro IPCA+ com Juros Semestrais 2029',
-          valorInvestido: 5000.00,
-          valorAtual: 5350.00,
-          vencimento: '2029-05-15',
-          taxa: 'IPCA + 6,12%',
-          tipoRentabilidade: 'ipca' as const,
+          codigo: item.titulo,
+          nome: item.titulo,
+          valorInvestido: item.valorInvestido,
+          valorAtual: item.valorAtual || item.valorBruto,
+          vencimento: item.dataVencimento,
+          taxa: item.taxaContratada || 'N/A',
+          tipoRentabilidade: determinarTipoRentabilidade(item.titulo),
           instituicao: 'Tesouro Direto',
           isento_ir: false,
-        },
-      ],
+        })
+      }
+    }
+
+    // Processar Renda Fixa
+    if (consolidado.rendaFixa) {
+      for (const item of consolidado.rendaFixa) {
+        const tipo = determinarTipoRendaFixa(item.produto)
+        
+        rendaFixa.push({
+          tipo,
+          codigo: item.produto,
+          nome: item.produto,
+          valorInvestido: item.valorInvestido,
+          valorAtual: item.valorAtual || item.valorBruto,
+          vencimento: item.dataVencimento,
+          taxa: item.taxaContratada || 'N/A',
+          tipoRentabilidade: determinarTipoRentabilidade(item.produto),
+          instituicao: item.instituicao || 'N/A',
+          isento_ir: ['LCI', 'LCA', 'CRI', 'CRA'].some(t => item.produto.includes(t)),
+        })
+      }
+    }
+
+    const resultData = {
+      acoes,
+      fiis,
+      etfs,
+      rendaFixa,
+      tesouroDireto,
       success: true,
-      message: 'Importação simulada com sucesso. Integração real em desenvolvimento.',
+      message: `Importação concluída! ${acoes.length + fiis.length + etfs.length + rendaFixa.length + tesouroDireto.length} ativos encontrados.`,
       dataImportacao: new Date().toISOString(),
     }
+
+    console.log('📊 Resumo da importação:', {
+      acoes: acoes.length,
+      fiis: fiis.length,
+      etfs: etfs.length,
+      rendaFixa: rendaFixa.length,
+      tesouroDireto: tesouroDireto.length,
+      total: acoes.length + fiis.length + etfs.length + rendaFixa.length + tesouroDireto.length
+    })
 
     return {
       statusCode: 200,
       headers,
-      body: JSON.stringify(mockData),
+      body: JSON.stringify(resultData),
     }
 
   } catch (error) {
     console.error('❌ Erro ao importar do B3:', error)
+    
+    // Erros comuns
+    let errorMessage = 'Erro ao processar importação'
+    
+    if (error instanceof Error) {
+      if (error.message.includes('401') || error.message.includes('unauthorized')) {
+        errorMessage = 'CPF ou senha incorretos. Verifique suas credenciais.'
+      } else if (error.message.includes('timeout')) {
+        errorMessage = 'Tempo esgotado. Tente novamente em alguns instantes.'
+      } else if (error.message.includes('network')) {
+        errorMessage = 'Erro de conexão. Verifique sua internet.'
+      } else {
+        errorMessage = error.message
+      }
+    }
+    
     return {
       statusCode: 500,
       headers,
       body: JSON.stringify({
-        error: 'Erro ao processar importação',
-        message: error instanceof Error ? error.message : 'Erro desconhecido',
+        error: errorMessage,
+        message: errorMessage,
         success: false,
+        acoes: [],
+        fiis: [],
+        etfs: [],
+        rendaFixa: [],
+        tesouroDireto: [],
+        dataImportacao: new Date().toISOString(),
       }),
     }
   }
+}
+
+/**
+ * Determina o tipo de rentabilidade baseado no nome do título
+ */
+function determinarTipoRentabilidade(titulo: string): 'pos' | 'pre' | 'ipca' {
+  const tituloUpper = titulo.toUpperCase()
+  
+  if (tituloUpper.includes('IPCA') || tituloUpper.includes('NTN-B')) {
+    return 'ipca'
+  } else if (tituloUpper.includes('PRE') || tituloUpper.includes('PREFIXADO') || tituloUpper.includes('LTN') || tituloUpper.includes('NTN-F')) {
+    return 'pre'
+  } else if (tituloUpper.includes('SELIC') || tituloUpper.includes('CDI') || tituloUpper.includes('%') || tituloUpper.includes('LFT')) {
+    return 'pos'
+  }
+  
+  return 'pos' // padrão
+}
+
+/**
+ * Determina o tipo de renda fixa
+ */
+function determinarTipoRendaFixa(produto: string): 'renda_fixa' | 'tesouro_direto' | 'cri' | 'cra' | 'debenture' {
+  const produtoUpper = produto.toUpperCase()
+  
+  if (produtoUpper.includes('TESOURO')) {
+    return 'tesouro_direto'
+  } else if (produtoUpper.includes('CRI')) {
+    return 'cri'
+  } else if (produtoUpper.includes('CRA')) {
+    return 'cra'
+  } else if (produtoUpper.includes('DEBENTURE') || produtoUpper.includes('DEBÊNTURE')) {
+    return 'debenture'
+  }
+  
+  return 'renda_fixa'
 }
