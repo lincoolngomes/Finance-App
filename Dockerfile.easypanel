@@ -7,8 +7,8 @@ WORKDIR /app
 COPY package*.json ./
 
 # Instalar dependências (sem usar bun.lockb)
-# Ignora dependências opcionais problemáticas de plataforma
-RUN npm ci --legacy-peer-deps --omit=optional || npm install --legacy-peer-deps --omit=optional
+# Remover package-lock.json e instalar dependências limpamente
+RUN rm -f package-lock.json && npm install --legacy-peer-deps
 
 # Copiar código fonte
 COPY . .
