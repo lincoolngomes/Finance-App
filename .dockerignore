@@ -12,3 +12,4 @@ coverage
 .vscode
 dist
 build
+bun.lockb

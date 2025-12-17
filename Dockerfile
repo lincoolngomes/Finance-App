@@ -1,7 +1,8 @@
 FROM node:20-alpine AS build
 WORKDIR /app
 COPY package*.json ./
-RUN npm ci --legacy-peer-deps
+# Instalar apenas dependências necessárias, ignorando opcionais de plataforma
+RUN npm ci --legacy-peer-deps --omit=optional || npm install --legacy-peer-deps --omit=optional
 COPY . .
 RUN npm run build && ls -la dist/
 
