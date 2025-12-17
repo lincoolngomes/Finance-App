@@ -413,36 +413,36 @@ export default function Investimentos() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 pb-6">
       {/* Header */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3">
         <div>
-          <h1 className="text-3xl font-bold text-foreground">Investimentos</h1>
-          <p className="text-muted-foreground mt-1">Controle e acompanhe seus investimentos</p>
+          <h1 className="text-2xl md:text-3xl font-bold text-foreground">Investimentos</h1>
+          <p className="text-sm text-muted-foreground mt-1">Controle e acompanhe seus investimentos</p>
         </div>
       </div>
       
       {/* Navegação de Mês */}
-      <Card className="p-4 border-teal-200 dark:border-teal-900">
+      <Card className="p-3 border-teal-200 dark:border-teal-900">
         <div className="flex items-center justify-between">
           <Button 
             variant="outline" 
             size="sm"
             onClick={mesAnterior}
-            className="gap-1"
+            className="gap-1 text-xs md:text-sm px-2 md:px-4"
           >
-            <ChevronLeft className="w-4 h-4" />
-            Anterior
+            <ChevronLeft className="w-3 h-3 md:w-4 md:h-4" />
+            <span className="hidden sm:inline">Anterior</span>
           </Button>
           
           <div className="flex flex-col items-center gap-1">
             <div className="flex items-center gap-2">
-              <Calendar className="w-4 h-4 text-teal-600" />
-              <span className="font-semibold">
+              <Calendar className="w-3 h-3 md:w-4 md:h-4 text-teal-600" />
+              <span className="font-semibold text-sm md:text-base">
                 {mesReferencia.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }).replace(/^\w/, c => c.toUpperCase())}
               </span>
               {!mesAtualSelecionado && (
-                <Button variant="link" size="sm" onClick={mesAtual} className="text-teal-600 h-auto p-0">
+                <Button variant="link" size="sm" onClick={mesAtual} className="text-teal-600 h-auto p-0 text-xs hidden md:inline">
                   (Mês atual)
                 </Button>
               )}
@@ -459,67 +459,67 @@ export default function Investimentos() {
             size="sm"
             onClick={proximoMes}
             disabled={mesAtualSelecionado}
-            className="gap-1"
+            className="gap-1 text-xs md:text-sm px-2 md:px-4"
           >
-            Próximo
-            <ChevronRight className="w-4 h-4" />
+            <span className="hidden sm:inline">Próximo</span>
+            <ChevronRight className="w-3 h-3 md:w-4 md:h-4" />
           </Button>
         </div>
       </Card>
 
       {/* Cards de Resumo */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        <Card className="p-4 sm:p-6 border-l-4 border-l-teal-600 bg-gradient-to-br from-teal-50 to-cyan-50 dark:from-teal-950 dark:to-cyan-950">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 sm:gap-3">
+        <Card className="p-3 sm:p-4 border-l-4 border-l-teal-600 bg-gradient-to-br from-teal-50 to-cyan-50 dark:from-teal-950 dark:to-cyan-950">
           <div className="flex items-start justify-between">
             <div className="min-w-0 flex-1">
-              <p className="text-xs sm:text-sm font-medium text-muted-foreground">Patrimônio Total</p>
-              <p className="text-xl sm:text-2xl font-bold mt-1 sm:mt-2 text-teal-600 truncate">{formatCurrency(resumo.valorTotal)}</p>
+              <p className="text-[10px] sm:text-xs font-medium text-muted-foreground">Patrimônio Total</p>
+              <p className="text-base sm:text-xl md:text-2xl font-bold mt-1 text-teal-600 truncate">{formatCurrency(resumo.valorTotal)}</p>
             </div>
-            <DollarSign className="w-6 h-6 sm:w-8 sm:h-8 text-teal-600 opacity-50 flex-shrink-0 ml-2" />
+            <DollarSign className="w-5 h-5 sm:w-6 sm:h-6 text-teal-600 opacity-50 flex-shrink-0 ml-1" />
           </div>
         </Card>
 
-        <Card className="p-4 sm:p-6 border-l-4 border-l-cyan-600 bg-gradient-to-br from-cyan-50 to-blue-50 dark:from-cyan-950 dark:to-blue-950">
+        <Card className="p-3 sm:p-4 border-l-4 border-l-cyan-600 bg-gradient-to-br from-cyan-50 to-blue-50 dark:from-cyan-950 dark:to-blue-950">
           <div className="flex items-start justify-between">
             <div className="min-w-0 flex-1">
-              <p className="text-xs sm:text-sm font-medium text-muted-foreground">Rentabilidade</p>
-              <p className={`text-xl sm:text-2xl font-bold mt-1 sm:mt-2 truncate ${resumo.rentabilidadePercentual >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+              <p className="text-[10px] sm:text-xs font-medium text-muted-foreground">Rentabilidade</p>
+              <p className={`text-base sm:text-xl md:text-2xl font-bold mt-1 truncate ${resumo.rentabilidadePercentual >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                 {resumo.rentabilidadePercentual >= 0 ? '+' : ''}
                 {resumo.rentabilidadePercentual.toFixed(2)}%
               </p>
-              <p className="text-xs text-muted-foreground mt-1 truncate">
+              <p className="text-[9px] sm:text-xs text-muted-foreground mt-0.5 truncate">
                 {formatCurrency(resumo.rentabilidadeTotal)}
               </p>
             </div>
             {resumo.rentabilidadePercentual >= 0 ? (
-              <TrendingUp className="w-6 h-6 sm:w-8 sm:h-8 text-green-600 opacity-50 flex-shrink-0 ml-2" />
+              <TrendingUp className="w-5 h-5 sm:w-6 sm:h-6 text-green-600 opacity-50 flex-shrink-0 ml-1" />
             ) : (
-              <TrendingDown className="w-6 h-6 sm:w-8 sm:h-8 text-red-600 opacity-50 flex-shrink-0 ml-2" />
+              <TrendingDown className="w-5 h-5 sm:w-6 sm:h-6 text-red-600 opacity-50 flex-shrink-0 ml-1" />
             )}
           </div>
         </Card>
 
-        <Card className="p-4 sm:p-6 border-l-4 border-l-blue-600 bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950 dark:to-indigo-950">
+        <Card className="p-3 sm:p-4 border-l-4 border-l-blue-600 bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950 dark:to-indigo-950">
           <div className="flex items-start justify-between">
             <div className="min-w-0 flex-1">
-              <p className="text-xs sm:text-sm font-medium text-muted-foreground">Ativos</p>
-              <p className="text-xl sm:text-2xl font-bold mt-1 sm:mt-2 text-blue-600">{resumo.quantidadeAtivos}</p>
-              <p className="text-xs text-muted-foreground mt-1 truncate">
+              <p className="text-[10px] sm:text-xs font-medium text-muted-foreground">Ativos</p>
+              <p className="text-base sm:text-xl md:text-2xl font-bold mt-1 text-blue-600">{resumo.quantidadeAtivos}</p>
+              <p className="text-[9px] sm:text-xs text-muted-foreground mt-0.5 truncate">
                 {resumo.porTipo.length} {resumo.porTipo.length === 1 ? 'tipo' : 'tipos'}
               </p>
             </div>
-            <Wallet className="w-6 h-6 sm:w-8 sm:h-8 text-blue-600 opacity-50 flex-shrink-0 ml-2" />
+            <Wallet className="w-5 h-5 sm:w-6 sm:h-6 text-blue-600 opacity-50 flex-shrink-0 ml-1" />
           </div>
         </Card>
 
-        <Card className="p-4 sm:p-6 border-l-4 border-l-purple-600 bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-950 dark:to-pink-950">
+        <Card className="p-3 sm:p-4 border-l-4 border-l-purple-600 bg-gradient-to-br from-purple-50 to-pink-50 dark:from-purple-950 dark:to-pink-950">
           <div className="flex items-start justify-between">
             <div className="min-w-0 flex-1">
-              <p className="text-xs sm:text-sm font-medium text-muted-foreground">Instituições</p>
-              <p className="text-xl sm:text-2xl font-bold mt-1 sm:mt-2 text-purple-600">{resumo.porInstituicao.length}</p>
-              <p className="text-xs text-muted-foreground mt-1">Corretoras</p>
+              <p className="text-[10px] sm:text-xs font-medium text-muted-foreground">Instituições</p>
+              <p className="text-base sm:text-xl md:text-2xl font-bold mt-1 text-purple-600">{resumo.porInstituicao.length}</p>
+              <p className="text-[9px] sm:text-xs text-muted-foreground mt-0.5">Corretoras</p>
             </div>
-            <Building2 className="w-6 h-6 sm:w-8 sm:h-8 text-purple-600 opacity-50 flex-shrink-0 ml-2" />
+            <Building2 className="w-5 h-5 sm:w-6 sm:h-6 text-purple-600 opacity-50 flex-shrink-0 ml-1" />
           </div>
         </Card>
       </div>
@@ -566,15 +566,15 @@ export default function Investimentos() {
       </Card>
 
       {/* Gráfico de Evolução */}
-      <Card className="p-6">
-        <div className="mb-6">
-          <h2 className="text-xl font-bold text-foreground flex items-center gap-2">
-            <TrendingUp className="w-5 h-5 text-teal-600" />
+      <Card className="p-3 sm:p-4 md:p-6">
+        <div className="mb-3 sm:mb-4">
+          <h2 className="text-base sm:text-lg md:text-xl font-bold text-foreground flex items-center gap-2">
+            <TrendingUp className="w-4 h-4 sm:w-5 sm:h-5 text-teal-600" />
             Evolução do Patrimônio
           </h2>
-          <p className="text-sm text-muted-foreground mt-1">Últimos 12 meses (saldo no último dia útil)</p>
+          <p className="text-xs sm:text-sm text-muted-foreground mt-1">Últimos 12 meses (saldo no último dia útil)</p>
         </div>
-        <div className="h-80">
+        <div className="h-48 sm:h-64 md:h-80">
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={dadosEvolucao}>
               <defs>
@@ -622,12 +622,12 @@ export default function Investimentos() {
       </Card>
 
       {/* Gráficos */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 sm:gap-4">
         {/* Diversificação por Tipo */}
-        <Card className="p-6">
-          <h3 className="text-lg font-semibold mb-4 text-foreground">Diversificação por Tipo</h3>
+        <Card className="p-3 sm:p-4 md:p-6">
+          <h3 className="text-sm sm:text-base md:text-lg font-semibold mb-3 sm:mb-4 text-foreground">Diversificação por Tipo</h3>
           {resumo.porTipo.length > 0 ? (
-            <ResponsiveContainer width="100%" height={300}>
+            <ResponsiveContainer width="100%" height={250}>
               <PieChart>
                 <Pie
                   data={resumo.porTipo}
@@ -649,17 +649,17 @@ export default function Investimentos() {
               </PieChart>
             </ResponsiveContainer>
           ) : (
-            <div className="h-[300px] flex items-center justify-center text-muted-foreground">
+            <div className="h-[250px] flex items-center justify-center text-muted-foreground text-sm">
               Nenhum investimento registrado
             </div>
           )}
         </Card>
 
         {/* Diversificação por Instituição */}
-        <Card className="p-6">
-          <h3 className="text-lg font-semibold mb-4 text-foreground">Diversificação por Instituição</h3>
+        <Card className="p-3 sm:p-4 md:p-6">
+          <h3 className="text-sm sm:text-base md:text-lg font-semibold mb-3 sm:mb-4 text-foreground">Diversificação por Instituição</h3>
           {resumo.porInstituicao.length > 0 ? (
-            <ResponsiveContainer width="100%" height={300}>
+            <ResponsiveContainer width="100%" height={250}>
               <BarChart data={resumo.porInstituicao}>
                 <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                 <XAxis dataKey="instituicao" className="text-xs" />
@@ -672,7 +672,7 @@ export default function Investimentos() {
               </BarChart>
             </ResponsiveContainer>
           ) : (
-            <div className="h-[300px] flex items-center justify-center text-muted-foreground">
+            <div className="h-[250px] flex items-center justify-center text-muted-foreground text-sm">
               Nenhum investimento registrado
             </div>
           )}
@@ -680,34 +680,36 @@ export default function Investimentos() {
       </div>
 
       {/* Tabela de Ativos */}
-      <Card className="p-6">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-3">
-            <h3 className="text-lg font-semibold text-foreground">Meus Ativos</h3>
+      <Card className="p-3 sm:p-4 md:p-6">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-3 sm:mb-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <h3 className="text-base sm:text-lg font-semibold text-foreground">Meus Ativos</h3>
             <Button
               onClick={() => setShowAddDialog(true)}
               size="sm"
-              className="bg-teal-600 hover:bg-teal-700"
+              className="bg-teal-600 hover:bg-teal-700 text-xs px-2 sm:px-3"
             >
-              <PlusCircle className="w-4 h-4 mr-2" />
-              Nova Aplicação
+              <PlusCircle className="w-3 h-3 sm:w-4 sm:h-4 mr-1" />
+              <span className="hidden sm:inline">Nova Aplicação</span>
+              <span className="sm:hidden">Nova</span>
             </Button>
             <Button
               onClick={() => setShowResgateDialog(true)}
               size="sm"
               variant="outline"
-              className="border-orange-600 text-orange-600 hover:bg-orange-50 dark:hover:bg-orange-950"
+              className="border-orange-600 text-orange-600 hover:bg-orange-50 dark:hover:bg-orange-950 text-xs px-2 sm:px-3"
             >
-              <DollarSign className="w-4 h-4 mr-2" />
-              Resgatar
+              <DollarSign className="w-3 h-3 sm:w-4 sm:h-4 mr-1" />
+              <span className="hidden sm:inline">Resgatar</span>
+              <span className="sm:hidden">Resgatar</span>
             </Button>
           </div>
           
           {/* Toggles de Modo */}
-          <div className="flex items-center gap-6 bg-secondary/30 rounded-lg px-4 py-2.5">
+          <div className="flex flex-wrap items-center gap-3 sm:gap-4 bg-secondary/30 rounded-lg px-2 sm:px-3 py-2">
             {/* Toggle Modo Manual/Automático */}
-            <div className="flex items-center gap-2 border-r border-border pr-6">
-              <span className="text-xs font-medium text-muted-foreground">🤖 Auto</span>
+            <div className="flex items-center gap-1.5 sm:gap-2 border-r border-border pr-2 sm:pr-4">
+              <span className="text-[10px] sm:text-xs font-medium text-muted-foreground hidden sm:inline">🤖 Auto</span>
               <button
                 onClick={() => setModoManual(!modoManual)}
                 className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 ${
@@ -790,27 +792,27 @@ export default function Investimentos() {
         )}
         
         {investimentosFiltrados.length > 0 ? (
-          <div className="overflow-x-auto">
-            <table className="w-full">
+          <div className="overflow-x-auto -mx-2 sm:mx-0">
+            <table className="w-full min-w-[1200px]">
               <thead>
                 <tr className="border-b">
-                  <th className="text-left py-3 px-4 w-12">
+                  <th className="text-left py-2 px-2 w-8">
                     <input
                       type="checkbox"
                       checked={selectedIds.size === investimentosFiltrados.length && investimentosFiltrados.length > 0}
                       onChange={toggleSelectAll}
-                      className="w-4 h-4 text-teal-600 rounded focus:ring-teal-500"
+                      className="w-3 h-3 text-teal-600 rounded focus:ring-teal-500"
                     />
                   </th>
-                  <th className="text-left py-3 px-4 font-semibold text-muted-foreground text-sm">Código</th>
-                  <th className="text-left py-3 px-4 font-semibold text-muted-foreground text-sm">Nome</th>
-                  <th className="text-left py-3 px-4 font-semibold text-muted-foreground text-sm">Tipo</th>
-                  <th className="text-left py-3 px-4 font-semibold text-muted-foreground text-sm">Detalhes</th>
-                  <th className="text-right py-3 px-4 font-semibold text-muted-foreground text-sm">Investido</th>
-                  <th className="text-right py-3 px-4 font-semibold text-muted-foreground text-sm">Valor Bruto</th>
-                  <th className="text-right py-3 px-4 font-semibold text-muted-foreground text-sm">Valor Líquido</th>
-                  <th className="text-right py-3 px-4 font-semibold text-muted-foreground text-sm">Rentabilidade</th>
-                  <th className="text-center py-3 px-4 font-semibold text-muted-foreground text-sm">Ações</th>
+                  <th className="text-left py-2 px-2 font-semibold text-muted-foreground text-xs">Código</th>
+                  <th className="text-left py-2 px-2 font-semibold text-muted-foreground text-xs">Nome</th>
+                  <th className="text-left py-2 px-2 font-semibold text-muted-foreground text-xs">Tipo</th>
+                  <th className="text-left py-2 px-2 font-semibold text-muted-foreground text-xs">Detalhes</th>
+                  <th className="text-right py-2 px-2 font-semibold text-muted-foreground text-xs">Investido</th>
+                  <th className="text-right py-2 px-2 font-semibold text-muted-foreground text-xs">Valor Bruto</th>
+                  <th className="text-right py-2 px-2 font-semibold text-muted-foreground text-xs">Valor Líquido</th>
+                  <th className="text-right py-2 px-2 font-semibold text-muted-foreground text-xs">Rentabilidade</th>
+                  <th className="text-center py-2 px-2 font-semibold text-muted-foreground text-xs">Ações</th>
                 </tr>
               </thead>
               <tbody>
@@ -846,18 +848,18 @@ export default function Investimentos() {
                     <React.Fragment key={categoriaKey}>
                       {/* Cabeçalho da categoria */}
                       <tr className="bg-gradient-to-r from-teal-100 to-teal-50 dark:from-teal-900/30 dark:to-teal-950/30 border-y-2 border-teal-300 dark:border-teal-700">
-                        <td colSpan={10} className="py-3 px-4">
+                        <td colSpan={10} className="py-2 px-2">
                           <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                              <span className="text-2xl">{categoriaIcon}</span>
-                              <span className="font-bold text-lg text-teal-900 dark:text-teal-100">
+                            <div className="flex items-center gap-2">
+                              <span className="text-lg sm:text-xl">{categoriaIcon}</span>
+                              <span className="font-bold text-sm sm:text-base text-teal-900 dark:text-teal-100">
                                 {categoriaLabel}
                               </span>
-                              <span className="text-sm text-teal-700 dark:text-teal-300">
+                              <span className="text-xs text-teal-700 dark:text-teal-300">
                                 {grupos.length} {grupos.length === 1 ? 'ativo' : 'ativos'}
                               </span>
                             </div>
-                            <div className="font-mono font-bold text-lg text-teal-900 dark:text-teal-100">
+                            <div className="font-mono font-bold text-sm sm:text-base text-teal-900 dark:text-teal-100">
                               {formatCurrency(totalCategoria)}
                             </div>
                           </div>
