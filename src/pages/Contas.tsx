@@ -208,8 +208,8 @@ function ImportarExtratoModal({ open, onClose, onImport, contas }) {
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
-      <div className="bg-card border rounded-lg shadow-2xl p-6 w-full max-w-4xl max-h-[90vh] overflow-y-auto relative">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm" onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="bg-card border rounded-lg shadow-2xl p-6 w-full max-w-4xl max-h-[90vh] overflow-y-auto relative z-50">
         <button
           onClick={onClose}
           className="absolute top-4 right-4 p-2 rounded-lg hover:bg-accent transition-colors"
@@ -327,7 +327,7 @@ function ImportarExtratoModal({ open, onClose, onImport, contas }) {
                       <tr key={idx} className={idx % 2 === 0 ? 'bg-zinc-900/70' : 'bg-zinc-800/70'} style={{ transition: 'background 0.2s' }}>
                         <td className="p-1 border-b border-zinc-800">
                           <input
-                            className="w-full px-2 py-1 rounded bg-zinc-950 focus:bg-blue-50 focus:text-blue-900 border border-zinc-800 focus:border-blue-400 outline-none transition text-sm text-blue-100"
+                            className="w-full px-2 py-1 rounded bg-zinc-950 focus:bg-blue-50 focus:text-blue-900 border border-zinc-800 focus:border-blue-400 outline-none transition text-sm text-blue-100 cursor-text select-text"
                             value={l.quando}
                             onChange={e => handleEditLancamento(idx, 'quando', e.target.value)}
                             style={!l.quando || l.quando === '' ? emptyCellStyle : filledCellStyle}
@@ -335,7 +335,7 @@ function ImportarExtratoModal({ open, onClose, onImport, contas }) {
                         </td>
                         <td className="p-1 border-b border-zinc-800">
                           <input
-                            className="w-full px-2 py-1 rounded bg-zinc-950 focus:bg-blue-50 focus:text-blue-900 border border-zinc-800 focus:border-blue-400 outline-none transition text-sm text-blue-100"
+                            className="w-full px-2 py-1 rounded bg-zinc-950 focus:bg-blue-50 focus:text-blue-900 border border-zinc-800 focus:border-blue-400 outline-none transition text-sm text-blue-100 cursor-text select-text"
                             value={l.estabelecimento}
                             onChange={e => handleEditLancamento(idx, 'estabelecimento', e.target.value)}
                             style={!l.estabelecimento || l.estabelecimento === '' ? emptyCellStyle : filledCellStyle}
@@ -343,7 +343,7 @@ function ImportarExtratoModal({ open, onClose, onImport, contas }) {
                         </td>
                         <td className="p-1 border-b border-zinc-800">
                           <input
-                            className="w-full px-2 py-1 rounded bg-zinc-950 focus:bg-blue-50 focus:text-blue-900 border border-zinc-800 focus:border-blue-400 outline-none transition text-sm text-blue-100"
+                            className="w-full px-2 py-1 rounded bg-zinc-950 focus:bg-blue-50 focus:text-blue-900 border border-zinc-800 focus:border-blue-400 outline-none transition text-sm text-blue-100 cursor-text select-text"
                             type="number"
                             value={Math.abs(Number(l.valor))}
                             onChange={e => handleEditLancamento(idx, 'valor', e.target.value)}
@@ -352,7 +352,7 @@ function ImportarExtratoModal({ open, onClose, onImport, contas }) {
                         </td>
                         <td className="p-1 border-b border-zinc-800">
                           <input
-                            className="w-full px-2 py-1 rounded bg-zinc-950 focus:bg-blue-50 focus:text-blue-900 border border-zinc-800 focus:border-blue-400 outline-none transition text-sm text-blue-100"
+                            className="w-full px-2 py-1 rounded bg-zinc-950 focus:bg-blue-50 focus:text-blue-900 border border-zinc-800 focus:border-blue-400 outline-none transition text-sm text-blue-100 cursor-text select-text"
                             value={l.tipo}
                             onChange={e => handleEditLancamento(idx, 'tipo', e.target.value)}
                             style={!l.tipo || l.tipo === '' ? emptyCellStyle : filledCellStyle}
@@ -360,7 +360,7 @@ function ImportarExtratoModal({ open, onClose, onImport, contas }) {
                         </td>
                         <td className="p-1 border-b border-zinc-800">
                           <input
-                            className="w-full px-2 py-1 rounded bg-zinc-950 focus:bg-blue-50 focus:text-blue-900 border border-zinc-800 focus:border-blue-400 outline-none transition text-sm text-blue-100"
+                            className="w-full px-2 py-1 rounded bg-zinc-950 focus:bg-blue-50 focus:text-blue-900 border border-zinc-800 focus:border-blue-400 outline-none transition text-sm text-blue-100 cursor-text select-text"
                             value={l.categoria && l.categoria.trim() !== '' ? l.categoria : ''}
                             placeholder="Outros"
                             onChange={e => handleEditLancamento(idx, 'categoria', e.target.value)}
@@ -411,7 +411,7 @@ function ImportarExtratoModal({ open, onClose, onImport, contas }) {
                       <tr key={idx} className={idx % 2 === 0 ? 'bg-zinc-900/70' : 'bg-zinc-800/70'} style={{ transition: 'background 0.2s' }}>
                         <td className="p-1 border-b border-zinc-800">
                           <input
-                            className="w-full px-2 py-1 rounded bg-zinc-950 focus:bg-blue-50 focus:text-blue-900 border border-zinc-800 focus:border-blue-400 outline-none transition text-sm text-blue-100"
+                            className="w-full px-2 py-1 rounded bg-zinc-950 focus:bg-blue-50 focus:text-blue-900 border border-zinc-800 focus:border-blue-400 outline-none transition text-sm text-blue-100 cursor-text select-text"
                             value={l.quando}
                             onChange={e => handleEditLancamento(idx, 'quando', e.target.value)}
                             style={!l.quando || l.quando === '' ? emptyCellStyle : filledCellStyle}
@@ -419,7 +419,7 @@ function ImportarExtratoModal({ open, onClose, onImport, contas }) {
                         </td>
                         <td className="p-1 border-b border-zinc-800">
                           <input
-                            className="w-full px-2 py-1 rounded bg-zinc-950 focus:bg-blue-50 focus:text-blue-900 border border-zinc-800 focus:border-blue-400 outline-none transition text-sm text-blue-100"
+                            className="w-full px-2 py-1 rounded bg-zinc-950 focus:bg-blue-50 focus:text-blue-900 border border-zinc-800 focus:border-blue-400 outline-none transition text-sm text-blue-100 cursor-text select-text"
                             value={l.estabelecimento}
                             onChange={e => handleEditLancamento(idx, 'estabelecimento', e.target.value)}
                             style={!l.estabelecimento || l.estabelecimento === '' ? emptyCellStyle : filledCellStyle}
@@ -427,7 +427,7 @@ function ImportarExtratoModal({ open, onClose, onImport, contas }) {
                         </td>
                         <td className="p-1 border-b border-zinc-800">
                           <input
-                            className="w-full px-2 py-1 rounded bg-zinc-950 focus:bg-blue-50 focus:text-blue-900 border border-zinc-800 focus:border-blue-400 outline-none transition text-sm text-blue-100"
+                            className="w-full px-2 py-1 rounded bg-zinc-950 focus:bg-blue-50 focus:text-blue-900 border border-zinc-800 focus:border-blue-400 outline-none transition text-sm text-blue-100 cursor-text select-text"
                             type="number"
                             value={Math.abs(Number(l.valor))}
                             onChange={e => handleEditLancamento(idx, 'valor', e.target.value)}
@@ -436,7 +436,7 @@ function ImportarExtratoModal({ open, onClose, onImport, contas }) {
                         </td>
                         <td className="p-1 border-b border-zinc-800">
                           <input
-                            className="w-full px-2 py-1 rounded bg-zinc-950 focus:bg-blue-50 focus:text-blue-900 border border-zinc-800 focus:border-blue-400 outline-none transition text-sm text-blue-100"
+                            className="w-full px-2 py-1 rounded bg-zinc-950 focus:bg-blue-50 focus:text-blue-900 border border-zinc-800 focus:border-blue-400 outline-none transition text-sm text-blue-100 cursor-text select-text"
                             value={l.tipo}
                             onChange={e => handleEditLancamento(idx, 'tipo', e.target.value)}
                             style={!l.tipo || l.tipo === '' ? emptyCellStyle : filledCellStyle}
@@ -444,7 +444,7 @@ function ImportarExtratoModal({ open, onClose, onImport, contas }) {
                         </td>
                         <td className="p-1 border-b border-zinc-800">
                           <input
-                            className="w-full px-2 py-1 rounded bg-zinc-950 focus:bg-blue-50 focus:text-blue-900 border border-zinc-800 focus:border-blue-400 outline-none transition text-sm text-blue-100"
+                            className="w-full px-2 py-1 rounded bg-zinc-950 focus:bg-blue-50 focus:text-blue-900 border border-zinc-800 focus:border-blue-400 outline-none transition text-sm text-blue-100 cursor-text select-text"
                             value={l.categoria && l.categoria.trim() !== '' ? l.categoria : ''}
                             placeholder="Outros"
                             onChange={e => handleEditLancamento(idx, 'categoria', e.target.value)}

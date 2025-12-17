@@ -185,6 +185,7 @@ export const useInvestments = () => {
                 }
               }
               // 2. MARCAÇÃO A MERCADO: Tesouro Direto
+              // VALIDAÇÃO: Apenas se tipo === 'tesouro_direto' (não 'renda_fixa')
               else if (inv.tipo_marcacao === 'mercado' && inv.tipo === 'tesouro_direto') {
                 console.log('🏛️ Marcação a Mercado - Tesouro Direto:', {
                   codigo: inv.codigo,
@@ -195,30 +196,35 @@ export const useInvestments = () => {
                 })
                 
                 try {
-                  // Passar valor_total (valor aplicado) e preco_medio (PU na compra) se disponível
-                  const resultado = await calcularMarcacaoMercadoTesouro(
-                    inv.valor_total, 
-                    inv.codigo,
-                    inv.preco_medio > 0 ? inv.preco_medio : undefined
-                  )
-                  if (resultado.precoUnitario) {
-                    console.log('✅ Preço de mercado encontrado:', {
-                      precoUnitario: resultado.precoUnitario,
-                      valorAtual: resultado.valorAtual,
-                      diferenca: resultado.valorAtual - inv.valor_total,
-                      rentabilidade: ((resultado.valorAtual / inv.valor_total - 1) * 100).toFixed(2) + '%'
-                    })
-                    valor_atual = resultado.valorAtual
-                    dadosAdicionais = {
-                      valor_atual: resultado.valorAtual,
-                      preco_mercado: resultado.precoUnitario,
-                      usando_marcacao_mercado: true,
-                      fonte_marcacao: 'tesouro_direto'
-                    }
-                  } else {
-                    // Fallback para cálculo a curva
-                    console.log('⚠️ Preço não encontrado, usando marcação a curva')
+                  // SEMPRE passar preco_medio (PU na compra) - obrigatório para cálculo correto
+                  if (!inv.preco_medio || inv.preco_medio <= 0) {
+                    console.error('❌ preco_medio não encontrado! Usando curva como fallback')
                     inv.tipo_marcacao = 'curva'
+                  } else {
+                    const resultado = await calcularMarcacaoMercadoTesouro(
+                      inv.valor_total, 
+                      inv.codigo,
+                      inv.preco_medio // PU na compra (obrigatório)
+                    )
+                    if (resultado.precoUnitario) {
+                      console.log('✅ Preço de mercado encontrado:', {
+                        precoUnitario: resultado.precoUnitario,
+                        valorAtual: resultado.valorAtual,
+                        diferenca: resultado.valorAtual - inv.valor_total,
+                        rentabilidade: ((resultado.valorAtual / inv.valor_total - 1) * 100).toFixed(2) + '%'
+                      })
+                      valor_atual = resultado.valorAtual
+                      dadosAdicionais = {
+                        valor_atual: resultado.valorAtual,
+                        preco_mercado: resultado.precoUnitario,
+                        usando_marcacao_mercado: true,
+                        fonte_marcacao: 'tesouro_direto'
+                      }
+                    } else {
+                      // Fallback para cálculo a curva
+                      console.log('⚠️ Preço não encontrado, usando marcação a curva')
+                      inv.tipo_marcacao = 'curva'
+                    }
                   }
                 } catch (error) {
                   console.error('❌ Erro na marcação a mercado, usando curva:', error)
@@ -226,7 +232,7 @@ export const useInvestments = () => {
                 }
               }
               // 3. MARCAÇÃO A MERCADO: CRI/CRA/Debêntures (por % VU)
-              else if (inv.tipo_marcacao === 'mercado' && inv.percentual_vu) {
+              else if (inv.tipo_marcacao === 'mercado' && ['cri', 'cra', 'debenture'].includes(inv.tipo) && inv.percentual_vu) {
                 console.log('💼 Calculando por % do VU:', inv.percentual_vu + '%')
                 valor_atual = calcularMarcacaoMercadoPorVU(inv.valor_total, inv.percentual_vu)
                 dadosAdicionais = {
@@ -378,6 +384,18 @@ export const useInvestments = () => {
         dadosInsert.data_aplicacao = dados.data_aplicacao
         dadosInsert.isento_ir = dados.isento_ir || false
         
+        // Definir tipo_marcacao baseado no tipo do investimento
+        // Apenas Tesouro Direto, CRI, CRA e Debêntures podem usar 'mercado'
+        // Demais renda fixa (CDB, LCI, LCA, LC) sempre usam 'curva'
+        if (['tesouro_direto', 'cri', 'cra', 'debenture'].includes(dados.tipo!)) {
+          // Respeitar preferência do usuário (localStorage)
+          const modoPreferido = localStorage.getItem('investimentos_modo_marcacao') as 'curva' | 'mercado' | null
+          dadosInsert.tipo_marcacao = modoPreferido || 'curva'
+        } else {
+          // Renda fixa genérica sempre usa curva
+          dadosInsert.tipo_marcacao = 'curva'
+        }
+        
         console.log('💰 Campos de renda fixa adicionados:', {
           tipo_rentabilidade: dadosInsert.tipo_rentabilidade,
           taxa_percentual: dadosInsert.taxa_percentual,
@@ -385,7 +403,8 @@ export const useInvestments = () => {
           data_vencimento: dadosInsert.data_vencimento,
           liquidez: dadosInsert.liquidez,
           data_aplicacao: dadosInsert.data_aplicacao,
-          isento_ir: dadosInsert.isento_ir
+          isento_ir: dadosInsert.isento_ir,
+          tipo_marcacao: dadosInsert.tipo_marcacao
         })
       }
 

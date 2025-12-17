@@ -19,10 +19,13 @@ export async function buscarPrecosTesouroDireto(): Promise<TituloTesouroDireto[]
   try {
     console.log('🏛️ Buscando preços do Tesouro Direto...')
     
-    // API oficial do Tesouro Nacional
-    const response = await fetch(
-      'https://www.tesourotransparente.gov.br/ckan/dataset/df56aa42-484a-4a59-8184-7676580c81e3/resource/796d2059-14e9-44e3-80c9-2d9e30b405c1/download/PrecoTaxaTesouroDireto.csv'
-    )
+    // SEMPRE usa o proxy (Netlify Functions local ou remoto)
+    // NUNCA acessa API direta (bloqueio CORS)
+    const apiUrl = '/.netlify/functions/tesouro-direto-proxy'
+    
+    console.log(`📡 URL da API: Proxy Netlify Functions`)
+    
+    const response = await fetch(apiUrl)
 
     if (!response.ok) {
       throw new Error(`Erro ao buscar Tesouro Direto: ${response.status}`)
@@ -164,17 +167,15 @@ export async function calcularMarcacaoMercadoTesouro(
     
     return { valorAtual, precoUnitario: precoAtual }
   } else if (precoAtual) {
-    // Fallback: assumir que quantidade = 1 e valor aplicado é o valor total
-    // Isso funciona se o usuário informou corretamente a quantidade de títulos
-    const valorAtual = valorAplicado * (precoAtual / 1000) // Normalizar por fração
-    
-    console.log('📊 Marcação a Mercado (Tesouro - sem PU compra):', {
+    // Sem PU de compra: retornar apenas o preço atual
+    // O sistema deve usar preco_medio do banco de dados
+    console.warn('⚠️ Marcação a Mercado (Tesouro - sem PU compra):', {
       valorAplicado,
       precoAtual,
-      valorAtual: valorAtual.toFixed(2)
+      aviso: 'Use preco_medio do investimento para calcular quantidade'
     })
     
-    return { valorAtual, precoUnitario: precoAtual }
+    return { valorAtual: 0, precoUnitario: precoAtual }
   }
 
   console.warn('⚠️ Não foi possível obter preço de mercado, retornando null')

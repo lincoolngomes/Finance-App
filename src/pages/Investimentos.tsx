@@ -49,6 +49,12 @@ const isRendaFixa = (tipo: string) => {
   return ['renda_fixa', 'tesouro_direto', 'cri', 'cra', 'debenture'].includes(tipo)
 }
 
+// Função helper para verificar se o tipo pode usar marcação a mercado
+const podeMarcacaoMercado = (tipo: string) => {
+  // APENAS estes tipos podem usar marcação a mercado:
+  return ['tesouro_direto', 'cri', 'cra', 'debenture'].includes(tipo)
+}
+
 // Função helper para formatar datas corretamente (sem problemas de UTC)
 const formatarData = (dataString: string) => {
   const [ano, mes, dia] = dataString.split('T')[0].split('-')
@@ -212,31 +218,55 @@ export default function Investimentos() {
   // Função para atualizar tipo de marcação de investimentos de renda fixa
   const atualizarModoMarcacao = async (novoModo: 'curva' | 'mercado') => {
     try {
-      const investimentosRendaFixa = investimentos.filter(inv => isRendaFixa(inv.tipo))
+      // APENAS estes tipos podem usar marcação a mercado:
+      // - tesouro_direto (Tesouro IPCA+, Tesouro Pré, Tesouro Selic)
+      // - cri (Certificado de Recebíveis Imobiliários)
+      // - cra (Certificado de Recebíveis do Agronegócio)
+      // - debenture (Debêntures)
+      // Os demais (renda_fixa genérico, LCI, LCA, CDB, LC) ficam SEMPRE na curva
+      const tiposComMarcacaoMercado = ['tesouro_direto', 'cri', 'cra', 'debenture']
       
-      if (investimentosRendaFixa.length === 0) {
-        console.log('ℹ️ Nenhum investimento de renda fixa para atualizar')
+      const investimentosMarcaveis = investimentos.filter(inv => 
+        tiposComMarcacaoMercado.includes(inv.tipo)
+      )
+      
+      console.log('📊 Análise de investimentos:', {
+        total: investimentos.length,
+        marcaveis: investimentosMarcaveis.length,
+        tiposDisponiveis: [...new Set(investimentos.map(i => i.tipo))],
+        marcaveisDetalhes: investimentosMarcaveis.map(i => ({
+          tipo: i.tipo,
+          codigo: i.codigo,
+          tipo_marcacao_atual: i.tipo_marcacao
+        }))
+      })
+      
+      if (investimentosMarcaveis.length === 0) {
+        console.log('ℹ️ Nenhum investimento com marcação a mercado para atualizar')
+        console.log('💡 Apenas Tesouro Direto, CRI, CRA e Debêntures podem usar marcação a mercado')
+        alert('Nenhum investimento elegível para marcação a mercado.\n\nApenas Tesouro Direto, CRI, CRA e Debêntures podem usar este modo.\nCDB, LCI, LCA e LC sempre usam marcação a curva.')
         return
       }
       
       // Verificar se já estão no modo correto
-      const precisaAtualizar = investimentosRendaFixa.some(inv => inv.tipo_marcacao !== novoModo)
+      const precisaAtualizar = investimentosMarcaveis.some(inv => inv.tipo_marcacao !== novoModo)
       if (!precisaAtualizar) {
         console.log('✅ Investimentos já estão no modo correto:', novoModo)
         return
       }
       
-      console.log(`🔄 Atualizando ${investimentosRendaFixa.length} investimentos para marcação: ${novoModo}`)
+      console.log(`🔄 Atualizando ${investimentosMarcaveis.length} investimentos (Tesouro/CRI/CRA/Debêntures) para marcação: ${novoModo}`)
       
-      // Atualizar todos os investimentos de renda fixa (incluindo Tesouro, CRI, CRA, Debêntures)
+      // Atualizar APENAS os tipos específicos
       const { error } = await supabase
         .from('investimentos')
         .update({ tipo_marcacao: novoModo })
-        .in('id', investimentosRendaFixa.map(inv => inv.id))
+        .in('id', investimentosMarcaveis.map(inv => inv.id))
       
       if (error) throw error
       
       console.log('✅ Modo de marcação atualizado com sucesso!')
+      console.log('ℹ️ Outros tipos de renda fixa (CDB, LCI, LCA, LC) continuam na curva')
       
       // Recarregar investimentos
       window.location.reload()
@@ -708,8 +738,8 @@ export default function Investimentos() {
                   modoMarcacao === 'mercado' ? 'bg-blue-600' : 'bg-gray-300 dark:bg-gray-600'
                 }`}
                 title={modoMarcacao === 'curva' 
-                  ? 'Marcação a Curva: Valor calculado pela rentabilidade contratada' 
-                  : 'Marcação a Mercado: Preço atual de negociação (Tesouro/VU)'}
+                  ? 'Marcação a Curva: Rentabilidade contratada | APENAS Tesouro/CRI/CRA/Debêntures podem usar Mercado' 
+                  : 'Marcação a Mercado: Preço atual (Tesouro/VU) | CDB/LCI/LCA sempre usam Curva'}
               >
                 <span
                   className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
