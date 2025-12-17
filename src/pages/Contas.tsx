@@ -148,13 +148,16 @@ function ImportarExtratoModal({ open, onClose, onImport, contas }) {
   };
 
   // Função para editar lançamentos
-  const handleEditLancamento = (idx, campo, valor) => {
+  const handleEditLancamento = (lancamento, campo, valor) => {
     setLancamentos(lancamentos => {
       const novos = [...lancamentos];
-      novos[idx][campo] = valor;
-      // Se o campo editado for categoria, marca como manual
-      if (campo === 'categoria') {
-        novos[idx].categoriaManual = true;
+      const idx = novos.findIndex(l => l === lancamento);
+      if (idx !== -1) {
+        novos[idx] = { ...novos[idx], [campo]: valor };
+        // Se o campo editado for categoria, marca como manual
+        if (campo === 'categoria') {
+          novos[idx].categoriaManual = true;
+        }
       }
       return novos;
     });
@@ -334,7 +337,7 @@ function ImportarExtratoModal({ open, onClose, onImport, contas }) {
                             type="text" placeholder="DD/MM/AAAA"
                             className="w-full px-2 py-1 rounded bg-zinc-950 focus:bg-blue-50 focus:text-blue-900 border border-zinc-800 focus:border-blue-400 outline-none transition text-sm text-blue-100 cursor-text select-text"
                             value={l.quando}
-                            onChange={e => handleEditLancamento(idx, 'quando', e.target.value)}
+                            onChange={e => handleEditLancamento(l, 'quando', e.target.value)}
                             style={!l.quando || l.quando === '' ? emptyCellStyle : filledCellStyle}
                           />
                         </td>
@@ -343,7 +346,7 @@ function ImportarExtratoModal({ open, onClose, onImport, contas }) {
                             type="text"
                             className="w-full px-2 py-1 rounded bg-zinc-950 focus:bg-blue-50 focus:text-blue-900 border border-zinc-800 focus:border-blue-400 outline-none transition text-sm text-blue-100 cursor-text select-text"
                             value={l.estabelecimento}
-                            onChange={e => handleEditLancamento(idx, 'estabelecimento', e.target.value)}
+                            onChange={e => handleEditLancamento(l, 'estabelecimento', e.target.value)}
                             style={!l.estabelecimento || l.estabelecimento === '' ? emptyCellStyle : filledCellStyle}
                           />
                         </td>
@@ -354,7 +357,7 @@ function ImportarExtratoModal({ open, onClose, onImport, contas }) {
                             min="0"
                             className="w-full px-2 py-1 rounded bg-zinc-950 focus:bg-blue-50 focus:text-blue-900 border border-zinc-800 focus:border-blue-400 outline-none transition text-sm text-blue-100 cursor-text select-text"
                             value={Math.abs(Number(l.valor))}
-                            onChange={e => handleEditLancamento(idx, 'valor', e.target.value)}
+                            onChange={e => handleEditLancamento(l, 'valor', e.target.value)}
                             style={l.valor === undefined || l.valor === '' ? emptyCellStyle : filledCellStyle}
                           />
                         </td>
@@ -362,7 +365,7 @@ function ImportarExtratoModal({ open, onClose, onImport, contas }) {
                           <select
                             className="w-full px-2 py-1 rounded bg-zinc-950 focus:bg-blue-50 focus:text-blue-900 border border-zinc-800 focus:border-blue-400 outline-none transition text-sm text-blue-100 cursor-pointer"
                             value={l.tipo}
-                            onChange={e => handleEditLancamento(idx, 'tipo', e.target.value)}
+                            onChange={e => handleEditLancamento(l, 'tipo', e.target.value)}
                             style={!l.tipo || l.tipo === '' ? emptyCellStyle : filledCellStyle}
                           >
                             <option value="">Selecione</option>
@@ -376,7 +379,7 @@ function ImportarExtratoModal({ open, onClose, onImport, contas }) {
                             className="w-full px-2 py-1 rounded bg-zinc-950 focus:bg-blue-50 focus:text-blue-900 border border-zinc-800 focus:border-blue-400 outline-none transition text-sm text-blue-100 cursor-text select-text"
                             value={l.categoria && l.categoria.trim() !== '' ? l.categoria : ''}
                             placeholder="Outros"
-                            onChange={e => handleEditLancamento(idx, 'categoria', e.target.value)}
+                            onChange={e => handleEditLancamento(l, 'categoria', e.target.value)}
                             style={!l.categoria || l.categoria.trim() === '' ? noCategoryStyle : filledCellStyle}
                           />
                         </td>
@@ -427,7 +430,7 @@ function ImportarExtratoModal({ open, onClose, onImport, contas }) {
                             type="text" placeholder="DD/MM/AAAA"
                             className="w-full px-2 py-1 rounded bg-zinc-950 focus:bg-blue-50 focus:text-blue-900 border border-zinc-800 focus:border-blue-400 outline-none transition text-sm text-blue-100 cursor-text select-text"
                             value={l.quando}
-                            onChange={e => handleEditLancamento(idx, 'quando', e.target.value)}
+                            onChange={e => handleEditLancamento(l, 'quando', e.target.value)}
                             style={!l.quando || l.quando === '' ? emptyCellStyle : filledCellStyle}
                           />
                         </td>
@@ -436,7 +439,7 @@ function ImportarExtratoModal({ open, onClose, onImport, contas }) {
                             type="text"
                             className="w-full px-2 py-1 rounded bg-zinc-950 focus:bg-blue-50 focus:text-blue-900 border border-zinc-800 focus:border-blue-400 outline-none transition text-sm text-blue-100 cursor-text select-text"
                             value={l.estabelecimento}
-                            onChange={e => handleEditLancamento(idx, 'estabelecimento', e.target.value)}
+                            onChange={e => handleEditLancamento(l, 'estabelecimento', e.target.value)}
                             style={!l.estabelecimento || l.estabelecimento === '' ? emptyCellStyle : filledCellStyle}
                           />
                         </td>
@@ -447,7 +450,7 @@ function ImportarExtratoModal({ open, onClose, onImport, contas }) {
                             min="0"
                             className="w-full px-2 py-1 rounded bg-zinc-950 focus:bg-blue-50 focus:text-blue-900 border border-zinc-800 focus:border-blue-400 outline-none transition text-sm text-blue-100 cursor-text select-text"
                             value={Math.abs(Number(l.valor))}
-                            onChange={e => handleEditLancamento(idx, 'valor', e.target.value)}
+                            onChange={e => handleEditLancamento(l, 'valor', e.target.value)}
                             style={l.valor === undefined || l.valor === '' ? emptyCellStyle : filledCellStyle}
                           />
                         </td>
@@ -455,7 +458,7 @@ function ImportarExtratoModal({ open, onClose, onImport, contas }) {
                           <select
                             className="w-full px-2 py-1 rounded bg-zinc-950 focus:bg-blue-50 focus:text-blue-900 border border-zinc-800 focus:border-blue-400 outline-none transition text-sm text-blue-100 cursor-pointer"
                             value={l.tipo}
-                            onChange={e => handleEditLancamento(idx, 'tipo', e.target.value)}
+                            onChange={e => handleEditLancamento(l, 'tipo', e.target.value)}
                             style={!l.tipo || l.tipo === '' ? emptyCellStyle : filledCellStyle}
                           >
                             <option value="">Selecione</option>
@@ -469,7 +472,7 @@ function ImportarExtratoModal({ open, onClose, onImport, contas }) {
                             className="w-full px-2 py-1 rounded bg-zinc-950 focus:bg-blue-50 focus:text-blue-900 border border-zinc-800 focus:border-blue-400 outline-none transition text-sm text-blue-100 cursor-text select-text"
                             value={l.categoria && l.categoria.trim() !== '' ? l.categoria : ''}
                             placeholder="Outros"
-                            onChange={e => handleEditLancamento(idx, 'categoria', e.target.value)}
+                            onChange={e => handleEditLancamento(l, 'categoria', e.target.value)}
                             style={!l.categoria || l.categoria.trim() === '' ? noCategoryStyle : filledCellStyle}
                           />
                         </td>
