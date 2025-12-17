@@ -327,6 +327,7 @@ function ImportarExtratoModal({ open, onClose, onImport, contas }) {
                       <tr key={idx} className={idx % 2 === 0 ? 'bg-zinc-900/70' : 'bg-zinc-800/70'} style={{ transition: 'background 0.2s' }}>
                         <td className="p-1 border-b border-zinc-800">
                           <input
+                            type="date"
                             className="w-full px-2 py-1 rounded bg-zinc-950 focus:bg-blue-50 focus:text-blue-900 border border-zinc-800 focus:border-blue-400 outline-none transition text-sm text-blue-100 cursor-text select-text"
                             value={l.quando}
                             onChange={e => handleEditLancamento(idx, 'quando', e.target.value)}
@@ -335,6 +336,7 @@ function ImportarExtratoModal({ open, onClose, onImport, contas }) {
                         </td>
                         <td className="p-1 border-b border-zinc-800">
                           <input
+                            type="text"
                             className="w-full px-2 py-1 rounded bg-zinc-950 focus:bg-blue-50 focus:text-blue-900 border border-zinc-800 focus:border-blue-400 outline-none transition text-sm text-blue-100 cursor-text select-text"
                             value={l.estabelecimento}
                             onChange={e => handleEditLancamento(idx, 'estabelecimento', e.target.value)}
@@ -343,23 +345,30 @@ function ImportarExtratoModal({ open, onClose, onImport, contas }) {
                         </td>
                         <td className="p-1 border-b border-zinc-800">
                           <input
-                            className="w-full px-2 py-1 rounded bg-zinc-950 focus:bg-blue-50 focus:text-blue-900 border border-zinc-800 focus:border-blue-400 outline-none transition text-sm text-blue-100 cursor-text select-text"
                             type="number"
+                            step="0.01"
+                            min="0"
+                            className="w-full px-2 py-1 rounded bg-zinc-950 focus:bg-blue-50 focus:text-blue-900 border border-zinc-800 focus:border-blue-400 outline-none transition text-sm text-blue-100 cursor-text select-text"
                             value={Math.abs(Number(l.valor))}
                             onChange={e => handleEditLancamento(idx, 'valor', e.target.value)}
                             style={l.valor === undefined || l.valor === '' ? emptyCellStyle : filledCellStyle}
                           />
                         </td>
                         <td className="p-1 border-b border-zinc-800">
-                          <input
-                            className="w-full px-2 py-1 rounded bg-zinc-950 focus:bg-blue-50 focus:text-blue-900 border border-zinc-800 focus:border-blue-400 outline-none transition text-sm text-blue-100 cursor-text select-text"
+                          <select
+                            className="w-full px-2 py-1 rounded bg-zinc-950 focus:bg-blue-50 focus:text-blue-900 border border-zinc-800 focus:border-blue-400 outline-none transition text-sm text-blue-100 cursor-pointer"
                             value={l.tipo}
                             onChange={e => handleEditLancamento(idx, 'tipo', e.target.value)}
                             style={!l.tipo || l.tipo === '' ? emptyCellStyle : filledCellStyle}
-                          />
+                          >
+                            <option value="">Selecione</option>
+                            <option value="receita">receita</option>
+                            <option value="despesa">despesa</option>
+                          </select>
                         </td>
                         <td className="p-1 border-b border-zinc-800">
                           <input
+                            type="text"
                             className="w-full px-2 py-1 rounded bg-zinc-950 focus:bg-blue-50 focus:text-blue-900 border border-zinc-800 focus:border-blue-400 outline-none transition text-sm text-blue-100 cursor-text select-text"
                             value={l.categoria && l.categoria.trim() !== '' ? l.categoria : ''}
                             placeholder="Outros"
@@ -411,6 +420,7 @@ function ImportarExtratoModal({ open, onClose, onImport, contas }) {
                       <tr key={idx} className={idx % 2 === 0 ? 'bg-zinc-900/70' : 'bg-zinc-800/70'} style={{ transition: 'background 0.2s' }}>
                         <td className="p-1 border-b border-zinc-800">
                           <input
+                            type="date"
                             className="w-full px-2 py-1 rounded bg-zinc-950 focus:bg-blue-50 focus:text-blue-900 border border-zinc-800 focus:border-blue-400 outline-none transition text-sm text-blue-100 cursor-text select-text"
                             value={l.quando}
                             onChange={e => handleEditLancamento(idx, 'quando', e.target.value)}
@@ -419,6 +429,7 @@ function ImportarExtratoModal({ open, onClose, onImport, contas }) {
                         </td>
                         <td className="p-1 border-b border-zinc-800">
                           <input
+                            type="text"
                             className="w-full px-2 py-1 rounded bg-zinc-950 focus:bg-blue-50 focus:text-blue-900 border border-zinc-800 focus:border-blue-400 outline-none transition text-sm text-blue-100 cursor-text select-text"
                             value={l.estabelecimento}
                             onChange={e => handleEditLancamento(idx, 'estabelecimento', e.target.value)}
@@ -427,23 +438,30 @@ function ImportarExtratoModal({ open, onClose, onImport, contas }) {
                         </td>
                         <td className="p-1 border-b border-zinc-800">
                           <input
-                            className="w-full px-2 py-1 rounded bg-zinc-950 focus:bg-blue-50 focus:text-blue-900 border border-zinc-800 focus:border-blue-400 outline-none transition text-sm text-blue-100 cursor-text select-text"
                             type="number"
+                            step="0.01"
+                            min="0"
+                            className="w-full px-2 py-1 rounded bg-zinc-950 focus:bg-blue-50 focus:text-blue-900 border border-zinc-800 focus:border-blue-400 outline-none transition text-sm text-blue-100 cursor-text select-text"
                             value={Math.abs(Number(l.valor))}
                             onChange={e => handleEditLancamento(idx, 'valor', e.target.value)}
                             style={l.valor === undefined || l.valor === '' ? emptyCellStyle : filledCellStyle}
                           />
                         </td>
                         <td className="p-1 border-b border-zinc-800">
-                          <input
-                            className="w-full px-2 py-1 rounded bg-zinc-950 focus:bg-blue-50 focus:text-blue-900 border border-zinc-800 focus:border-blue-400 outline-none transition text-sm text-blue-100 cursor-text select-text"
+                          <select
+                            className="w-full px-2 py-1 rounded bg-zinc-950 focus:bg-blue-50 focus:text-blue-900 border border-zinc-800 focus:border-blue-400 outline-none transition text-sm text-blue-100 cursor-pointer"
                             value={l.tipo}
                             onChange={e => handleEditLancamento(idx, 'tipo', e.target.value)}
                             style={!l.tipo || l.tipo === '' ? emptyCellStyle : filledCellStyle}
-                          />
+                          >
+                            <option value="">Selecione</option>
+                            <option value="receita">receita</option>
+                            <option value="despesa">despesa</option>
+                          </select>
                         </td>
                         <td className="p-1 border-b border-zinc-800">
                           <input
+                            type="text"
                             className="w-full px-2 py-1 rounded bg-zinc-950 focus:bg-blue-50 focus:text-blue-900 border border-zinc-800 focus:border-blue-400 outline-none transition text-sm text-blue-100 cursor-text select-text"
                             value={l.categoria && l.categoria.trim() !== '' ? l.categoria : ''}
                             placeholder="Outros"
