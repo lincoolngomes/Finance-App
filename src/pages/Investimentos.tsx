@@ -7,9 +7,10 @@ import { formatCurrency } from '@/utils/currency'
 import { AddTransactionDialog } from '@/components/investments/AddTransactionDialog'
 import { EditInvestmentDialog } from '@/components/investments/EditInvestmentDialog'
 import { ResgateDialog } from '@/components/investments/ResgateDialog'
+import { ImportB3Dialog } from '@/components/investments/ImportB3Dialog'
 import { supabase } from '@/lib/supabase'
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid, AreaChart, Area, Legend } from 'recharts'
-import { TrendingUp, TrendingDown, DollarSign, Wallet, PlusCircle, Calendar, Building2, ChevronLeft, ChevronRight, Edit } from 'lucide-react'
+import { TrendingUp, TrendingDown, DollarSign, Wallet, PlusCircle, Calendar, Building2, ChevronLeft, ChevronRight, Edit, Download } from 'lucide-react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -66,6 +67,7 @@ export default function Investimentos() {
   const [showAddDialog, setShowAddDialog] = useState(false)
   const [showEditDialog, setShowEditDialog] = useState(false)
   const [showResgateDialog, setShowResgateDialog] = useState(false)
+  const [showImportB3Dialog, setShowImportB3Dialog] = useState(false)
   const [selectedInvestimento, setSelectedInvestimento] = useState<Investimento | null>(null)
   
   // Seleção múltipla
@@ -703,6 +705,16 @@ export default function Investimentos() {
               <span className="hidden sm:inline">Resgatar</span>
               <span className="sm:hidden">Resgatar</span>
             </Button>
+            <Button
+              onClick={() => setShowImportB3Dialog(true)}
+              size="sm"
+              variant="outline"
+              className="border-blue-600 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950 text-xs px-2 sm:px-3"
+            >
+              <Download className="w-3 h-3 sm:w-4 sm:h-4 mr-1" />
+              <span className="hidden sm:inline">Importar B3</span>
+              <span className="sm:hidden">B3</span>
+            </Button>
           </div>
           
           {/* Toggles de Modo */}
@@ -1297,6 +1309,11 @@ export default function Investimentos() {
           setSelectedInvestimento(null)
         }} 
         investimento={selectedInvestimento}
+      />
+      <ImportB3Dialog 
+        open={showImportB3Dialog}
+        onOpenChange={setShowImportB3Dialog}
+        onSuccess={() => window.location.reload()}
       />
       
       {/* Mini-dialog para valor manual */}
