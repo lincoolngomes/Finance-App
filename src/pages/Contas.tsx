@@ -106,23 +106,6 @@ function ImportarExtratoModal({ open, onClose, onImport, contas }) {
   };
   // Função para processar regras de categorização
 
-  // Função para converter data de DD/MM/AAAA para YYYY-MM-DD
-  const converterDataParaISO = (dataStr: string) => {
-    if (!dataStr) return '';
-    
-    // Se já está no formato YYYY-MM-DD, retorna direto
-    if (/^\d{4}-\d{2}-\d{2}$/.test(dataStr)) return dataStr;
-    
-    // Tenta converter de DD/MM/AAAA para YYYY-MM-DD
-    const match = dataStr.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
-    if (match) {
-      const [, dia, mes, ano] = match;
-      return `${ano}-${mes}-${dia}`;
-    }
-    
-    return dataStr; // Retorna original se não conseguir converter
-  };
-
   const handleParse = () => {
     setParseError("");
     if (!csvFile) return;
@@ -139,7 +122,7 @@ function ImportarExtratoModal({ open, onClose, onImport, contas }) {
           .map((row) => {
             const descricao = row[1] || '';
             return {
-              quando: converterDataParaISO(row[0] || ''),
+              quando: row[0] || '',
               estabelecimento: descricao,
               valor: (row[2] || '').replace('.', '').replace(',', '.'),
               tipo: Number((row[2] || '').replace('.', '').replace(',', '.')) < 0 ? 'despesa' : 'receita',
@@ -344,7 +327,7 @@ function ImportarExtratoModal({ open, onClose, onImport, contas }) {
                       <tr key={idx} className={idx % 2 === 0 ? 'bg-zinc-900/70' : 'bg-zinc-800/70'} style={{ transition: 'background 0.2s' }}>
                         <td className="p-1 border-b border-zinc-800">
                           <input
-                            type="date"
+                            type="text" placeholder="DD/MM/AAAA"
                             className="w-full px-2 py-1 rounded bg-zinc-950 focus:bg-blue-50 focus:text-blue-900 border border-zinc-800 focus:border-blue-400 outline-none transition text-sm text-blue-100 cursor-text select-text"
                             value={l.quando}
                             onChange={e => handleEditLancamento(idx, 'quando', e.target.value)}
@@ -437,7 +420,7 @@ function ImportarExtratoModal({ open, onClose, onImport, contas }) {
                       <tr key={idx} className={idx % 2 === 0 ? 'bg-zinc-900/70' : 'bg-zinc-800/70'} style={{ transition: 'background 0.2s' }}>
                         <td className="p-1 border-b border-zinc-800">
                           <input
-                            type="date"
+                            type="text" placeholder="DD/MM/AAAA"
                             className="w-full px-2 py-1 rounded bg-zinc-950 focus:bg-blue-50 focus:text-blue-900 border border-zinc-800 focus:border-blue-400 outline-none transition text-sm text-blue-100 cursor-text select-text"
                             value={l.quando}
                             onChange={e => handleEditLancamento(idx, 'quando', e.target.value)}
