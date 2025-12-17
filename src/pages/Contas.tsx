@@ -116,19 +116,23 @@ function ImportarExtratoModal({ open, onClose, onImport, contas }) {
       skipEmptyLines: true,
       complete: (results) => {
         setLoading(false);
+        console.log('CSV Raw Data:', results.data);
         // Se não tem cabeçalho, mapear manualmente: [data, descricao, valor]
         const parsed = results.data
           .filter(row => Array.isArray(row) && row.length >= 2 && row[0] && row[1])
           .map((row) => {
             const descricao = row[1] || '';
+            const dataOriginal = row[0] || '';
+            console.log('Linha processada:', { data: dataOriginal, descricao, valor: row[2] });
             return {
-              quando: row[0] || '',
+              quando: dataOriginal,
               estabelecimento: descricao,
               valor: (row[2] || '').replace('.', '').replace(',', '.'),
               tipo: Number((row[2] || '').replace('.', '').replace(',', '.')) < 0 ? 'despesa' : 'receita',
               categoria: categorizar(descricao, regrasTexto),
             };
           });
+        console.log('Lançamentos parseados:', parsed);
         if (parsed.length === 0) {
           setParseError("Nenhum lançamento encontrado no arquivo CSV.");
           return;
