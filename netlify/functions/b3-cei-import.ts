@@ -1,5 +1,7 @@
 import type { Handler } from '@netlify/functions'
-import CeiCrawler from 'cei-crawler'
+
+// @ts-ignore
+const CeiCrawler = require('cei-crawler')
 
 /**
  * Netlify Function para importar posições do B3 CEI

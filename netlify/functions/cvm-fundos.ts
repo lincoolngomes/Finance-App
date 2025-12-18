@@ -1,5 +1,4 @@
 import type { Handler } from '@netlify/functions'
-
 /**
  * Netlify Function para buscar dados de fundos de investimento na CVM
  * 
