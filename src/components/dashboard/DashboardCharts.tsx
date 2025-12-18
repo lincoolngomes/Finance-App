@@ -4,7 +4,33 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { formatCurrency } from '@/utils/currency'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line, Legend, ReferenceLine } from 'recharts'
 import { Calendar, TrendingDown, TrendingUp } from 'lucide-react'
-import { useState, useMemo } from 'react'
+import { useEffect, useState, useMemo } from 'react'
+
+// (Removido bloco duplicado da função DashboardCharts)
+
+// Força o CSS do tooltip do Recharts para dark theme
+const RechartsTooltipStyle = () => (
+  <style>{`
+    .recharts-default-tooltip, .recharts-tooltip-wrapper, .recharts-tooltip-wrapper .recharts-default-tooltip {
+      background: #181a20 !important;
+      border: 1px solid #333 !important;
+      color: #f3f3f3 !important;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.85) !important;
+      border-radius: 12px !important;
+      font-size: 1rem !important;
+      padding: 12px 16px !important;
+      backdrop-filter: none !important;
+      opacity: 1 !important;
+    }
+    .recharts-default-tooltip * {
+      color: #f3f3f3 !important;
+    }
+    .recharts-tooltip-wrapper {
+      background: transparent !important;
+      box-shadow: none !important;
+    }
+  `}</style>
+)
 
 interface Transacao {
   id: number
@@ -238,55 +264,32 @@ export function DashboardCharts({ transacoes, recentTransacoes, contas = [], lem
           <CardContent className="pt-0">
             <div className="h-[320px] md:h-[360px]">
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={monthlyBalanceData} margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+                <BarChart data={monthlyBalanceData} margin={{ top: 20, right: 30, left: 0, bottom: 40 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="rgba(148, 163, 184, 0.2)" />
                   <XAxis 
                     dataKey="month" 
-                    tick={(props) => {
-                      const { x, y, payload } = props
-                      const dataPoint = monthlyBalanceData.find(d => d.month === payload.value)
-                      // selectedMonth já vem normalizado com 2 dígitos (00-11)
-                      const isSelected = dataPoint?.monthKey === selectedMonth
-                      
-                      return (
-                        <g transform={`translate(${x},${y})`}>
-                          <text 
-                            x={0} 
-                            y={0} 
-                            dy={16} 
-                            textAnchor="middle" 
-                            fill={isSelected ? 'rgba(59, 130, 246, 0.85)' : 'rgba(148, 163, 184, 0.8)'}
-                            fontSize={12}
-                            fontWeight={isSelected ? 600 : 400}
-                          >
-                            {payload.value}
-                          </text>
-                          {isSelected && (
-                            <circle cx={0} cy={-8} r={2.5} fill="rgba(59, 130, 246, 0.6)" />
-                          )}
-                        </g>
-                      )
-                    }}
+                    tick={{ fontSize: 13 }}
                     tickLine={false}
                     axisLine={{ stroke: 'rgba(148, 163, 184, 0.3)' }}
                   />
                   <YAxis 
                     tickFormatter={(value) => `R$ ${(value / 1000).toFixed(0)}k`}
-                    tick={{ fontSize: 12 }}
+                    tick={{ fontSize: 13 }}
                     tickLine={false}
                     axisLine={{ stroke: 'rgba(148, 163, 184, 0.3)' }}
                   />
-                  <Tooltip 
-                    formatter={(value: number, name: string) => {
-                      const label = name === 'receitas' ? 'Receitas' : 'Despesas'
-                      return [formatCurrency(value), label]
+                  <Tooltip
+                    formatter={(value: number) => formatCurrency(value)}
+                    contentStyle={{
+                      background: 'rgba(23, 23, 35, 0.95)',
+                      border: '1px solid #334155',
+                      borderRadius: '10px',
+                      color: '#e5e7eb',
+                      boxShadow: '0 4px 16px rgba(0,0,0,0.25)',
+                      fontSize: 14,
+                      padding: 12,
                     }}
-                    contentStyle={{ 
-                      backgroundColor: 'hsl(var(--card))', 
-                      border: '1px solid hsl(var(--border))',
-                      borderRadius: '12px',
-                      boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)'
-                    }}
+                    cursor={false}
                   />
                   <Legend 
                     wrapperStyle={{ paddingTop: '20px' }}
@@ -296,64 +299,9 @@ export function DashboardCharts({ transacoes, recentTransacoes, contas = [], lem
                       return labels[value] || value
                     }}
                   />
-                  {selectedMonth && (
-                    <ReferenceLine 
-                      x={monthlyBalanceData.find(d => d.monthKey === selectedMonth)?.month}
-                      stroke="rgba(59, 130, 246, 0.5)"
-                      strokeWidth={2}
-                      strokeDasharray="5 3"
-                      label={{ 
-                        value: '●', 
-                        position: 'top',
-                        fill: 'rgba(59, 130, 246, 0.8)',
-                        fontSize: 18,
-                        offset: 10
-                      }}
-                    />
-                  )}
-                  <Line 
-                    type="monotone" 
-                    dataKey="receitas" 
-                    stroke="#10b981" 
-                    strokeWidth={3}
-                    dot={(props: any) => {
-                      const dataPoint = monthlyBalanceData.find(d => d.month === props.payload.month)
-                      const isSelected = dataPoint?.monthKey === selectedMonth
-                      return (
-                        <circle 
-                          cx={props.cx} 
-                          cy={props.cy} 
-                          r={isSelected ? 6.5 : 5} 
-                          fill="#10b981"
-                          stroke={isSelected ? 'rgba(59, 130, 246, 0.6)' : '#fff'}
-                          strokeWidth={isSelected ? 2.5 : 2}
-                        />
-                      )
-                    }}
-                    activeDot={{ r: 7 }}
-                  />
-                  <Line 
-                    type="monotone" 
-                    dataKey="despesas" 
-                    stroke="#ef4444" 
-                    strokeWidth={3}
-                    dot={(props: any) => {
-                      const dataPoint = monthlyBalanceData.find(d => d.month === props.payload.month)
-                      const isSelected = dataPoint?.monthKey === selectedMonth
-                      return (
-                        <circle 
-                          cx={props.cx} 
-                          cy={props.cy} 
-                          r={isSelected ? 6.5 : 5} 
-                          fill="#ef4444"
-                          stroke={isSelected ? 'rgba(59, 130, 246, 0.6)' : '#fff'}
-                          strokeWidth={isSelected ? 2.5 : 2}
-                        />
-                      )
-                    }}
-                    activeDot={{ r: 7 }}
-                  />
-                </LineChart>
+                  <Bar dataKey="receitas" fill="#10b981" name="Receitas" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="despesas" fill="#ef4444" name="Despesas" radius={[4, 4, 0, 0]} />
+                </BarChart>
               </ResponsiveContainer>
             </div>
           </CardContent>

@@ -768,62 +768,41 @@ export default function Relatorios() {
           {/* Gráfico de Evolução */}
           <Card>
             <CardHeader>
-              <CardTitle>Evolução Diária</CardTitle>
-              <CardDescription>Receitas, despesas e saldo por dia</CardDescription>
+                <CardTitle>Evolução Mensal</CardTitle>
+                <CardDescription>Comparação entre receitas e despesas mês a mês</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="h-[400px]">
                 <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={chartData}>
-                    <defs>
-                      <linearGradient id="colorReceitas" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
-                        <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
-                      </linearGradient>
-                      <linearGradient id="colorDespesas" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#ef4444" stopOpacity={0.3}/>
-                        <stop offset="95%" stopColor="#ef4444" stopOpacity={0}/>
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(148, 163, 184, 0.2)" />
-                    <XAxis 
-                      dataKey="date" 
-                      tick={{ fontSize: 11 }}
-                      tickLine={false}
-                    />
-                    <YAxis 
-                      tickFormatter={(value) => `R$ ${(value / 1000).toFixed(0)}k`}
-                      tick={{ fontSize: 11 }}
-                      tickLine={false}
-                    />
-                    <Tooltip 
-                      formatter={(value: number) => formatCurrency(value)}
-                      contentStyle={{ 
-                        backgroundColor: 'hsl(var(--card))', 
-                        border: '1px solid hsl(var(--border))',
-                        borderRadius: '8px'
-                      }}
-                    />
-                    <Legend />
-                    <Area 
-                      type="monotone" 
-                      dataKey="receitas" 
-                      stroke="#10b981" 
-                      strokeWidth={2}
-                      fillOpacity={1}
-                      fill="url(#colorReceitas)"
-                      name="Receitas"
-                    />
-                    <Area 
-                      type="monotone" 
-                      dataKey="despesas" 
-                      stroke="#ef4444" 
-                      strokeWidth={2}
-                      fillOpacity={1}
-                      fill="url(#colorDespesas)"
-                      name="Despesas"
-                    />
-                  </AreaChart>
+                    <BarChart data={monthlyComparison} margin={{ top: 20, right: 30, left: 0, bottom: 40 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(148, 163, 184, 0.2)" />
+                      <XAxis 
+                        dataKey="mes" 
+                        tick={{ fontSize: 13 }}
+                        tickLine={false}
+                      />
+                      <YAxis 
+                        tickFormatter={(value) => `R$ ${(value / 1000).toFixed(0)}k`}
+                        tick={{ fontSize: 13 }}
+                        tickLine={false}
+                      />
+                      <Tooltip 
+                        formatter={(value: number) => formatCurrency(value)}
+                        contentStyle={{
+                          background: 'rgba(23, 23, 35, 0.95)',
+                          border: '1px solid #334155',
+                          borderRadius: '10px',
+                          color: '#e5e7eb',
+                          boxShadow: '0 4px 16px rgba(0,0,0,0.25)',
+                          fontSize: 14,
+                          padding: 12,
+                        }}
+                        cursor={false}
+                      />
+                      <Legend />
+                      <Bar dataKey="receitas" fill="#10b981" name="Receitas" radius={[4, 4, 0, 0]} />
+                      <Bar dataKey="despesas" fill="#ef4444" name="Despesas" radius={[4, 4, 0, 0]} />
+                    </BarChart>
                 </ResponsiveContainer>
               </div>
             </CardContent>

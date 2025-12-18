@@ -1,3 +1,86 @@
+/* Esconde de vez qualquer retângulo/borda do cursor do tooltip do Recharts */
+svg .recharts-tooltip-cursor,
+svg .recharts-tooltip-cursor rect,
+svg .recharts-tooltip-cursor path,
+svg g.recharts-tooltip-cursor,
+svg g.recharts-tooltip-cursor > rect,
+svg g.recharts-tooltip-cursor > path {
+  display: none !important;
+  stroke: none !important;
+  fill: none !important;
+  opacity: 0 !important;
+}
+/* Esconde qualquer retângulo SVG transparente ou com stroke do cursor do tooltip do Recharts */
+svg .recharts-tooltip-cursor,
+svg .recharts-tooltip-cursor rect,
+svg .recharts-tooltip-cursor path,
+svg [stroke="#334155"],
+svg [stroke="#8884d8"],
+svg [stroke*="#"],
+svg [fill="none"],
+svg [opacity="0.1"],
+svg [opacity="0.2"],
+svg [opacity="0.25"],
+svg [opacity="0.3"],
+svg [opacity="0.4"],
+svg [opacity="0.5"] {
+  stroke: none !important;
+  fill: none !important;
+  opacity: 0 !important;
+  display: none !important;
+}
+.recharts-tooltip-cursor, .recharts-tooltip-cursor > rect, .recharts-tooltip-cursor > path, svg .recharts-tooltip-cursor, svg .recharts-tooltip-cursor > rect, svg .recharts-tooltip-cursor > path {
+  stroke: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+  fill: none !important;
+  background: none !important;
+  opacity: 0 !important;
+}
+.recharts-tooltip-cursor, .recharts-tooltip-cursor > rect, .recharts-tooltip-cursor > path {
+  stroke: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+  fill: none !important;
+  background: none !important;
+  opacity: 0 !important;
+}
+/* Remove overlay/fundo claro do gráfico mensal do Recharts */
+.recharts-bar-rectangle, .recharts-bar-background-rectangle, .recharts-active-bar, .recharts-bar-background {
+  fill: none !important;
+  background: none !important;
+  opacity: 1 !important;
+}
+.recharts-tooltip-cursor {
+  fill: none !important;
+  background: none !important;
+  opacity: 0 !important;
+  stroke: none !important;
+}
+/* Forçar tooltip escuro no Recharts */
+.recharts-tooltip-wrapper {
+  z-index: 9999;
+  border: none !important;
+  box-shadow: none !important;
+  background: transparent !important;
+  outline: none !important;
+}
+.recharts-tooltip-wrapper:focus,
+.recharts-tooltip-wrapper:active,
+.recharts-tooltip-wrapper:hover {
+  border: none !important;
+  box-shadow: none !important;
+  outline: none !important;
+}
+.recharts-default-tooltip {
+  background: rgba(23,23,35,0.97) !important;
+  border: none !important;
+  border-radius: 12px !important;
+  color: #e5e7eb !important;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.85) !important;
+  font-size: 1rem !important;
+  padding: 12px 16px !important;
+}
 
 @tailwind base;
 @tailwind components;
