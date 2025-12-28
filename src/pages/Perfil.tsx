@@ -13,7 +13,7 @@ import { SubscriptionInfo } from '@/components/profile/SubscriptionInfo'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
 import { toast } from '@/hooks/use-toast'
-import { Camera, User, Trash2, Settings, CreditCard, Shield } from 'lucide-react'
+import { Camera, User, Trash2, Settings, CreditCard, Shield, List } from 'lucide-react'
 import { validateWhatsAppNumber } from '@/utils/whatsapp'
 import { useNavigate } from 'react-router-dom'
 
@@ -461,7 +461,7 @@ export default function Perfil() {
       </div>
 
       <Tabs defaultValue="profile" className="w-full">
-        <TabsList className="grid w-full grid-cols-3 text-xs sm:text-sm lg:w-[400px]">
+        <TabsList className="grid w-full grid-cols-3 text-xs sm:text-sm lg:w-[390px]">
           <TabsTrigger value="profile" className="flex items-center gap-1 sm:gap-2">
             <User className="h-3 w-3 sm:h-4 sm:w-4" />
             <span className="hidden sm:inline">Perfil</span>

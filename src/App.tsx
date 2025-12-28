@@ -23,6 +23,7 @@ import Teste from "./pages/Teste";
 import Contas from "./pages/Contas";
 import Cartoes from "./pages/Cartoes";
 import Investimentos from "./pages/Investimentos";
+import ConfigCategorias from "./pages/ConfigCategorias";
 
 const queryClient = new QueryClient();
 
@@ -198,6 +199,14 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <Investimentos />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/config-categorias"
+        element={
+          <ProtectedRoute>
+            <ConfigCategorias />
           </ProtectedRoute>
         }
       />

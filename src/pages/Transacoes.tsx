@@ -165,7 +165,7 @@ const Transacoes: React.FC = () => {
       const { data, error } = await supabase
         .from('transacoes')
         .select(`*, categorias:categorias!transacoes_category_id_fkey(id, nome)`) // join categorias
-        .eq('userid', user.id)
+        .eq('user_id', user.id)
         .order('quando', { ascending: false });
       if (error) throw error;
       setTransacoes(data || []);

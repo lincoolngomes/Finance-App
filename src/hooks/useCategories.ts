@@ -9,6 +9,7 @@ export interface Category {
   id: string;
   nome: string;
   tags: string | null;
+  tipo: string | null;
   created_at: string;
   updated_at: string;
   userid: string;
@@ -25,7 +26,7 @@ export function useCategories() {
       
       const { data, error } = await supabase
         .from('categorias')
-        .select('*')
+        .select('id, nome, tags, tipo, created_at, updated_at, userid')
         .eq('userid', user.id)
         .order('nome');
 

@@ -27,6 +27,8 @@ import Papa from 'papaparse';
 
 
 function ImportarExtratoModal({ open, onClose, onImport, contas }) {
+    // Estado local para controlar edição de valor por linha
+    const [valorEditando, setValorEditando] = useState({});
   // Estados principais do modal de importação
   const [step, setStep] = useState(1);
   const [regrasTexto, setRegrasTexto] = useState(`# ===== DESPESAS =====\n\n# Academia\nsmart fit = Academia\nbluefit = Academia\nselfit = Academia\nbodytech = Academia\njust fit = Academia\ngympass = Academia\nacademia = Academia\n\n# Água\nsabesp = Água\nsanepar = Água\ncopasa = Água\ncaesb = Água\ncasan = Água\ndmae = Água\nembasa = Água\nsaae = Água\n\n# Alimentação\nifood = Alimentação\nubereats = Alimentação\nrestaurante = Alimentação\nlanchonete = Alimentação\npadaria = Alimentação\npizzaria = Alimentação\nhamburgueria = Alimentação\nhabibs = Alimentação\noutback = Alimentação\nmcdonalds = Alimentação\nburger king = Alimentação\nbk = Alimentação\ngiraffas = Alimentação\nsubway = Alimentação\nspoleto = Alimentação\n\n# Aluguel\naluguel = Aluguel\nlocacao residencial = Aluguel\nimobiliaria = Aluguel\nquinto andar = Aluguel\nquintoandar = Aluguel\n\n# Aplicação Investimento\naplicacao cdb = Aplicação Investimento\naplicacao cdb cofrinhos = Aplicação Investimento\naplicacao cdb di = Aplicação Investimento\ncof aplicacao cdb = Aplicação Investimento\ndi aplicacao cdb = Aplicação Investimento\npix transf avenue = Aplicação Investimento\naporte = Aplicação Investimento\nenvio corretora = Aplicação Investimento\ncompra tesouro = Aplicação Investimento\ncompra fundos = Aplicação Investimento\n\n# Assinaturas\nseguro cartao = Assinaturas\nnetflix = Assinaturas\nspotify = Assinaturas\nprime video = Assinaturas\ndisney = Assinaturas\ngloboplay = Assinaturas\nmax = Assinaturas\nhbo = Assinaturas\nyoutube premium = Assinaturas\napple tv = Assinaturas\napple music = Assinaturas\nicloud = Assinaturas\ngoogle one = Assinaturas\nmicrosoft 365 = Assinaturas\nadobe = Assinaturas\nchatgpt = Assinaturas\nnotion = Assinaturas\nonepassword = Assinaturas\ndeezer = Assinaturas\nparamount = Assinaturas\ncanva = Assinaturas\n\n# Carro\nipva = Carro\nlicenciamento = Carro\npag licenciamento de vei = Carro\necovias = Carro\nsem parar = Carro\nrscss ecovias = Carro\nposto = Carro\ngasolina = Carro\netanol = Carro\ndiesel = Carro\nestacionamento = Carro\nmanutencao veiculo = Carro\n\n# Celular\nvivo recarga = Celular\nclaro recarga = Celular\ntim recarga = Celular\noi recarga = Celular\nvivo pos = Celular\nclaro pos = Celular\ntim pos = Celular\noi pos = Celular\nvivo controle = Celular\nclaro controle = Celular\ntim controle = Celular\nrecarga celular = Celular\n\n# Compras\nmercado livre = Compras\nmagalu = Compras\namericanas = Compras\nsubmarino = Compras\ncasas bahia = Compras\nshopee = Compras\namazon = Compras\nkabum = Compras\nfast shop = Compras\ncentauro = Compras\nkalunga = Compras\nshein = Compras\naliexpress = Compras\npaypal = Compras\npagseguro = Compras\nstone = Compras\nsumup = Compras\ngetnet = Compras\ncielo = Compras\nrede = Compras\nsafetopay = Compras\npay shopp = Compras\nreceita fed = Compras\nint pre-pago = Compras\npix qrs = Compras\npix whats = Compras\nmagazine lu = Compras\nnetshoes = Compras\n\n# Educação\nescola = Educação\nfaculdade = Educação\nuniversidade = Educação\ncurso = Educação\nead = Educação\nalura = Educação\nrocketseat = Educação\nudemy = Educação\ncoursera = Educação\nsenai = Educação\netec = Educação\npix transf thamire = Educação\n\n# Energia\nenel = Energia\nlight = Energia\ncemig = Energia\ncopel = Energia\nequatorial = Energia\nrge = Energia\ncelesc = Energia\ncpfl = Energia\nenergisa = Energia\n\n# Farmácia\ndrogaraia = Farmácia\ndroga raia = Farmácia\ndrogasil = Farmácia\npacheco = Farmácia\ndrogaria sao paulo = Farmácia\npanvel = Farmácia\nnissei = Farmácia\naraujo = Farmácia\nfarmaconde = Farmácia\nfarmacia = Farmácia\n\n# Fatura do Cartão\nint mc black = Fatura do Cartão\nint itau black = Fatura do Cartão\npix qrs mercado pag = Fatura do Cartão\npix qrs portoseg = Fatura do Cartão\nportoseg sa = Fatura do Cartão\npagamento fatura = Fatura do Cartão\nfatura cartao = Fatura do Cartão\n\n# Internet\nvivo fibra = Internet\nclaro net = Internet\ntim live = Internet\noi fibra = Internet\ngvt = Internet\nalgar = Internet\nbrisanet = Internet\ndesktop = Internet\nvogel = Internet\nprovedor = Internet\ninternet = Internet\n\n# Lazer\ncinema = Lazer\ncinemark = Lazer\ncinepolis = Lazer\nteatro = Lazer\nshow = Lazer\ningresso = Lazer\nparque = Lazer\nmuseu = Lazer\nthermas = Lazer\nhotel = Lazer\nbooking = Lazer\ndecolar = Lazer\nairbnb = Lazer\nresort = Lazer\nsympla = Lazer\ningresso.com = Lazer\n\n# Mercado\ncarrefour = Mercado\nextra = Mercado\npao de acucar = Mercado\nassai = Mercado\natacadao = Mercado\ndia = Mercado\nsonda = Mercado\ntenda = Mercado\nbig = Mercado\noba = Mercado\nhortifruti = Mercado\nsupermerc = Mercado\nsuper mercado = Mercado\n\n# Moradia\ncondominio = Moradia\niptu = Moradia\nmanutencao residencial = Moradia\nleroy merlin = Moradia\ntelha norte = Moradia\ntok stok = Moradia\ncamicado = Moradia\nmobly = Moradia\n\n# Necessidades\nsaque banco24h = Necessidades\nsaque din atm = Necessidades\natm banco24h = Necessidades\nloterica = Necessidades\ncaixa eletronico = Necessidades\n\n# Pet\npetz = Pet\ncobasi = Pet\npetlove = Pet\npet shop = Pet\nseres = Pet\nvet = Pet\nclinica veterinaria = Pet\ndrogavet = Pet\n\n# Salão/Barbearia\nbarbearia = Salão\nsalao = Salão\ncabeleireiro = Salão\nesmalteria = Salão\nmanicure = Salão\nbarber = Salão\npix transf sergio = Salão\n\n# Saúde\nhospital = Saúde\nclinica = Saúde\nlaboratorio = Saúde\nexame = Saúde\nvacina = Saúde\ndasa = Saúde\nfleury = Saúde\nsabin = Saúde\neinstein = Saúde\nsirio = Saúde\nunimed = Saúde\namil = Saúde\nhapvida = Saúde\nprevent = Saúde\npix transf tania = Saúde\n\n# Transferência (Despesa)\npix transf lincoln = Transferência\npix transf conta itau = Transferência\nted transf conta = Transferência\ndoc transferencia = Transferência\ntransferencia entre contas = Transferência\npix transf minha conta = Transferência\n\n# Uber\nuber = Uber\n99 app = Uber\n99pop = Uber\ncabify = Uber\nindriver = Uber\n\n# Vestuário\nrenner = Vestuário\nriachuelo = Vestuário\ncea = Vestuário\nc&a = Vestuário\nzara = Vestuário\nhering = Vestuário\nmarisa = Vestuário\nyoucom = Vestuário\nnetshoes = Vestuário\ndafiti = Vestuário\n\n# ===== RECEITAS =====\n\n# Aluguel Recebido\naluguel recebido = Aluguel\nrepasse aluguel = Aluguel\ninquilino = Aluguel\nairbnb repasse = Aluguel\n\n# Benefícios/Ajuda\npgto itau itau-k = Benefícios\nsispag fund saude itau = Benefícios\nbeneficio = Benefícios\nreembolso = Benefícios\najuda = Benefícios\n\n# Investimentos\ndividendos = Investimentos\nproventos = Investimentos\njcp = Investimentos\naluguel de acoes = Investimentos\nrendimento fundos = Investimentos\nrendimento fii = Investimentos\nprovento fii = Investimentos\n\n# Juros Investimentos\ncor juros rf = Juros Investimentos\njuros cdb = Juros Investimentos\njuros = Juros Investimentos\nrend pago aplic aut mais = Juros Investimentos\n\n# Recompensas\ncashback = Recompensas\nrecompensa = Recompensas\nbonus = Recompensas\nted 104.0000caixa econ f = Recompensas\nmeliuz = Recompensas\name digital = Recompensas\n\n# Renda Extra\nfreela = Renda Extra\nfreelancer = Renda Extra\nconsultoria = Renda Extra\naula = Renda Extra\nbico = Renda Extra\nrevenda = Renda Extra\ncomissao = Renda Extra\npix cliente = Renda Extra\npagamento servico = Renda Extra\n\n# Resgate Investimentos\nresgate cdb = Resgate Investimentos\nresgate cdb di = Resgate Investimentos\nresgate cdb cofrinhos = Resgate Investimentos\ndi resgate cdb = Resgate Investimentos\ncor tes direto - venda = Resgate Investimentos\ncor amortizacao - rf = Resgate Investimentos\ncor irrf = Resgate Investimentos\nresgate fundo = Resgate Investimentos\nvenda tesouro = Resgate Investimentos\n\n# Salário\nfolha pagamento mensal = Salário\nfolha de ferias = Salário\n13. salario = Salário\nholerite = Salário\npagamento salario = Salário\nproventos folha = Salário\n\n# Transferência (Receita)\npix transf lincoln = Transferência\npix transf conta itau = Transferência\nted transf conta = Transferência\ndoc transferencia = Transferência\ntransferencia entre contas = Transferência\npix transf minha conta = Transferência\n\n# Vendas\nmercado pago receb = Vendas\npagseguro receb = Vendas\nstone receb = Vendas\ngetnet receb = Vendas\nsumup receb = Vendas\nifood repasse = Vendas\nshopee repasse = Vendas\nshopify payout = Vendas\nvenda = Vendas\npagamento cliente = Vendas`);
@@ -118,13 +120,17 @@ function ImportarExtratoModal({ open, onClose, onImport, contas }) {
         setLoading(false);
         console.log('CSV Raw Data:', results.data);
         // Se não tem cabeçalho, mapear manualmente: [data, descricao, valor]
+        // Função para gerar uid simples
+        function gerarUid() {
+          return Math.random().toString(36).substr(2, 9) + Date.now().toString(36);
+        }
         const parsed = results.data
           .filter(row => Array.isArray(row) && row.length >= 2 && row[0] && row[1])
           .map((row) => {
             const descricao = row[1] || '';
             const dataOriginal = row[0] || '';
-            console.log('Linha processada:', { data: dataOriginal, descricao, valor: row[2] });
             return {
+              uid: gerarUid(),
               quando: dataOriginal,
               estabelecimento: descricao,
               valor: (row[2] || '').replace('.', '').replace(',', '.'),
@@ -151,7 +157,7 @@ function ImportarExtratoModal({ open, onClose, onImport, contas }) {
   const handleEditLancamento = (lancamento, campo, valor) => {
     setLancamentos(lancamentos => {
       const novos = [...lancamentos];
-      const idx = novos.findIndex(l => l === lancamento);
+      const idx = novos.findIndex(l => l.uid === lancamento.uid);
       if (idx !== -1) {
         novos[idx] = { ...novos[idx], [campo]: valor };
         // Se o campo editado for categoria, marca como manual
@@ -331,7 +337,7 @@ function ImportarExtratoModal({ open, onClose, onImport, contas }) {
                     <tr><td colSpan={5} className="text-center text-zinc-400 py-4">Nenhum lançamento encontrado no arquivo CSV.</td></tr>
                   ) : (
                     getSortedLancamentos().map((l, idx) => (
-                      <tr key={idx} className={idx % 2 === 0 ? 'bg-zinc-900/70' : 'bg-zinc-800/70'} style={{ transition: 'background 0.2s' }}>
+                      <tr key={l.uid} className={idx % 2 === 0 ? 'bg-zinc-900/70' : 'bg-zinc-800/70'} style={{ transition: 'background 0.2s' }}>
                         <td className="p-1 border-b border-zinc-800">
                           <input
                             type="text" placeholder="DD/MM/AAAA"
@@ -352,12 +358,27 @@ function ImportarExtratoModal({ open, onClose, onImport, contas }) {
                         </td>
                         <td className="p-1 border-b border-zinc-800">
                           <input
-                            type="number"
-                            step="0.01"
-                            min="0"
+                            type="text"
+                            inputMode="decimal"
                             className="w-full px-2 py-1 rounded bg-zinc-950 focus:bg-blue-50 focus:text-blue-900 border border-zinc-800 focus:border-blue-400 outline-none transition text-sm text-blue-100 cursor-text select-text"
-                            value={Math.abs(Number(l.valor))}
-                            onChange={e => handleEditLancamento(l, 'valor', e.target.value)}
+                            value={
+                              valorEditando[l.uid] !== undefined
+                                ? valorEditando[l.uid]
+                                : (l.valor ? (Number(l.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })) : '0,00')
+                            }
+                            onFocus={e => {
+                              setValorEditando(v => ({ ...v, [l.uid]: l.valor ? l.valor.toString().replace('.', ',') : '' }));
+                            }}
+                            onChange={e => {
+                              const raw = e.target.value.replace(/[^\d,]/g, '');
+                              setValorEditando(v => ({ ...v, [l.uid]: raw }));
+                            }}
+                            onBlur={e => {
+                              const raw = valorEditando[l.uid] ?? '';
+                              const num = parseValorBR(raw);
+                              handleEditLancamento(l, 'valor', num);
+                              setValorEditando(v => ({ ...v, [l.uid]: num.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }));
+                            }}
                             style={l.valor === undefined || l.valor === '' ? emptyCellStyle : filledCellStyle}
                           />
                         </td>
@@ -445,12 +466,14 @@ function ImportarExtratoModal({ open, onClose, onImport, contas }) {
                         </td>
                         <td className="p-1 border-b border-zinc-800">
                           <input
-                            type="number"
-                            step="0.01"
-                            min="0"
+                            type="text"
+                            inputMode="decimal"
                             className="w-full px-2 py-1 rounded bg-zinc-950 focus:bg-blue-50 focus:text-blue-900 border border-zinc-800 focus:border-blue-400 outline-none transition text-sm text-blue-100 cursor-text select-text"
-                            value={Math.abs(Number(l.valor))}
-                            onChange={e => handleEditLancamento(l, 'valor', e.target.value)}
+                            value={formatarValorBR(l.valor?.toString() ?? '')}
+                            onChange={e => {
+                              const formatted = formatarValorBR(e.target.value);
+                              handleEditLancamento(l, 'valor', parseValorBR(formatted));
+                            }}
                             style={l.valor === undefined || l.valor === '' ? emptyCellStyle : filledCellStyle}
                           />
                         </td>
