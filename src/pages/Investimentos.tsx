@@ -817,14 +817,14 @@ export default function Investimentos() {
                       className="w-3 h-3 text-teal-600 rounded focus:ring-teal-500"
                     />
                   </th>
-                  <th className="text-left py-2 px-2 font-semibold text-muted-foreground text-xs">Código</th>
-                  <th className="text-left py-2 px-2 font-semibold text-muted-foreground text-xs">Nome</th>
-                  <th className="text-left py-2 px-2 font-semibold text-muted-foreground text-xs">Tipo</th>
-                  <th className="text-left py-2 px-2 font-semibold text-muted-foreground text-xs">Detalhes</th>
-                  <th className="text-right py-2 px-2 font-semibold text-muted-foreground text-xs">Investido</th>
-                  <th className="text-right py-2 px-2 font-semibold text-muted-foreground text-xs">Valor Bruto</th>
-                  <th className="text-right py-2 px-2 font-semibold text-muted-foreground text-xs">Valor Líquido</th>
-                  <th className="text-right py-2 px-2 font-semibold text-muted-foreground text-xs">Rentabilidade</th>
+                  <th className="text-left py-2 px-2 font-semibold text-muted-foreground text-xs max-w-[80px] truncate">Código</th>
+                  <th className="text-left py-2 px-2 font-semibold text-muted-foreground text-xs max-w-[140px] truncate">Nome</th>
+                  <th className="text-left py-2 px-2 font-semibold text-muted-foreground text-xs max-w-[100px] truncate">Tipo</th>
+                  <th className="text-left py-2 px-2 font-semibold text-muted-foreground text-xs max-w-[120px] truncate">Detalhes</th>
+                  <th className="text-right py-2 px-2 font-semibold text-muted-foreground text-xs max-w-[100px] truncate">Investido</th>
+                  <th className="text-right py-2 px-2 font-semibold text-muted-foreground text-xs max-w-[100px] truncate">Valor Bruto</th>
+                  <th className="text-right py-2 px-2 font-semibold text-muted-foreground text-xs max-w-[100px] truncate">Valor Líquido</th>
+                  <th className="text-right py-2 px-2 font-semibold text-muted-foreground text-xs max-w-[100px] truncate">Rentabilidade</th>
                   <th className="text-center py-2 px-2 font-semibold text-muted-foreground text-xs">Ações</th>
                 </tr>
               </thead>
