@@ -24,6 +24,7 @@ import Contas from "./pages/Contas";
 import Cartoes from "./pages/Cartoes";
 import Investimentos from "./pages/Investimentos";
 import ConfigCategorias from "./pages/ConfigCategorias";
+// import RelatorioNovo from "./pages/RelatorioNovo";
 
 const queryClient = new QueryClient();
 
@@ -210,6 +211,14 @@ function AppRoutes() {
           </ProtectedRoute>
         }
       />
+      {/* <Route
+        path="/relatorio-novo"
+        element={
+          <ProtectedRoute>
+            <RelatorioNovo />
+          </ProtectedRoute>
+        }
+      /> */}
       <Route path="*" element={<NotFound />} />
     </Routes>
   );

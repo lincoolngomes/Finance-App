@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
@@ -39,64 +38,102 @@ export default function Dashboard() {
   const [lembretes, setLembretes] = useState<Lembrete[]>([])
   const [contas, setContas] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+
+  // Inicialização temporária, será ajustada após carregar as transações
+  const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth());
+  const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
+  // DEBUG: Logar transacoes carregadas
+  useEffect(() => {
+    if (import.meta.env.DEV) {
+      console.log('Transacoes carregadas:', transacoes)
+      // Logar datas das transações para diagnóstico
+      const datas = transacoes.slice(0, 20).map(t => ({
+        id: t.id,
+        quando: t.quando,
+        created_at: t.created_at,
+        tipo: t.tipo,
+        valor: t.valor
+      }))
+      console.table(datas)
+    }
+  }, [transacoes])
   
   // Estados dos filtros
   const [filterMonth, setFilterMonth] = useState(new Date().getMonth().toString())
   const [filterYear, setFilterYear] = useState(new Date().getFullYear().toString())
 
+  // Ao carregar as transações, ajusta o filtro para o mês/ano mais recente disponível
+  useEffect(() => {
+    if (transacoes.length > 0) {
+      // Encontrar a data mais recente
+      const mostRecent = transacoes.reduce((max, t) => {
+        const d = new Date(t.quando || t.created_at);
+        return d > max ? d : max;
+      }, new Date(transacoes[0].quando || transacoes[0].created_at));
+      setFilterMonth(mostRecent.getMonth().toString());
+      setFilterYear(mostRecent.getFullYear().toString());
+    }
+  }, [transacoes]);
+
   useEffect(() => {
     if (!user) return
 
     const fetchData = async () => {
-    try {
-      setLoading(true)
-      
-      // Buscar transações
-      const { data: transacoesData, error: transacoesError } = await supabase
-        .from('transacoes')
-        .select(`
-          *,
-          categorias!transacoes_category_id_fkey (
-            id,
-            nome
-          )
-        `)
-        .eq('userid', user?.id)
-        .order('created_at', { ascending: false })
+      try {
+        setLoading(true)
+        // Buscar transações
+        const { data: transacoesData, error: transacoesError } = await supabase
+          .from('transacoes')
+          .select(`
+            *,
+            categorias!transacoes_category_id_fkey (
+              id,
+              nome
+            )
+          `)
+          .eq('userid', user?.id)
+          .order('created_at', { ascending: false })
 
-      if (transacoesError) throw transacoesError
+        if (import.meta.env.DEV) {
+          console.log('Resultado bruto transacoes:', transacoesData)
+          if (transacoesError) {
+            console.error('Erro ao buscar transacoes:', transacoesError)
+          }
+        }
 
-      // Buscar lembretes
-      const { data: lembretesData, error: lembretesError } = await supabase
-        .from('lembretes')
-        .select('*')
-        .eq('userid', user?.id)
-        .order('data', { ascending: true })
+        if (transacoesError) throw transacoesError
 
-      if (lembretesError) throw lembretesError
+        // Buscar lembretes
+        const { data: lembretesData, error: lembretesError } = await supabase
+          .from('lembretes')
+          .select('*')
+          .eq('userid', user?.id)
+          .order('data', { ascending: true })
 
-      setTransacoes(transacoesData || [])
-      // Buscar contas do usuário (usadas para cálculo de saldo por conta)
-      const { data: contasData, error: contasError } = await supabase
-        .from('accounts')
-        .select('*')
-        .eq('user_id', user?.id)
+        if (lembretesError) throw lembretesError
 
-      if (!contasError) setContas(contasData || [])
-      setLembretes(lembretesData || [])
-    } catch (error: any) {
-      toast({
-        title: "Erro ao carregar dados",
-        description: error.message,
-        variant: "destructive",
-      })
-    } finally {
-      setLoading(false)
+        setTransacoes(transacoesData || [])
+        // Buscar contas do usuário (usadas para cálculo de saldo por conta)
+        const { data: contasData, error: contasError } = await supabase
+          .from('accounts')
+          .select('*')
+          .eq('user_id', user?.id)
+
+        if (!contasError) setContas(contasData || [])
+        setLembretes(lembretesData || [])
+      } catch (error: any) {
+        toast({
+          title: "Erro ao carregar dados",
+          description: error.message,
+          variant: "destructive",
+        })
+      } finally {
+        setLoading(false)
+      }
     }
-  }
 
-  fetchData()
-}, [user])
+    fetchData()
+  }, [user])
 
   // Filtrar transações por mês e ano
   const filteredTransacoes = useMemo(() => {
@@ -132,7 +169,11 @@ export default function Dashboard() {
 
     const filterYearNum = parseInt(filterYear) || new Date().getFullYear()
 
-    return transacoes.filter(transacao => {
+    if (import.meta.env.DEV) {
+      console.log('Filtro: mês', filterMonthIndex, 'ano', filterYearNum)
+    }
+
+    const resultado = transacoes.filter(transacao => {
       const raw = (transacao.quando || transacao.created_at || '').toString().trim()
       const transacaoDate = parseToDate(raw)
       if (!transacaoDate) return false
@@ -140,9 +181,26 @@ export default function Dashboard() {
       const transacaoMonth = transacaoDate.getUTCMonth()
       const transacaoYear = transacaoDate.getUTCFullYear()
 
+      if (import.meta.env.DEV) {
+        console.log('Transação', transacao.id, 'data:', raw, '->', transacaoDate.toISOString(), 'mês:', transacaoMonth, 'ano:', transacaoYear)
+      }
+
       return transacaoMonth === filterMonthIndex && transacaoYear === filterYearNum
     })
+
+    if (import.meta.env.DEV) {
+      console.log('Transações após filtro:', resultado.length)
+    }
+
+    return resultado
   }, [transacoes, filterMonth, filterYear])
+
+  // DEBUG: Logar transacoes filtradas
+  useEffect(() => {
+    if (import.meta.env.DEV) {
+      console.log('Transacoes filtradas:', filteredTransacoes)
+    }
+  }, [filteredTransacoes])
 
   // Calcular estatísticas
   // Saldo atual (global) — não deve depender do filtro de mês/ano
