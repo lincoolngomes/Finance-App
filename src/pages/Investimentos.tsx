@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react'
+import '@/components/ui/table-responsive.css'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -804,8 +805,8 @@ export default function Investimentos() {
         )}
         
         {investimentosFiltrados.length > 0 ? (
-          <div className="overflow-x-auto w-full">
-            <table className="w-full">
+          <div className="table-responsive">
+            <table>
               <thead>
                 <tr className="border-b">
                   <th className="text-left py-2 px-2 w-8">
