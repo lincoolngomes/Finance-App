@@ -832,9 +832,62 @@ export default function Investimentos() {
                 </thead>
                 <tbody>
                   {Array.from(investimentosPorCategoria.entries()).map(([categoriaKey, grupos]) => {
-                    // ...código existente da tabela...
-                    // ...não altere a renderização dos dados...
-                    // ...existing code...
+                    // Lógica de categoria (copiada do código original)
+                    let categoriaLabel = ''
+                    let categoriaIcon = ''
+                    let totalCategoria = grupos.reduce((sum, g) => sum + g.valorTotal, 0)
+                    if (categoriaKey.startsWith('renda_fixa_')) {
+                      const parts = categoriaKey.split('_')
+                      const subtipo = parts[2]
+                      const isencao = parts[3]
+                      if (subtipo === 'pos') categoriaLabel = 'Renda Fixa Pós-Fixada'
+                      else if (subtipo === 'pre') categoriaLabel = 'Renda Fixa Pré-Fixada'
+                      else if (subtipo === 'ipca') categoriaLabel = 'Renda Fixa IPCA+'
+                      else categoriaLabel = 'Renda Fixa'
+                      if (isencao === 'isento') {
+                        categoriaLabel += ' ✅ Isento IR'
+                      }
+                      categoriaIcon = '💰'
+                    } else {
+                      categoriaLabel = TIPO_LABELS[categoriaKey] || categoriaKey
+                      categoriaIcon = TIPO_EMOJIS[categoriaKey] || '📊'
+                    }
+                    return (
+                      <React.Fragment key={categoriaKey}>
+                        {/* Cabeçalho da categoria */}
+                        <tr className="bg-gradient-to-r from-teal-100 to-teal-50 dark:from-teal-900/30 dark:to-teal-950/30 border-y-2 border-teal-300 dark:border-teal-700">
+                          <td colSpan={10} className="py-2 px-2">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <span className="text-lg sm:text-xl">{categoriaIcon}</span>
+                                <span className="font-bold text-sm sm:text-base text-teal-900 dark:text-teal-100">
+                                  {categoriaLabel}
+                                </span>
+                                <span className="text-xs text-teal-700 dark:text-teal-300">
+                                  {grupos.length} {grupos.length === 1 ? 'ativo' : 'ativos'}
+                                </span>
+                              </div>
+                              <div className="font-mono font-bold text-sm sm:text-base text-teal-900 dark:text-teal-100">
+                                {formatCurrency(totalCategoria)}
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                        {/* ...restante do código da tabela, sem alteração... */}
+                        {grupos.map((grupo) => {
+                          const isExpanded = expandedGroups.has(grupo.codigo)
+                          const hasMultiple = grupo.items.length > 1
+                          const primeiroItem = grupo.items[0]
+                          const temCotacao = ['acao', 'fii', 'etf', 'cripto'].includes(grupo.tipo)
+                          return (
+                            <React.Fragment key={grupo.codigo}>
+                              {/* Linha do grupo (sempre visível) */}
+                              {/* ...existing code... */}
+                            </React.Fragment>
+                          )
+                        })}
+                      </React.Fragment>
+                    )
                   })}
                 </tbody>
               </table>
