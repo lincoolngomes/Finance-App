@@ -859,25 +859,6 @@ export default function Investimentos() {
               ))}
             </div>
           </>
-                    const parts = categoriaKey.split('_')
-                    const subtipo = parts[2]
-                    const isencao = parts[3]
-                    
-                    if (subtipo === 'pos') categoriaLabel = 'Renda Fixa Pós-Fixada'
-                    else if (subtipo === 'pre') categoriaLabel = 'Renda Fixa Pré-Fixada'
-                    else if (subtipo === 'ipca') categoriaLabel = 'Renda Fixa IPCA+'
-                    else categoriaLabel = 'Renda Fixa'
-                    
-                    // Adiciona emoji de isento apenas se for isento
-                    if (isencao === 'isento') {
-                      categoriaLabel += ' ✅ Isento IR'
-                    }
-                    categoriaIcon = '💰'
-                  } else {
-                    categoriaLabel = TIPO_LABELS[categoriaKey] || categoriaKey
-                    categoriaIcon = TIPO_EMOJIS[categoriaKey] || '📊'
-                  }
-                  
                   return (
                     <React.Fragment key={categoriaKey}>
                       {/* Cabeçalho da categoria */}
