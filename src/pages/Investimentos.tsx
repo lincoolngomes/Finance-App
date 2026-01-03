@@ -415,7 +415,7 @@ export default function Investimentos() {
   }
 
   return (
-    <div className="space-y-4 pb-6 min-h-[calc(100vh-64px)] overflow-auto w-full max-w-full">
+    <div className="space-y-4 pb-6 min-h-[calc(100vh-64px)] overflow-auto w-screen">
       {/* Header */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3">
         <div>
@@ -568,7 +568,7 @@ export default function Investimentos() {
       </Card>
 
       {/* Gráfico de Evolução */}
-      <Card className="p-3 sm:p-4 md:p-6 overflow-x-auto max-w-full">
+      <Card className="p-3 sm:p-4 md:p-6 overflow-x-auto w-full min-w-[900px]">
         <div className="mb-3 sm:mb-4">
           <h2 className="text-base sm:text-lg md:text-xl font-bold text-foreground flex items-center gap-2">
             <TrendingUp className="w-4 h-4 sm:w-5 sm:h-5 text-teal-600" />
@@ -682,7 +682,7 @@ export default function Investimentos() {
       </div>
 
       {/* Tabela de Ativos */}
-      <Card className="p-3 sm:p-4 md:p-6 overflow-x-auto max-w-full">
+      <Card className="p-3 sm:p-4 md:p-6 overflow-x-auto w-full min-w-[900px]">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-3 sm:mb-4">
           <div className="flex flex-wrap items-center gap-2">
             <h3 className="text-base sm:text-lg font-semibold text-foreground">Meus Ativos</h3>
