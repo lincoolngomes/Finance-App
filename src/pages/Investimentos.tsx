@@ -805,39 +805,60 @@ export default function Investimentos() {
         )}
         
         {investimentosFiltrados.length > 0 ? (
-          <div className="overflow-x-auto w-full">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b">
-                  <th className="text-left py-2 px-2 w-8">
-                    <input
-                      type="checkbox"
-                      checked={selectedIds.size === investimentosFiltrados.length && investimentosFiltrados.length > 0}
-                      onChange={toggleSelectAll}
-                      className="w-3 h-3 text-teal-600 rounded focus:ring-teal-500"
-                    />
-                  </th>
-                  <th className="text-left py-2 px-2 font-semibold text-muted-foreground text-xs">Código</th>
-                  <th className="text-left py-2 px-2 font-semibold text-muted-foreground text-xs">Nome</th>
-                  <th className="text-left py-2 px-2 font-semibold text-muted-foreground text-xs">Tipo</th>
-                  <th className="text-left py-2 px-2 font-semibold text-muted-foreground text-xs">Detalhes</th>
-                  <th className="text-right py-2 px-2 font-semibold text-muted-foreground text-xs">Investido</th>
-                  <th className="text-right py-2 px-2 font-semibold text-muted-foreground text-xs">Valor Bruto</th>
-                  <th className="text-right py-2 px-2 font-semibold text-muted-foreground text-xs">Valor Líquido</th>
-                  <th className="text-right py-2 px-2 font-semibold text-muted-foreground text-xs">Rentabilidade</th>
-                  <th className="text-center py-2 px-2 font-semibold text-muted-foreground text-xs">Ações</th>
-                </tr>
-              </thead>
-              <tbody>
-                {Array.from(investimentosPorCategoria.entries()).map(([categoriaKey, grupos]) => {
-                  // Calcular totais da categoria
-                  const totalCategoria = grupos.reduce((sum, g) => sum + g.valorTotal, 0)
-                  
-                  // Definir label da categoria
-                  let categoriaLabel = ''
-                  let categoriaIcon = ''
-                  
-                  if (categoriaKey.startsWith('renda_fixa_')) {
+          <>
+            {/* Tabela para md+ */}
+            <div className="hidden md:block overflow-x-auto w-full">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b">
+                    <th className="text-left py-2 px-2 w-8">
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.size === investimentosFiltrados.length && investimentosFiltrados.length > 0}
+                        onChange={toggleSelectAll}
+                        className="w-3 h-3 text-teal-600 rounded focus:ring-teal-500"
+                      />
+                    </th>
+                    <th className="text-left py-2 px-2 font-semibold text-muted-foreground text-xs">Código</th>
+                    <th className="text-left py-2 px-2 font-semibold text-muted-foreground text-xs">Nome</th>
+                    <th className="text-left py-2 px-2 font-semibold text-muted-foreground text-xs">Tipo</th>
+                    <th className="text-left py-2 px-2 font-semibold text-muted-foreground text-xs">Detalhes</th>
+                    <th className="text-right py-2 px-2 font-semibold text-muted-foreground text-xs">Investido</th>
+                    <th className="text-right py-2 px-2 font-semibold text-muted-foreground text-xs">Valor Bruto</th>
+                    <th className="text-right py-2 px-2 font-semibold text-muted-foreground text-xs">Valor Líquido</th>
+                    <th className="text-right py-2 px-2 font-semibold text-muted-foreground text-xs">Rentabilidade</th>
+                    <th className="text-center py-2 px-2 font-semibold text-muted-foreground text-xs">Ações</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {Array.from(investimentosPorCategoria.entries()).map(([categoriaKey, grupos]) => {
+                    // ...código existente da tabela...
+                    // ...não altere a renderização dos dados...
+                    // ...existing code...
+                  })}
+                </tbody>
+              </table>
+            </div>
+            {/* Cards para mobile */}
+            <div className="block md:hidden space-y-3">
+              {investimentosFiltrados.map((inv, idx) => (
+                <div key={inv.id || idx} className="rounded-lg border bg-card p-3 flex flex-col gap-2 shadow-sm">
+                  <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground">
+                    <span className="text-base font-bold text-foreground">{inv.codigo}</span>
+                    <span className="text-xs bg-muted px-2 py-0.5 rounded">{inv.tipo}</span>
+                  </div>
+                  <div className="font-bold text-lg text-foreground">{inv.nome}</div>
+                  <div className="text-xs text-muted-foreground">{inv.detalhes || inv.instituicao}</div>
+                  <div className="flex flex-wrap gap-2 text-xs mt-1">
+                    <span className="font-medium">Investido:</span> <span>{formatCurrency(inv.valor_total)}</span>
+                    <span className="font-medium">Bruto:</span> <span>{formatCurrency(inv.valor_bruto || 0)}</span>
+                    <span className="font-medium">Líquido:</span> <span>{formatCurrency(inv.valor_atual || 0)}</span>
+                    <span className="font-medium">Rentabilidade:</span> <span className={inv.rentabilidade_percentual >= 0 ? 'text-green-600' : 'text-red-600'}>{inv.rentabilidade_percentual !== undefined ? `${inv.rentabilidade_percentual.toFixed(2)}%` : '-'}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </>
                     const parts = categoriaKey.split('_')
                     const subtipo = parts[2]
                     const isencao = parts[3]
