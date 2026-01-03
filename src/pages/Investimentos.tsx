@@ -18,8 +18,21 @@ import { Label } from '@/components/ui/label'
 
 const COLORS = ['#14b8a6', '#06b6d4', '#3b82f6', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#f97316']
 
+
 const TIPO_LABELS: Record<string, string> = {
   acao: 'Ações',
+  fii: 'FIIs',
+  etf: 'ETFs',
+  renda_fixa: 'Renda Fixa',
+  tesouro_direto: 'Tesouro Direto',
+  cri: 'CRI',
+  cra: 'CRA',
+  debenture: 'Debêntures',
+  cripto: 'Criptomoedas',
+  fundo: 'Fundos',
+  previdencia: 'Previdência'
+}
+
 const formatarData = (dataString: string) => {
   const [ano, mes, dia] = dataString.split('T')[0].split('-')
   return new Date(parseInt(ano), parseInt(mes) - 1, parseInt(dia)).toLocaleDateString('pt-BR')
