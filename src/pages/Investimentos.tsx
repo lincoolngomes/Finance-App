@@ -415,7 +415,7 @@ export default function Investimentos() {
   }
 
   return (
-    <div className="space-y-4 pb-6">
+    <div className="space-y-4 pb-6 min-h-[calc(100vh-64px)] overflow-auto">
       {/* Header */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3">
         <div>
