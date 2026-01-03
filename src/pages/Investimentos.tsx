@@ -20,44 +20,6 @@ const COLORS = ['#14b8a6', '#06b6d4', '#3b82f6', '#8b5cf6', '#ec4899', '#f59e0b'
 
 const TIPO_LABELS: Record<string, string> = {
   acao: 'Ações',
-  fii: 'FIIs',
-  etf: 'ETFs',
-  renda_fixa: 'Renda Fixa',
-  tesouro_direto: 'Tesouro Direto',
-  cri: 'CRI',
-  cra: 'CRA',
-  debenture: 'Debêntures',
-  cripto: 'Criptomoedas',
-  fundo: 'Fundos',
-  previdencia: 'Previdência'
-}
-
-const TIPO_EMOJIS: Record<string, string> = {
-  acao: '📈',
-  fii: '🏢',
-  etf: '📊',
-  renda_fixa: '💰',
-  tesouro_direto: '🏛️',
-  cri: '📄',
-  cra: '🌾',
-  debenture: '📜',
-  cripto: '₿',
-  fundo: '🎯',
-  previdencia: '🏦'
-}
-
-// Função helper para verificar se é renda fixa
-const isRendaFixa = (tipo: string) => {
-  return ['renda_fixa', 'tesouro_direto', 'cri', 'cra', 'debenture'].includes(tipo)
-}
-
-// Função helper para verificar se o tipo pode usar marcação a mercado
-const podeMarcacaoMercado = (tipo: string) => {
-  // APENAS estes tipos podem usar marcação a mercado:
-  return ['tesouro_direto', 'cri', 'cra', 'debenture'].includes(tipo)
-}
-
-// Função helper para formatar datas corretamente (sem problemas de UTC)
 const formatarData = (dataString: string) => {
   const [ano, mes, dia] = dataString.split('T')[0].split('-')
   return new Date(parseInt(ano), parseInt(mes) - 1, parseInt(dia)).toLocaleDateString('pt-BR')
