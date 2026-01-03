@@ -568,7 +568,7 @@ export default function Investimentos() {
       </Card>
 
       {/* Gráfico de Evolução */}
-      <Card className="p-3 sm:p-4 md:p-6 overflow-x-auto w-full min-w-[900px]">
+      <Card className="p-3 sm:p-4 md:p-6 overflow-x-auto w-full">
         <div className="mb-3 sm:mb-4">
           <h2 className="text-base sm:text-lg md:text-xl font-bold text-foreground flex items-center gap-2">
             <TrendingUp className="w-4 h-4 sm:w-5 sm:h-5 text-teal-600" />
@@ -682,7 +682,7 @@ export default function Investimentos() {
       </div>
 
       {/* Tabela de Ativos */}
-      <Card className="p-3 sm:p-4 md:p-6 overflow-x-auto w-full min-w-[900px]">
+      <Card className="p-3 sm:p-4 md:p-6 overflow-x-auto w-full">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-3 sm:mb-4">
           <div className="flex flex-wrap items-center gap-2">
             <h3 className="text-base sm:text-lg font-semibold text-foreground">Meus Ativos</h3>
@@ -804,8 +804,8 @@ export default function Investimentos() {
         )}
         
         {investimentosFiltrados.length > 0 ? (
-          <div className="overflow-x-auto -mx-2 sm:mx-0">
-            <table className="w-full min-w-[1200px]">
+          <div className="overflow-x-auto w-full">
+            <table className="w-full">
               <thead>
                 <tr className="border-b">
                   <th className="text-left py-2 px-2 w-8">
