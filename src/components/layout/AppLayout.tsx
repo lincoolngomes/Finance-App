@@ -1,11 +1,31 @@
 
-import { SidebarProvider, SidebarTrigger, SidebarInset } from '@/components/ui/sidebar'
+import { SidebarProvider, SidebarInset, useSidebar } from '@/components/ui/sidebar'
 import { AppSidebar } from './AppSidebar'
 import { ThemeToggle } from '@/components/ui/theme-toggle'
+import { Menu, X } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 
 interface AppLayoutProps {
   children: React.ReactNode
   userName?: string
+}
+
+function MenuTrigger() {
+  const { toggleSidebar, state } = useSidebar()
+  return (
+    <Button
+      variant="ghost"
+      size="icon"
+      onClick={toggleSidebar}
+      className="h-9 w-9 rounded-md hover:bg-accent"
+    >
+      {state === 'open' ? (
+        <X className="h-5 w-5 text-muted-foreground" />
+      ) : (
+        <Menu className="h-5 w-5 text-muted-foreground" />
+      )}
+    </Button>
+  )
 }
 
 export function AppLayout({ children, userName }: AppLayoutProps) {
@@ -39,7 +59,7 @@ export function AppLayout({ children, userName }: AppLayoutProps) {
         <SidebarInset className="w-full">
           <header className="h-16 flex items-center justify-between px-3 sm:px-6 bg-card border-b shadow-sm sticky top-0 z-40">
             <div className="flex items-center gap-2 sm:gap-4">
-              <SidebarTrigger />
+              <MenuTrigger />
               <h1 className="text-sm sm:text-lg font-semibold title-color">
                 {getGreeting()}
               </h1>
