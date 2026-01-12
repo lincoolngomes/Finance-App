@@ -48,6 +48,8 @@ export function useReports() {
     queryFn: async () => {
       if (!user?.id) return []
       
+      console.log('📊 Buscando transações para relatório, userId:', user.id)
+      
       const { data, error } = await supabase
         .from('transacoes')
         .select(`
@@ -57,7 +59,15 @@ export function useReports() {
             nome
           )
         `)
-        .eq('userid', user.id)
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+
+      if (error) {
+        console.error('❌ Erro ao buscar transações para relatório:', error)
+        throw error
+      }
+      
+      console.log('✅ Transações carregadas:', data?.length || 0)
         .order('created_at', { ascending: false })
 
       if (error) {

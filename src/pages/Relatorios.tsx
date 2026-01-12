@@ -532,15 +532,44 @@ export default function Relatorios() {
       />
 
       {transactions.length === 0 ? (
-        <Card>
-          <CardContent className="p-12 text-center">
-            <PieChart className="h-16 w-16 mx-auto mb-4 text-muted-foreground opacity-50" />
-            <h3 className="text-lg font-semibold mb-2">Nenhum dado disponível</h3>
-            <p className="text-muted-foreground text-sm">
-              Ajuste os filtros ou adicione transações para ver análises
-            </p>
-          </CardContent>
-        </Card>
+        <div className="space-y-6">
+          <Card>
+            <CardContent className="p-12 text-center">
+              <PieChart className="h-16 w-16 mx-auto mb-4 text-muted-foreground opacity-50" />
+              <h3 className="text-lg font-semibold mb-2">Nenhum dado disponível</h3>
+              <p className="text-muted-foreground text-sm mb-4">
+                Nenhuma transação encontrada para o período selecionado.
+              </p>
+              <p className="text-muted-foreground text-sm">
+                Tente ajustar o período de análise ou adicione transações para gerar relatórios.
+              </p>
+            </CardContent>
+          </Card>
+          
+          {/* Mostrar dicas mesmo sem dados */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Brain className="h-5 w-5" />
+                Como usar os relatórios
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <p className="text-sm font-medium">1. Adicione transações</p>
+                <p className="text-sm text-muted-foreground">Vá para a página de Transações e adicione suas despesas e receitas</p>
+              </div>
+              <div className="space-y-2">
+                <p className="text-sm font-medium">2. Ajuste o período</p>
+                <p className="text-sm text-muted-foreground">Use o filtro de datas para visualizar diferentes períodos</p>
+              </div>
+              <div className="space-y-2">
+                <p className="text-sm font-medium">3. Visualize análises</p>
+                <p className="text-sm text-muted-foreground">Os gráficos e indicadores aparecerão quando houver transações</p>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       ) : (
         <>
           {/* Indicador de Saúde Financeira */}
