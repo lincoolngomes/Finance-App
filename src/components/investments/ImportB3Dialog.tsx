@@ -24,6 +24,7 @@ export function ImportB3Dialog({ open, onOpenChange, onSuccess }: ImportB3Dialog
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
   const [resultado, setResultado] = useState<B3ImportResult | null>(null)
+  const [showManualInput, setShowManualInput] = useState(false)
 
   const handleCPFChange = (value: string) => {
     // Remove tudo que não é número
@@ -196,61 +197,90 @@ export function ImportB3Dialog({ open, onOpenChange, onSuccess }: ImportB3Dialog
             Importar do B3 Investidor
           </DialogTitle>
           <DialogDescription>
-            Importe automaticamente suas posições do CEI da B3 (Canal Eletrônico do Investidor)
+            Importe automaticamente suas posições ou importe manualmente via CSV
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 py-4">
-          {/* CPF */}
-          <div className="space-y-2">
-            <Label htmlFor="cpf">CPF</Label>
-            <Input
-              id="cpf"
-              type="text"
-              placeholder="000.000.000-00"
-              value={formatarCPF(cpf)}
-              onChange={(e) => handleCPFChange(e.target.value)}
-              disabled={loading}
-              maxLength={14}
-            />
-          </div>
-
-          {/* Senha */}
-          <div className="space-y-2">
-            <Label htmlFor="senha">Senha do B3 CEI</Label>
-            <div className="relative">
-              <Input
-                id="senha"
-                type={showSenha ? 'text' : 'password'}
-                placeholder="Sua senha do CEI"
-                value={senha}
-                onChange={(e) => setSenha(e.target.value)}
-                disabled={loading}
-                className="pr-10"
-              />
-              <button
-                type="button"
-                onClick={() => setShowSenha(!showSenha)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-              >
-                {showSenha ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-              </button>
-            </div>
-          </div>
-
-          {/* Aviso de Segurança */}
-          <Alert>
-            <AlertCircle className="w-4 h-4" />
-            <AlertDescription className="text-xs">
-              🔒 Suas credenciais <strong>não são armazenadas</strong>. São usadas apenas para importar os dados diretamente do B3.
+          {/* Alerta importante */}
+          <Alert className="border-amber-200 bg-amber-50 dark:bg-amber-950">
+            <AlertCircle className="w-4 h-4 text-amber-600" />
+            <AlertDescription className="text-amber-800 dark:text-amber-200 text-sm">
+              <strong>⚠️ Importador automático indisponível</strong><br/>
+              O acesso direto ao CEI da B3 requer configurações adicionais de segurança. Use a opção de importação manual exportando seus dados do CEI.
             </AlertDescription>
           </Alert>
+
+          {!showManualInput ? (
+            <>
+              {/* Credenciais (desabilitadas) */}
+              <div className="space-y-2 opacity-50 pointer-events-none">
+                <Label htmlFor="cpf">CPF</Label>
+                <Input
+                  id="cpf"
+                  type="text"
+                  placeholder="000.000.000-00"
+                  value={formatarCPF(cpf)}
+                  disabled={true}
+                  maxLength={14}
+                />
+              </div>
+
+              <div className="space-y-2 opacity-50 pointer-events-none">
+                <Label htmlFor="senha">Senha do B3 CEI</Label>
+                <div className="relative">
+                  <Input
+                    id="senha"
+                    type="password"
+                    placeholder="Sua senha do CEI"
+                    disabled={true}
+                    className="pr-10"
+                  />
+                </div>
+              </div>
+
+              {/* Instruções */}
+              <div className="bg-slate-50 dark:bg-slate-900 p-4 rounded-lg space-y-3 text-sm">
+                <p className="font-semibold">Como importar seus investimentos:</p>
+                <ol className="list-decimal list-inside space-y-2 text-muted-foreground">
+                  <li>Acesse <a href="https://cei.b3.com.br" target="_blank" rel="noopener noreferrer" className="text-teal-600 hover:underline">cei.b3.com.br</a></li>
+                  <li>Faça login com suas credenciais</li>
+                  <li>Vá para "Consultas" → "Posição da Carteira"</li>
+                  <li>Clique em "Exportar" e escolha "CSV"</li>
+                  <li>Volte aqui e clique em "Importar CSV"</li>
+                </ol>
+              </div>
+            </>
+          ) : (
+            <div className="space-y-3">
+              <p className="text-sm text-muted-foreground">
+                Cole os dados do seu arquivo CSV do CEI abaixo. Você pode copiar e colar o conteúdo do arquivo exportado.
+              </p>
+              <Input
+                type="file"
+                accept=".csv"
+                disabled={loading}
+                onChange={(e) => {
+                  const file = e.target.files?.[0]
+                  if (file) {
+                    const reader = new FileReader()
+                    reader.onload = (event) => {
+                      const content = event.target?.result as string
+                      // Aqui você poderia processar o CSV
+                      console.log('CSV carregado:', content)
+                    }
+                    reader.readAsText(file)
+                  }
+                }}
+              />
+            </div>
+          )}
 
           {/* Erro */}
           {error && (
             <Alert variant="destructive">
               <AlertCircle className="w-4 h-4" />
-              <AlertDescription>{error}</AlertDescription>
+              <AlertDescription className="text-sm">{error}</AlertDescription>
             </Alert>
           )}
 
@@ -258,51 +288,33 @@ export function ImportB3Dialog({ open, onOpenChange, onSuccess }: ImportB3Dialog
           {success && (
             <Alert className="border-green-200 bg-green-50 dark:bg-green-950">
               <CheckCircle className="w-4 h-4 text-green-600" />
-              <AlertDescription className="text-green-800 dark:text-green-200">
+              <AlertDescription className="text-green-800 dark:text-green-200 text-sm">
                 {success}
               </AlertDescription>
             </Alert>
           )}
-
-          {/* Resultado da importação */}
-          {resultado && (
-            <div className="text-sm space-y-1 p-3 bg-secondary rounded-lg">
-              <p className="font-semibold">Encontrado:</p>
-              <ul className="list-disc list-inside space-y-0.5 text-muted-foreground">
-                {resultado.acoes.length > 0 && <li>{resultado.acoes.length} ações</li>}
-                {resultado.fiis.length > 0 && <li>{resultado.fiis.length} FIIs</li>}
-                {resultado.etfs.length > 0 && <li>{resultado.etfs.length} ETFs</li>}
-                {resultado.rendaFixa.length > 0 && <li>{resultado.rendaFixa.length} Renda Fixa</li>}
-                {resultado.tesouroDireto.length > 0 && <li>{resultado.tesouroDireto.length} Tesouro Direto</li>}
-              </ul>
-            </div>
-          )}
         </div>
 
-        <div className="flex justify-end gap-3">
+        <div className="flex justify-between gap-3">
           <Button
             variant="outline"
-            onClick={() => onOpenChange(false)}
+            onClick={() => {
+              if (showManualInput) {
+                setShowManualInput(false)
+              } else {
+                onOpenChange(false)
+              }
+            }}
             disabled={loading}
           >
-            Cancelar
+            {showManualInput ? '← Voltar' : 'Cancelar'}
           </Button>
           <Button
-            onClick={handleImportar}
-            disabled={loading || !cpf || !senha}
-            className="bg-teal-600 hover:bg-teal-700"
+            onClick={() => setShowManualInput(!showManualInput)}
+            variant={showManualInput ? 'default' : 'outline'}
+            disabled={loading}
           >
-            {loading ? (
-              <>
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                Importando...
-              </>
-            ) : (
-              <>
-                <Download className="w-4 h-4 mr-2" />
-                Importar
-              </>
-            )}
+            {showManualInput ? '✓ Usar outro método' : 'Importar CSV'}
           </Button>
         </div>
       </DialogContent>

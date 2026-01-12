@@ -39,7 +39,6 @@ import {
 import { AddTransactionDialog } from '@/components/investments/AddTransactionDialog'
 import { EditInvestmentDialog } from '@/components/investments/EditInvestmentDialog'
 import { ResgateDialog } from '@/components/investments/ResgateDialog'
-import { ImportB3Dialog } from '@/components/investments/ImportB3Dialog'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -56,12 +55,6 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
 import { PieChart as RechartsPie, Pie, Cell, ResponsiveContainer, Legend, Tooltip as RechartsTooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts'
 import { format, differenceInDays, addDays, isPast, isWithinInterval } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
@@ -109,7 +102,6 @@ export default function Investimentos() {
   const [addDialogOpen, setAddDialogOpen] = useState(false)
   const [editDialogOpen, setEditDialogOpen] = useState(false)
   const [resgateDialogOpen, setResgateDialogOpen] = useState(false)
-  const [importB3DialogOpen, setImportB3DialogOpen] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [investimentoSelecionado, setInvestimentoSelecionado] = useState<Investimento | null>(null)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
@@ -447,24 +439,14 @@ export default function Investimentos() {
               <RefreshCcw className="h-4 w-4 mr-2" />
               Atualizar
             </Button>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Adicionar
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={() => setAddDialogOpen(true)}>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Nova aplicação
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setImportB3DialogOpen(true)}>
-                  <Receipt className="h-4 w-4 mr-2" />
-                  Importar B3
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <Button onClick={() => setAddDialogOpen(true)}>
+              <Plus className="h-4 w-4 mr-2" />
+              Nova aplicação
+            </Button>
+            <Button onClick={() => setResgateDialogOpen(true)} variant="outline">
+              <ArrowDownRight className="h-4 w-4 mr-2" />
+              Registrar resgate
+            </Button>
           </div>
         </div>
         
@@ -598,7 +580,7 @@ export default function Investimentos() {
         
         {/* Tabs de Visualização */}
         <Tabs defaultValue="lista" className="space-y-4">
-          <TabsList className="grid w-full grid-cols-3 lg:w-auto lg:inline-flex">
+          <TabsList className="grid w-full grid-cols-4 lg:w-auto lg:inline-flex">
             <TabsTrigger value="lista" className="flex items-center gap-2">
               <BarChart3 className="h-4 w-4" />
               Lista
@@ -610,6 +592,10 @@ export default function Investimentos() {
             <TabsTrigger value="vencimentos" className="flex items-center gap-2">
               <Calendar className="h-4 w-4" />
               Vencimentos
+            </TabsTrigger>
+            <TabsTrigger value="extrato" className="flex items-center gap-2">
+              <Banknote className="h-4 w-4" />
+              Extrato
             </TabsTrigger>
           </TabsList>
           
@@ -1222,6 +1208,88 @@ export default function Investimentos() {
               </CardContent>
             </Card>
           </TabsContent>
+          
+          {/* Tab Extrato */}
+          <TabsContent value="extrato" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Extrato de Investimentos</CardTitle>
+                <CardDescription>Todos os movimentos de aplicações e resgates</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {investimentos.length > 0 ? (
+                  <div className="space-y-3">
+                    {investimentos
+                      .filter(inv => inv.ativo || inv.quantidade === 0) // Mostrar ativos e resgatados
+                      .sort((a, b) => new Date(b.data_aplicacao || b.data_primeira_compra || b.created_at).getTime() - new Date(a.data_aplicacao || a.data_primeira_compra || a.created_at).getTime())
+                      .map(inv => {
+                        const isResgate = inv.quantidade === 0
+                        const dataMovimento = inv.data_aplicacao || inv.data_primeira_compra || inv.created_at
+                        
+                        return (
+                          <div 
+                            key={inv.id} 
+                            className="flex items-center justify-between p-4 rounded-lg border border-muted bg-card hover:bg-accent/50 transition-colors"
+                          >
+                            <div className="flex items-center gap-4">
+                              <div className={`p-2 rounded-lg ${
+                                isResgate 
+                                  ? 'bg-red-100 dark:bg-red-900 text-red-600'
+                                  : 'bg-emerald-100 dark:bg-emerald-900 text-emerald-600'
+                              }`}>
+                                {isResgate ? (
+                                  <ArrowDownRight className="h-4 w-4" />
+                                ) : (
+                                  <ArrowUpRight className="h-4 w-4" />
+                                )}
+                              </div>
+                              <div>
+                                <div className="flex items-center gap-2">
+                                  <h4 className="font-semibold">{inv.codigo}</h4>
+                                  <Badge variant="outline" className="text-xs">
+                                    {isResgate ? 'Resgate' : 'Aplicação'}
+                                  </Badge>
+                                  <Badge variant="outline" className="text-xs">
+                                    {TIPO_LABELS[inv.tipo] || inv.tipo}
+                                  </Badge>
+                                </div>
+                                <p className="text-sm text-muted-foreground">{inv.nome}</p>
+                                {inv.instituicao && (
+                                  <p className="text-xs text-muted-foreground">{inv.instituicao}</p>
+                                )}
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <p className={`font-semibold text-lg ${
+                                isResgate ? 'text-red-600' : 'text-emerald-600'
+                              }`}>
+                                {isResgate ? '-' : '+'}{formatCurrency(inv.valor_total)}
+                              </p>
+                              <p className="text-sm text-muted-foreground">
+                                {formatDate(dataMovimento)}
+                              </p>
+                              {inv.quantidade > 0 && (
+                                <p className="text-xs text-muted-foreground">
+                                  Saldo: {inv.quantidade.toFixed(2)} unidades
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        )
+                      })}
+                  </div>
+                ) : (
+                  <div className="text-center py-12">
+                    <Banknote className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                    <h3 className="text-lg font-semibold mb-2">Nenhum movimento registrado</h3>
+                    <p className="text-muted-foreground">
+                      Adicione investimentos para visualizar o extrato
+                    </p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
         </Tabs>
         
         {/* Diálogos */}
@@ -1246,11 +1314,6 @@ export default function Investimentos() {
             setSelectedIds(new Set())
           }}
           selectedIds={selectedIds}
-        />
-        
-        <ImportB3Dialog
-          open={importB3DialogOpen}
-          onOpenChange={setImportB3DialogOpen}
         />
         
         {/* Diálogo de confirmação de exclusão */}
