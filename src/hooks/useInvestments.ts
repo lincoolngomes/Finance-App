@@ -1036,11 +1036,13 @@ export const useInvestments = () => {
     const rentabilidadeTotal = valorTotal - valorInvestido
     const rentabilidadePercentual = valorInvestido > 0 ? (rentabilidadeTotal / valorInvestido) * 100 : 0
 
-    // Por tipo
+    // Por tipo (agrupando Tesouro Direto com Renda Fixa)
     const porTipoMap = new Map<string, number>()
     investimentos.forEach(inv => {
-      const valor = porTipoMap.get(inv.tipo) || 0
-      porTipoMap.set(inv.tipo, valor + (inv.valor_atual || 0))
+      // Tesouro Direto é um tipo de Renda Fixa
+      const tipoAgrupado = inv.tipo === 'tesouro_direto' ? 'renda_fixa' : inv.tipo
+      const valor = porTipoMap.get(tipoAgrupado) || 0
+      porTipoMap.set(tipoAgrupado, valor + (inv.valor_atual || 0))
     })
 
     const porTipo = Array.from(porTipoMap.entries()).map(([tipo, valor]) => ({

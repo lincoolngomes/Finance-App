@@ -1014,44 +1014,49 @@ export default function Investimentos() {
                 </CardHeader>
                 <CardContent>
                   {dadosGraficoPizza.length > 0 ? (
-                    <div className="h-80">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <RechartsPie>
-                          <Pie
-                            data={dadosGraficoPizza}
-                            cx="50%"
-                            cy="50%"
-                            innerRadius={60}
-                            outerRadius={100}
-                            paddingAngle={2}
-                            dataKey="value"
-                            nameKey="name"
-                            label={({ name, percentual }) => `${name} (${percentual.toFixed(1)}%)`}
-                            labelLine={false}
+                    <div className="space-y-4">
+                      {/* Grid de Cards ao invés de gráfico */}
+                      <div className="grid grid-cols-2 gap-2">
+                        {dadosGraficoPizza.map((item, index) => (
+                          <div 
+                            key={item.name} 
+                            className="p-3 rounded-lg border-2 space-y-2"
+                            style={{ borderColor: COLORS[index % COLORS.length] + '40', backgroundColor: COLORS[index % COLORS.length] + '10' }}
                           >
-                            {dadosGraficoPizza.map((entry, index) => (
-                              <Cell 
-                                key={`cell-${index}`} 
-                                fill={COLORS[index % COLORS.length]} 
+                            <div className="flex items-center gap-1">
+                              <div 
+                                className="w-2 h-2 rounded-full flex-shrink-0" 
+                                style={{ backgroundColor: COLORS[index % COLORS.length] }}
                               />
-                            ))}
-                          </Pie>
-                          <RechartsTooltip 
-                            formatter={(value: number) => formatCurrency(value)}
-                          />
-                          <Legend />
-                        </RechartsPie>
-                      </ResponsiveContainer>
+                              <p className="text-xs font-semibold text-muted-foreground truncate">{item.name}</p>
+                            </div>
+                            <div className="space-y-0.5">
+                              <p className="text-lg font-bold" style={{ color: COLORS[index % COLORS.length] }}>
+                                {item.percentual.toFixed(1)}%
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                {formatCurrency(item.value)}
+                              </p>
+                            </div>
+                            <div className="w-full bg-muted rounded-full h-1 overflow-hidden">
+                              <div 
+                                className="h-full transition-all"
+                                style={{ width: `${item.percentual}%`, backgroundColor: COLORS[index % COLORS.length] }}
+                              />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   ) : (
-                    <div className="h-80 flex items-center justify-center text-muted-foreground">
+                    <div className="h-48 flex items-center justify-center text-muted-foreground">
                       Sem dados para exibir
                     </div>
                   )}
                 </CardContent>
               </Card>
               
-              {/* Gráfico de Barras - Por Instituição */}
+              {/* Distribuição por Instituição */}
               <Card>
                 <CardHeader>
                   <CardTitle className="text-lg">Por Instituição</CardTitle>
@@ -1059,21 +1064,33 @@ export default function Investimentos() {
                 </CardHeader>
                 <CardContent>
                   {dadosGraficoInstituicao.length > 0 ? (
-                    <div className="h-80">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={dadosGraficoInstituicao} layout="vertical">
-                          <CartesianGrid strokeDasharray="3 3" />
-                          <XAxis type="number" tickFormatter={(value) => formatCurrency(value)} />
-                          <YAxis type="category" dataKey="name" width={100} />
-                          <RechartsTooltip 
-                            formatter={(value: number) => formatCurrency(value)}
-                          />
-                          <Bar dataKey="valor" fill="#10B981" radius={[0, 4, 4, 0]} />
-                        </BarChart>
-                      </ResponsiveContainer>
+                    <div className="space-y-3">
+                      {dadosGraficoInstituicao.map((item, index) => (
+                        <div key={item.name} className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2 flex-1 min-w-0">
+                              <div 
+                                className="w-3 h-3 rounded-full flex-shrink-0" 
+                                style={{ backgroundColor: COLORS[index % COLORS.length] }}
+                              />
+                              <p className="text-sm font-medium truncate">{item.name}</p>
+                            </div>
+                            <div className="text-right flex-shrink-0 ml-2">
+                              <p className="text-sm font-bold">{formatCurrency(item.valor)}</p>
+                              <p className="text-xs text-muted-foreground">{item.percentual.toFixed(1)}%</p>
+                            </div>
+                          </div>
+                          <div className="w-full bg-muted rounded-full h-2 overflow-hidden">
+                            <div 
+                              className="h-full transition-all"
+                              style={{ width: `${item.percentual}%`, backgroundColor: COLORS[index % COLORS.length] }}
+                            />
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   ) : (
-                    <div className="h-80 flex items-center justify-center text-muted-foreground">
+                    <div className="h-48 flex items-center justify-center text-muted-foreground">
                       Sem dados para exibir
                     </div>
                   )}
@@ -1084,34 +1101,34 @@ export default function Investimentos() {
             {/* Tabela detalhada de alocação */}
             <Card>
               <CardHeader>
-                <CardTitle className="text-lg">Detalhamento da Alocação</CardTitle>
+                <CardTitle className="text-lg">Detalhamento Completo da Alocação</CardTitle>
+                <CardDescription>Valores e percentuais por classe de ativo</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="space-y-4">
+                <div className="space-y-3">
                   {resumo.porTipo
                     .filter(item => item.valor > 0)
                     .sort((a, b) => b.valor - a.valor)
                     .map((item, index) => (
                       <div key={item.tipo} className="space-y-2">
                         <div className="flex justify-between items-center">
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-3">
                             <div 
-                              className="w-3 h-3 rounded-full" 
+                              className="w-3 h-3 rounded-full flex-shrink-0" 
                               style={{ backgroundColor: COLORS[index % COLORS.length] }}
                             />
-                            <span className="font-medium">{TIPO_LABELS[item.tipo] || item.tipo}</span>
+                            <div>
+                              <p className="font-semibold text-sm">{TIPO_LABELS[item.tipo] || item.tipo}</p>
+                              <p className="text-xs text-muted-foreground">{formatCurrency(item.valor)}</p>
+                            </div>
                           </div>
                           <div className="text-right">
-                            <span className="font-semibold">{formatCurrency(item.valor)}</span>
-                            <span className="text-muted-foreground ml-2">({item.percentual.toFixed(1)}%)</span>
+                            <p className="font-bold text-sm">{item.percentual.toFixed(1)}%</p>
                           </div>
                         </div>
                         <Progress 
                           value={item.percentual} 
-                          className="h-2"
-                          style={{ 
-                            ['--progress-color' as any]: COLORS[index % COLORS.length] 
-                          }}
+                          className="h-2.5"
                         />
                       </div>
                     ))}
