@@ -34,7 +34,9 @@ import {
   ArrowUpRight,
   ArrowDownRight,
   Banknote,
-  Receipt
+  Receipt,
+  CheckSquare,
+  Circle
 } from 'lucide-react'
 import { AddTransactionDialog } from '@/components/investments/AddTransactionDialog'
 import { EditInvestmentDialog } from '@/components/investments/EditInvestmentDialog'
@@ -332,7 +334,16 @@ export default function Investimentos() {
   }
   
   const confirmDelete = async () => {
-    if (investimentoSelecionado) {
+    // Se há selecionados, deletar múltiplos
+    if (selectedIds.size > 0) {
+      for (const id of selectedIds) {
+        await deletarInvestimento(id)
+      }
+      setSelectedIds(new Set())
+      setDeleteDialogOpen(false)
+    } 
+    // Caso contrário, deletar um individual
+    else if (investimentoSelecionado) {
       await deletarInvestimento(investimentoSelecionado.id)
       setDeleteDialogOpen(false)
       setInvestimentoSelecionado(null)
@@ -653,6 +664,52 @@ export default function Investimentos() {
               </CardContent>
             </Card>
             
+            {/* Seleção em massa e ações */}
+            {gruposFiltrados.length > 0 && (
+              <div className="flex items-center justify-between px-1 py-2">
+                {(() => {
+                  const totalLastros = gruposFiltrados.reduce((sum, g) => sum + g.lastros.length, 0)
+                  return (
+                    <button
+                      onClick={() => {
+                        if (selectedIds.size === totalLastros) {
+                          setSelectedIds(new Set())
+                        } else {
+                          setSelectedIds(new Set(gruposFiltrados.flatMap(g => g.lastros.map(l => l.id))))
+                        }
+                      }}
+                      className="flex items-center gap-2 text-xs text-muted-foreground opacity-50 hover:opacity-100 transition-opacity"
+                    >
+                      {selectedIds.size === totalLastros ? (
+                        <CheckCircle2 className="h-4 w-4 text-primary" />
+                      ) : selectedIds.size > 0 ? (
+                        <CheckSquare className="h-4 w-4 text-primary opacity-60" />
+                      ) : (
+                        <Circle className="h-4 w-4" />
+                      )}
+                      <span>{selectedIds.size === totalLastros ? 'Desmarcar todos' : 'Selecionar todos'}</span>
+                    </button>
+                  )
+                })()}
+
+                {selectedIds.size > 0 && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-muted-foreground">
+                      {selectedIds.size} selecionado(s)
+                    </span>
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => setDeleteDialogOpen(true)}
+                    >
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Excluir
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
+            
             {/* Lista de Investimentos */}
             <div className="space-y-3">
               {gruposFiltrados.length === 0 ? (
@@ -685,10 +742,36 @@ export default function Investimentos() {
                       <CardContent className="p-4">
                         {/* Linha principal do grupo */}
                         <div 
-                          className="flex items-center justify-between cursor-pointer"
-                          onClick={() => toggleExpand(grupoKey)}
+                          className="flex items-center justify-between"
                         >
-                          <div className="flex items-center gap-4 flex-1">
+                          <div className="flex items-center gap-3 flex-1">
+                            {/* Checkbox - ícone sutil */}
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                const novoSet = new Set(selectedIds)
+                                const isChecked = grupo.lastros.every(inv => selectedIds.has(inv.id))
+                                if (!isChecked) {
+                                  grupo.lastros.forEach(inv => novoSet.add(inv.id))
+                                } else {
+                                  grupo.lastros.forEach(inv => novoSet.delete(inv.id))
+                                }
+                                setSelectedIds(novoSet)
+                              }}
+                              className="flex-shrink-0 opacity-50 hover:opacity-100 transition-opacity p-0 h-5 w-5 flex items-center justify-center rounded"
+                            >
+                              {grupo.lastros.every(inv => selectedIds.has(inv.id)) ? (
+                                <CheckCircle2 className="h-5 w-5 text-primary" />
+                              ) : (
+                                <Circle className="h-5 w-5 text-muted-foreground" />
+                              )}
+                            </button>
+                            
+                            {/* Área expansível */}
+                            <div 
+                              className="flex items-center gap-4 flex-1 cursor-pointer"
+                              onClick={() => toggleExpand(grupoKey)}
+                            >
                             {/* Ícone do tipo */}
                             <div className={`p-2 rounded-lg ${
                               ['acao', 'fii', 'etf'].includes(grupo.tipo) 
@@ -719,6 +802,7 @@ export default function Investimentos() {
                                 {grupo.instituicao && ` • ${grupo.instituicao}`}
                               </p>
                             </div>
+                            </div>
                           </div>
                           
                           {/* Valores consolidados */}
@@ -734,9 +818,9 @@ export default function Investimentos() {
                             </div>
                             
                             {expandedId === grupoKey ? (
-                              <ChevronUp className="h-5 w-5 text-muted-foreground" />
+                              <ChevronUp className="h-5 w-5 text-muted-foreground cursor-pointer" onClick={() => toggleExpand(grupoKey)} />
                             ) : (
-                              <ChevronDown className="h-5 w-5 text-muted-foreground" />
+                              <ChevronDown className="h-5 w-5 text-muted-foreground cursor-pointer" onClick={() => toggleExpand(grupoKey)} />
                             )}
                           </div>
                         </div>
@@ -1322,9 +1406,18 @@ export default function Investimentos() {
             <AlertDialogHeader>
               <AlertDialogTitle>Confirmar exclusão</AlertDialogTitle>
               <AlertDialogDescription>
-                Tem certeza que deseja excluir o investimento{' '}
-                <strong>{investimentoSelecionado?.codigo} - {investimentoSelecionado?.nome}</strong>?
-                Esta ação não pode ser desfeita.
+                {selectedIds.size > 0 ? (
+                  <>
+                    Tem certeza que deseja excluir <strong>{selectedIds.size} investimento(s)</strong>?<br/>
+                    Esta ação não pode ser desfeita.
+                  </>
+                ) : (
+                  <>
+                    Tem certeza que deseja excluir o investimento{' '}
+                    <strong>{investimentoSelecionado?.codigo} - {investimentoSelecionado?.nome}</strong>?<br/>
+                    Esta ação não pode ser desfeita.
+                  </>
+                )}
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
@@ -1333,7 +1426,7 @@ export default function Investimentos() {
                 onClick={confirmDelete}
                 className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               >
-                Excluir
+                Excluir {selectedIds.size > 0 && `(${selectedIds.size})`}
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
