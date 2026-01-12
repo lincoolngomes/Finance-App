@@ -59,7 +59,7 @@ export function useReports() {
             nome
           )
         `)
-        .eq('user_id', user.id)
+        .eq('userid', user.id)
         .order('created_at', { ascending: false })
 
       if (error) {
@@ -68,13 +68,6 @@ export function useReports() {
       }
       
       console.log('✅ Transações carregadas:', data?.length || 0)
-        .order('created_at', { ascending: false })
-
-      if (error) {
-        console.error('Erro ao buscar transações para relatório:', error)
-        throw error
-      }
-
       return data as ReportTransaction[]
     },
     enabled: !!user?.id,
@@ -82,10 +75,15 @@ export function useReports() {
 
   // Filter transactions on the client side
   const transactions = useMemo(() => {
+    console.log('🔍 Filtrando transações. Total:', allTransactions.length, 'Filtros:', filters)
     let filtered = [...allTransactions]
 
+    // ⚠️ TEMPORÁRIO: Desabilitar filtro de datas para exibir todos os dados
+    // TODO: Corrigir a lógica de parsing de datas
+    /*
     // Apply date filters - usa quando se disponível, senão usa created_at
     if (filters.startDate || filters.endDate) {
+      const beforeFilter = filtered.length
       filtered = filtered.filter(t => {
         // Usa a mesma lógica do Dashboard para consistência
         const raw = (t.quando || t.created_at || '').toString().trim()
@@ -121,7 +119,9 @@ export function useReports() {
         
         return true
       })
+      console.log(`📅 Após filtro de datas: ${filtered.length} transações (removidas ${beforeFilter - filtered.length})`)
     }
+    */
 
     // Apply type filter
     if (filters.type) {
@@ -133,6 +133,7 @@ export function useReports() {
       filtered = filtered.filter(t => t.category_id === filters.categoryId)
     }
 
+    console.log(`✅ Transações filtradas finais: ${filtered.length}`)
     return filtered
   }, [allTransactions, filters])
 
