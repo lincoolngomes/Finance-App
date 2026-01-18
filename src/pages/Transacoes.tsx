@@ -418,14 +418,76 @@ const Transacoes: React.FC = () => {
         }
         toast({ title: "Transação atualizada com sucesso!" })
       } else {
-        const { error } = await supabase
-          .from('transacoes')
-          .insert([payload])
-
-        if (error) {
-          console.error('[Transacoes] insert error:', error)
-          throw error
+        // Se for parcelado, cria múltiplas transações em faturas futuras
+        if (formData.isParcelado && formData.metodo === 'cartao_credito') {
+          const transacoes = [];
+          const numeroParcelas = formData.numeroParcelas;
+          const valorParcela = formData.valor / numeroParcelas;
+          
+          for (let i = 0; i < numeroParcelas; i++) {
+            // Calcula a data da fatura (mês seguinte + i meses)
+            const dataFatura = new Date(formData.quando);
+            dataFatura.setMonth(dataFatura.getMonth() + i + 1);
+            
+            const dataFormatada = dataFatura.toISOString().split('T')[0];
+            
+            transacoes.push({
+              ...payload,
+              valor: Math.round(valorParcela * 100) / 100, // Evita erros de ponto flutuante
+              quando: dataFormatada,
+              estabelecimento: `${formData.estabelecimento} (Parcela ${i + 1}/${numeroParcelas})`,
+              status: 'pendente_fatura',
+            });
+          }
+          
+          const { error } = await supabase
+            .from('transacoes')
+            .insert(transacoes)
+          
+          if (error) {
+            console.error('[Transacoes] parcelado insert error:', error)
+            throw error
+          }
+        } 
+        // Se for recorrente, cria múltiplas transações nos próximos meses
+        else if (formData.isRecorrente) {
+          const transacoes = [];
+          const repetirMeses = formData.repetirMeses;
+          
+          for (let i = 0; i < repetirMeses; i++) {
+            // Calcula a data da próxima transação
+            const dataProxima = new Date(formData.quando);
+            dataProxima.setMonth(dataProxima.getMonth() + i);
+            
+            const dataFormatada = dataProxima.toISOString().split('T')[0];
+            
+            transacoes.push({
+              ...payload,
+              quando: dataFormatada,
+            });
+          }
+          
+          const { error } = await supabase
+            .from('transacoes')
+            .insert(transacoes)
+          
+          if (error) {
+            console.error('[Transacoes] recorrente insert error:', error)
+            throw error
+          }
         }
+        // Transação normal
+        else {
+          const { error } = await supabase
+            .from('transacoes')
+            .insert([payload])
+
+          if (error) {
+            console.error('[Transacoes] insert error:', error)
+            throw error
+          }
+        }
+        
         toast({ title: "Transação adicionada com sucesso!" })
       }
 
@@ -439,9 +501,14 @@ const Transacoes: React.FC = () => {
         tipo: '',
         category_id: '',
         metodo: '',
-        status: '',
+        status: 'pago',
         account_id: '',
         fatura_id: '',
+        isPago: true,
+        isParcelado: false,
+        numeroParcelas: 1,
+        isRecorrente: false,
+        repetirMeses: 1,
       })
       fetchTransacoes()
     } catch (error: any) {
@@ -481,9 +548,14 @@ const Transacoes: React.FC = () => {
       tipo: transacao.tipo || '',
       category_id: transacao.category_id || '',
       metodo: transacao.metodo || '',
-      status: transacao.status || '',
+      status: transacao.status || 'pago',
       account_id: accountId,
       fatura_id: transacao.fatura_id || '',
+      isPago: transacao.status !== 'pendente' && transacao.status !== 'pendente_fatura',
+      isParcelado: false,
+      numeroParcelas: 1,
+      isRecorrente: false,
+      repetirMeses: 1,
     });
     // Garante que o Dialog só abre após o formData ser atualizado
     setTimeout(() => setDialogOpen(true), 0);
@@ -1314,7 +1386,7 @@ const Transacoes: React.FC = () => {
       )}
 
       {/* Cabeçalho da Tabela */}
-      <div className="grid gap-4 grid-cols-[50px_100px_1.5fr_130px_130px_100px_110px_80px] items-center px-6 py-3 bg-slate-800/50 rounded-lg font-semibold text-xs text-slate-400 border border-slate-700/50 sticky top-0">
+      <div className="grid gap-4 grid-cols-[50px_100px_1.5fr_130px_130px_100px_110px_120px] items-center px-6 py-3 bg-slate-800/50 rounded-lg font-semibold text-xs text-slate-400 border border-slate-700/50 sticky top-0">
         <div className="flex items-center justify-center">
           <input type="checkbox" className="w-4 h-4 cursor-pointer" onChange={(e) => handleSelectAll(e.target.checked)} checked={isAllSelected} />
         </div>
@@ -1324,7 +1396,7 @@ const Transacoes: React.FC = () => {
         <div>CONTA</div>
         <div>CARTÃO</div>
         <div className="text-right">VALOR</div>
-        <div>STATUS</div>
+        <div>STATUS / AÇÕES</div>
       </div>
 
       {/* Lista de Transações */}
@@ -1374,7 +1446,7 @@ const Transacoes: React.FC = () => {
             return (
               <div
                 key={transacao.id}
-                className={`grid gap-4 grid-cols-[50px_100px_1.5fr_130px_130px_100px_110px_80px] items-center px-6 py-4 rounded-lg border-l-4 border-b border-slate-700/30 bg-gradient-to-r hover:bg-slate-800/50 transition-colors text-sm ${
+                className={`grid gap-4 grid-cols-[50px_100px_1.5fr_130px_130px_100px_110px_120px] items-center px-6 py-4 rounded-lg border-l-4 border-b border-slate-700/30 bg-gradient-to-r hover:bg-slate-800/50 transition-colors text-sm ${
                   isReceita
                     ? 'from-green-500/5 border-l-green-500'
                     : isPendente
@@ -1412,7 +1484,7 @@ const Transacoes: React.FC = () => {
                 <div className={`font-bold text-right ${isReceita ? 'text-green-400' : 'text-red-400'}`}>
                   {isReceita ? '+' : '-'}{formatCurrency(Math.abs(transacao.valor || 0))}
                 </div>
-                <div>
+                <div className="flex items-center gap-2">
                   <Badge
                     className={`text-xs px-2 py-1 rounded font-semibold ${
                       transacao.status === 'pendente' || transacao.status === 'pendente_fatura'
@@ -1424,6 +1496,39 @@ const Transacoes: React.FC = () => {
                   >
                     {transacao.status === 'pendente' || transacao.status === 'pendente_fatura' ? 'Pend.' : 'Pago'}
                   </Badge>
+                  <div className="flex gap-1">
+                    <Button 
+                      size="sm" 
+                      variant="ghost" 
+                      onClick={() => handleEdit(transacao)} 
+                      className="h-6 w-6 p-0 text-blue-400 hover:text-blue-300 hover:bg-blue-500/10"
+                      title="Editar"
+                    >
+                      <Edit className="h-3.5 w-3.5" />
+                    </Button>
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button 
+                          size="sm" 
+                          variant="ghost" 
+                          className="h-6 w-6 p-0 text-red-400 hover:text-red-300 hover:bg-red-500/10"
+                          title="Excluir"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Excluir transação</AlertDialogTitle>
+                          <AlertDialogDescription>Tem certeza que deseja remover esta transação? Esta ação não pode ser desfeita.</AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                          <AlertDialogAction onClick={() => handleDelete(transacao.id)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Excluir</AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  </div>
                 </div>
               </div>
             )
@@ -1433,169 +1538,350 @@ const Transacoes: React.FC = () => {
 
       {/* Dialog de criação/edição de transação */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-md w-full bg-black/70 backdrop-blur-sm border-primary/20">
-          {/* Header com gradiente e ícone */}
-          <DialogHeader className="bg-gradient-to-r from-primary/10 to-transparent p-4 -m-6 mb-4 border-b border-primary/20">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center">
-                <svg className="w-6 h-6 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
-                </svg>
-              </div>
-              <div>
-                <DialogTitle className="text-lg font-bold">{editingTransaction ? 'Editar Transação' : 'Nova Transação'}</DialogTitle>
-                <DialogDescription className="text-xs">
-                  {editingTransaction ? 'Edite os dados da transação.' : 'Preencha os dados para criar uma nova transação.'}
-                </DialogDescription>
-              </div>
-            </div>
-          </DialogHeader>
-          <form onSubmit={handleSubmit} className="space-y-4 pt-2">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="quando" className="text-sm font-medium flex items-center gap-2">
-                  <svg className="w-4 h-4 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                  </svg>
-                  Data
-                </Label>
-                <Input
-                  id="quando"
-                  type="date"
-                  className="bg-background/50"
-                  value={formData.quando}
-                  onChange={e => setFormData({ ...formData, quando: e.target.value })}
-                  required
-                />
-              </div>
-              <div>
-                <Label htmlFor="valor" className="text-sm font-medium flex items-center gap-2">
-                  <svg className="w-4 h-4 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  Valor
-                </Label>
-                <Input
-                  id="valor"
-                  type="number"
-                  step="0.01"
-                  className="bg-background/50"
-                  value={formData.valor}
-                  onChange={e => setFormData({ ...formData, valor: Number(e.target.value) })}
-                  required
-                />
+        <DialogContent className="max-w-3xl max-h-[95vh] overflow-y-auto bg-gradient-to-br from-background via-background to-secondary/10 border border-border/40 shadow-2xl flex flex-col">
+          {/* ===== HEADER PREMIUM ===== */}
+          <div className="pb-6 border-b border-gradient-to-r from-primary/20 via-primary/10 to-transparent">
+            <div className="flex items-center gap-4">
+              <div className="flex-1">
+                <div className="flex items-center gap-3 mb-2">
+                  <div className="p-2.5 rounded-xl bg-gradient-to-br from-primary/30 to-primary/10 border border-primary/20">
+                    {editingTransaction ? (
+                      <svg className="w-5 h-5 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-7-4l7-7m0 0l-7 7" />
+                      </svg>
+                    ) : (
+                      <svg className="w-5 h-5 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                      </svg>
+                    )}
+                  </div>
+                  <div>
+                    <DialogTitle className="text-2xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
+                      {editingTransaction ? 'Editar Transação' : 'Nova Transação'}
+                    </DialogTitle>
+                    <p className="text-xs text-muted-foreground/80 mt-1">Preencha os dados da transação abaixo</p>
+                  </div>
+                </div>
               </div>
             </div>
-            <div>
-              <Label htmlFor="estabelecimento" className="text-sm font-medium flex items-center gap-2">
-                <svg className="w-4 h-4 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                </svg>
-                Estabelecimento
-              </Label>
-              <Input
-                id="estabelecimento"
-                className="bg-background/50"
-                value={formData.estabelecimento}
-                onChange={e => setFormData({ ...formData, estabelecimento: e.target.value })}
-                required
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="tipo" className="text-sm font-medium">Tipo</Label>
-                <Select value={formData.tipo} onValueChange={value => setFormData({ ...formData, tipo: value })}>
-                  <SelectTrigger className="h-9 text-sm bg-background/50">
-                    <SelectValue placeholder="Selecione o tipo" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="receita">Receita</SelectItem>
-                    <SelectItem value="despesa">Despesa</SelectItem>
-                  </SelectContent>
-                </Select>
+          </div>
+
+          <form onSubmit={handleSubmit} className="space-y-6 px-2 pb-24 overflow-y-auto">
+            {/* ========== SEÇÃO 1: VALOR PRINCIPAL ========== */}
+            <div className="relative group">
+              <div className="absolute -inset-0.5 bg-gradient-to-r from-primary/40 via-primary/20 to-transparent rounded-2xl blur opacity-60 group-hover:opacity-100 transition duration-1000 group-hover:duration-200"></div>
+              <div className="relative bg-gradient-to-br from-secondary/50 to-secondary/30 rounded-2xl p-6 border border-primary/20 shadow-lg">
+                <div className="mb-4">
+                  <h3 className="text-xs font-bold text-primary/90 uppercase tracking-wider">Informações Principais</h3>
+                </div>
+                <div className="grid grid-cols-3 gap-4">
+                  {/* Data */}
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <svg className="w-4 h-4 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                      </svg>
+                      <Label htmlFor="quando" className="text-xs font-bold text-foreground/90 uppercase">Data</Label>
+                    </div>
+                    <Input
+                      id="quando"
+                      type="date"
+                      className="h-12 text-sm border-primary/30 bg-background/50 focus:bg-background focus:border-primary/60 rounded-lg transition-all font-semibold focus:ring-2 focus:ring-primary/20"
+                      value={formData.quando}
+                      onChange={e => {
+                        const newDate = e.target.value;
+                        setFormData({ 
+                          ...formData, 
+                          quando: newDate,
+                          isPago: new Date(newDate) <= new Date() ? true : false,
+                          status: new Date(newDate) <= new Date() ? 'pago' : 'pendente'
+                        });
+                      }}
+                      required
+                    />
+                    <p className="text-xs text-muted-foreground/70">dia/mês/ano</p>
+                  </div>
+
+                  {/* Tipo */}
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <svg className="w-4 h-4 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4a1 1 0 011-1h16a1 1 0 011 1v2.757a1 1 0 01-.808 0 977A2 2 0 0012 4a2 2 0 100 4 2 2 0 00-11.192-2v-1.242z" />
+                      </svg>
+                      <Label htmlFor="tipo" className="text-xs font-bold text-foreground/90 uppercase">Tipo</Label>
+                    </div>
+                    <Select value={formData.tipo} onValueChange={value => setFormData({ ...formData, tipo: value })}>
+                      <SelectTrigger className="h-12 text-sm border-primary/20 bg-background/60 focus:bg-background focus:border-primary/50 rounded-lg transition-all font-semibold">
+                        <SelectValue placeholder="Selecione" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="receita"><span className="text-lg">💰</span> Receita</SelectItem>
+                        <SelectItem value="despesa"><span className="text-lg">💸</span> Despesa</SelectItem>
+                        <SelectItem value="transferencia"><span className="text-lg">🔁</span> Transferência</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Valor Grande */}
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <svg className="w-4 h-4 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      <Label htmlFor="valor" className="text-xs font-bold text-foreground/90 uppercase">Valor</Label>
+                    </div>
+                    <div className="relative h-12 group">
+                      <span className="absolute left-4 top-1/2 -translate-y-1/2 text-lg font-bold text-primary group-focus-within:text-primary/80 transition-colors">R$</span>
+                      <Input
+                        id="valor"
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        placeholder="0,00"
+                        className="h-12 text-sm border-primary/30 bg-background/50 focus:bg-background focus:border-primary/60 rounded-lg transition-all pl-12 font-bold text-base text-primary focus:ring-2 focus:ring-primary/20"
+                        value={formData.valor || ''}
+                        onChange={e => setFormData({ ...formData, valor: Number(e.target.value) })}
+                        required
+                      />
+                    </div>
+                  </div>
+                </div>
               </div>
-              <div>
-                <Label htmlFor="metodo" className="text-sm font-medium">Método</Label>
-                <Select value={formData.metodo} onValueChange={value => setFormData({ ...formData, metodo: value })}>
-                  <SelectTrigger className="h-9 text-sm bg-background/50">
-                    <SelectValue placeholder="Selecione o método" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="pix">PIX</SelectItem>
-                    <SelectItem value="debito">Débito</SelectItem>
-                    <SelectItem value="cartao_credito">Cartão de Crédito</SelectItem>
-                    <SelectItem value="transferencia">Transferência</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
             </div>
-            <div>
-              <Label htmlFor="category_id" className="text-sm font-medium flex items-center gap-2">
-                <svg className="w-4 h-4 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+
+            {/* ========== SEÇÃO 2: CLASSIFICAÇÃO ========== */}
+            <div className="space-y-4">
+              <div className="flex items-center gap-3 mb-4">
+                <svg className="w-5 h-5 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
                 </svg>
-                Categoria
-              </Label>
-              <CategorySelector
-                value={formData.category_id}
-                onValueChange={value => setFormData({ ...formData, category_id: value })}
-                placeholder="Selecione a categoria"
-                tipo={formData.tipo as 'receita' | 'despesa' | ''}
-                className="h-9 text-sm bg-background/50"
-              />
-            </div>
-            <div>
-              <Label htmlFor="account_id" className="text-sm font-medium flex items-center gap-2">
-                <svg className="w-4 h-4 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
-                </svg>
-                Conta
-              </Label>
-              <BankSelector
-                value={formData.account_id}
-                onValueChange={value => setFormData({ ...formData, account_id: value })}
-                placeholder="Selecione a conta (opcional)"
-              />
-            </div>
-            {formData.metodo === 'cartao_credito' && (
-              <div>
-                <Label htmlFor="card_account_id" className="text-sm font-medium">Cartão</Label>
-                <CardSelector
-                  value={formData.account_id}
-                  onValueChange={value => setFormData({ ...formData, account_id: value })}
-                  placeholder="Selecione o cartão (opcional)"
-                />
+                <h3 className="text-sm font-bold text-foreground/90 uppercase tracking-wider">Classificação</h3>
               </div>
-            )}
-            <div>
-              <Label htmlFor="detalhes" className="text-sm font-medium flex items-center gap-2">
-                <svg className="w-4 h-4 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-                Detalhes (opcional)
-              </Label>
-              <Textarea
-                id="detalhes"
-                value={formData.detalhes}
-                onChange={e => setFormData({ ...formData, detalhes: e.target.value })}
-                className="min-h-[60px] text-sm resize-none bg-background/50"
-              />
+              
+              <div className="grid grid-cols-2 gap-4">
+                {/* Descrição */}
+                <div className="space-y-2">
+                  <Label htmlFor="estabelecimento" className="text-xs font-semibold text-foreground/80">Descrição</Label>
+                  <Input
+                    id="estabelecimento"
+                    placeholder="Ex: Supermercado, Salário..."
+                    className="h-11 text-sm border-border/40 bg-secondary/30 hover:bg-secondary/50 focus:bg-secondary/80 rounded-lg transition-colors"
+                    value={formData.estabelecimento}
+                    onChange={e => setFormData({ ...formData, estabelecimento: e.target.value })}
+                    required
+                  />
+                </div>
+
+                {/* Categoria */}
+                <div className="space-y-2">
+                  <Label htmlFor="category_id" className="text-xs font-semibold text-foreground/80">Categoria</Label>
+                  <CategorySelector
+                    value={formData.category_id}
+                    onValueChange={value => setFormData({ ...formData, category_id: value })}
+                    placeholder="Selecione uma"
+                    tipo={formData.tipo as 'receita' | 'despesa' | ''}
+                    className="h-11 text-sm border-border/40 bg-secondary/30 hover:bg-secondary/50 focus:bg-secondary/80 rounded-lg transition-colors"
+                  />
+                </div>
+              </div>
             </div>
-            <div className="bg-secondary/30 -mx-6 -mb-6 p-4 border-t border-border/50 flex justify-end gap-2">
-              <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
+
+
+            {/* ========== SEÇÃO 3: MÉTODO DE PAGAMENTO ========== */}
+            <div className="space-y-4">
+              <div className="flex items-center gap-3 mb-4">
+                <svg className="w-5 h-5 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                </svg>
+                <h3 className="text-sm font-bold text-foreground/90 uppercase tracking-wider">Como foi pago?</h3>
+              </div>
+              
+              {/* Método */}
+              <div className="space-y-2">
+                <Label htmlFor="metodo" className="text-xs font-semibold text-foreground/80">Forma de Pagamento</Label>
+                <Select value={formData.metodo} onValueChange={value => setFormData({ ...formData, metodo: value })}>
+                  <SelectTrigger className="h-11 text-sm border-border/40 bg-secondary/30 hover:bg-secondary/50 focus:bg-secondary/80 rounded-lg transition-colors">
+                    <SelectValue placeholder="Selecione" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="pix"><span className="text-lg">💳</span> PIX</SelectItem>
+                    <SelectItem value="debito"><span className="text-lg">🏧</span> Débito</SelectItem>
+                    <SelectItem value="cartao_credito"><span className="text-lg">💰</span> Cartão Crédito</SelectItem>
+                    <SelectItem value="transferencia"><span className="text-lg">🔁</span> Transferência</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Conta/Cartão */}
+              {formData.metodo && (
+                <div className="space-y-2 animate-in fade-in slide-in-from-top-2 duration-200">
+                  <Label className="text-xs font-semibold text-foreground/80">
+                    {formData.metodo === 'cartao_credito' ? '💳 Qual Cartão?' : '🏦 Qual Conta?'}
+                  </Label>
+                  {formData.metodo === 'cartao_credito' ? (
+                    <CardSelector
+                      value={formData.account_id}
+                      onValueChange={value => setFormData({ ...formData, account_id: value })}
+                      placeholder="Selecione seu cartão"
+                    />
+                  ) : (
+                    <BankSelector
+                      value={formData.account_id}
+                      onValueChange={value => setFormData({ ...formData, account_id: value })}
+                      placeholder="Selecione a conta"
+                    />
+                  )}
+                </div>
+              )}
+            </div>
+
+
+            {/* ========== SEÇÃO 4: OPÇÕES ========== */}
+            <div className="space-y-4">
+              <div className="flex items-center gap-3 mb-4">
+                <svg className="w-5 h-5 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <h3 className="text-sm font-bold text-foreground/90 uppercase tracking-wider">Configurações</h3>
+              </div>
+
+              {/* Status de Pagamento */}
+              <label className="flex items-center gap-4 p-4 rounded-xl border border-border/40 bg-secondary/40 hover:bg-secondary/60 hover:border-primary/30 cursor-pointer transition-all group">
+                <div className="flex items-center justify-center w-6 h-6 rounded-md border border-primary/40 bg-primary/10 group-hover:bg-primary/20 group-hover:border-primary/60">
+                  <input
+                    id="isPago"
+                    type="checkbox"
+                    checked={formData.isPago}
+                    onChange={e => setFormData({ ...formData, isPago: e.target.checked, status: e.target.checked ? 'pago' : 'pendente' })}
+                    className="w-4 h-4 cursor-pointer accent-primary rounded opacity-0 absolute"
+                  />
+                  {formData.isPago && (
+                    <svg className="w-4 h-4 text-primary" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                    </svg>
+                  )}
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm font-semibold text-foreground">Marcar como Pago</p>
+                  <p className="text-xs text-muted-foreground/80 mt-0.5">{formData.isPago ? '✅ Pagamento confirmado' : '⏳ Pendente de confirmação'}</p>
+                </div>
+              </label>
+
+              {/* Parcelamento */}
+              {formData.metodo === 'cartao_credito' && (
+                <div className="space-y-3 animate-in fade-in slide-in-from-top-2 duration-300">
+                  <label className="flex items-center gap-4 p-4 rounded-xl border border-border/40 bg-secondary/40 hover:bg-secondary/60 hover:border-primary/30 cursor-pointer transition-all group">
+                    <div className="flex items-center justify-center w-6 h-6 rounded-md border border-primary/40 bg-primary/10 group-hover:bg-primary/20 group-hover:border-primary/60">
+                      <input
+                        id="isParcelado"
+                        type="checkbox"
+                        checked={formData.isParcelado}
+                        onChange={e => setFormData({ ...formData, isParcelado: e.target.checked, numeroParcelas: e.target.checked ? 2 : 1 })}
+                        className="w-4 h-4 cursor-pointer accent-primary rounded opacity-0 absolute"
+                      />
+                      {formData.isParcelado && (
+                        <svg className="w-4 h-4 text-primary" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                        </svg>
+                      )}
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-sm font-semibold text-foreground">Parcelar Compra</p>
+                      <p className="text-xs text-muted-foreground/80 mt-0.5">{formData.isParcelado ? '📊 Dividir em parcelas' : '📋 Compra à vista'}</p>
+                    </div>
+                  </label>
+
+                  {formData.isParcelado && (
+                    <div className="p-4 rounded-xl bg-gradient-to-r from-primary/10 to-primary/5 border border-primary/20 space-y-3 animate-in fade-in duration-200">
+                      <Label htmlFor="numeroParcelas" className="text-xs font-bold text-foreground/90 uppercase tracking-wider">Quantas parcelas?</Label>
+                      <div className="flex items-center gap-3">
+                        <Input
+                          id="numeroParcelas"
+                          type="number"
+                          min="2"
+                          max="12"
+                          value={formData.numeroParcelas}
+                          onChange={e => setFormData({ ...formData, numeroParcelas: Math.max(2, parseInt(e.target.value) || 1) })}
+                          className="h-11 text-sm border-primary/40 bg-background/60"
+                        />
+                        <span className="text-xs font-semibold text-muted-foreground/80">máx 12</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Recorrência */}
+              <label className="flex items-center gap-4 p-4 rounded-xl border border-border/40 bg-secondary/40 hover:bg-secondary/60 hover:border-primary/30 cursor-pointer transition-all group">
+                <div className="flex items-center justify-center w-6 h-6 rounded-md border border-primary/40 bg-primary/10 group-hover:bg-primary/20 group-hover:border-primary/60">
+                  <input
+                    id="isRecorrente"
+                    type="checkbox"
+                    checked={formData.isRecorrente}
+                    onChange={e => setFormData({ ...formData, isRecorrente: e.target.checked, repetirMeses: e.target.checked ? 3 : 1 })}
+                    className="w-4 h-4 cursor-pointer accent-primary rounded opacity-0 absolute"
+                  />
+                  {formData.isRecorrente && (
+                    <svg className="w-4 h-4 text-primary" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                    </svg>
+                  )}
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm font-semibold text-foreground">Repetir Mensalmente</p>
+                  <p className="text-xs text-muted-foreground/80 mt-0.5">{formData.isRecorrente ? '🔁 Transação automática' : '📅 Apenas uma vez'}</p>
+                </div>
+              </label>
+
+              {formData.isRecorrente && (
+                <div className="p-4 rounded-xl bg-gradient-to-r from-primary/10 to-primary/5 border border-primary/20 space-y-3 animate-in fade-in duration-200">
+                  <Label htmlFor="repetirMeses" className="text-xs font-bold text-foreground/90 uppercase tracking-wider">Por quantos meses?</Label>
+                  <div className="flex items-center gap-3">
+                    <Input
+                      id="repetirMeses"
+                      type="number"
+                      min="1"
+                      max="60"
+                      value={formData.repetirMeses}
+                      onChange={e => setFormData({ ...formData, repetirMeses: Math.max(1, parseInt(e.target.value) || 1) })}
+                      className="h-11 text-sm border-primary/40 bg-background/60"
+                    />
+                    <span className="text-xs font-semibold text-muted-foreground/80">máx 60</span>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Spacer */}
+            <div className="h-6" />
+          </form>
+
+          {/* ===== FOOTER PREMIUM ===== */}
+          <div className="sticky bottom-0 border-t border-border/40 bg-gradient-to-t from-background via-background to-transparent pt-4 pb-4 -mx-6 px-6">
+            <div className="flex justify-end gap-3">
+              <Button 
+                type="button" 
+                variant="outline" 
+                onClick={() => setDialogOpen(false)}
+                className="px-6 h-11 rounded-lg border-border/40 hover:bg-secondary/50 transition-all"
+              >
                 <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
                 Cancelar
               </Button>
-              <Button type="submit" className="bg-primary hover:bg-primary/90">
+              <Button 
+                type="submit"
+                onClick={handleSubmit}
+                className="px-8 h-11 rounded-lg bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70 shadow-lg hover:shadow-xl transition-all font-semibold"
+              >
                 <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                 </svg>
-                {editingTransaction ? 'Salvar' : 'Adicionar'}
+                {editingTransaction ? 'Salvar Alterações' : 'Adicionar Transação'}
               </Button>
             </div>
-          </form>
+          </div>
         </DialogContent>
       </Dialog>
 
