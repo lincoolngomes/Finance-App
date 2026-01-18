@@ -8,7 +8,7 @@
       .toLowerCase();
   }
 
-  function categorizar(descricao, regrasTexto) {
+  function categorizar(descricao, regrasTexto, tipo = '') {
     if (!descricao) return '';
     const descNorm = normalizar(descricao);
     const regras = regrasTexto.split('\n').filter(l => l.includes('=')).map(l => l.trim());
@@ -19,6 +19,9 @@
         return catNorm.charAt(0).toUpperCase() + catNorm.slice(1);
       }
     }
+    // Se não encontrou categoria pela regra, retorna a padrão de acordo com o tipo
+    if (tipo === 'receita') return 'Renda Extra';
+    if (tipo === 'despesa') return 'Compras';
     return '';
   }
 import React, { useEffect, useState } from 'react';
@@ -45,7 +48,7 @@ function ImportarExtratoModal({ open, onClose, onImport, contas }) {
         if (l.categoriaManual) return l;
         return {
           ...l,
-          categoria: categorizar(l.estabelecimento, regrasTexto) || ''
+          categoria: categorizar(l.estabelecimento, regrasTexto, l.tipo)
         };
       }));
     }
@@ -95,6 +98,8 @@ function ImportarExtratoModal({ open, onClose, onImport, contas }) {
   }, [contas]);
   const [sortConfig, setSortConfig] = useState({ key: null, direction: 'asc' });
   const [loading, setLoading] = useState(false);
+  const [scrollPosition, setScrollPosition] = useState(0);
+  const scrollableRef = React.useRef(null);
 
   // Estilos para células vazias/preenchidas
   const emptyCellStyle = { backgroundColor: '#fffbe3', color: '#a37a00', fontWeight: 700 };
@@ -129,13 +134,15 @@ function ImportarExtratoModal({ open, onClose, onImport, contas }) {
           .map((row) => {
             const descricao = row[1] || '';
             const dataOriginal = row[0] || '';
+            const valor = Number((row[2] || '').replace('.', '').replace(',', '.'));
+            const tipo = valor < 0 ? 'despesa' : 'receita';
             return {
               uid: gerarUid(),
               quando: dataOriginal,
               estabelecimento: descricao,
-              valor: (row[2] || '').replace('.', '').replace(',', '.'),
-              tipo: Number((row[2] || '').replace('.', '').replace(',', '.')) < 0 ? 'despesa' : 'receita',
-              categoria: categorizar(descricao, regrasTexto),
+              valor: valor,
+              tipo: tipo,
+              categoria: categorizar(descricao, regrasTexto, tipo),
             };
           });
         console.log('Lançamentos parseados:', parsed);
@@ -185,6 +192,12 @@ function ImportarExtratoModal({ open, onClose, onImport, contas }) {
     });
   };
 
+  // Função auxiliar para renderizar o indicador de sort no header
+  const renderSortIndicator = (columnKey) => {
+    if (sortConfig.key !== columnKey) return ' ';
+    return sortConfig.direction === 'asc' ? ' ↑' : ' ↓';
+  };
+
   // Função para importar
   // Estado para feedback de importação
   const [importFeedback, setImportFeedback] = useState(null);
@@ -221,36 +234,48 @@ function ImportarExtratoModal({ open, onClose, onImport, contas }) {
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm" onClick={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="bg-card border rounded-lg shadow-2xl p-6 w-full max-w-4xl max-h-[90vh] overflow-y-auto relative z-50">
-        <button
-          onClick={onClose}
-          className="absolute top-4 right-4 p-2 rounded-lg hover:bg-accent transition-colors"
-          title="Fechar"
-        >
-          <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-          </svg>
-        </button>
-        <div className="flex items-center gap-3 mb-6">
-          <div className="p-2.5 rounded-lg bg-blue-500/10">
-            <svg className="h-6 w-6 text-blue-600 dark:text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md" onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="bg-gradient-to-br from-slate-900 to-slate-950 border border-slate-800 rounded-2xl shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col relative z-50">
+        {/* Conteúdo scrollável */}
+        <div className="overflow-y-auto flex-1 p-8">
+        {/* Header com Close */}
+        <div className="flex items-start justify-between mb-8">
+          <div className="flex items-start gap-4">
+            <div className="p-3 rounded-xl bg-gradient-to-br from-blue-500/20 to-blue-600/10 border border-blue-500/30">
+              <svg className="h-6 w-6 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+              </svg>
+            </div>
+            <div>
+              <h2 className="text-2xl font-bold text-white">Importar Extrato/CSV</h2>
+              <p className="text-sm text-slate-400 mt-1">Carregue seus lançamentos com inteligência de categorização</p>
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-2 rounded-lg hover:bg-slate-800 transition-colors text-slate-400 hover:text-slate-200"
+            title="Fechar"
+          >
+            <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
-          </div>
-          <div>
-            <h2 className="text-xl font-semibold">Importar Extrato/CSV</h2>
-            <p className="text-sm text-muted-foreground">Selecione a conta e o arquivo para importar</p>
-          </div>
+          </button>
+        </div>
+
+        {/* Progress Indicator */}
+        <div className="flex gap-2 mb-8">
+          {[1, 2, 3].map(s => (
+            <div key={s} className={`flex-1 h-1.5 rounded-full transition-all ${step >= s ? 'bg-gradient-to-r from-blue-500 to-blue-400' : 'bg-slate-800'}`}></div>
+          ))}
         </div>
         
         {step === 1 && (
           <>
-            <div className="space-y-4">
+            <div className="space-y-5">
               <div>
-                <label className="block text-sm font-medium mb-2">Selecione a conta para importar</label>
+                <label className="block text-sm font-semibold text-slate-200 mb-3">Selecione a conta para importar</label>
                 <select
-                  className="w-full p-3 rounded-lg border bg-background text-foreground focus:ring-2 focus:ring-blue-500 focus:border-transparent transition"
+                  className="w-full px-4 py-3 rounded-xl border border-slate-700 bg-slate-800/50 text-slate-100 hover:border-slate-600 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition"
                   value={contaSelecionada}
                   onChange={e => setContaSelecionada(e.target.value)}
                 >
@@ -265,46 +290,49 @@ function ImportarExtratoModal({ open, onClose, onImport, contas }) {
               </div>
               
               <div>
-                <label className="block text-sm font-medium mb-2">Arquivo CSV</label>
-                <div className="relative">
+                <label className="block text-sm font-semibold text-slate-200 mb-3">Arquivo CSV</label>
+                <div className="relative group">
                   <input 
                     type="file" 
                     accept=".csv" 
                     onChange={handleFileChange}
-                    className="w-full p-3 rounded-lg border bg-background text-foreground file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-500 file:text-white hover:file:bg-blue-600 cursor-pointer transition"
+                    className="w-full px-4 py-4 rounded-xl border-2 border-dashed border-slate-600 hover:border-slate-500 bg-slate-800/30 text-slate-100 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-gradient-to-r file:from-blue-500 file:to-blue-600 file:text-white hover:file:from-blue-600 hover:file:to-blue-700 cursor-pointer transition duration-200"
                   />
                 </div>
                 {csvFile && (
-                  <p className="text-xs text-muted-foreground mt-2 flex items-center gap-1">
-                    <svg className="h-4 w-4 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  <div className="mt-3 p-3 rounded-lg bg-green-500/10 border border-green-500/30 flex items-center gap-2 text-green-400">
+                    <svg className="h-5 w-5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                     </svg>
-                    {csvFile.name}
-                  </p>
+                    <span className="text-sm font-medium">{csvFile.name}</span>
+                  </div>
                 )}
               </div>
             </div>
             
             {parseError && (
-              <div className="mt-4 p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-600 dark:text-red-400 text-sm">
+              <div className="mt-6 p-4 rounded-xl bg-red-500/10 border border-red-500/30 text-red-400 text-sm font-medium flex items-start gap-3">
+                <svg className="h-5 w-5 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                </svg>
                 {parseError}
               </div>
             )}
             
-            <div className="flex gap-3 justify-end mt-6 pt-4 border-t">
+            <div className="flex gap-3 justify-end mt-8 pt-6 border-t border-slate-800">
               <button
-                className="px-4 py-2 rounded-lg border hover:bg-accent transition"
+                className="px-6 py-2.5 rounded-lg border border-slate-700 text-slate-300 hover:bg-slate-800/50 transition font-medium"
                 onClick={onClose}
                 disabled={loading}
               >
                 Cancelar
               </button>
               <button
-                className={`px-6 py-2 rounded-lg bg-blue-500 text-white font-semibold hover:bg-blue-600 transition flex items-center gap-2 ${(!csvFile || !contaSelecionada || loading) ? 'opacity-50 cursor-not-allowed' : ''}`}
+                className={`px-6 py-2.5 rounded-lg bg-gradient-to-r from-blue-600 to-blue-500 text-white font-semibold hover:from-blue-700 hover:to-blue-600 transition flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed`}
                 onClick={handleParse}
                 disabled={!csvFile || !contaSelecionada || loading}
               >
-                {loading ? <span className="loader border-2 border-t-2 border-blue-700 rounded-full w-4 h-4 animate-spin"></span> : null}
+                {loading && <span className="loader border-2 border-t-2 border-white rounded-full w-4 h-4 animate-spin"></span>}
                 Próximo
               </button>
             </div>
@@ -312,191 +340,196 @@ function ImportarExtratoModal({ open, onClose, onImport, contas }) {
         )}
         {step === 2 && (
           <>
-            <div className="mb-2">
-              <label className="block text-xs font-bold mb-1 text-zinc-200">Regras de categorização (edite ou cole suas regras):</label>
+            <div className="mb-6">
+              <label className="block text-sm font-semibold mb-3 text-slate-200">Regras de categorização</label>
               <textarea
-                className="w-full p-2 rounded bg-black text-yellow-200 text-xs font-mono mb-2"
-                style={{ minHeight: 180, maxHeight: 300, height: 220, overflow: 'auto' }}
+                className="w-full px-4 py-3 rounded-xl bg-slate-800/50 border border-slate-700 text-slate-100 text-sm font-mono focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition"
+                style={{ minHeight: 140, maxHeight: 220, overflow: 'auto' }}
                 value={regrasTexto}
                 onChange={e => setRegrasTexto(e.target.value)}
+                placeholder="# Regras de categorização..."
               />
             </div>
-            <div className="overflow-x-auto max-h-[50vh] mb-2">
-              <table className="min-w-full text-xs border-separate border-spacing-0 rounded-lg shadow-lg" style={{ borderCollapse: 'separate', borderSpacing: 0, background: '#18181b' }}>
-                <thead className="sticky top-0">
-                  <tr>
-                    <th className="p-2 text-blue-300 bg-zinc-900 border-b border-zinc-800 text-left " style={{ minWidth: 100, fontWeight: 700, fontSize: 13, letterSpacing: 1 }} onClick={() => handleSort('quando')}>Data</th>
-                    <th className="p-2 text-blue-300 bg-zinc-900 border-b border-zinc-800 text-left " style={{ minWidth: 180, fontWeight: 700, fontSize: 13, letterSpacing: 1 }} onClick={() => handleSort('estabelecimento')}>Descrição</th>
-                    <th className="p-2 text-blue-300 bg-zinc-900 border-b border-zinc-800 text-left " style={{ minWidth: 90, fontWeight: 700, fontSize: 13, letterSpacing: 1 }} onClick={() => handleSort('valor')}>Valor</th>
-                    <th className="p-2 text-blue-300 bg-zinc-900 border-b border-zinc-800 text-left " style={{ minWidth: 80, fontWeight: 700, fontSize: 13, letterSpacing: 1 }} onClick={() => handleSort('tipo')}>Tipo</th>
-                    <th className="p-2 text-blue-300 bg-zinc-900 border-b border-zinc-800 text-left " style={{ minWidth: 120, fontWeight: 700, fontSize: 13, letterSpacing: 1 }} onClick={() => handleSort('categoria')}>Categoria</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {lancamentos.length === 0 ? (
-                    <tr><td colSpan={5} className="text-center text-zinc-400 py-4">Nenhum lançamento encontrado no arquivo CSV.</td></tr>
-                  ) : (
-                    getSortedLancamentos().map((l, idx) => (
-                      <tr key={l.uid} className={idx % 2 === 0 ? 'bg-zinc-900/70' : 'bg-zinc-800/70'} style={{ transition: 'background 0.2s' }}>
-                        <td className="p-1 border-b border-zinc-800">
-                          <input
-                            type="text" placeholder="DD/MM/AAAA"
-                            className="w-full px-2 py-1 rounded bg-zinc-950 focus:bg-blue-50 focus:text-blue-900 border border-zinc-800 focus:border-blue-400 outline-none transition text-sm text-blue-100 cursor-text select-text"
-                            value={l.quando}
-                            onChange={e => handleEditLancamento(l, 'quando', e.target.value)}
-                            style={!l.quando || l.quando === '' ? emptyCellStyle : filledCellStyle}
-                          />
-                        </td>
-                        <td className="p-1 border-b border-zinc-800">
-                          <input
-                            type="text"
-                            className="w-full px-2 py-1 rounded bg-zinc-950 focus:bg-blue-50 focus:text-blue-900 border border-zinc-800 focus:border-blue-400 outline-none transition text-sm text-blue-100 cursor-text select-text"
-                            value={l.estabelecimento}
-                            onChange={e => handleEditLancamento(l, 'estabelecimento', e.target.value)}
-                            style={!l.estabelecimento || l.estabelecimento === '' ? emptyCellStyle : filledCellStyle}
-                          />
-                        </td>
-                        <td className="p-1 border-b border-zinc-800">
-                          <input
-                            type="text"
-                            inputMode="decimal"
-                            className="w-full px-2 py-1 rounded bg-zinc-950 focus:bg-blue-50 focus:text-blue-900 border border-zinc-800 focus:border-blue-400 outline-none transition text-sm text-blue-100 cursor-text select-text"
-                            value={
-                              valorEditando[l.uid] !== undefined
-                                ? valorEditando[l.uid]
-                                : (l.valor ? (Number(l.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })) : '0,00')
-                            }
-                            onFocus={e => {
-                              setValorEditando(v => ({ ...v, [l.uid]: l.valor ? l.valor.toString().replace('.', ',') : '' }));
-                            }}
-                            onChange={e => {
-                              const raw = e.target.value.replace(/[^\d,]/g, '');
-                              setValorEditando(v => ({ ...v, [l.uid]: raw }));
-                            }}
-                            onBlur={e => {
-                              const raw = valorEditando[l.uid] ?? '';
-                              const num = parseValorBR(raw);
-                              handleEditLancamento(l, 'valor', num);
-                              setValorEditando(v => ({ ...v, [l.uid]: num.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }));
-                            }}
-                            style={l.valor === undefined || l.valor === '' ? emptyCellStyle : filledCellStyle}
-                          />
-                        </td>
-                        <td className="p-1 border-b border-zinc-800">
-                          <select
-                            className="w-full px-2 py-1 rounded bg-zinc-950 focus:bg-blue-50 focus:text-blue-900 border border-zinc-800 focus:border-blue-400 outline-none transition text-sm text-blue-100 cursor-pointer"
-                            value={l.tipo}
-                            onChange={e => handleEditLancamento(l, 'tipo', e.target.value)}
-                            style={!l.tipo || l.tipo === '' ? emptyCellStyle : filledCellStyle}
-                          >
-                            <option value="">Selecione</option>
-                            <option value="receita">receita</option>
-                            <option value="despesa">despesa</option>
-                          </select>
-                        </td>
-                        <td className="p-1 border-b border-zinc-800">
-                          <input
-                            type="text"
-                            className="w-full px-2 py-1 rounded bg-zinc-950 focus:bg-blue-50 focus:text-blue-900 border border-zinc-800 focus:border-blue-400 outline-none transition text-sm text-blue-100 cursor-text select-text"
-                            value={l.categoria && l.categoria.trim() !== '' ? l.categoria : ''}
-                            placeholder="Outros"
-                            onChange={e => handleEditLancamento(l, 'categoria', e.target.value)}
-                            style={!l.categoria || l.categoria.trim() === '' ? noCategoryStyle : filledCellStyle}
-                          />
+
+            {/* Tabela com melhor visual */}
+            <div className="mb-24">
+              <h3 className="text-sm font-semibold mb-4 text-slate-200">Prévia dos lançamentos</h3>
+              <div 
+                className="overflow-y-auto border border-slate-700/50 rounded-xl shadow-lg" 
+                style={{ maxHeight: '450px' }}
+                ref={scrollableRef}
+                onScroll={(e) => setScrollPosition(e.currentTarget.scrollTop)}
+              >
+                <table className="w-full text-sm">
+                  <thead className="sticky top-0">
+                    <tr className="bg-gradient-to-r from-slate-800/80 to-slate-900/80 border-b border-slate-700/50">
+                      <th className="px-1 py-2 text-left font-semibold text-slate-300 w-32 cursor-pointer hover:bg-slate-700/50 transition" onClick={() => handleSort('quando')}>Data{renderSortIndicator('quando')}</th>
+                      <th className="px-1 py-2 text-left font-semibold text-slate-300 flex-1 min-w-80 cursor-pointer hover:bg-slate-700/50 transition" onClick={() => handleSort('estabelecimento')}>Descrição{renderSortIndicator('estabelecimento')}</th>
+                      <th className="px-1 py-2 text-left font-semibold text-slate-300 w-32 cursor-pointer hover:bg-slate-700/50 transition" onClick={() => handleSort('valor')}>Valor{renderSortIndicator('valor')}</th>
+                      <th className="px-1 py-2 text-left font-semibold text-slate-300 w-28 cursor-pointer hover:bg-slate-700/50 transition" onClick={() => handleSort('tipo')}>Tipo{renderSortIndicator('tipo')}</th>
+                      <th className="px-1 py-2 text-left font-semibold text-slate-300 w-44 cursor-pointer hover:bg-slate-700/50 transition" onClick={() => handleSort('categoria')}>Categoria{renderSortIndicator('categoria')}</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-700/50">
+                    {lancamentos.length === 0 ? (
+                      <tr>
+                        <td colSpan={5} className="px-4 py-12 text-center text-slate-500 text-sm">
+                          <svg className="h-8 w-8 mx-auto mb-2 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                          </svg>
+                          Nenhum lançamento encontrado
                         </td>
                       </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-            <div className="flex gap-2 justify-end mt-4">
-              <button
-                className="px-4 py-2 rounded border border-zinc-600 text-zinc-300 hover:bg-zinc-800 transition"
-                onClick={() => setStep(1)}
-              >
-                Voltar
-              </button>
-              <button
-                className={`px-4 py-2 rounded bg-blue-500 text-white font-bold hover:bg-blue-400 transition ${lancamentos.length === 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
-                onClick={() => setStep(3)}
-                disabled={lancamentos.length === 0}
-              >
-                Validar Lançamentos
-              </button>
+                    ) : (
+                      getSortedLancamentos().map((l, idx) => (
+                        <tr key={l.uid} className={`hover:bg-slate-800/40 transition ${idx % 2 === 0 ? 'bg-slate-900/20' : ''}`}>
+                          <td className="px-1 py-2">
+                            <input
+                              type="text"
+                              placeholder="DD/MM/YYYY"
+                              className="w-full px-1 py-1 rounded-lg bg-slate-700/30 border border-slate-600/50 text-slate-100 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition"
+                              value={l.quando}
+                              onChange={e => handleEditLancamento(l, 'quando', e.target.value)}
+                            />
+                          </td>
+                          <td className="px-1 py-2">
+                            <input
+                              type="text"
+                              className="w-full px-1 py-1 rounded-lg bg-slate-700/30 border border-slate-600/50 text-slate-100 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition"
+                              value={l.estabelecimento}
+                              onChange={e => handleEditLancamento(l, 'estabelecimento', e.target.value)}
+                            />
+                          </td>
+                          <td className="px-1 py-2">
+                            <input
+                              type="text"
+                              inputMode="decimal"
+                              className="w-full px-1 py-1 rounded-lg bg-slate-700/30 border border-slate-600/50 text-slate-100 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition"
+                              value={
+                                valorEditando[l.uid] !== undefined
+                                  ? valorEditando[l.uid]
+                                  : (l.valor ? (Number(l.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })) : '0,00')
+                              }
+                              onFocus={e => {
+                                setValorEditando(v => ({ ...v, [l.uid]: l.valor ? l.valor.toString().replace('.', ',') : '' }));
+                              }}
+                              onChange={e => {
+                                const raw = e.target.value.replace(/[^\d,]/g, '');
+                                setValorEditando(v => ({ ...v, [l.uid]: raw }));
+                              }}
+                              onBlur={e => {
+                                const raw = valorEditando[l.uid] ?? '';
+                                const num = parseValorBR(raw);
+                                handleEditLancamento(l, 'valor', num);
+                                setValorEditando(v => ({ ...v, [l.uid]: num.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }));
+                              }}
+                            />
+                          </td>
+                          <td className="px-1 py-2">
+                            <select
+                              className="w-full px-1 py-1 rounded-lg bg-slate-700/30 border border-slate-600/50 text-slate-100 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition cursor-pointer"
+                              value={l.tipo}
+                              onChange={e => handleEditLancamento(l, 'tipo', e.target.value)}
+                            >
+                              <option value="">Selecione</option>
+                              <option value="receita">receita</option>
+                              <option value="despesa">despesa</option>
+                            </select>
+                          </td>
+                          <td className="px-1 py-2">
+                            <input
+                              type="text"
+                              className="w-full px-1 py-1 rounded-lg bg-slate-700/30 border border-slate-600/50 text-slate-100 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition"
+                              value={l.categoria && l.categoria.trim() !== '' ? l.categoria : ''}
+                              placeholder="Categoria"
+                              onChange={e => handleEditLancamento(l, 'categoria', e.target.value)}
+                            />
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </>
         )}
         {step === 3 && (
           <>
-            <div className="overflow-x-auto max-h-[50vh] mb-2">
-              <table className="min-w-full text-xs border-separate border-spacing-0 rounded-lg shadow-lg" style={{ borderCollapse: 'separate', borderSpacing: 0, background: '#18181b' }}>
+            <h3 className="text-sm font-semibold mb-4 text-slate-200">Validação final dos lançamentos</h3>
+            <div 
+              className="overflow-y-auto border border-slate-700/50 rounded-xl shadow-lg" 
+              style={{ maxHeight: '450px' }}
+              ref={scrollableRef}
+              onScroll={(e) => setScrollPosition(e.currentTarget.scrollTop)}
+            >
+              <table className="w-full text-sm">
                 <thead className="sticky top-0">
-                  <tr>
-                    <th className="p-2 text-blue-300 bg-zinc-900 border-b border-zinc-800 text-left " style={{ minWidth: 100, fontWeight: 700, fontSize: 13, letterSpacing: 1 }} onClick={() => handleSort('quando')}>Data</th>
-                    <th className="p-2 text-blue-300 bg-zinc-900 border-b border-zinc-800 text-left " style={{ minWidth: 180, fontWeight: 700, fontSize: 13, letterSpacing: 1 }} onClick={() => handleSort('estabelecimento')}>Descrição</th>
-                    <th className="p-2 text-blue-300 bg-zinc-900 border-b border-zinc-800 text-left " style={{ minWidth: 90, fontWeight: 700, fontSize: 13, letterSpacing: 1 }} onClick={() => handleSort('valor')}>Valor</th>
-                    <th className="p-2 text-blue-300 bg-zinc-900 border-b border-zinc-800 text-left " style={{ minWidth: 80, fontWeight: 700, fontSize: 13, letterSpacing: 1 }} onClick={() => handleSort('tipo')}>Tipo</th>
-                    <th className="p-2 text-blue-300 bg-zinc-900 border-b border-zinc-800 text-left " style={{ minWidth: 120, fontWeight: 700, fontSize: 13, letterSpacing: 1 }} onClick={() => handleSort('categoria')}>Categoria</th>
+                  <tr className="bg-gradient-to-r from-slate-800/80 to-slate-900/80 border-b border-slate-700/50">
+                    <th className="px-1 py-2 text-left font-semibold text-slate-300 w-32 cursor-pointer hover:bg-slate-700/50 transition" onClick={() => handleSort('quando')}>Data{renderSortIndicator('quando')}</th>
+                    <th className="px-1 py-2 text-left font-semibold text-slate-300 flex-1 min-w-80 cursor-pointer hover:bg-slate-700/50 transition" onClick={() => handleSort('estabelecimento')}>Descrição{renderSortIndicator('estabelecimento')}</th>
+                    <th className="px-1 py-2 text-left font-semibold text-slate-300 w-32 cursor-pointer hover:bg-slate-700/50 transition" onClick={() => handleSort('valor')}>Valor{renderSortIndicator('valor')}</th>
+                    <th className="px-1 py-2 text-left font-semibold text-slate-300 w-28 cursor-pointer hover:bg-slate-700/50 transition" onClick={() => handleSort('tipo')}>Tipo{renderSortIndicator('tipo')}</th>
+                    <th className="px-1 py-2 text-left font-semibold text-slate-300 w-44 cursor-pointer hover:bg-slate-700/50 transition" onClick={() => handleSort('categoria')}>Categoria{renderSortIndicator('categoria')}</th>
                   </tr>
                 </thead>
-                <tbody>
+                <tbody className="divide-y divide-slate-700/50">
                   {lancamentos.length === 0 ? (
-                    <tr><td colSpan={5} className="text-center text-zinc-400 py-4">Nenhum lançamento encontrado no arquivo CSV.</td></tr>
+                    <tr>
+                      <td colSpan={5} className="px-4 py-12 text-center text-slate-500 text-sm">
+                        Nenhum lançamento para validar.
+                      </td>
+                    </tr>
                   ) : (
                     getSortedLancamentos().map((l, idx) => (
-                      <tr key={idx} className={idx % 2 === 0 ? 'bg-zinc-900/70' : 'bg-zinc-800/70'} style={{ transition: 'background 0.2s' }}>
-                        <td className="p-1 border-b border-zinc-800">
-                          <input
-                            type="text" placeholder="DD/MM/AAAA"
-                            className="w-full px-2 py-1 rounded bg-zinc-950 focus:bg-blue-50 focus:text-blue-900 border border-zinc-800 focus:border-blue-400 outline-none transition text-sm text-blue-100 cursor-text select-text"
-                            value={l.quando}
-                            onChange={e => handleEditLancamento(l, 'quando', e.target.value)}
-                            style={!l.quando || l.quando === '' ? emptyCellStyle : filledCellStyle}
-                          />
-                        </td>
-                        <td className="p-1 border-b border-zinc-800">
+                      <tr key={idx} className={`border-b border-slate-700/30 hover:bg-slate-800/40 transition ${idx % 2 === 0 ? 'bg-slate-900/20' : ''}`}>
+                        <td className="px-1 py-2">
                           <input
                             type="text"
-                            className="w-full px-2 py-1 rounded bg-zinc-950 focus:bg-blue-50 focus:text-blue-900 border border-zinc-800 focus:border-blue-400 outline-none transition text-sm text-blue-100 cursor-text select-text"
-                            value={l.estabelecimento}
-                            onChange={e => handleEditLancamento(l, 'estabelecimento', e.target.value)}
-                            style={!l.estabelecimento || l.estabelecimento === '' ? emptyCellStyle : filledCellStyle}
+                            placeholder="DD/MM/YYYY"
+                            className="w-full px-1 py-1 rounded-lg bg-slate-700/30 border border-slate-600/50 text-slate-100 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition"
+                            value={l.quando}
+                            onChange={e => handleEditLancamento(l, 'quando', e.target.value)}
                           />
                         </td>
-                        <td className="p-1 border-b border-zinc-800">
+                        <td className="px-1 py-2">
+                          <input
+                            type="text"
+                            className="w-full px-1 py-1 rounded-lg bg-slate-700/30 border border-slate-600/50 text-slate-100 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition"
+                            value={l.estabelecimento}
+                            onChange={e => handleEditLancamento(l, 'estabelecimento', e.target.value)}
+                          />
+                        </td>
+                        <td className="px-1 py-2">
                           <input
                             type="text"
                             inputMode="decimal"
-                            className="w-full px-2 py-1 rounded bg-zinc-950 focus:bg-blue-50 focus:text-blue-900 border border-zinc-800 focus:border-blue-400 outline-none transition text-sm text-blue-100 cursor-text select-text"
+                            className="w-full px-1 py-1 rounded-lg bg-slate-700/30 border border-slate-600/50 text-slate-100 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition"
                             value={formatarValorBR(l.valor?.toString() ?? '')}
                             onChange={e => {
                               const formatted = formatarValorBR(e.target.value);
                               handleEditLancamento(l, 'valor', parseValorBR(formatted));
                             }}
-                            style={l.valor === undefined || l.valor === '' ? emptyCellStyle : filledCellStyle}
                           />
                         </td>
-                        <td className="p-1 border-b border-zinc-800">
+                        <td className="px-1 py-2">
                           <select
-                            className="w-full px-2 py-1 rounded bg-zinc-950 focus:bg-blue-50 focus:text-blue-900 border border-zinc-800 focus:border-blue-400 outline-none transition text-sm text-blue-100 cursor-pointer"
+                            className="w-full px-1 py-1 rounded-lg bg-slate-700/30 border border-slate-600/50 text-slate-100 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition cursor-pointer"
                             value={l.tipo}
                             onChange={e => handleEditLancamento(l, 'tipo', e.target.value)}
-                            style={!l.tipo || l.tipo === '' ? emptyCellStyle : filledCellStyle}
                           >
                             <option value="">Selecione</option>
                             <option value="receita">receita</option>
                             <option value="despesa">despesa</option>
                           </select>
                         </td>
-                        <td className="p-1 border-b border-zinc-800">
+                        <td className="px-1 py-2">
                           <input
                             type="text"
-                            className="w-full px-2 py-1 rounded bg-zinc-950 focus:bg-blue-50 focus:text-blue-900 border border-zinc-800 focus:border-blue-400 outline-none transition text-sm text-blue-100 cursor-text select-text"
+                            className="w-full px-1 py-1 rounded-lg bg-slate-700/30 border border-slate-600/50 text-slate-100 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition"
                             value={l.categoria && l.categoria.trim() !== '' ? l.categoria : ''}
-                            placeholder="Outros"
+                            placeholder="Categoria"
                             onChange={e => handleEditLancamento(l, 'categoria', e.target.value)}
-                            style={!l.categoria || l.categoria.trim() === '' ? noCategoryStyle : filledCellStyle}
                           />
                         </td>
                       </tr>
@@ -505,35 +538,106 @@ function ImportarExtratoModal({ open, onClose, onImport, contas }) {
                 </tbody>
               </table>
             </div>
-            <div className="flex gap-2 justify-end mt-4">
-              <button
-                className="px-4 py-2 rounded border border-zinc-600 text-zinc-300 hover:bg-zinc-800 transition"
-                onClick={() => setStep(2)}
-              >
-                Voltar
-              </button>
-              <button
-                className={`px-4 py-2 rounded bg-blue-600 text-white font-bold hover:bg-blue-500 transition flex items-center gap-2 ${(lancamentos.length === 0 || loading) ? 'opacity-50 cursor-not-allowed' : ''}`}
-                onClick={handleImportar}
-                disabled={lancamentos.length === 0 || loading}
-              >
-                {loading ? (
-                  <>
-                    <span className="loader border-2 border-t-2 border-white rounded-full w-4 h-4 animate-spin"></span>
-                    Importando...
-                  </>
-                ) : (
-                  'Finalizar Importação'
-                )}
-              </button>
-            </div>
           </>
         )}
+        </div>
+        {/* Footer sticky com botões */}
+        <div className="sticky bottom-0 border-t border-slate-700 bg-gradient-to-br from-slate-900 to-slate-950 p-6 flex gap-3 justify-between">
+          {step === 2 && (
+            <>
+              <button
+                className="px-6 py-2.5 rounded-lg border border-slate-700 text-slate-300 hover:bg-slate-800/50 transition font-medium"
+                onClick={() => {
+                  const container = scrollableRef.current;
+                  if (container) {
+                    if (scrollPosition > 0) {
+                      container.scrollTo({ top: 0, behavior: 'smooth' });
+                    } else {
+                      container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' });
+                    }
+                  }
+                }}
+                title={scrollPosition > 0 ? "Voltar ao topo" : "Ir para o final"}
+              >
+                {scrollPosition > 0 ? '↑ Topo' : '↓ Final'}
+              </button>
+              <div className="flex gap-3">
+                <button
+                  className="px-6 py-2.5 rounded-lg border border-slate-700 text-slate-300 hover:bg-slate-800/50 transition font-medium"
+                  onClick={() => setStep(1)}
+                >
+                  Voltar
+                </button>
+                <button
+                  className="px-6 py-2.5 rounded-lg bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600 text-white font-semibold transition disabled:opacity-50 disabled:cursor-not-allowed"
+                  onClick={() => setStep(3)}
+                  disabled={lancamentos.length === 0}
+                >
+                  Validar Lançamentos
+                </button>
+              </div>
+            </>
+          )}
+          {step === 3 && (
+            <>
+              <button
+                className="px-6 py-2.5 rounded-lg border border-slate-700 text-slate-300 hover:bg-slate-800/50 transition font-medium"
+                onClick={() => {
+                  const container = scrollableRef.current;
+                  if (container) {
+                    if (scrollPosition > 0) {
+                      container.scrollTo({ top: 0, behavior: 'smooth' });
+                    } else {
+                      container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' });
+                    }
+                  }
+                }}
+                title={scrollPosition > 0 ? "Voltar ao topo" : "Ir para o final"}
+              >
+                {scrollPosition > 0 ? '↑ Topo' : '↓ Final'}
+              </button>
+              <div className="flex gap-3">
+                <button
+                  className="px-4 py-2.5 rounded-lg border border-slate-700 text-slate-300 hover:bg-slate-800/50 transition font-medium"
+                  onClick={() => setStep(2)}
+                >
+                  Voltar
+                </button>
+                <button
+                  className={`px-6 py-2.5 rounded-lg bg-gradient-to-r from-green-600 to-green-500 hover:from-green-700 hover:to-green-600 text-white font-semibold transition flex items-center gap-2 ${(lancamentos.length === 0 || loading) ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  onClick={handleImportar}
+                  disabled={lancamentos.length === 0 || loading}
+                >
+                  {loading && <span className="loader border-2 border-t-2 border-white rounded-full w-4 h-4 animate-spin"></span>}
+                  {loading ? 'Importando...' : 'Importar'}
+                </button>
+              </div>
+            </>
+          )}
+        </div>
         {/* Feedback de importação */}
         {importFeedback && (
-          <div className={`mb-4 p-3 rounded text-sm font-bold ${importFeedback.success ? 'bg-green-900 text-green-300' : 'bg-red-900 text-red-300'}`}>
-            {importFeedback.message}
-            <button className="ml-4 underline text-xs text-blue-200" onClick={() => setImportFeedback(null)}>Fechar</button>
+          <div className={`border-t border-slate-700 p-4 rounded-b-2xl text-sm ${
+            importFeedback.success 
+              ? 'bg-gradient-to-r from-green-900/50 to-green-900/30 text-green-300 border-t-green-700' 
+              : 'bg-gradient-to-r from-red-900/50 to-red-900/30 text-red-300 border-t-red-700'
+          }`}>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="font-semibold">{importFeedback.message}</p>
+                {importFeedback.success && (
+                  <p className="text-xs opacity-90 mt-1">
+                    {importFeedback.count} lançamentos adicionados à conta <span className="font-semibold">{importFeedback.accountName}</span>
+                  </p>
+                )}
+              </div>
+              <button 
+                className="underline text-xs text-slate-300 hover:text-slate-100 transition ml-4 flex-shrink-0" 
+                onClick={() => setImportFeedback(null)}
+              >
+                Fechar
+              </button>
+            </div>
           </div>
         )}
       </div>
@@ -755,14 +859,47 @@ export default function ContasPage() {
 
       // Para cada lançamento, resolve o categoria_id
       const lancamentosComCategoriaId = [];
-      // Busca/cria categoria 'Outros' uma vez
+      // Busca/cria categorias padrão
       const outrosCategoriaId = await getOrCreateCategoriaId('Outros');
+      const rendaExtraCategoriaId = await getOrCreateCategoriaId('Renda Extra');
+      const comprasCategoriaId = await getOrCreateCategoriaId('Compras');
+      
+      // Função para determinar status baseado na data
+      const determinarStatus = (dataStr) => {
+        try {
+          const hoje = new Date();
+          hoje.setHours(0, 0, 0, 0);
+          
+          let data;
+          // Se for string em formato yyyy-mm-dd
+          if (/^\d{4}-\d{2}-\d{2}$/.test(dataStr)) {
+            data = new Date(dataStr + 'T00:00:00');
+          } else {
+            data = new Date(dataStr);
+          }
+          
+          data.setHours(0, 0, 0, 0);
+          
+          // Se data > hoje → pendente, senão pago
+          return data > hoje ? 'pendente' : 'pago';
+        } catch {
+          return 'pago'; // Padrão é pago se der erro
+        }
+      };
+      
       for (const l of lancamentos) {
         let categoryId = null;
         if (l.categoria && l.categoria.trim() !== '') {
           categoryId = await getOrCreateCategoriaId(l.categoria.trim());
         } else {
-          categoryId = outrosCategoriaId;
+          // Se não tiver categoria, usa a padrão de acordo com o tipo
+          if (l.tipo === 'receita') {
+            categoryId = rendaExtraCategoriaId;
+          } else if (l.tipo === 'despesa') {
+            categoryId = comprasCategoriaId;
+          } else {
+            categoryId = outrosCategoriaId;
+          }
         }
         lancamentosComCategoriaId.push({
           quando: l.quando,
@@ -773,6 +910,7 @@ export default function ContasPage() {
           account_id: contaId,
           userid: user.id,
           detalhes: '',
+          status: determinarStatus(l.quando),
         });
       }
 
@@ -782,12 +920,13 @@ export default function ContasPage() {
         return { success: false, message: 'Erro ao importar: ' + error.message };
       }
       fetchContas();
-      // Resumo detalhado
+      // Resumo simples e limpo
       const conta = contas.find(c => c.id === contaId);
-      const exemplos = (data || []).slice(0, 3).map(l => `${l.quando} - ${l.estabelecimento} - ${formatCurrency(l.valor)} - ${l.categoria_id || ''}`).join('\n');
       return {
         success: true,
-        message: `Importação realizada com sucesso!\nConta: ${conta ? conta.name : contaId}\nLançamentos importados: ${(data || []).length}\nExemplos:\n${exemplos}`
+        count: (data || []).length,
+        accountName: conta ? conta.name : contaId,
+        message: `✓ Importação realizada com sucesso!`
       };
     } catch (e) {
       return { success: false, message: `Erro ao importar: ${e.message || e}` };

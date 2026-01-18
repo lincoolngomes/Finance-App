@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test CVM Lookup</title>
+</head>
+<body>
+    <h1>Teste de Busca CVM</h1>
+    <p>Abra o DevTools (F12) e veja o console</p>
+    
+    <script>
+        // Copie a mesma lógica de cvm.ts
+        async function testBuscarFundoCVM(cnpj) {
+            try {
+                const codigoNormalizado = cnpj.replace(/\D/g, '')
+                console.log(`[CVM] Buscando fundo: ${codigoNormalizado}`)
+                
+                // BASE LOCAL DE FUNDOS (para desenvolvimento)
+                const fundosLocais = {
+                    '37110110000116': {
+                        codigo: '37110110000116',
+                        cnpj: '37.110.110/0001-16',
+                        nome: 'Fundo Previdência Privada',
+                        tipo: 'fi',
+                        cotaAtual: 10.5234,
+                        dataAtualizacao: '15/01/2026',
+                        patrimonio: 150000000,
+                    },
+                }
+                
+                // Verificar se existe na base local primeiro
+                if (fundosLocais[codigoNormalizado]) {
+                    console.log(`[CVM] ✅ Fundo encontrado na base local: ${fundosLocais[codigoNormalizado].nome}`)
+                    const fundo = fundosLocais[codigoNormalizado]
+                    console.log(`[CVM] Detalhes:`, fundo)
+                    console.log(`[CVM] cotaAtual:`, fundo.cotaAtual)
+                    console.log(`[CVM] Condição (cotaAtual > 0):`, fundo.cotaAtual > 0)
+                    return fundo
+                } else {
+                    console.log(`[CVM] ❌ Fundo NÃO encontrado na base local`)
+                    console.log(`[CVM] Chave procurada: "${codigoNormalizado}"`)
+                    return null
+                }
+            } catch (e) {
+                console.error('[CVM] Erro:', e)
+                return null
+            }
+        }
+        
+        // Testar com o CNPJ que o usuário entrou
+        console.log('==== INICIANDO TESTE ====')
+        const resultado = testBuscarFundoCVM('37.110.110/0001-16')
+        console.log('==== RESULTADO FINAL ====')
+        console.log(resultado)
+    </script>
+</body>
+</html>

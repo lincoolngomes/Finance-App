@@ -1,5 +1,6 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useInvestments, Investimento } from '@/hooks/useInvestments'
+import { useSincronizacaoFundos } from '@/hooks/useSincronizacaoFundos'
 import { formatCurrency } from '@/utils/currency'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -98,7 +99,8 @@ const LIQUIDEZ_LABELS: Record<string, string> = {
 }
 
 export default function Investimentos() {
-  const { investimentos, loading, fetchInvestimentos, deletarInvestimento, getResumo } = useInvestments()
+  const { investimentos, loading, fetchInvestimentos, deletarInvestimento, adicionarInvestimento, atualizarInvestimento, getResumo } = useInvestments()
+  const { statusSincronizacoes, sincronizarFundo, sincronizarTodosFundos, iniciarSincronizacaoAutomatica } = useSincronizacaoFundos()
   
   // Estados de diálogos
   const [addDialogOpen, setAddDialogOpen] = useState(false)
@@ -115,6 +117,11 @@ export default function Investimentos() {
   const [filterLiquidez, setFilterLiquidez] = useState<string>('todas')
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [expandedLastros, setExpandedLastros] = useState<Set<string>>(new Set())
+  
+  // Iniciar sincronização automática de fundos ao montar o componente
+  useEffect(() => {
+    iniciarSincronizacaoAutomatica(60) // Sincroniza a cada 60 minutos
+  }, [iniciarSincronizacaoAutomatica])
   
   // Resumo calculado
   const resumo = useMemo(() => getResumo(), [investimentos])
@@ -445,7 +452,7 @@ export default function Investimentos() {
               Acompanhe sua carteira e rentabilidade
             </p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
             <Button variant="outline" size="sm" onClick={() => fetchInvestimentos()}>
               <RefreshCcw className="h-4 w-4 mr-2" />
               Atualizar

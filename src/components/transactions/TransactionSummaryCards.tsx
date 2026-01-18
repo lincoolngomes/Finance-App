@@ -1,50 +1,70 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { TrendingUp, TrendingDown, DollarSign } from 'lucide-react'
+import { TrendingUp, TrendingDown, DollarSign, Clock } from 'lucide-react'
 import { formatCurrency } from '@/utils/currency'
 
 interface TransactionSummaryCardsProps {
   receitas: number
   despesas: number
   saldo: number
+  despesasPendentes?: number
 }
 
-export function TransactionSummaryCards({ receitas, despesas, saldo }: TransactionSummaryCardsProps) {
+export function TransactionSummaryCards({ receitas, despesas, saldo, despesasPendentes = 0 }: TransactionSummaryCardsProps) {
   return (
-    <div className="grid gap-3 grid-cols-1 sm:grid-cols-3 mb-4 sm:mb-6">
-      <Card className="border-l-4 border-l-green-500">
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-3 sm:p-6">
-          <CardTitle className="text-xs sm:text-sm font-medium line-clamp-1">Total Receitas</CardTitle>
-          <TrendingUp className="h-3 w-3 sm:h-4 sm:w-4 text-green-600 flex-shrink-0" />
+    <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 mb-6">
+      {/* Card Saldo */}
+      <Card className="border-0 bg-gradient-to-br from-teal-600 to-teal-700 dark:from-teal-700 dark:to-teal-800 text-white">
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardTitle className="text-sm font-medium">Saldo</CardTitle>
+          <DollarSign className="h-4 w-4 opacity-70" />
         </CardHeader>
-        <CardContent className="p-3 sm:p-6 pt-0">
-          <div className="text-lg sm:text-xl lg:text-2xl font-bold text-green-600">
-            {formatCurrency(receitas)}
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card className="border-l-4 border-l-red-500">
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-3 sm:p-6">
-          <CardTitle className="text-xs sm:text-sm font-medium line-clamp-1">Total Despesas</CardTitle>
-          <TrendingDown className="h-3 w-3 sm:h-4 sm:w-4 text-red-600 flex-shrink-0" />
-        </CardHeader>
-        <CardContent className="p-3 sm:p-6 pt-0">
-          <div className="text-lg sm:text-xl lg:text-2xl font-bold text-red-600">
-            {formatCurrency(despesas)}
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card className="border-l-4 border-l-primary">
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-3 sm:p-6">
-          <CardTitle className="text-xs sm:text-sm font-medium line-clamp-1">Saldo</CardTitle>
-          <DollarSign className="h-3 w-3 sm:h-4 sm:w-4 text-primary flex-shrink-0" />
-        </CardHeader>
-        <CardContent className="p-3 sm:p-6 pt-0">
-          <div className={`text-lg sm:text-xl lg:text-2xl font-bold ${saldo >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+        <CardContent className="pt-0">
+          <div className={`text-2xl font-bold ${saldo >= 0 ? 'text-white' : 'text-yellow-100'}`}>
             {formatCurrency(saldo)}
           </div>
+        </CardContent>
+      </Card>
+
+      {/* Card Receitas */}
+      <Card className="border-0 bg-gradient-to-br from-green-600 to-green-700 dark:from-green-700 dark:to-green-800 text-white">
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardTitle className="text-sm font-medium">Receitas</CardTitle>
+          <TrendingUp className="h-4 w-4 opacity-70" />
+        </CardHeader>
+        <CardContent className="pt-0">
+          <div className="text-2xl font-bold text-white">
+            {formatCurrency(receitas)}
+          </div>
+          <p className="text-xs text-green-100 mt-1">Mês atual</p>
+        </CardContent>
+      </Card>
+
+      {/* Card Despesas */}
+      <Card className="border-0 bg-gradient-to-br from-red-600 to-red-700 dark:from-red-700 dark:to-red-800 text-white">
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardTitle className="text-sm font-medium">Despesas</CardTitle>
+          <TrendingDown className="h-4 w-4 opacity-70" />
+        </CardHeader>
+        <CardContent className="pt-0">
+          <div className="text-2xl font-bold text-white">
+            {formatCurrency(despesas)}
+          </div>
+          <p className="text-xs text-red-100 mt-1">Mês atual</p>
+        </CardContent>
+      </Card>
+
+      {/* Card Despesas Pendentes */}
+      <Card className="border-0 bg-gradient-to-br from-orange-600 to-orange-700 dark:from-orange-700 dark:to-orange-800 text-white">
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+          <CardTitle className="text-sm font-medium">Despesas Pendentes</CardTitle>
+          <Clock className="h-4 w-4 opacity-70" />
+        </CardHeader>
+        <CardContent className="pt-0">
+          <div className="text-2xl font-bold text-white">
+            {formatCurrency(despesasPendentes)}
+          </div>
+          <p className="text-xs text-orange-100 mt-1">À receber</p>
         </CardContent>
       </Card>
     </div>

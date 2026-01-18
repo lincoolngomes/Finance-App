@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Card, CardContent } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -19,7 +19,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { useCategories } from '@/hooks/useCategories'
 // import { useAccountsMap } from '@/hooks/useAccountsMap'
 import { toast } from '@/hooks/use-toast'
-import { Plus, Edit, Trash2, TrendingUp, TrendingDown, ArrowUpDown, Download } from 'lucide-react'
+import { Plus, Edit, Trash2, TrendingUp, TrendingDown, ArrowUpDown, Download, Clock, DollarSign } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import { formatCurrency } from '@/utils/currency'
 
@@ -30,6 +30,19 @@ interface Transacao {
   created_at: string
   quando: string | null
   estabelecimento: string | null
+  valor: number | null
+  detalhes: string | null
+  tipo: string | null
+  category_id: string
+  metodo: string | null
+  status: string | null
+  account_id: string | null
+  fatura_id: string | null
+  userid: string | null
+  categorias?: {
+    id: string
+    nome: string
+  }
 }
 
 
@@ -65,6 +78,21 @@ const Transacoes: React.FC = () => {
   // Ordenação padrão: data da transação mais recentes primeiro
   const [sortOrder, setSortOrder] = useState('date_desc');
   const [saldoInicial, setSaldoInicial] = useState(0);
+  // Estados para modais
+  const [advancedFiltersOpen, setAdvancedFiltersOpen] = useState(false);
+  const [invoicesOpen, setInvoicesOpen] = useState(false);
+  const [showPaymentDate, setShowPaymentDate] = useState(false);
+  const [pendingExpensesDetailOpen, setPendingExpensesDetailOpen] = useState(false);
+  // Filtros avançados
+  const [advFilters, setAdvFilters] = useState({
+    period: '',
+    categories: [] as string[],
+    accounts: [] as string[],
+    cards: [] as string[],
+    status: '',
+    minValue: '',
+    maxValue: '',
+  });
   // Estado para controle do diálogo de transação
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<Transacao | null>(null);
@@ -74,6 +102,8 @@ const Transacoes: React.FC = () => {
   const [massAccountDialogOpen, setMassAccountDialogOpen] = useState(false);
   const [massCategory, setMassCategory] = useState('');
   const [massAccount, setMassAccount] = useState('');
+  // Estados para dropdowns
+  const [openDropdown, setOpenDropdown] = useState<string | null>(null);
 
   // Memo para mapear contas por id (accountsMap)
   const accountsMap = useMemo(() => {
@@ -240,7 +270,7 @@ const Transacoes: React.FC = () => {
   }
 
   // Totais para o mês/ano selecionado
-  const { receitasMes, despesasMes, transacoesCountMes } = useMemo(() => {
+  const { receitasMes, despesasMes, despesasPendentes, transacoesCountMes } = useMemo(() => {
     const monthIndex = (() => { const m = parseInt(filterMonth); return isNaN(m) ? new Date().getMonth() : (m > 11 ? m - 1 : m) })()
     const yearNum = parseInt(filterYear) || new Date().getFullYear()
     const filtered = transacoes.filter(t => {
@@ -250,7 +280,8 @@ const Transacoes: React.FC = () => {
     })
     const receitasMes = filtered.filter(t => t.tipo === 'receita').reduce((acc, t) => acc + Math.abs(Number(t.valor) || 0), 0)
     const despesasMes = filtered.filter(t => t.tipo === 'despesa').reduce((acc, t) => acc + Math.abs(Number(t.valor) || 0), 0)
-    return { receitasMes, despesasMes, transacoesCountMes: filtered.length }
+    const despesasPendentes = filtered.filter(t => t.tipo === 'despesa' && (t.status === 'pendente' || t.status === 'pendente_fatura')).reduce((acc, t) => acc + Math.abs(Number(t.valor) || 0), 0)
+    return { receitasMes, despesasMes, despesasPendentes, transacoesCountMes: filtered.length }
   }, [transacoes, filterMonth, filterYear])
   useEffect(() => {
     // Coloque aqui a lógica de efeito colateral, como fetch de dados, listeners, etc.
@@ -306,16 +337,42 @@ const Transacoes: React.FC = () => {
     }
 
     try {
-      // Define status automaticamente conforme método
+      // Define status automaticamente conforme data e método
       let status = formData.status;
       let metodo = formData.metodo;
+      
+      // Função para determinar status baseado na data
+      const determinarStatusPorData = (dataStr) => {
+        try {
+          const hoje = new Date();
+          hoje.setHours(0, 0, 0, 0);
+          
+          let data;
+          // Se for string em formato yyyy-mm-dd
+          if (/^\d{4}-\d{2}-\d{2}$/.test(dataStr)) {
+            data = new Date(dataStr + 'T00:00:00');
+          } else {
+            data = new Date(dataStr);
+          }
+          
+          data.setHours(0, 0, 0, 0);
+          
+          // Se data > hoje → pendente, senão pago
+          return data > hoje ? 'pendente' : 'pago';
+        } catch {
+          return 'pago'; // Padrão é pago se der erro
+        }
+      };
+      
       if (!status) {
         if (formData.metodo === 'cartao_credito') {
           status = 'pendente_fatura';
         } else if (formData.metodo === 'pix' || formData.metodo === 'debito' || formData.metodo === 'transferencia') {
-          status = 'pago';
+          // Determina status baseado na data
+          status = determinarStatusPorData(formData.quando);
         } else {
-          status = '';
+          // Para outros métodos, também verifica a data
+          status = formData.quando ? determinarStatusPorData(formData.quando) : '';
         }
       }
       if (!metodo) {
@@ -682,13 +739,13 @@ const Transacoes: React.FC = () => {
   }
 
   const handleExportToExcel = () => {
-    // Exporta apenas as transações selecionadas
-    const selectedTransacoes = filteredTransacoes.filter(t => selectedIds.includes(t.id))
+    // Exporta TODAS as transações (não apenas as selecionadas)
+    const selectedTransacoes = transacoes; // Use TODAS as transações, não apenas filtradas
     
     if (selectedTransacoes.length === 0) {
       toast({ 
-        title: 'Nenhuma transação selecionada',
-        description: 'Selecione ao menos uma transação para exportar.',
+        title: 'Nenhuma transação encontrada',
+        description: 'Não há transações para exportar.',
         variant: 'destructive'
       })
       return
@@ -726,7 +783,7 @@ const Transacoes: React.FC = () => {
       'Tipo': t.tipo === 'receita' ? 'Receita' : 'Despesa',
       'Valor': Math.abs(parseFloat(String(t.valor || 0))),
       'Categoria': t.categorias?.nome || 'Sem categoria',
-      'Conta': accountsMap?.[t.account_id || '']?.name || 'Sem conta',
+      'Conta': accountsMap?.[t.account_id || '']?.name || accountsMap?.[t.account_id || '']?.nome || 'Sem conta',
       'Método': t.metodo === 'cartao_credito' ? 'Cartão de Crédito' : t.metodo || '',
       'Status': t.status || '',
       'Detalhes': t.detalhes || ''
@@ -763,9 +820,9 @@ const Transacoes: React.FC = () => {
     ]
 
     // Faz o download
-    XLSX.writeFile(wb, `transacoes_${new Date().toISOString().split('T')[0]}.xlsx`)
+    XLSX.writeFile(wb, `transacoes_completo_${new Date().toISOString().split('T')[0]}.xlsx`)
     
-    toast({ title: `${allData.length} registros exportados com sucesso (${saldosIniciais.length} saldos iniciais + ${dataToExport.length} transações)!` })
+    toast({ title: `✅ ${allData.length} registros exportados com sucesso!`, description: `${saldosIniciais.length} saldos iniciais + ${dataToExport.length} transações` })
   }
 
   // Função robusta para formatar datas, evitando "Invalid Date"
@@ -814,32 +871,564 @@ const Transacoes: React.FC = () => {
     }
   };
 
+  // Modal Filtros Avançados
+  const handleApplyAdvancedFilters = () => {
+    // Aplicar os filtros ao estado principal
+    if (advFilters.categories.length > 0) {
+      setCategoryFilter(advFilters.categories[0]);
+    }
+    if (advFilters.accounts.length > 0) {
+      setAccountFilter(advFilters.accounts[0]);
+    }
+    if (advFilters.status) {
+      // Implementar filtro de status se necessário
+    }
+    setAdvancedFiltersOpen(false);
+  };
+
+  // Função para recalcular e corrigir o saldo
+  const handleRecalculateBalance = async () => {
+    try {
+      toast({
+        title: "Diagnosticando...",
+        description: "Analisando saldo e transações...",
+      });
+
+      const { data: allTransactions, error: fetchError } = await supabase
+        .from('transacoes')
+        .select('id, tipo, valor')
+        .eq('userid', user?.id);
+
+      if (fetchError) throw fetchError;
+
+      // Log detalhado
+      const receitas = allTransactions?.filter(t => t.tipo === 'receita') || [];
+      const despesas = allTransactions?.filter(t => t.tipo === 'despesa') || [];
+      const nullType = allTransactions?.filter(t => !t.tipo) || [];
+
+      const totalReceitas = receitas.reduce((acc, t) => acc + (Number(t.valor) || 0), 0);
+      const totalDespesas = despesas.reduce((acc, t) => acc + (Number(t.valor) || 0), 0);
+
+      console.log('📊 Diagnóstico Detalhado:', {
+        totalTransacoes: allTransactions?.length || 0,
+        receitasCount: receitas.length,
+        despesasCount: despesas.length,
+        nullTypeCount: nullType.length,
+        totalReceitas: totalReceitas.toFixed(2),
+        totalDespesas: totalDespesas.toFixed(2),
+        receitasDetalhes: receitas.slice(0, 5),
+        despesasDetalhes: despesas.slice(0, 5),
+      });
+
+      toast({
+        title: "Diagnóstico Concluído",
+        description: `Receitas: ${receitas.length} | Despesas: ${despesas.length} | Sem tipo: ${nullType.length}. Verifique o console para detalhes.`,
+      });
+    } catch (error: any) {
+      toast({
+        title: "Erro ao diagnosticar",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Função para sincronizar tipos de transações com categorias
+  const handleSyncTransactionTypes = async () => {
+    try {
+      toast({
+        title: "Sincronizando...",
+        description: "Atualizando tipos de transações com base nas categorias...",
+      });
+
+      const { data: allTransactions, error: fetchError } = await supabase
+        .from('transacoes')
+        .select('id, category_id, tipo, valor')
+        .eq('userid', user?.id);
+
+      if (fetchError) throw fetchError;
+
+      let updated = 0;
+      let nullFixed = 0;
+      
+      for (const transaction of allTransactions || []) {
+        const category = categories.find(c => c.id === transaction.category_id);
+        
+        // Se a transação não tem tipo, atribua o tipo da categoria
+        if (!transaction.tipo && category && category.tipo) {
+          const { error: updateError } = await supabase
+            .from('transacoes')
+            .update({ tipo: category.tipo })
+            .eq('id', transaction.id);
+
+          if (updateError) throw updateError;
+          nullFixed++;
+        }
+        // Se o tipo está diferente da categoria, atualize
+        else if (category && category.tipo && category.tipo !== transaction.tipo) {
+          const { error: updateError } = await supabase
+            .from('transacoes')
+            .update({ tipo: category.tipo })
+            .eq('id', transaction.id);
+
+          if (updateError) throw updateError;
+          updated++;
+        }
+      }
+
+      const totalFixed = updated + nullFixed;
+      toast({
+        title: "Sincronização Concluída!",
+        description: `${updated} transações atualizadas e ${nullFixed} transações com tipo NULL corrigidas. Total: ${totalFixed} ajustes realizados.`,
+      });
+
+      // Recarregar dados
+      await fetchTransacoes();
+    } catch (error: any) {
+      toast({
+        title: "Erro ao sincronizar",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Função para exportar TODAS as transações em Excel
+  const handleExportAllToExcel = () => {
+    // Exporta TODAS as transações (não apenas filtradas)
+    handleExportToExcel();
+  };
+
+  // Função para exportar TODAS as transações em PDF
+  const handleExportAllToPDF = () => {
+    toast({
+      title: "Exportar PDF",
+      description: "Função de exportação PDF em desenvolvimento",
+    });
+  };
+
+  // Função para exportar TODAS as transações em CSV
+  const handleExportAllToCSV = () => {
+    toast({
+      title: "Exportar CSV",
+      description: "Função de exportação CSV em desenvolvimento",
+    });
+  };
+
   // ...hooks, funções e lógica acima...
   return (
-
-
-    <div className="space-y-4 sm:space-y-6 p-3 sm:p-6">
-      {/* Título, descrição e botão Nova Transação alinhados */}
-      <div className="flex flex-row items-center justify-between mb-2 mt-2">
+    <div className="space-y-6 p-6">
+      {/* Header: Título, Descrição e Botão Nova Transação */}
+      <div className="flex flex-row items-center justify-between">
         <div>
-          <h2 className="text-3xl font-bold leading-tight">Transações</h2>
-          <p className="text-muted-foreground text-base">Gerencie suas receitas e despesas</p>
+          <h1 className="text-3xl font-bold text-white">Transações</h1>
+          <p className="text-slate-400 text-sm mt-1">Gerencie todas as suas transações financeiras</p>
         </div>
+        <Button className="bg-blue-600 hover:bg-blue-700 h-9 text-sm rounded-lg px-4 whitespace-nowrap font-semibold" onClick={() => { setEditingTransaction(null); setDialogOpen(true); }}>
+          + Nova Transação
+        </Button>
+      </div>
+
+      {/* Cards de Resumo */}
+      <div className="grid gap-3 grid-cols-4">
+        {/* Card Saldo */}
+        <Card className="border border-blue-700/30 bg-gradient-to-br from-blue-950/40 to-blue-900/20">
+          <CardHeader className="pb-2 pt-4">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-sm font-medium text-blue-300">Saldo</CardTitle>
+              <DollarSign className="h-5 w-5 text-blue-500" />
+            </div>
+          </CardHeader>
+          <CardContent className="pb-4">
+            <div className="text-3xl font-bold text-blue-400">
+              {formatCurrency(saldoReal)}
+            </div>
+            <p className="text-xs text-blue-400/60 mt-1">0 transações</p>
+          </CardContent>
+        </Card>
+
+        {/* Card Receitas */}
+        <Card className="border border-green-700/30 bg-gradient-to-br from-green-950/40 to-green-900/20">
+          <CardHeader className="pb-2 pt-4">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-sm font-medium text-green-300">Receitas</CardTitle>
+              <TrendingUp className="h-5 w-5 text-green-500" />
+            </div>
+          </CardHeader>
+          <CardContent className="pb-4">
+            <div className="text-3xl font-bold text-green-400">
+              {formatCurrency(receitasMes)}
+            </div>
+            <p className="text-xs text-green-400/60 mt-1">0</p>
+          </CardContent>
+        </Card>
+
+        {/* Card Despesas */}
+        <Card className="border border-red-700/30 bg-gradient-to-br from-red-950/40 to-red-900/20">
+          <CardHeader className="pb-2 pt-4">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-sm font-medium text-red-300">Despesas</CardTitle>
+              <TrendingDown className="h-5 w-5 text-red-500" />
+            </div>
+          </CardHeader>
+          <CardContent className="pb-4">
+            <div className="text-3xl font-bold text-red-400">
+              {formatCurrency(despesasMes)}
+            </div>
+            <p className="text-xs text-red-400/60 mt-1">0</p>
+          </CardContent>
+        </Card>
+
+        {/* Card Despesas Pendentes */}
+        <Card className="border border-orange-700/30 bg-gradient-to-br from-orange-950/40 to-orange-900/20 cursor-pointer hover:bg-gradient-to-br hover:from-orange-950/60 hover:to-orange-900/40 transition-colors" onClick={() => setPendingExpensesDetailOpen(true)}>
+          <CardHeader className="pb-2 pt-4">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-sm font-medium text-orange-300">Despesas Pendentes</CardTitle>
+              <Clock className="h-5 w-5 text-orange-500" />
+            </div>
+          </CardHeader>
+          <CardContent className="pb-4">
+            <div className="text-3xl font-bold text-orange-400">
+              {formatCurrency(despesasPendentes)}
+            </div>
+            <p className="text-xs text-orange-400/60 mt-1">À receber</p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Filtros Superiores */}
+      <div className="flex items-center justify-between gap-4 py-4">
+        <div className="flex items-center gap-3">
+          {/* Ano */}
+          <Select value={filterYear} onValueChange={setFilterYear}>
+            <SelectTrigger className="w-20 h-9 text-sm bg-slate-900/50 border-slate-700/50">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent className="bg-slate-900 border-slate-700">
+              <SelectItem value="2024">2024</SelectItem>
+              <SelectItem value="2025">2025</SelectItem>
+              <SelectItem value="2026">2026</SelectItem>
+            </SelectContent>
+          </Select>
+
+          {/* Período */}
+          <span className="text-xs text-slate-400">Período:</span>
+
+          {/* Botões de Mês */}
+          <div className="flex gap-1">
+            {['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'].map((m, i) => (
+              <Button
+                key={i}
+                variant={parseInt(filterMonth) === i ? 'default' : 'ghost'}
+                className={`h-8 w-10 text-xs rounded px-1 ${
+                  parseInt(filterMonth) === i 
+                    ? 'bg-blue-600 hover:bg-blue-700 text-white' 
+                    : 'bg-slate-800/50 hover:bg-slate-800 text-slate-400'
+                }`}
+                onClick={() => setFilterMonth(i.toString())}
+              >
+                {m}
+              </Button>
+            ))}
+          </div>
+        </div>
+
+        {/* Ações Direita */}
         <div className="flex gap-2">
-          {selectedIds.length > 0 && (
+          <div className="relative">
             <Button 
-              variant="outline" 
-              className="h-9 text-sm rounded-md px-4 whitespace-nowrap" 
-              onClick={handleExportToExcel}
+              variant="ghost" 
+              className="h-9 text-sm rounded-lg px-3 bg-slate-800/50 hover:bg-slate-800 text-slate-300"
+              onClick={() => setOpenDropdown(openDropdown === 'faturas' ? null : 'faturas')}
             >
-              <Download className="h-4 w-4 mr-2" />
-              Exportar Excel
+              📋 Faturas
             </Button>
-          )}
-          <Button className="bg-primary hover:bg-primary/90 h-9 text-sm rounded-md px-4 whitespace-nowrap" onClick={() => { setEditingTransaction(null); setDialogOpen(true); }}>
-            + Nova Transação
-          </Button>
+            {openDropdown === 'faturas' && (
+              <div className="absolute right-0 top-full mt-2 bg-slate-800 border border-slate-700 rounded-lg shadow-lg z-50 w-48">
+                <button 
+                  className="w-full text-left px-4 py-2 text-sm text-slate-300 hover:bg-slate-700 rounded-lg"
+                  onClick={() => {
+                    setInvoicesOpen(true);
+                    setOpenDropdown(null);
+                  }}
+                >
+                  📋 Gerenciar Faturas
+                </button>
+              </div>
+            )}
+          </div>
+          <div className="relative">
+            <Button 
+              variant="ghost" 
+              className="h-9 text-sm rounded-lg px-3 bg-slate-800/50 hover:bg-slate-800 text-slate-300"
+              onClick={() => setOpenDropdown(openDropdown === 'importar' ? null : 'importar')}
+            >
+              ↑ Importar
+            </Button>
+            {openDropdown === 'importar' && (
+              <div className="absolute right-0 top-full mt-2 bg-slate-800 border border-slate-700 rounded-lg shadow-lg z-50 w-48">
+                <button 
+                  className="w-full text-left px-4 py-2 text-sm text-slate-300 hover:bg-slate-700 first:rounded-t-lg"
+                >
+                  📊 Importar OFX
+                </button>
+                <button 
+                  className="w-full text-left px-4 py-2 text-sm text-slate-300 hover:bg-slate-700"
+                >
+                  📄 Importar PDF
+                </button>
+                <button 
+                  className="w-full text-left px-4 py-2 text-sm text-slate-300 hover:bg-slate-700 last:rounded-b-lg"
+                >
+                  📋 Importar CSV
+                </button>
+              </div>
+            )}
+          </div>
+          <div className="relative">
+            <Button 
+              variant="ghost" 
+              className="h-9 text-sm rounded-lg px-3 bg-slate-800/50 hover:bg-slate-800 text-slate-300"
+              onClick={() => setOpenDropdown(openDropdown === 'exportar' ? null : 'exportar')}
+            >
+              ↓ Exportar
+            </Button>
+            {openDropdown === 'exportar' && (
+              <div className="absolute right-0 top-full mt-2 bg-slate-800 border border-slate-700 rounded-lg shadow-lg z-50 w-48">
+                <button 
+                  className="w-full text-left px-4 py-2 text-sm text-slate-300 hover:bg-slate-700 first:rounded-t-lg"
+                  onClick={() => {
+                    handleExportAllToExcel();
+                    setOpenDropdown(null);
+                  }}
+                >
+                  📊 Exportar em Excel
+                </button>
+                <button 
+                  className="w-full text-left px-4 py-2 text-sm text-slate-300 hover:bg-slate-700"
+                  onClick={() => {
+                    handleExportAllToPDF();
+                    setOpenDropdown(null);
+                  }}
+                >
+                  📄 Exportar em PDF
+                </button>
+                <button 
+                  className="w-full text-left px-4 py-2 text-sm text-slate-300 hover:bg-slate-700"
+                  onClick={() => {
+                    handleExportAllToCSV();
+                    setOpenDropdown(null);
+                  }}
+                >
+                  📋 Exportar em CSV
+                </button>
+                <div className="border-t border-slate-700"></div>
+                <button 
+                  className="w-full text-left px-4 py-2 text-sm text-red-400 hover:bg-slate-700"
+                  onClick={() => {
+                    handleRecalculateBalance();
+                    setOpenDropdown(null);
+                  }}
+                >
+                  🔍 Diagnosticar Saldo
+                </button>
+                <button 
+                  className="w-full text-left px-4 py-2 text-sm text-yellow-400 hover:bg-slate-700 last:rounded-b-lg"
+                  onClick={() => {
+                    handleSyncTransactionTypes();
+                    setOpenDropdown(null);
+                  }}
+                >
+                  🔄 Sincronizar Tipos
+                </button>
+              </div>
+            )}
+          </div>
         </div>
+      </div>
+
+      {/* Filtros Secundários */}
+      <div className="flex items-center gap-4 py-2">
+        <Button variant="ghost" className="h-8 text-xs rounded-lg px-3 bg-slate-800/50 hover:bg-slate-800 text-slate-300" onClick={() => setAdvancedFiltersOpen(true)}>
+          🔍 Filtros Avançados
+        </Button>
+        <div className="flex items-center gap-2 bg-slate-800/50 hover:bg-slate-800/75 transition-colors rounded-lg px-3 py-1.5 cursor-pointer">
+          <input type="checkbox" className="w-4 h-4" checked={showPaymentDate} onChange={(e) => setShowPaymentDate(e.target.checked)} />
+          <span className="text-xs text-slate-400">Data Pagamento</span>
+        </div>
+        <Input
+          placeholder="Buscar transações..."
+          className="flex-1 h-9 rounded-lg bg-slate-900/50 border-slate-700/50 text-slate-300 placeholder:text-slate-500"
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+        />
+      </div>
+
+      {/* Barra de ações em massa */}
+      {selectedIds.length > 0 && (
+        <Card className="mb-4 border-2 border-primary bg-primary/5">
+          <CardContent className="p-4">
+            <div className="flex flex-wrap items-center gap-4">
+              <span className="text-sm font-semibold text-primary">
+                ✓ {selectedIds.length} {selectedIds.length === 1 ? 'transação selecionada' : 'transações selecionadas'}
+              </span>
+              <div className="h-6 w-px bg-slate-700"></div>
+              <div className="flex gap-2 flex-wrap">
+                <Button size="sm" variant="outline" onClick={() => setMassCategoryDialogOpen(true)}>
+                  📁 Alterar Categoria
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => setMassDateDialogOpen(true)}>
+                  📅 Alterar Data
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => setMassAccountDialogOpen(true)}>
+                  🏦 Alterar Conta
+                </Button>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button size="sm" variant="destructive">
+                      🗑️ Excluir
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Excluir transações selecionadas</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Tem certeza que deseja excluir {selectedIds.length} {selectedIds.length === 1 ? 'transação' : 'transações'}? Esta ação não pode ser desfeita.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                      <AlertDialogAction onClick={handleMassDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+                        Excluir
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+                <Button size="sm" variant="ghost" onClick={() => setSelectedIds([])}>
+                  ✕ Limpar
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Cabeçalho da Tabela */}
+      <div className="grid gap-4 grid-cols-[50px_100px_1.5fr_130px_130px_100px_110px_80px] items-center px-6 py-3 bg-slate-800/50 rounded-lg font-semibold text-xs text-slate-400 border border-slate-700/50 sticky top-0">
+        <div className="flex items-center justify-center">
+          <input type="checkbox" className="w-4 h-4 cursor-pointer" onChange={(e) => handleSelectAll(e.target.checked)} checked={isAllSelected} />
+        </div>
+        <div>DATA</div>
+        <div>DESCRIÇÃO</div>
+        <div>CATEGORIA</div>
+        <div>CONTA</div>
+        <div>CARTÃO</div>
+        <div className="text-right">VALOR</div>
+        <div>STATUS</div>
+      </div>
+
+      {/* Lista de Transações */}
+      <div className="space-y-2">
+        {filteredTransacoes.length === 0 ? (
+          <div className="text-center py-12 text-slate-500">
+            Nenhuma transação encontrada
+          </div>
+        ) : (
+          filteredTransacoes.slice(0, 50).map((transacao) => {
+            const dataFormatada = (() => {
+              const dateStr = transacao.quando || transacao.created_at;
+              if (!dateStr) return '-';
+              
+              try {
+                // Se for string em formato yyyy-mm-dd, adiciona T00:00:00
+                if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+                  const date = new Date(dateStr + 'T00:00:00');
+                  if (!isNaN(date.getTime())) {
+                    return date.toLocaleDateString('pt-BR');
+                  }
+                }
+                
+                // Se for string com timestamp ISO
+                if (/^\d{4}-\d{2}-\d{2}T/.test(dateStr)) {
+                  const date = new Date(dateStr);
+                  if (!isNaN(date.getTime())) {
+                    return date.toLocaleDateString('pt-BR');
+                  }
+                }
+                
+                // Tentar parse direto
+                const date = new Date(dateStr);
+                if (!isNaN(date.getTime())) {
+                  return date.toLocaleDateString('pt-BR');
+                }
+                
+                return dateStr; // Retorna a string original se tudo falhar
+              } catch {
+                return dateStr || '-';
+              }
+            })()
+            
+            const isReceita = transacao.tipo === 'receita' || (transacao.tipo === null && Number(transacao.valor || 0) > 0)
+            const isPendente = transacao.status === 'pendente' || transacao.status === 'pendente_fatura'
+            
+            return (
+              <div
+                key={transacao.id}
+                className={`grid gap-4 grid-cols-[50px_100px_1.5fr_130px_130px_100px_110px_80px] items-center px-6 py-4 rounded-lg border-l-4 border-b border-slate-700/30 bg-gradient-to-r hover:bg-slate-800/50 transition-colors text-sm ${
+                  isReceita
+                    ? 'from-green-500/5 border-l-green-500'
+                    : isPendente
+                    ? 'from-orange-500/5 border-l-orange-500'
+                    : 'from-slate-700/10 border-l-red-500'
+                }`}
+              >
+                <input 
+                  type="checkbox" 
+                  className="w-4 h-4 cursor-pointer" 
+                  checked={selectedIds.includes(transacao.id)}
+                  onChange={(e) => {
+                    if (e.target.checked) {
+                      setSelectedIds([...selectedIds, transacao.id]);
+                    } else {
+                      setSelectedIds(selectedIds.filter(id => id !== transacao.id));
+                    }
+                  }}
+                />
+                <div className="text-slate-300">
+                  {dataFormatada}
+                </div>
+                <div className="font-medium text-slate-200 line-clamp-1">
+                  {transacao.estabelecimento || transacao.detalhes || '-'}
+                </div>
+                <div className="text-slate-400 truncate text-xs">
+                  {transacao.categorias?.nome || '-'}
+                </div>
+                <div className="text-slate-400 truncate text-xs">
+                  {transacao.account_id && accountsMap[transacao.account_id] ? accountsMap[transacao.account_id].nome || accountsMap[transacao.account_id].name : '-'}
+                </div>
+                <div className="text-slate-400 truncate text-xs">
+                  {transacao.fatura_id && accountsMap[transacao.fatura_id] ? accountsMap[transacao.fatura_id].nome || accountsMap[transacao.fatura_id].name : '-'}
+                </div>
+                <div className={`font-bold text-right ${isReceita ? 'text-green-400' : 'text-red-400'}`}>
+                  {isReceita ? '+' : '-'}{formatCurrency(Math.abs(transacao.valor || 0))}
+                </div>
+                <div>
+                  <Badge
+                    className={`text-xs px-2 py-1 rounded font-semibold ${
+                      transacao.status === 'pendente' || transacao.status === 'pendente_fatura'
+                        ? 'bg-yellow-900/60 text-yellow-300 border border-yellow-700/50'
+                        : transacao.status === 'pago'
+                        ? 'bg-slate-700/50 text-slate-300 border border-slate-600/50'
+                        : 'bg-slate-700/50 text-slate-300 border border-slate-600/50'
+                    }`}
+                  >
+                    {transacao.status === 'pendente' || transacao.status === 'pendente_fatura' ? 'Pend.' : 'Pago'}
+                  </Badge>
+                </div>
+              </div>
+            )
+          })
+        )}
       </div>
 
       {/* Dialog de criação/edição de transação */}
@@ -951,7 +1540,7 @@ const Transacoes: React.FC = () => {
                 value={formData.category_id}
                 onValueChange={value => setFormData({ ...formData, category_id: value })}
                 placeholder="Selecione a categoria"
-                allValue=""
+                tipo={formData.tipo as 'receita' | 'despesa' | ''}
                 className="h-9 text-sm bg-background/50"
               />
             </div>
@@ -1009,92 +1598,6 @@ const Transacoes: React.FC = () => {
           </form>
         </DialogContent>
       </Dialog>
-
-      {/* Seletor de mês/ano igual ao Dashboard e Cards de resumo (totais do período + saldo atualizado) */}
-      <div className="flex items-center justify-between gap-4 mb-4">
-        <div className="flex items-center gap-2">
-          <Select value={filterMonth} onValueChange={setFilterMonth}>
-            <SelectTrigger className="h-9 text-sm w-40">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {Array.from({ length: 12 }, (_, i) => (
-                <SelectItem key={i} value={i.toString()}>
-                  {new Date(0, i).toLocaleDateString('pt-BR', { month: 'long' })}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select value={filterYear} onValueChange={setFilterYear}>
-            <SelectTrigger className="h-9 text-sm w-28">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {Array.from({ length: 5 }, (_, i) => {
-                const year = new Date().getFullYear() - 2 + i
-                return (
-                  <SelectItem key={year} value={year.toString()}>
-                    {year}
-                  </SelectItem>
-                )
-              })}
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="ml-auto">
-          <span className="text-sm text-muted-foreground">Filtro: {new Date(0, parseInt(filterMonth)).toLocaleDateString('pt-BR', { month: 'long' })} / {filterYear} • Transações no período: <b>{transacoesCountMes}</b></span>
-        </div>
-      </div>
-
-      <TransactionSummaryCards receitas={receitasMes} despesas={despesasMes} saldo={saldoReal} />
-
-      {/* Barra de ações em massa */}
-      {selectedIds.length > 0 && (
-        <Card className="mb-4 border-primary">
-          <CardContent className="p-4">
-            <div className="flex flex-wrap items-center gap-3">
-              <span className="text-sm font-medium">
-                {selectedIds.length} {selectedIds.length === 1 ? 'transação selecionada' : 'transações selecionadas'}
-              </span>
-              <div className="flex gap-2 flex-wrap">
-                <Button size="sm" variant="outline" onClick={() => setMassCategoryDialogOpen(true)}>
-                  Alterar Categoria
-                </Button>
-                <Button size="sm" variant="outline" onClick={() => setMassDateDialogOpen(true)}>
-                  Alterar Data
-                </Button>
-                <Button size="sm" variant="outline" onClick={() => setMassAccountDialogOpen(true)}>
-                  Alterar Conta
-                </Button>
-                <AlertDialog>
-                  <AlertDialogTrigger asChild>
-                    <Button size="sm" variant="destructive">
-                      Excluir Selecionadas
-                    </Button>
-                  </AlertDialogTrigger>
-                  <AlertDialogContent>
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>Excluir transações selecionadas</AlertDialogTitle>
-                      <AlertDialogDescription>
-                        Tem certeza que deseja excluir {selectedIds.length} {selectedIds.length === 1 ? 'transação' : 'transações'}? Esta ação não pode ser desfeita.
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                      <AlertDialogAction onClick={handleMassDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-                        Excluir
-                      </AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
-                <Button size="sm" variant="ghost" onClick={() => setSelectedIds([])}>
-                  Limpar Seleção
-                </Button>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
 
       {/* Dialog para alterar categoria em massa */}
       <Dialog open={massCategoryDialogOpen} onOpenChange={setMassCategoryDialogOpen}>
@@ -1188,82 +1691,200 @@ const Transacoes: React.FC = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Filtros agrupados em card visual, duas linhas, sem botão dentro */}
-      <div className="mb-4">
-        <div className="bg-muted/10 border border-muted-foreground/10 rounded-xl p-4 flex flex-col gap-2 w-full">
-          <div className="flex flex-row gap-2 w-full">
-            <Input
-              placeholder="Pesquisar transações..."
-              value={searchTerm}
-              onChange={e => setSearchTerm(e.target.value)}
-              className="h-9 text-sm rounded-md px-3 bg-background border border-muted-foreground/20 focus:ring-2 focus:ring-primary/30 shadow-sm w-[220px]"
-            />
-            <Select value={typeFilter} onValueChange={value => setTypeFilter(value && value !== '' ? value : 'all')}>
-              <SelectTrigger className="h-9 text-sm rounded-md bg-background border border-muted-foreground/20 w-[120px]">
-                <SelectValue placeholder="Todos os tipos" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todos os tipos</SelectItem>
-                <SelectItem value="receita">Receita</SelectItem>
-                <SelectItem value="despesa">Despesa</SelectItem>
-              </SelectContent>
-            </Select>
-            <CategorySelector
-              value={categoryFilter}
-              onValueChange={value => setCategoryFilter(value && value !== '' ? value : 'all')}
-              placeholder="Todas categorias"
-              allValue="all"
-              className="h-9 text-sm rounded-md bg-background border border-muted-foreground/20 w-[150px]"
-            />
-          </div>
-          <div className="flex flex-row gap-2 w-full">
-            <Select
-              value={accountFilter && accountFilter !== '' ? accountFilter : 'all'}
-              onValueChange={value => setAccountFilter(value && value !== '' ? value : 'all')}
-            >
-              <SelectTrigger className="h-9 text-sm rounded-md bg-background border border-muted-foreground/20 w-[150px]">
-                <SelectValue placeholder="Todas contas" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Todas contas</SelectItem>
-                {accountsMap && Object.entries(accountsMap)
-                  .filter(([id, acc]) => id && id !== '' && id !== null && id !== undefined)
-                  .map(([id, acc]) => (
-                    <SelectItem key={id} value={id}>{acc.name}</SelectItem>
+      {/* Modal Filtros Avançados */}
+      <Dialog open={advancedFiltersOpen} onOpenChange={setAdvancedFiltersOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Filtros Avançados</DialogTitle>
+            <DialogDescription>Customize seus filtros para encontrar transações específicas</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            {/* Período */}
+            <div>
+              <Label className="text-sm font-medium">Período</Label>
+              <Select value={advFilters.period} onValueChange={(v) => setAdvFilters({...advFilters, period: v})}>
+                <SelectTrigger className="mt-1">
+                  <SelectValue placeholder="Selecione o período" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ultima_semana">Última semana</SelectItem>
+                  <SelectItem value="ultimo_mes">Último mês</SelectItem>
+                  <SelectItem value="ultimos_3_meses">Últimos 3 meses</SelectItem>
+                  <SelectItem value="ultimo_ano">Último ano</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Categoria */}
+            <div>
+              <Label className="text-sm font-medium">Categoria</Label>
+              <CategorySelector
+                value={advFilters.categories[0] || ''}
+                onValueChange={(v) => setAdvFilters({...advFilters, categories: v ? [v] : []})}
+                placeholder="Selecione categorias"
+                allValue=""
+                className="mt-1"
+              />
+            </div>
+
+            {/* Conta */}
+            <div>
+              <Label className="text-sm font-medium">Conta</Label>
+              <Select value={advFilters.accounts[0] || ''} onValueChange={(v) => setAdvFilters({...advFilters, accounts: v ? [v] : []})}>
+                <SelectTrigger className="mt-1">
+                  <SelectValue placeholder="Selecione contas" />
+                </SelectTrigger>
+                <SelectContent>
+                  {contas.map(c => (
+                    <SelectItem key={c.id} value={c.id}>{c.nome || c.name}</SelectItem>
                   ))}
-              </SelectContent>
-            </Select>
-            <Input
-              type="text"
-              value={dateFrom}
-              onChange={e => setDateFrom(e.target.value)}
-              className="h-9 text-sm rounded-md bg-background border border-muted-foreground/20 w-[120px]"
-              placeholder="dd/mm/aaaa"
-              maxLength={10}
-            />
-            <Input
-              type="text"
-              value={dateTo}
-              onChange={e => setDateTo(e.target.value)}
-              className="h-9 text-sm rounded-md bg-background border border-muted-foreground/20 w-[120px]"
-              placeholder="dd/mm/aaaa"
-              maxLength={10}
-            />
-            <Select value={sortOrder} onValueChange={setSortOrder}>
-              <SelectTrigger className="h-9 text-sm flex items-center rounded-md bg-background border border-muted-foreground/20 w-[120px]">
-                <ArrowUpDown className="w-4 h-4 mr-2" />
-                <SelectValue>
-                  {sortOrder === 'date_desc' ? 'Ordenar' : sortOrder === 'date_asc' ? 'Ordenar' : 'Ordenar'}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="date_desc">Data da transação ↓</SelectItem>
-                <SelectItem value="date_asc">Data da transação ↑</SelectItem>
-              </SelectContent>
-            </Select>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Status */}
+            <div>
+              <Label className="text-sm font-medium">Status</Label>
+              <Select value={advFilters.status} onValueChange={(v) => setAdvFilters({...advFilters, status: v})}>
+                <SelectTrigger className="mt-1">
+                  <SelectValue placeholder="Selecione o status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="pendente">Pendente</SelectItem>
+                  <SelectItem value="pago">Pago</SelectItem>
+                  <SelectItem value="atrasado">Atrasado</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Faixa de Valor */}
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label className="text-sm font-medium">Valor Mínimo</Label>
+                <Input type="number" placeholder="0,00" className="mt-1" />
+              </div>
+              <div>
+                <Label className="text-sm font-medium">Valor Máximo</Label>
+                <Input type="number" placeholder="0,00" className="mt-1" />
+              </div>
+            </div>
+
+            {/* Checkboxes */}
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <input type="checkbox" id="transacoes-recorrentes" className="w-4 h-4" />
+                <label htmlFor="transacoes-recorrentes" className="text-sm">Apenas transações recorrentes</label>
+              </div>
+              <div className="flex items-center gap-2">
+                <input type="checkbox" id="compras-parceladas" className="w-4 h-4" />
+                <label htmlFor="compras-parceladas" className="text-sm">Apenas compras parceladas</label>
+              </div>
+            </div>
           </div>
-        </div>
-      </div>
+
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setAdvancedFiltersOpen(false)}>Limpar Filtros</Button>
+            <Button onClick={handleApplyAdvancedFilters}>Aplicar Filtros</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal Gerenciar Faturas */}
+      <Dialog open={invoicesOpen} onOpenChange={setInvoicesOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <div className="flex items-center gap-2">
+              <div className="w-10 h-10 rounded-lg bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
+                📋
+              </div>
+              <div>
+                <DialogTitle>Gerenciar Faturas dos Cartões</DialogTitle>
+                <DialogDescription className="text-xs">Visualize e pague as faturas do seu cartão de crédito</DialogDescription>
+              </div>
+            </div>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div>
+              <Label className="text-sm font-medium">Cartão de crédito *</Label>
+              <Select>
+                <SelectTrigger className="mt-1">
+                  <SelectValue placeholder="Selecione o cartão" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="visa">Cartão Visa</SelectItem>
+                  <SelectItem value="mastercard">Cartão Mastercard</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label className="text-sm font-medium">Mês *</Label>
+                <Select defaultValue="janeiro">
+                  <SelectTrigger className="mt-1">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="janeiro">Janeiro</SelectItem>
+                    <SelectItem value="fevereiro">Fevereiro</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-sm font-medium">Ano *</Label>
+                <Select defaultValue="2026">
+                  <SelectTrigger className="mt-1">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="2026">2026</SelectItem>
+                    <SelectItem value="2025">2025</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="flex flex-col items-center justify-center py-8 text-center">
+              <p className="text-lg text-muted-foreground">🔍</p>
+              <p className="text-sm font-medium mt-2">Selecione um cartão e período</p>
+              <p className="text-xs text-muted-foreground mt-1">Preencha os campos acima para visualizar a fatura</p>
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setInvoicesOpen(false)}>Cancelar</Button>
+            <Button disabled>Pagar Fatura</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal Despesas Pendentes Details */}
+      <Dialog open={pendingExpensesDetailOpen} onOpenChange={setPendingExpensesDetailOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Despesas Pendentes</DialogTitle>
+            <DialogDescription>Detalhes das despesas pendentes de pagamento</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-4">
+            <div className="p-3 bg-slate-100 dark:bg-slate-900 rounded-lg">
+              <p className="text-xs text-slate-600 dark:text-slate-400">Total de Despesas Pendentes</p>
+              <p className="text-2xl font-bold text-orange-600 mt-1">{formatCurrency(despesasPendentes)}</p>
+            </div>
+            <div className="p-3 bg-slate-100 dark:bg-slate-900 rounded-lg">
+              <p className="text-xs text-slate-600 dark:text-slate-400">Contas Pendentes</p>
+              <p className="text-xl font-bold text-green-600 mt-1">R$ 0,00</p>
+            </div>
+            <div className="p-3 bg-slate-100 dark:bg-slate-900 rounded-lg">
+              <p className="text-xs text-slate-600 dark:text-slate-400">Cartões Pendentes</p>
+              <p className="text-xl font-bold text-green-600 mt-1">R$ 0,00</p>
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setPendingExpensesDetailOpen(false)}>Fechar</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Checkbox Selecionar Tudo */}
       {filteredTransacoes.length > 0 && (
@@ -1281,20 +1902,9 @@ const Transacoes: React.FC = () => {
 
       {/* Lista de transações */}
       <div className="grid gap-3 sm:gap-4">
-        {filteredTransacoes.length === 0 ? (
-          <Card>
-            <CardContent className="p-6 sm:p-8 text-center">
-              <p className="text-muted-foreground mb-4 text-sm sm:text-base">
-                {transacoes.length === 0 ? 'Nenhuma transação encontrada' : 'Nenhuma transação encontrada com os filtros aplicados'}
-              </p>
-              <Button onClick={() => { setEditingTransaction(null); setDialogOpen(true); }} size="sm" className="bg-primary hover:bg-primary/90">
-                Adicionar primeira transação
-              </Button>
-            </CardContent>
-          </Card>
-        ) : (
+        {filteredTransacoes.length === 0 ? null : (
           filteredTransacoes.map((transacao) => {
-            const isReceita = transacao.tipo === 'receita';
+            const isReceita = transacao.tipo === 'receita' || (transacao.tipo === null && Number(transacao.valor || 0) > 0);
             return (
               <Card key={transacao.id} className={`overflow-hidden border-l-4 hover:shadow-lg transition-all ${
                 selectedIds.includes(transacao.id) ? 'ring-2 ring-primary' : ''

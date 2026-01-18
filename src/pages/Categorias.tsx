@@ -18,6 +18,13 @@ export default function Categorias() {
         setEditingCategory(category);
         setIsFormOpen(true);
       };
+
+      // Fechar formulário
+      const handleCloseForm = () => {
+        setIsFormOpen(false);
+        setEditingCategory(null);
+      };
+
     // Selecionar todas as categorias
     const handleSelectAll = (checked: boolean | "indeterminate") => {
       if (checked) {
@@ -34,6 +41,7 @@ export default function Categorias() {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState<any>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [isChangeTypeModalOpen, setIsChangeTypeModalOpen] = useState(false);
   console.log('[DEBUG] selectedIds no render:', selectedIds);
   // Modal de lançamentos
   const [modalOpen, setModalOpen] = useState(false);
@@ -331,91 +339,60 @@ export default function Categorias() {
         </DialogContent>
       </Dialog>
       <div className="text-xs text-zinc-400 mb-2">Usuário: {user?.id || 'NÃO AUTENTICADO'} | Categorias carregadas: {categories.length}</div>
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div className="mb-2">
-          <Select value={sortOption} onValueChange={setSortOption}>
-            <SelectTrigger className="w-[260px]">
-              <SelectValue placeholder="Ordenar por" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="tipo">Tipo (Receita, Despesa, Investimento)</SelectItem>
-              <SelectItem value="tipo_inverso">Tipo (Investimento, Despesa, Receita)</SelectItem>
-              <SelectItem value="az">Nome A-Z</SelectItem>
-              <SelectItem value="za">Nome Z-A</SelectItem>
-              <SelectItem value="mais_lanc">Mais lançamentos</SelectItem>
-              <SelectItem value="menos_lanc">Menos lançamentos</SelectItem>
-              <SelectItem value="maior_fluxo">Maior fluxo de movimentação</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
+      
+      {/* Header e Controles */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
         <div>
-          <h1 className="text-xl sm:text-2xl font-semibold tracking-tight">Categorias</h1>
-          <p className="text-xs sm:text-sm text-muted-foreground mt-1">
-            Organize suas transações com categorias personalizadas
-          </p>
+          <h1 className="text-2xl font-bold tracking-tight">Categorias</h1>
+          <p className="text-sm text-muted-foreground mt-1">Organize suas transações com categorias personalizadas</p>
         </div>
-        <div className="flex gap-2 w-full sm:w-auto flex-wrap">
+        <div className="flex gap-2 w-full sm:w-auto">
           {selectedIds.length > 0 && (
             <>
-              {console.log('[DEBUG] Renderizando bloco de botões de ação')}
-              <div className="flex flex-col w-full gap-1 mb-2">
-                <div className="flex w-full flex-wrap items-center">
-                  <Button 
-                    onClick={() => {
-                      console.log('[DEBUG] Cliquei no botão de excluir selecionadas');
-                      handleDeleteSelected();
-                    }}
-                    variant="destructive"
-                    className="gap-2 px-4 py-2 rounded-lg text-base mr-6"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                    <span className="hidden sm:inline">Excluir {selectedIds.length} Selecionadas</span>
-                    <span className="sm:hidden">Excluir ({selectedIds.length})</span>
-                  </Button>
-                  <div className="flex flex-col gap-1">
-                    <span className="text-[13px] text-amber-200 text-left mb-1 pl-1">Selecione o novo tipo para as categorias marcadas:</span>
-                    <div className="flex gap-1">
-                      <Button
-                        onClick={() => {
-                          console.log('[DEBUG] Cliquei no botão de tipo receita');
-                          handleChangeType('receita');
-                        }}
-                        className="gap-2 px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white transition-colors text-base"
-                      >
-                        <TrendingUp className="h-4 w-4" /> Receita
-                      </Button>
-                      <Button
-                        onClick={() => {
-                          console.log('[DEBUG] Cliquei no botão de tipo despesa');
-                          handleChangeType('despesa');
-                        }}
-                        className="gap-2 px-4 py-2 rounded-lg bg-rose-600 hover:bg-rose-700 text-white transition-colors text-base"
-                      >
-                        <TrendingDown className="h-4 w-4" /> Despesa
-                      </Button>
-                      <Button
-                        onClick={() => {
-                          console.log('[DEBUG] Cliquei no botão de tipo investimento');
-                          handleChangeType('investimento');
-                        }}
-                        className="gap-2 px-4 py-2 rounded-lg bg-sky-600 hover:bg-sky-700 text-white transition-colors text-base"
-                      >
-                        <PiggyBank className="h-4 w-4" /> Investimento
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              </div>
+              <Button 
+                onClick={() => setIsChangeTypeModalOpen(true)}
+                variant="outline"
+                className="gap-2 px-4"
+              >
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16V4m0 0L3 8m4-4l4 4" />
+                </svg>
+                Mudar Tipo ({selectedIds.length})
+              </Button>
+              <Button 
+                onClick={handleDeleteSelected}
+                variant="destructive"
+                className="gap-2 px-4"
+              >
+                <Trash2 className="h-4 w-4" />
+                Excluir ({selectedIds.length})
+              </Button>
             </>
           )}
           <Button onClick={() => setIsFormOpen(true)} className="gap-2 flex-1 sm:flex-initial">
             <Plus className="h-4 w-4" />
-            <span className="hidden sm:inline">Nova Categoria</span>
-            <span className="sm:hidden">Nova</span>
+            Nova Categoria
           </Button>
         </div>
       </div>
 
+      {/* Select Ordenação */}
+      <div className="mb-4">
+        <Select value={sortOption} onValueChange={setSortOption}>
+          <SelectTrigger className="w-full sm:w-[260px]">
+            <SelectValue placeholder="Ordenar por" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="tipo">Tipo (Receita, Despesa, Investimento)</SelectItem>
+            <SelectItem value="tipo_inverso">Tipo (Investimento, Despesa, Receita)</SelectItem>
+            <SelectItem value="az">Nome A-Z</SelectItem>
+            <SelectItem value="za">Nome Z-A</SelectItem>
+            <SelectItem value="mais_lanc">Mais lançamentos</SelectItem>
+            <SelectItem value="menos_lanc">Menos lançamentos</SelectItem>
+            <SelectItem value="maior_fluxo">Maior fluxo de movimentação</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
 
       {/* Checkbox Selecionar Tudo */}
       {categories.length > 0 && (
@@ -431,6 +408,7 @@ export default function Categorias() {
         </div>
       )}
 
+      {/* Lista de Categorias */}
       <CategoriesList
         categories={sortedCategories}
         onEdit={handleEditCategory}
@@ -442,10 +420,69 @@ export default function Categorias() {
       />
 
       {isFormOpen && (
-        <CategoryForm
-          category={editingCategory}
-          onClose={handleCloseForm}
-        />
+        <Dialog open={isFormOpen} onOpenChange={setIsFormOpen}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>{editingCategory ? 'Editar Categoria' : 'Nova Categoria'}</DialogTitle>
+            </DialogHeader>
+            <div className="mt-4">
+              <CategoryForm
+                category={editingCategory}
+                onClose={handleCloseForm}
+              />
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* Modal de Mudança de Tipo em Massa */}
+      {isChangeTypeModalOpen && (
+        <Dialog open={isChangeTypeModalOpen} onOpenChange={setIsChangeTypeModalOpen}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Mudar Tipo de Categoria</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 pt-4">
+              <p className="text-sm text-muted-foreground">
+                Alterar o tipo para {selectedIds.length} categoria(s) selecionada(s):
+              </p>
+              <div className="space-y-2">
+                <Button
+                  onClick={() => {
+                    handleChangeType('receita');
+                    setIsChangeTypeModalOpen(false);
+                  }}
+                  disabled={changingType}
+                  className="w-full"
+                  variant="outline"
+                >
+                  <TrendingUp className="h-4 w-4 mr-2 text-green-600" />
+                  Receita
+                </Button>
+                <Button
+                  onClick={() => {
+                    handleChangeType('despesa');
+                    setIsChangeTypeModalOpen(false);
+                  }}
+                  disabled={changingType}
+                  className="w-full"
+                  variant="outline"
+                >
+                  <TrendingDown className="h-4 w-4 mr-2 text-red-600" />
+                  Despesa
+                </Button>
+              </div>
+              <Button
+                onClick={() => setIsChangeTypeModalOpen(false)}
+                disabled={changingType}
+                variant="ghost"
+                className="w-full"
+              >
+                Cancelar
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       )}
     </>
     );

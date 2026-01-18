@@ -9,6 +9,11 @@ export default defineConfig(({ mode }) => ({
     host: "::",
     port: 8080,
     proxy: {
+      '/.netlify/functions': {
+        target: 'http://localhost:9000',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/.netlify\/functions/, ''),
+      },
       '/api/webhook': {
         target: 'https://finance-app-n8n-finance-app.rcnehy.easypanel.host',
         changeOrigin: true,

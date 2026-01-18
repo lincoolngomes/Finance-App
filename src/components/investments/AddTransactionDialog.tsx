@@ -6,7 +6,10 @@ import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Textarea } from '@/components/ui/textarea'
 import { useInvestments } from '@/hooks/useInvestments'
-import { formatCurrency, parseValorBR, formatarValorBR } from '@/utils/currency'
+import { useSincronizacaoFundos } from '@/hooks/useSincronizacaoFundos'
+import { formatCurrency, parseValorBR, formatarValorBR, formatCurrencyInput } from '@/utils/currency'
+import { buscarFundoCVM, buscarCotaAtualizadaFundo, validarCNPJ } from '@/utils/cvm'
+import { AlertCircle, CheckCircle2, Loader2 } from 'lucide-react'
 
 interface AddTransactionDialogProps {
   open: boolean
@@ -15,6 +18,7 @@ interface AddTransactionDialogProps {
 
 export const AddTransactionDialog = ({ open, onClose }: AddTransactionDialogProps) => {
   const { getOrCreateInvestimento, adicionarTransacao } = useInvestments()
+  const { sincronizarFundo } = useSincronizacaoFundos()
   const [loading, setLoading] = useState(false)
   const [step, setStep] = useState<'tipo' | 'investimento' | 'transacao'>('tipo')
   
@@ -29,6 +33,16 @@ export const AddTransactionDialog = ({ open, onClose }: AddTransactionDialogProp
   const [dataTransacao, setDataTransacao] = useState(new Date().toISOString().split('T')[0])
   const [observacoes, setObservacoes] = useState('')
   
+  // Campos específicos de fundos
+  const [cnpjFundo, setCnpjFundo] = useState('')
+  const [buscandoFundo, setBuscandoFundo] = useState(false)
+  const [fundoEncontrado, setFundoEncontrado] = useState<any>(null)
+  const [cotaAplicacao, setCotaAplicacao] = useState('')
+  const [buscandoCota, setBuscandoCota] = useState(false)
+  const [erroFundo, setErroFundo] = useState('')
+  const [fundoDaCVM, setFundoDaCVM] = useState(false) // Flag para saber se foi encontrado na CVM
+  const [tipoPrevidencia, setTipoPrevidencia] = useState<'pgbl' | 'vgbl'>('pgbl') // PGBL ou VGBL
+  
   // Campos específicos de renda fixa
   const [tipoRentabilidade, setTipoRentabilidade] = useState<'pos' | 'pre' | 'ipca' | 'hibrido'>('pos')
   const [taxaPercentual, setTaxaPercentual] = useState('')
@@ -36,9 +50,119 @@ export const AddTransactionDialog = ({ open, onClose }: AddTransactionDialogProp
   const [dataVencimento, setDataVencimento] = useState('')
   const [liquidez, setLiquidez] = useState('no_vencimento')
   const [isentoIR, setIsentoIR] = useState(false)
+  const [dataTimeoutId, setDataTimeoutId] = useState<NodeJS.Timeout | null>(null)
+
+  const handleCnpjBlur = async () => {
+    if (!cnpjFundo.trim()) {
+      return
+    }
+
+    if (!validarCNPJ(cnpjFundo)) {
+      setErroFundo('CNPJ inválido')
+      return
+    }
+
+    // Se já foi encontrado, não buscar de novo
+    if (fundoDaCVM) {
+      return
+    }
+
+    setBuscandoFundo(true)
+    setErroFundo('')
+    
+    try {
+      const fundo = await buscarFundoCVM(cnpjFundo, dataTransacao)
+      
+      console.log('[DEBUG] Busca automática ao sair do campo:', { fundo, cotaAtual: fundo?.cotaAtual })
+      
+      if (fundo && fundo.cotaAtual > 0) {
+        // Sucesso! Encontrou na CVM
+        console.log('[DEBUG] Fundo encontrado automaticamente!')
+        setFundoEncontrado(fundo)
+        setFundoDaCVM(true)
+        setNome(fundo.nome)
+        // Para previdência: "PGBL/VGBL - Nome do Fundo"
+        // Para fundo: CNPJ
+        if (tipoAtivo === 'previdencia') {
+          const tipoPrev = tipoPrevidencia === 'pgbl' ? 'PGBL' : 'VGBL'
+          const codigoPrevidencia = `${tipoPrev} - ${fundo.nome}`.substring(0, 50)
+          setCodigo(codigoPrevidencia)
+        } else {
+          setCodigo(cnpjFundo.replace(/\D/g, ''))
+        }
+        setCotaAplicacao(fundo.cotaAtual.toFixed(4))
+        setErroFundo('')
+      } else {
+        // Não encontrou - mostrar erro
+        console.log('[DEBUG] Fundo não encontrado na busca automática')
+        setFundoDaCVM(false)
+        setErroFundo('❌ Fundo não encontrado na CVM. Verifique o CNPJ.')
+        setFundoEncontrado(null)
+        setCotaAplicacao('')
+        setNome('')
+      }
+    } catch (err) {
+      console.error('Erro na busca automática:', err)
+      setFundoDaCVM(false)
+      setErroFundo('❌ Erro ao buscar fundo. Tente novamente.')
+      setFundoEncontrado(null)
+      setCotaAplicacao('')
+      setNome('')
+    } finally {
+      setBuscandoFundo(false)
+    }
+  }
+
+  // Buscar cota atualizada quando a data mudar (para fundos encontrados)
+  // Usa debounce para esperar o usuário terminar de digitar
+  const handleDataTransacaoChange = async (novaData: string) => {
+    setDataTransacao(novaData)
+
+    // Limpar timeout anterior se existir
+    if (dataTimeoutId) {
+      clearTimeout(dataTimeoutId)
+    }
+
+    // Se a data está incompleta, não buscar ainda
+    if (novaData.length < 10) {
+      return
+    }
+
+    // Se o fundo foi encontrado e o CNPJ está preenchido, buscar a cota para o novo dia
+    if (fundoDaCVM && cnpjFundo.trim()) {
+      // Esperar 500ms antes de buscar (para garantir que o usuário terminou de digitar)
+      const timeoutId = setTimeout(async () => {
+        setBuscandoFundo(true)
+        
+        try {
+          const fundo = await buscarFundoCVM(cnpjFundo, novaData)
+          
+          if (fundo && fundo.cotaAtual > 0) {
+            console.log('[DEBUG] Cota atualizada para a nova data:', fundo.cotaAtual)
+            setCotaAplicacao(fundo.cotaAtual.toFixed(4))
+          }
+        } catch (err) {
+          console.error('Erro ao buscar cota para nova data:', err)
+        } finally {
+          setBuscandoFundo(false)
+        }
+      }, 500)
+
+      setDataTimeoutId(timeoutId)
+    }
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    
+    // Validação: Para fundos e previdência, o fundo PRECISA ser encontrado na CVM
+    if (['fundo', 'previdencia'].includes(tipoAtivo)) {
+      if (!fundoDaCVM || !cotaAplicacao) {
+        setErroFundo('❌ É necessário encontrar o fundo na CVM para continuar. Verifique o CNPJ.')
+        return
+      }
+    }
+    
     setLoading(true)
 
     try {
@@ -61,6 +185,18 @@ export const AddTransactionDialog = ({ open, onClose }: AddTransactionDialogProp
         dadosInvestimento.isento_ir = isentoIR
       }
       
+      // Adicionar campos específicos de fundos e previdência
+      if (['fundo', 'previdencia'].includes(tipoAtivo)) {
+        dadosInvestimento.data_aplicacao = dataTransacao
+        dadosInvestimento.cotacao_atual = parseFloat(cotaAplicacao) || parseFloat(precoUnitario)
+        dadosInvestimento.preco_medio = parseFloat(cotaAplicacao) || parseFloat(precoUnitario)
+        dadosInvestimento.fonte_marcacao = 'estimado'
+        // Adicionar tipo de previdência se for previdência privada
+        if (tipoAtivo === 'previdencia') {
+          dadosInvestimento.tipo_previdencia = tipoPrevidencia
+        }
+      }
+      
       const investimento = await getOrCreateInvestimento(dadosInvestimento)
 
       if (!investimento) {
@@ -73,7 +209,14 @@ export const AddTransactionDialog = ({ open, onClose }: AddTransactionDialogProp
       let preco: number
       let valorTotal: number
       
-      if (tipoAtivo === 'tesouro_direto' && quantidade !== '1') {
+      if (['fundo', 'previdencia'].includes(tipoAtivo)) {
+        // Para fundos: quantidade = valor aplicado / cota
+        const valorAplicado = parseValorBR(precoUnitario)
+        const cota = parseFloat(cotaAplicacao)
+        qtd = valorAplicado / cota // Quantidade de cotas
+        preco = cota // Preço unitário (cota)
+        valorTotal = valorAplicado
+      } else if (tipoAtivo === 'tesouro_direto' && quantidade !== '1') {
         // Tesouro com PU de compra informado
         const puCompra = parseValorBR(quantidade)
         const valorAplicado = parseValorBR(precoUnitario)
@@ -99,6 +242,10 @@ export const AddTransactionDialog = ({ open, onClose }: AddTransactionDialogProp
       })
 
       if (sucesso) {
+        // Se for fundo, sincroniza automaticamente com CVM
+        if (['fundo', 'previdencia'].includes(tipoAtivo) && fundoEncontrado) {
+          await sincronizarFundo(investimento)
+        }
         resetForm()
         onClose()
       }
@@ -120,6 +267,15 @@ export const AddTransactionDialog = ({ open, onClose }: AddTransactionDialogProp
     }
   }, [tipoRentabilidade, tipoAtivo])
 
+  // Atualizar código quando o tipo de previdência mudar
+  useEffect(() => {
+    if (tipoAtivo === 'previdencia' && fundoDaCVM && nome) {
+      const tipoPrev = tipoPrevidencia === 'pgbl' ? 'PGBL' : 'VGBL'
+      const codigoPrevidencia = `${tipoPrev} - ${nome}`.substring(0, 50)
+      setCodigo(codigoPrevidencia)
+    }
+  }, [tipoPrevidencia, fundoDaCVM, nome, tipoAtivo])
+
   const resetForm = () => {
     setStep('tipo')
     setTipoTransacao('compra')
@@ -138,6 +294,13 @@ export const AddTransactionDialog = ({ open, onClose }: AddTransactionDialogProp
     setDataVencimento('')
     setLiquidez('no_vencimento')
     setIsentoIR(false)
+    setTipoPrevidencia('pgbl') // Reset tipo de previdência
+    // Reset fund fields
+    setCnpjFundo('')
+    setCotaAplicacao('')
+    setFundoEncontrado(null)
+    setFundoDaCVM(false)
+    setErroFundo('')
   }
 
   const valorTotal = quantidade && precoUnitario 
@@ -191,8 +354,85 @@ export const AddTransactionDialog = ({ open, onClose }: AddTransactionDialogProp
           </div>
 
           {/* Step 2: Dados do Ativo */}
+          {/* Dados do Ativo - seção principal */}
           <div className="space-y-4 border-t pt-4">
             <h3 className="font-semibold text-teal-600">Dados do Ativo</h3>
+            
+            {/* CNPJ do Fundo - PRIMEIRO CAMPO para Fundos/Previdência */}
+            {['fundo', 'previdencia'].includes(tipoAtivo) && (
+              <div>
+                <Label htmlFor="cnpjFundo">CNPJ do Fundo/Previdência *</Label>
+                <Input
+                  id="cnpjFundo"
+                  placeholder="00.000.000/0000-00"
+                  value={cnpjFundo}
+                  onChange={(e) => setCnpjFundo(e.target.value)}
+                  onBlur={handleCnpjBlur}
+                  disabled={buscandoFundo}
+                  required
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  {buscandoFundo ? '🔍 Buscando fundo...' : '💡 Saia do campo para buscar automaticamente na CVM'}
+                </p>
+                
+                {erroFundo && (
+                  <div className="flex gap-2 p-3 bg-green-50 dark:bg-green-950 rounded text-sm mt-2">
+                    <CheckCircle2 className="h-4 w-4 text-green-600 flex-shrink-0 mt-0.5" />
+                    <p className="text-green-700 dark:text-green-300">{erroFundo}</p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Se NÃO encontrou o fundo na CVM */}
+            {!fundoDaCVM && cnpjFundo.replace(/\D/g, '').length > 0 && erroFundo && (
+              <div className="p-4 bg-red-50 dark:bg-red-950 rounded border border-red-200 dark:border-red-800">
+                <div className="flex items-start gap-2">
+                  <AlertCircle className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-semibold text-red-700 dark:text-red-300">Fundo não encontrado</p>
+                    <p className="text-sm text-red-600 dark:text-red-400 mt-1">
+                      Não conseguimos localizar este fundo na CVM. Verifique o CNPJ e tente novamente.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+            
+            <div>
+              <Label htmlFor="instituicao">Instituição/Corretora</Label>
+              <Input
+                id="instituicao"
+                placeholder="Ex: Clear, XP, Binance..."
+                value={instituicao}
+                onChange={(e) => setInstituicao(e.target.value)}
+              />
+            </div>
+
+            {/* Tipo de Previdência (VGBL ou PGBL) - aparece ANTES de Identificador e Nome */}
+            {tipoAtivo === 'previdencia' && (
+              <div>
+                <Label htmlFor="tipoPrevidencia">Tipo de Previdência *</Label>
+                <Select value={tipoPrevidencia} onValueChange={(v: any) => setTipoPrevidencia(v)}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="pgbl">
+                      <span>PGBL - Plano Gerador de Benefício Livre</span>
+                    </SelectItem>
+                    <SelectItem value="vgbl">
+                      <span>VGBL - Vida Gerador de Benefício Livre</span>
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {tipoPrevidencia === 'pgbl' 
+                    ? '💡 PGBL: Pode descontar do IR. Imposto sobre toda a contribuição + rendimentos.'
+                    : '💡 VGBL: Não desconta IR. Imposto apenas sobre os rendimentos.'}
+                </p>
+              </div>
+            )}
             
             <div className="grid grid-cols-2 gap-4">
               <div>
@@ -210,10 +450,11 @@ export const AddTransactionDialog = ({ open, onClose }: AddTransactionDialogProp
                       tipoAtivo === 'tesouro_direto' ? 'Ex: LFT1' :
                       ['cri', 'cra', 'debenture'].includes(tipoAtivo) ? 'Ex: CRI-123' :
                       tipoAtivo === 'fundo' ? 'Ex: FUNDO-XP' :
-                      'Ex: PREV-BB'
+                      'Ex: PGBL-Nome do Fundo'
                     }
                     value={codigo}
                     onChange={(e) => setCodigo(e.target.value.toUpperCase())}
+                    disabled={tipoAtivo === 'previdencia' && fundoDaCVM}
                     required
                   />
                   {['renda_fixa', 'tesouro_direto', 'cri', 'cra', 'debenture', 'fundo', 'previdencia'].includes(tipoAtivo) && (
@@ -239,24 +480,17 @@ export const AddTransactionDialog = ({ open, onClose }: AddTransactionDialogProp
                   }
                   value={nome}
                   onChange={(e) => setNome(e.target.value)}
+                  disabled={fundoDaCVM && ['fundo', 'previdencia'].includes(tipoAtivo)}
+                  className={fundoDaCVM && ['fundo', 'previdencia'].includes(tipoAtivo) ? 'bg-green-50 dark:bg-green-950 text-green-700 dark:text-green-300 border-green-300 dark:border-green-700' : ''}
                   required
                 />
+                {fundoDaCVM && ['fundo', 'previdencia'].includes(tipoAtivo) && (
+                  <p className="text-xs text-green-600 dark:text-green-400 mt-1">✓ Preenchido automaticamente da CVM</p>
+                )}
               </div>
             </div>
 
-            <div>
-              <Label htmlFor="instituicao">Instituição/Corretora</Label>
-              <Input
-                id="instituicao"
-                placeholder="Ex: Clear, XP, Binance..."
-                value={instituicao}
-                onChange={(e) => setInstituicao(e.target.value)}
-              />
-            </div>
-          </div>
-
-          {/* Campos específicos de Renda Fixa */}
-          {['renda_fixa', 'tesouro_direto', 'cri', 'cra', 'debenture'].includes(tipoAtivo) && (
+            {['renda_fixa', 'tesouro_direto', 'cri', 'cra', 'debenture'].includes(tipoAtivo) && (
             <div className="space-y-4 border-t pt-4">
               <h3 className="font-semibold text-teal-600">Características da Renda Fixa</h3>
               
@@ -374,7 +608,8 @@ export const AddTransactionDialog = ({ open, onClose }: AddTransactionDialogProp
                 </Label>
               </div>
             </div>
-          )}
+            )}
+          </div>
 
           {/* Step 3: Dados da Transação */}
           <div className="space-y-4 border-t pt-4">
@@ -389,10 +624,10 @@ export const AddTransactionDialog = ({ open, onClose }: AddTransactionDialogProp
                     <Input
                       id="valorAplicado"
                       type="text"
-                      placeholder="0,00"
+                      placeholder="R$ 0,00"
                       value={precoUnitario}
                       onChange={(e) => {
-                        const formatted = formatarValorBR(e.target.value)
+                        const formatted = formatCurrencyInput(e.target.value)
                         setPrecoUnitario(formatted)
                         setQuantidade('1') // Sempre 1 para estes tipos
                       }}
@@ -404,22 +639,35 @@ export const AddTransactionDialog = ({ open, onClose }: AddTransactionDialogProp
                       {tipoAtivo === 'previdencia' && 'Valor da contribuição'}
                     </p>
                   </div>
-                  {tipoAtivo === 'tesouro_direto' && (
-                    <div>
-                      <Label htmlFor="puCompra">PU na Compra (opcional)</Label>
-                      <Input
-                        id="puCompra"
-                        type="text"
-                        placeholder="0,00"
-                        value={quantidade !== '1' ? quantidade : ''}
-                        onChange={(e) => setQuantidade(formatarValorBR(e.target.value))}
-                      />
-                      <p className="text-xs text-muted-foreground mt-1">
-                        💡 Para marcação a mercado precisa. Se não souber, deixe em branco.
-                      </p>
-                    </div>
-                  )}
+
+                  <div>
+                    <Label htmlFor="dataTransacaoRF">Data da Aplicação *</Label>
+                    <Input
+                      id="dataTransacaoRF"
+                      type="date"
+                      value={dataTransacao}
+                      onChange={(e) => ['fundo', 'previdencia'].includes(tipoAtivo) ? handleDataTransacaoChange(e.target.value) : setDataTransacao(e.target.value)}
+                      disabled={buscandoFundo}
+                      required
+                    />
+                  </div>
                 </div>
+                
+                {tipoAtivo === 'tesouro_direto' && (
+                  <div>
+                    <Label htmlFor="puCompra">PU na Compra (opcional)</Label>
+                    <Input
+                      id="puCompra"
+                      type="text"
+                      placeholder="0,00"
+                      value={quantidade !== '1' ? quantidade : ''}
+                      onChange={(e) => setQuantidade(formatarValorBR(e.target.value))}
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      💡 Para marcação a mercado precisa. Se não souber, deixe em branco.
+                    </p>
+                  </div>
+                )}
               </div>
             ) : (
               <div className="grid grid-cols-2 gap-4">
@@ -476,11 +724,42 @@ export const AddTransactionDialog = ({ open, onClose }: AddTransactionDialogProp
               </div>
             )}
 
+            {/* Data da Transação para Renda Fixa e Fundos */}
+            {['renda_fixa', 'tesouro_direto', 'cri', 'cra', 'debenture', 'fundo', 'previdencia'].includes(tipoAtivo) && (
+              <div>
+                {/* Card verde do fundo encontrado - ANTES do campo de data/cota */}
+                {['fundo', 'previdencia'].includes(tipoAtivo) && fundoDaCVM && cotaAplicacao && (
+                  <div className="p-4 bg-teal-50 dark:bg-teal-950 rounded border border-teal-200 dark:border-teal-800 mb-4">
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-2">
+                        <CheckCircle2 className="h-5 w-5 text-teal-600" />
+                        <div>
+                          <p className="text-xs text-muted-foreground">Fundo encontrado na CVM</p>
+                          <p className="text-lg font-bold text-teal-700 dark:text-teal-300">
+                            {nome}
+                          </p>
+                          <p className="text-sm text-teal-600 dark:text-teal-400 mt-1">
+                            Cota: <span className="font-semibold">R$ {cotaAplicacao}</span>
+                          </p>
+                          {precoUnitario && parseFloat(precoUnitario.replace(',', '.')) > 0 && (
+                            <p className="text-sm text-teal-600 dark:text-teal-400 mt-2">
+                              Cotas: <span className="font-semibold">{(parseFloat(precoUnitario.replace(',', '.')) / parseFloat(cotaAplicacao)).toFixed(4)}</span>
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+              </div>
+            )}
+
             {valorTotal > 0 && (
-              <div className="bg-teal-50 border border-teal-200 rounded-lg p-4">
+              <div className="bg-teal-600 dark:bg-teal-700 rounded-lg p-4 border border-teal-500 dark:border-teal-600">
                 <div className="flex justify-between items-center">
-                  <span className="font-semibold text-teal-900">Valor Total:</span>
-                  <span className="text-2xl font-bold text-teal-600">
+                  <span className="font-semibold text-white">Valor Total:</span>
+                  <span className="text-2xl font-bold text-white">
                     {formatCurrency(valorTotal)}
                   </span>
                 </div>

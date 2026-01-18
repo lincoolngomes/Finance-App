@@ -11,6 +11,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { useCategories, Category } from '@/hooks/useCategories';
 
 interface CategoryFormProps {
@@ -20,15 +27,18 @@ interface CategoryFormProps {
 
 export function CategoryForm({ category, onClose }: CategoryFormProps) {
   const [nome, setNome] = useState('');
+  const [tipo, setTipo] = useState('');
   const [tags, setTags] = useState('');
   const { createCategory, updateCategory, isCreating, isUpdating } = useCategories();
 
   useEffect(() => {
     if (category) {
       setNome(category.nome);
+      setTipo(category.tipo || '');
       setTags(category.tags || '');
     } else {
       setNome('');
+      setTipo('');
       setTags('');
     }
   }, [category]);
@@ -36,17 +46,22 @@ export function CategoryForm({ category, onClose }: CategoryFormProps) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!nome.trim()) return;
+    if (!nome.trim() || !tipo) return;
 
     try {
       if (category) {
         updateCategory({
           id: category.id,
-          updates: { nome: nome.trim(), tags: tags.trim() },
+          updates: { 
+            nome: nome.trim(), 
+            tipo: tipo,
+            tags: tags.trim() 
+          },
         });
       } else {
         createCategory({
           nome: nome.trim(),
+          tipo: tipo,
           tags: tags.trim(),
         });
       }
@@ -92,6 +107,24 @@ export function CategoryForm({ category, onClose }: CategoryFormProps) {
           </div>
           
           <div className="space-y-2">
+            <Label htmlFor="tipo" className="text-sm font-medium flex items-center gap-2">
+              <svg className="w-4 h-4 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.5a2 2 0 00-1 .267" />
+              </svg>
+              Tipo de Categoria *
+            </Label>
+            <Select value={tipo} onValueChange={setTipo}>
+              <SelectTrigger className="bg-background/50">
+                <SelectValue placeholder="Selecione um tipo" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="receita">Receita</SelectItem>
+                <SelectItem value="despesa">Despesa</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          
+          <div className="space-y-2">
             <Label htmlFor="tags" className="text-sm font-medium flex items-center gap-2">
               <svg className="w-4 h-4 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 20l4-16m2 16l4-16M6 9h14M4 15h14" />
@@ -123,7 +156,7 @@ export function CategoryForm({ category, onClose }: CategoryFormProps) {
             </Button>
             <Button 
               type="submit" 
-              disabled={!nome.trim() || isCreating || isUpdating}
+              disabled={!nome.trim() || !tipo || isCreating || isUpdating}
             >
               <svg className="w-4 h-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />

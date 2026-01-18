@@ -6,10 +6,16 @@ interface CategorySelectorProps {
   value: string
   onValueChange: (value: string) => void
   placeholder?: string
+  tipo?: 'receita' | 'despesa' | '' // Tipo para filtrar categorias
 }
 
-export function CategorySelector({ value, onValueChange, placeholder = "Selecione a categoria" }: CategorySelectorProps) {
+export function CategorySelector({ value, onValueChange, placeholder = "Selecione a categoria", tipo = '' }: CategorySelectorProps) {
   const { categories, isLoading } = useCategories()
+
+  // Filtra categorias por tipo se especificado
+  const filteredCategories = tipo && tipo !== '' 
+    ? categories.filter(cat => cat.tipo === tipo)
+    : categories
 
   if (isLoading) {
     return (
@@ -21,7 +27,7 @@ export function CategorySelector({ value, onValueChange, placeholder = "Selecion
     )
   }
 
-  if (!categories || categories.length === 0) {
+  if (!filteredCategories || filteredCategories.length === 0) {
     return (
       <Select disabled>
         <SelectTrigger>
@@ -38,7 +44,7 @@ export function CategorySelector({ value, onValueChange, placeholder = "Selecion
       </SelectTrigger>
       <SelectContent>
         <SelectItem value="all">Todas categorias</SelectItem>
-        {categories.map((categoria) => (
+        {filteredCategories.map((categoria) => (
           <SelectItem key={categoria.id} value={categoria.id}>
             {categoria.nome}
           </SelectItem>
