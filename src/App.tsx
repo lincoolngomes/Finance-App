@@ -15,7 +15,7 @@ import Calendario from "./pages/Calendario";
 import Lembretes from "./pages/Lembretes";
 import Categorias from "./pages/Categorias";
 import Relatorios from "./pages/Relatorios";
-import ProfilePage from "./pages/ProfilePage"; // NOVA PÁGINA DE PERFIL
+import Perfil from "./pages/Perfil";
 import NotFound from "./pages/NotFound";
 import Plano from "./pages/Plano";
 import Admin from "./pages/Admin";
@@ -26,6 +26,7 @@ import Investimentos from "./pages/Investimentos";
 import ConfigCategorias from "./pages/ConfigCategorias";
 import Feedback from "./pages/Feedback";
 import WhatsApp from "./pages/WhatsApp";
+import Orcamentos from "./pages/Orcamentos";
 
 const queryClient = new QueryClient();
 
@@ -160,7 +161,7 @@ function AppRoutes() {
         path="/perfil"
         element={
           <ProtectedRoute>
-            <ProfilePage />
+            <Perfil />
           </ProtectedRoute>
         }
       />
@@ -201,6 +202,14 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <Investimentos />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/orcamentos"
+        element={
+          <ProtectedRoute>
+            <Orcamentos />
           </ProtectedRoute>
         }
       />

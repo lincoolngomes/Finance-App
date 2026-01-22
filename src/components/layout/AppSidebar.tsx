@@ -1,5 +1,5 @@
 import { NavLink, useLocation } from 'react-router-dom'
-import { Home, Calendar, CalendarDays, User, LogOut, FileText, Shield, Bell, Wallet, TrendingUp, ArrowLeftRight, MessageCircle } from 'lucide-react'
+import { Home, Calendar, CalendarDays, User, LogOut, FileText, Shield, Bell, Wallet, TrendingUp, ArrowLeftRight, MessageCircle, Target } from 'lucide-react'
 import {
   Sidebar,
   SidebarContent,
@@ -46,6 +46,7 @@ export function AppSidebar() {
     { title: 'Calendário', url: '/calendario', icon: CalendarDays },
     { title: 'Investimentos', url: '/investimentos', icon: TrendingUp },
     { title: 'Lembretes', url: '/lembretes', icon: Bell },
+    { title: 'Orçamentos', url: '/orcamentos', icon: Target },
     { title: 'Relatórios', url: '/relatorios', icon: FileText },
     { title: 'WhatsApp', url: '/whatsapp', icon: MessageCircle },
   ]

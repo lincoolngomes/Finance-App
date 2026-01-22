@@ -1,6 +1,7 @@
 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Filter } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import { Filter, Eye, EyeOff } from 'lucide-react'
 
 interface DashboardFiltersProps {
   filterMonth: string
@@ -8,6 +9,8 @@ interface DashboardFiltersProps {
   setFilterMonth: (month: string) => void
   setFilterYear: (year: string) => void
   transactionCount: number
+  hideValues?: boolean
+  setHideValues?: (hide: boolean) => void
 }
 
 export function DashboardFilters({ 
@@ -15,7 +18,9 @@ export function DashboardFilters({
   filterYear, 
   setFilterMonth, 
   setFilterYear, 
-  transactionCount 
+  transactionCount,
+  hideValues = false,
+  setHideValues
 }: DashboardFiltersProps) {
 
   return (
@@ -29,6 +34,17 @@ export function DashboardFilters({
       </div>
       
       <div className="flex gap-2 items-center">
+        {setHideValues && (
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => setHideValues(!hideValues)}
+            className="h-10 w-10"
+            title={hideValues ? "Mostrar valores" : "Ocultar valores"}
+          >
+            {hideValues ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+          </Button>
+        )}
         <Filter className="h-4 w-4 text-muted-foreground" />
         <Select value={filterMonth} onValueChange={setFilterMonth}>
           <SelectTrigger className="w-32">

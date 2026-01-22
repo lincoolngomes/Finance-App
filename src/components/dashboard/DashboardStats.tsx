@@ -11,9 +11,10 @@ interface DashboardStatsProps {
     transacoesCount: number
     lembretesCount: number
   }
+  hideValues?: boolean
 }
 
-export function DashboardStats({ stats }: DashboardStatsProps) {
+export function DashboardStats({ stats, hideValues = false }: DashboardStatsProps) {
   return (
     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
       <Card className="relative overflow-hidden bg-gradient-to-br from-green-500/10 to-green-600/5 border-green-500/20 hover:shadow-lg transition-all">
@@ -25,7 +26,9 @@ export function DashboardStats({ stats }: DashboardStatsProps) {
           </div>
           <div>
             <p className="text-xs font-medium text-muted-foreground mb-1">Total de Receitas</p>
-            <p className="text-2xl font-bold text-green-600 dark:text-green-500 mb-0.5">{formatCurrency(stats.totalReceitas)}</p>
+            <p className="text-2xl font-bold text-green-600 dark:text-green-500 mb-0.5">
+              {hideValues ? '••••••' : formatCurrency(stats.totalReceitas)}
+            </p>
             <p className="text-xs text-muted-foreground">Mês atual</p>
           </div>
         </CardContent>
@@ -40,7 +43,9 @@ export function DashboardStats({ stats }: DashboardStatsProps) {
           </div>
           <div>
             <p className="text-xs font-medium text-muted-foreground mb-1">Total de Despesas</p>
-            <p className="text-2xl font-bold text-red-600 dark:text-red-500 mb-0.5">{formatCurrency(stats.totalDespesas)}</p>
+            <p className="text-2xl font-bold text-red-600 dark:text-red-500 mb-0.5">
+              {hideValues ? '••••••' : formatCurrency(stats.totalDespesas)}
+            </p>
             <p className="text-xs text-muted-foreground">Mês atual</p>
           </div>
         </CardContent>
@@ -56,7 +61,7 @@ export function DashboardStats({ stats }: DashboardStatsProps) {
           <div>
             <p className="text-xs font-medium text-muted-foreground mb-1">Saldo Atual</p>
             <p className={`text-2xl font-bold mb-0.5 ${stats.saldo >= 0 ? 'text-blue-600 dark:text-blue-500' : 'text-orange-600 dark:text-orange-500'}`}>
-              {formatCurrency(stats.saldo)}
+              {hideValues ? '••••••' : formatCurrency(stats.saldo)}
             </p>
             <p className="text-xs text-muted-foreground">Receitas - Despesas</p>
           </div>

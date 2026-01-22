@@ -61,6 +61,7 @@ export default function Dashboard() {
   // Estados dos filtros
   const [filterMonth, setFilterMonth] = useState(new Date().getMonth().toString())
   const [filterYear, setFilterYear] = useState(new Date().getFullYear().toString())
+  const [hideValues, setHideValues] = useState(false)
 
   // Ao carregar as transações, ajusta o filtro para o mês/ano mais recente disponível
   useEffect(() => {
@@ -280,9 +281,11 @@ export default function Dashboard() {
         setFilterMonth={setFilterMonth}
         setFilterYear={setFilterYear}
         transactionCount={filteredTransacoes.length}
+        hideValues={hideValues}
+        setHideValues={setHideValues}
       />
       
-      <DashboardStats stats={stats} />
+      <DashboardStats stats={stats} hideValues={hideValues} />
       
       <DashboardCharts 
         transacoes={filteredTransacoes} 
