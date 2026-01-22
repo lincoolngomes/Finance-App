@@ -20,7 +20,16 @@ export function BankSelector({ value, onValueChange, placeholder }: {
     async function fetchAccounts() {
       setLoading(true);
       const { data, error } = await supabase.from("accounts").select("id, name, type");
-      if (!error && data) setAccounts(data);
+      if (!error && data) {
+        // Filtrar apenas contas (excluir cartões)
+        const normaliza = (str: string) => str.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+        const filtered = data.filter(acc => {
+          if (!acc.type) return true; // Se não tem tipo, assume que é conta
+          const tipo = normaliza(acc.type);
+          return !(tipo.includes('cartao') || tipo.includes('credito') || tipo.includes('debito'));
+        });
+        setAccounts(filtered);
+      }
       setLoading(false);
     }
     fetchAccounts();
@@ -61,8 +70,17 @@ export function CardSelector({ value, onValueChange, placeholder }: {
   useEffect(() => {
     async function fetchAccounts() {
       setLoading(true);
-      const { data, error } = await supabase.from("accounts").select("id, name, type").eq("type", "cartao");
-      if (!error && data) setAccounts(data);
+      const { data, error } = await supabase.from("accounts").select("id, name, type");
+      if (!error && data) {
+        // Filtrar apenas cartões
+        const normaliza = (str: string) => str.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+        const filtered = data.filter(acc => {
+          if (!acc.type) return false;
+          const tipo = normaliza(acc.type);
+          return tipo.includes('cartao') || tipo.includes('credito') || tipo.includes('debito');
+        });
+        setAccounts(filtered);
+      }
       setLoading(false);
     }
     fetchAccounts();

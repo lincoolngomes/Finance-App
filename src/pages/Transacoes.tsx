@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog'
 import { Badge } from '@/components/ui/badge'
 import { CurrencyInput } from '@/components/ui/currency-input'
+import { DatePicker } from '@/components/ui/date-picker'
 import { TransactionSummaryCards } from '@/components/transactions/TransactionSummaryCards'
 import { TransactionFilters } from '@/components/transactions/TransactionFilters'
 import { CategorySelector } from '@/components/transactions/CategorySelector'
@@ -24,6 +25,7 @@ import { toast } from '@/hooks/use-toast'
 import { Plus, Edit, Trash2, TrendingUp, TrendingDown, ArrowUpDown, Download, Clock, DollarSign } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import { formatCurrency } from '@/utils/currency'
+import { parse, format } from 'date-fns'
 
 
 
@@ -85,7 +87,7 @@ const Transacoes: React.FC = () => {
   const [invoicesOpen, setInvoicesOpen] = useState(false);
   const [importarFaturaOpen, setImportarFaturaOpen] = useState(false);
   const [cartaoParaImportar, setCartaoParaImportar] = useState<string | undefined>(undefined);
-  const [showPaymentDate, setShowPaymentDate] = useState(false);
+  const [hideCardTransactions, setHideCardTransactions] = useState(false);
   const [pendingExpensesDetailOpen, setPendingExpensesDetailOpen] = useState(false);
   // Filtros avançados
   const [advFilters, setAdvFilters] = useState({
@@ -144,6 +146,10 @@ const Transacoes: React.FC = () => {
         (t.categorias?.nome?.toLowerCase().includes(search) || '')
       );
     }
+    // Filtro para ocultar transações de cartão de crédito
+    if (hideCardTransactions) {
+      filtered = filtered.filter(t => t.metodo !== 'cartao_credito');
+    }
     // Ordenação
     // Helper para parsear datas em vários formatos (dd/mm/yyyy, yyyy-mm-dd, ISO)
     const parseDateToTime = (dateStr) => {
@@ -169,7 +175,7 @@ const Transacoes: React.FC = () => {
       filtered.sort((a, b) => parseDateToTime(b.quando || b.created_at) - parseDateToTime(a.quando || a.created_at))
     }
     return filtered;
-  }, [transacoes, accountFilter, typeFilter, categoryFilter, dateFrom, dateTo, searchTerm, sortOrder]);
+  }, [transacoes, accountFilter, typeFilter, categoryFilter, dateFrom, dateTo, searchTerm, sortOrder, hideCardTransactions]);
 
   // Variáveis auxiliares para seleção em massa (após filteredTransacoes)
   const isAllSelected = filteredTransacoes.length > 0 && selectedIds.length === filteredTransacoes.length;
@@ -965,6 +971,9 @@ const Transacoes: React.FC = () => {
     if (advFilters.accounts.length > 0) {
       setAccountFilter(advFilters.accounts[0]);
     }
+    if (advFilters.cards.length > 0) {
+      setAccountFilter(advFilters.cards[0]);
+    }
     if (advFilters.status) {
       // Implementar filtro de status se necessário
     }
@@ -1323,8 +1332,8 @@ const Transacoes: React.FC = () => {
           🔍 Filtros Avançados
         </Button>
         <div className="flex items-center gap-2 bg-slate-800/50 hover:bg-slate-800/75 transition-colors rounded-lg px-3 py-1.5 cursor-pointer">
-          <input type="checkbox" className="w-4 h-4" checked={showPaymentDate} onChange={(e) => setShowPaymentDate(e.target.checked)} />
-          <span className="text-xs text-slate-400">Data Pagamento</span>
+          <input type="checkbox" className="w-4 h-4" checked={hideCardTransactions} onChange={(e) => setHideCardTransactions(e.target.checked)} />
+          <span className="text-xs text-slate-400">Ocultar Cartões de Crédito</span>
         </div>
         <Input
           placeholder="Buscar transações..."
@@ -1587,21 +1596,18 @@ const Transacoes: React.FC = () => {
                       </svg>
                       <Label htmlFor="quando" className="text-xs font-bold text-foreground/90 uppercase">Data</Label>
                     </div>
-                    <Input
-                      id="quando"
-                      type="date"
-                      className="h-12 text-sm border-primary/30 bg-background/50 focus:bg-background focus:border-primary/60 rounded-lg transition-all font-semibold focus:ring-2 focus:ring-primary/20"
-                      value={formData.quando}
-                      onChange={e => {
-                        const newDate = e.target.value;
+                    <DatePicker
+                      date={formData.quando ? parse(formData.quando, 'yyyy-MM-dd', new Date()) : undefined}
+                      onDateChange={(date) => {
+                        const newDate = date ? format(date, 'yyyy-MM-dd') : '';
                         setFormData({ 
                           ...formData, 
                           quando: newDate,
-                          isPago: new Date(newDate) <= new Date() ? true : false,
-                          status: new Date(newDate) <= new Date() ? 'pago' : 'pendente'
+                          isPago: date && date <= new Date() ? true : false,
+                          status: date && date <= new Date() ? 'pago' : 'pendente'
                         });
                       }}
-                      required
+                      placeholder="Selecione a data"
                     />
                     <p className="text-xs text-muted-foreground/70">dia/mês/ano</p>
                   </div>
@@ -1933,10 +1939,10 @@ const Transacoes: React.FC = () => {
           <div className="space-y-4">
             <div>
               <Label>Data</Label>
-              <Input
-                type="date"
-                value={massDate}
-                onChange={e => setMassDate(e.target.value)}
+              <DatePicker
+                date={massDate ? parse(massDate, 'yyyy-MM-dd', new Date()) : undefined}
+                onDateChange={(date) => setMassDate(date ? format(date, 'yyyy-MM-dd') : '')}
+                placeholder="Selecione a nova data"
               />
             </div>
             <div className="flex justify-end gap-2">
@@ -2025,7 +2031,32 @@ const Transacoes: React.FC = () => {
                   <SelectValue placeholder="Selecione contas" />
                 </SelectTrigger>
                 <SelectContent>
-                  {contas.map(c => (
+                  {contas.filter(c => {
+                    if (!c.type) return true; // Se não tem tipo, assume que é conta
+                    const normaliza = (str) => str.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+                    const tipo = normaliza(c.type);
+                    return !(tipo.includes('cartao') || tipo.includes('credito') || tipo.includes('debito'));
+                  }).map(c => (
+                    <SelectItem key={c.id} value={c.id}>{c.nome || c.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Cartão */}
+            <div>
+              <Label className="text-sm font-medium">Cartão</Label>
+              <Select value={advFilters.cards[0] || ''} onValueChange={(v) => setAdvFilters({...advFilters, cards: v ? [v] : []})}>
+                <SelectTrigger className="mt-1">
+                  <SelectValue placeholder="Selecione cartões" />
+                </SelectTrigger>
+                <SelectContent>
+                  {contas.filter(c => {
+                    if (!c.type) return false;
+                    const normaliza = (str) => str.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+                    const tipo = normaliza(c.type);
+                    return tipo.includes('cartao') || tipo.includes('credito') || tipo.includes('debito');
+                  }).map(c => (
                     <SelectItem key={c.id} value={c.id}>{c.nome || c.name}</SelectItem>
                   ))}
                 </SelectContent>

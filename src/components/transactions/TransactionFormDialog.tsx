@@ -7,7 +7,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea'
 import { CategorySelector } from './CategorySelector'
 import { BankSelector, CardSelector } from '../accounts/BankAndCardSelector'
+import { DatePicker } from '@/components/ui/date-picker'
 import { parseValorBR, formatarValorBR } from '@/utils/currency'
+import { parse, format } from 'date-fns'
 
 interface TransactionFormData {
   quando: string
@@ -51,12 +53,13 @@ export function TransactionFormDialog({
         <form onSubmit={onSubmit} className="space-y-4">
           <div>
             <Label htmlFor="quando">Data</Label>
-            <Input
-              id="quando"
-              type="date"
-              value={formData.quando}
-              onChange={e => onFormDataChange({ ...formData, quando: e.target.value })}
-              required
+            <DatePicker
+              date={formData.quando ? parse(formData.quando, 'yyyy-MM-dd', new Date()) : undefined}
+              onDateChange={(date) => onFormDataChange({ 
+                ...formData, 
+                quando: date ? format(date, 'yyyy-MM-dd') : '' 
+              })}
+              placeholder="Selecione a data da transação"
             />
           </div>
           <div>
