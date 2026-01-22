@@ -13,9 +13,16 @@ export interface ReportTransaction {
   detalhes: string | null
   tipo: string | null
   category_id: string
+  account_id?: string | null
+  metodo?: string | null
   categorias?: {
     id: string
     nome: string
+  }
+  accounts?: {
+    id: string
+    name: string
+    type?: string
   }
 }
 
@@ -57,6 +64,11 @@ export function useReports() {
           categorias!transacoes_category_id_fkey (
             id,
             nome
+          ),
+          accounts!transacoes_account_id_fkey (
+            id,
+            name,
+            type
           )
         `)
         .eq('userid', user.id)

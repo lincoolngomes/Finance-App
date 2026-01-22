@@ -14,6 +14,8 @@ import { TransactionSummaryCards } from '@/components/transactions/TransactionSu
 import { TransactionFilters } from '@/components/transactions/TransactionFilters'
 import { CategorySelector } from '@/components/transactions/CategorySelector'
 import { BankSelector, CardSelector } from '@/components/accounts/BankAndCardSelector'
+import { GerenciarFaturasModal } from '@/components/faturas/GerenciarFaturasModal'
+import { ImportarFaturaModal } from '@/components/faturas/ImportarFaturaModal'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
 import { useCategories } from '@/hooks/useCategories'
@@ -81,6 +83,8 @@ const Transacoes: React.FC = () => {
   // Estados para modais
   const [advancedFiltersOpen, setAdvancedFiltersOpen] = useState(false);
   const [invoicesOpen, setInvoicesOpen] = useState(false);
+  const [importarFaturaOpen, setImportarFaturaOpen] = useState(false);
+  const [cartaoParaImportar, setCartaoParaImportar] = useState<string | undefined>(undefined);
   const [showPaymentDate, setShowPaymentDate] = useState(false);
   const [pendingExpensesDetailOpen, setPendingExpensesDetailOpen] = useState(false);
   // Filtros avançados
@@ -194,7 +198,11 @@ const Transacoes: React.FC = () => {
 
       const { data, error } = await supabase
         .from('transacoes')
-        .select(`*, categorias:categorias!transacoes_category_id_fkey(id, nome)`) // join categorias
+        .select(`
+          *, 
+          categorias:categorias!transacoes_category_id_fkey(id, nome),
+          accounts:accounts!transacoes_account_id_fkey(id, name, banco, type)
+        `)
         .eq('userid', user.id)
         .order('quando', { ascending: false });
       if (error) throw error;
@@ -225,9 +233,10 @@ const Transacoes: React.FC = () => {
 
     // Soma todas as receitas/despesas com valores absolutos
     const receitasGlobais = transacoes.filter(t => t.tipo === 'receita').reduce((acc, t) => acc + Math.abs(Number(t.valor) || 0), 0)
-    const despesasGlobais = transacoes.filter(t => t.tipo === 'despesa').reduce((acc, t) => acc + Math.abs(Number(t.valor) || 0), 0)
+    // Despesas: EXCLUIR as pendentes (cartão de crédito) para não sensibilizar o saldo
+    const despesasGlobais = transacoes.filter(t => t.tipo === 'despesa' && t.status !== 'pendente' && t.status !== 'pendente_fatura').reduce((acc, t) => acc + Math.abs(Number(t.valor) || 0), 0)
 
-    // Saldo = saldo inicial + receitas - despesas (todos valores absolutos)
+    // Saldo = saldo inicial + receitas - despesas (pendentes não afetam)
     const saldoAggregate = totalSaldoInicial + receitasGlobais - despesasGlobais
 
     // Debug
@@ -270,7 +279,7 @@ const Transacoes: React.FC = () => {
   }
 
   // Totais para o mês/ano selecionado
-  const { receitasMes, despesasMes, despesasPendentes, transacoesCountMes } = useMemo(() => {
+  const { receitasMes, despesasMes, despesasPendentes, transacoesCountMes, countReceitasMes, countDespesasMes } = useMemo(() => {
     const monthIndex = (() => { const m = parseInt(filterMonth); return isNaN(m) ? new Date().getMonth() : (m > 11 ? m - 1 : m) })()
     const yearNum = parseInt(filterYear) || new Date().getFullYear()
     const filtered = transacoes.filter(t => {
@@ -279,9 +288,13 @@ const Transacoes: React.FC = () => {
       return dt.getUTCMonth() === monthIndex && dt.getUTCFullYear() === yearNum
     })
     const receitasMes = filtered.filter(t => t.tipo === 'receita').reduce((acc, t) => acc + Math.abs(Number(t.valor) || 0), 0)
-    const despesasMes = filtered.filter(t => t.tipo === 'despesa').reduce((acc, t) => acc + Math.abs(Number(t.valor) || 0), 0)
+    const countReceitasMes = filtered.filter(t => t.tipo === 'receita').length
+    // Despesas: apenas as que NÃO são pendentes (para sensibilizar o saldo)
+    const despesasMes = filtered.filter(t => t.tipo === 'despesa' && t.status !== 'pendente' && t.status !== 'pendente_fatura').reduce((acc, t) => acc + Math.abs(Number(t.valor) || 0), 0)
+    const countDespesasMes = filtered.filter(t => t.tipo === 'despesa' && t.status !== 'pendente' && t.status !== 'pendente_fatura').length
+    // Despesas pendentes: separadas para exibir mas não afetar o saldo
     const despesasPendentes = filtered.filter(t => t.tipo === 'despesa' && (t.status === 'pendente' || t.status === 'pendente_fatura')).reduce((acc, t) => acc + Math.abs(Number(t.valor) || 0), 0)
-    return { receitasMes, despesasMes, despesasPendentes, transacoesCountMes: filtered.length }
+    return { receitasMes, despesasMes, despesasPendentes, transacoesCountMes: filtered.length, countReceitasMes, countDespesasMes }
   }, [transacoes, filterMonth, filterYear])
   useEffect(() => {
     // Coloque aqui a lógica de efeito colateral, como fetch de dados, listeners, etc.
@@ -1104,66 +1117,66 @@ const Transacoes: React.FC = () => {
       {/* Cards de Resumo */}
       <div className="grid gap-3 grid-cols-4">
         {/* Card Saldo */}
-        <Card className="border border-blue-700/30 bg-gradient-to-br from-blue-950/40 to-blue-900/20">
+        <Card className="border-border/40 bg-card/50 backdrop-blur">
           <CardHeader className="pb-2 pt-4">
             <div className="flex items-center justify-between">
-              <CardTitle className="text-sm font-medium text-blue-300">Saldo</CardTitle>
-              <DollarSign className="h-5 w-5 text-blue-500" />
+              <CardTitle className="text-sm font-medium text-foreground">Saldo</CardTitle>
+              <DollarSign className="h-5 w-5 text-muted-foreground" />
             </div>
           </CardHeader>
           <CardContent className="pb-4">
-            <div className="text-3xl font-bold text-blue-400">
+            <div className="text-3xl font-bold text-foreground">
               {formatCurrency(saldoReal)}
             </div>
-            <p className="text-xs text-blue-400/60 mt-1">0 transações</p>
+            <p className="text-xs text-muted-foreground mt-1">0 transações</p>
           </CardContent>
         </Card>
 
         {/* Card Receitas */}
-        <Card className="border border-green-700/30 bg-gradient-to-br from-green-950/40 to-green-900/20">
+        <Card className="border-border/40 bg-card/50 backdrop-blur">
           <CardHeader className="pb-2 pt-4">
             <div className="flex items-center justify-between">
-              <CardTitle className="text-sm font-medium text-green-300">Receitas</CardTitle>
+              <CardTitle className="text-sm font-medium text-foreground">Receitas</CardTitle>
               <TrendingUp className="h-5 w-5 text-green-500" />
             </div>
           </CardHeader>
           <CardContent className="pb-4">
-            <div className="text-3xl font-bold text-green-400">
+            <div className="text-3xl font-bold text-green-500">
               {formatCurrency(receitasMes)}
             </div>
-            <p className="text-xs text-green-400/60 mt-1">0</p>
+            <p className="text-xs text-muted-foreground mt-1">{countReceitasMes} {countReceitasMes === 1 ? 'transação' : 'transações'}</p>
           </CardContent>
         </Card>
 
         {/* Card Despesas */}
-        <Card className="border border-red-700/30 bg-gradient-to-br from-red-950/40 to-red-900/20">
+        <Card className="border-border/40 bg-card/50 backdrop-blur">
           <CardHeader className="pb-2 pt-4">
             <div className="flex items-center justify-between">
-              <CardTitle className="text-sm font-medium text-red-300">Despesas</CardTitle>
+              <CardTitle className="text-sm font-medium text-foreground">Despesas</CardTitle>
               <TrendingDown className="h-5 w-5 text-red-500" />
             </div>
           </CardHeader>
           <CardContent className="pb-4">
-            <div className="text-3xl font-bold text-red-400">
+            <div className="text-3xl font-bold text-red-500">
               {formatCurrency(despesasMes)}
             </div>
-            <p className="text-xs text-red-400/60 mt-1">0</p>
+            <p className="text-xs text-muted-foreground mt-1">{countDespesasMes} {countDespesasMes === 1 ? 'transação' : 'transações'}</p>
           </CardContent>
         </Card>
 
         {/* Card Despesas Pendentes */}
-        <Card className="border border-orange-700/30 bg-gradient-to-br from-orange-950/40 to-orange-900/20 cursor-pointer hover:bg-gradient-to-br hover:from-orange-950/60 hover:to-orange-900/40 transition-colors" onClick={() => setPendingExpensesDetailOpen(true)}>
+        <Card className="border-border/40 bg-card/50 backdrop-blur cursor-pointer hover:bg-card/70 transition-colors" onClick={() => setPendingExpensesDetailOpen(true)}>
           <CardHeader className="pb-2 pt-4">
             <div className="flex items-center justify-between">
-              <CardTitle className="text-sm font-medium text-orange-300">Despesas Pendentes</CardTitle>
+              <CardTitle className="text-sm font-medium text-foreground">Despesas Pendentes</CardTitle>
               <Clock className="h-5 w-5 text-orange-500" />
             </div>
           </CardHeader>
           <CardContent className="pb-4">
-            <div className="text-3xl font-bold text-orange-400">
+            <div className="text-3xl font-bold text-orange-500">
               {formatCurrency(despesasPendentes)}
             </div>
-            <p className="text-xs text-orange-400/60 mt-1">À receber</p>
+            <p className="text-xs text-muted-foreground mt-1">A pagar</p>
           </CardContent>
         </Card>
       </div>
@@ -1207,28 +1220,13 @@ const Transacoes: React.FC = () => {
 
         {/* Ações Direita */}
         <div className="flex gap-2">
-          <div className="relative">
-            <Button 
-              variant="ghost" 
-              className="h-9 text-sm rounded-lg px-3 bg-slate-800/50 hover:bg-slate-800 text-slate-300"
-              onClick={() => setOpenDropdown(openDropdown === 'faturas' ? null : 'faturas')}
-            >
-              📋 Faturas
-            </Button>
-            {openDropdown === 'faturas' && (
-              <div className="absolute right-0 top-full mt-2 bg-slate-800 border border-slate-700 rounded-lg shadow-lg z-50 w-48">
-                <button 
-                  className="w-full text-left px-4 py-2 text-sm text-slate-300 hover:bg-slate-700 rounded-lg"
-                  onClick={() => {
-                    setInvoicesOpen(true);
-                    setOpenDropdown(null);
-                  }}
-                >
-                  📋 Gerenciar Faturas
-                </button>
-              </div>
-            )}
-          </div>
+          <Button 
+            variant="ghost" 
+            className="h-9 text-sm rounded-lg px-3 bg-slate-800/50 hover:bg-slate-800 text-slate-300"
+            onClick={() => setInvoicesOpen(true)}
+          >
+            📋 Faturas
+          </Button>
           <div className="relative">
             <Button 
               variant="ghost" 
@@ -1476,10 +1474,16 @@ const Transacoes: React.FC = () => {
                   {transacao.categorias?.nome || '-'}
                 </div>
                 <div className="text-slate-400 truncate text-xs">
-                  {transacao.account_id && accountsMap[transacao.account_id] ? accountsMap[transacao.account_id].nome || accountsMap[transacao.account_id].name : '-'}
+                  {/* CONTA: mostra apenas se NÃO for cartão de crédito */}
+                  {transacao.metodo !== 'cartao_credito' && transacao.account_id && accountsMap[transacao.account_id] 
+                    ? accountsMap[transacao.account_id].nome || accountsMap[transacao.account_id].name 
+                    : '-'}
                 </div>
                 <div className="text-slate-400 truncate text-xs">
-                  {transacao.fatura_id && accountsMap[transacao.fatura_id] ? accountsMap[transacao.fatura_id].nome || accountsMap[transacao.fatura_id].name : '-'}
+                  {/* CARTÃO: mostra apenas se for cartão de crédito */}
+                  {transacao.metodo === 'cartao_credito' && transacao.account_id && accountsMap[transacao.account_id] 
+                    ? accountsMap[transacao.account_id].nome || accountsMap[transacao.account_id].name 
+                    : '-'}
                 </div>
                 <div className={`font-bold text-right ${isReceita ? 'text-green-400' : 'text-red-400'}`}>
                   {isReceita ? '+' : '-'}{formatCurrency(Math.abs(transacao.valor || 0))}
@@ -2076,73 +2080,25 @@ const Transacoes: React.FC = () => {
       </Dialog>
 
       {/* Modal Gerenciar Faturas */}
-      <Dialog open={invoicesOpen} onOpenChange={setInvoicesOpen}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <div className="flex items-center gap-2">
-              <div className="w-10 h-10 rounded-lg bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
-                📋
-              </div>
-              <div>
-                <DialogTitle>Gerenciar Faturas dos Cartões</DialogTitle>
-                <DialogDescription className="text-xs">Visualize e pague as faturas do seu cartão de crédito</DialogDescription>
-              </div>
-            </div>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div>
-              <Label className="text-sm font-medium">Cartão de crédito *</Label>
-              <Select>
-                <SelectTrigger className="mt-1">
-                  <SelectValue placeholder="Selecione o cartão" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="visa">Cartão Visa</SelectItem>
-                  <SelectItem value="mastercard">Cartão Mastercard</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+      <GerenciarFaturasModal 
+        open={invoicesOpen} 
+        onClose={() => setInvoicesOpen(false)}
+        onImportClick={(cardId) => {
+          setCartaoParaImportar(cardId);
+          setImportarFaturaOpen(true);
+        }}
+      />
 
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label className="text-sm font-medium">Mês *</Label>
-                <Select defaultValue="janeiro">
-                  <SelectTrigger className="mt-1">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="janeiro">Janeiro</SelectItem>
-                    <SelectItem value="fevereiro">Fevereiro</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label className="text-sm font-medium">Ano *</Label>
-                <Select defaultValue="2026">
-                  <SelectTrigger className="mt-1">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="2026">2026</SelectItem>
-                    <SelectItem value="2025">2025</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <div className="flex flex-col items-center justify-center py-8 text-center">
-              <p className="text-lg text-muted-foreground">🔍</p>
-              <p className="text-sm font-medium mt-2">Selecione um cartão e período</p>
-              <p className="text-xs text-muted-foreground mt-1">Preencha os campos acima para visualizar a fatura</p>
-            </div>
-          </div>
-
-          <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={() => setInvoicesOpen(false)}>Cancelar</Button>
-            <Button disabled>Pagar Fatura</Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+      {/* Modal Importar Fatura */}
+      <ImportarFaturaModal
+        open={importarFaturaOpen}
+        onClose={() => {
+          setImportarFaturaOpen(false);
+          setCartaoParaImportar(undefined);
+          fetchTransacoes(); // Recarrega para mostrar novas transações
+        }}
+        cardId={cartaoParaImportar}
+      />
 
       {/* Modal Despesas Pendentes Details */}
       <Dialog open={pendingExpensesDetailOpen} onOpenChange={setPendingExpensesDetailOpen}>

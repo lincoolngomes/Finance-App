@@ -15,7 +15,7 @@ import Calendario from "./pages/Calendario";
 import Lembretes from "./pages/Lembretes";
 import Categorias from "./pages/Categorias";
 import Relatorios from "./pages/Relatorios";
-import Perfil from "./pages/Perfil";
+import ProfilePage from "./pages/ProfilePage"; // NOVA PÁGINA DE PERFIL
 import NotFound from "./pages/NotFound";
 import Plano from "./pages/Plano";
 import Admin from "./pages/Admin";
@@ -24,7 +24,8 @@ import Contas from "./pages/Contas";
 import Cartoes from "./pages/Cartoes";
 import Investimentos from "./pages/Investimentos";
 import ConfigCategorias from "./pages/ConfigCategorias";
-// import RelatorioNovo from "./pages/RelatorioNovo";
+import Feedback from "./pages/Feedback";
+import WhatsApp from "./pages/WhatsApp";
 
 const queryClient = new QueryClient();
 
@@ -159,7 +160,7 @@ function AppRoutes() {
         path="/perfil"
         element={
           <ProtectedRoute>
-            <Perfil />
+            <ProfilePage />
           </ProtectedRoute>
         }
       />
@@ -208,6 +209,22 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <ConfigCategorias />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/feedback"
+        element={
+          <ProtectedRoute>
+            <Feedback />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/whatsapp"
+        element={
+          <ProtectedRoute>
+            <WhatsApp />
           </ProtectedRoute>
         }
       />

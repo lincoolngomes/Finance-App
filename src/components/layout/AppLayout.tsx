@@ -2,15 +2,15 @@
 import { SidebarProvider, SidebarInset, useSidebar } from '@/components/ui/sidebar'
 import { AppSidebar } from './AppSidebar'
 import { ThemeToggle } from '@/components/ui/theme-toggle'
-import { Menu, X, Bell, Settings, User, LogOut, MessageSquare, Cog } from 'lucide-react'
+import { Menu, X, Bell, Settings, User, LogOut, CreditCard, Wallet, Tag, Mail } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { useAuth } from '@/hooks/useAuth'
 import { useNavigate } from 'react-router-dom'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
+import { supabase } from '@/lib/supabase'
 import Categorias from '@/pages/Categorias'
-import Contas from '@/pages/Contas'
-import Cartoes from '@/pages/Cartoes'
 
 interface AppLayoutProps {
   children: React.ReactNode
@@ -37,9 +37,27 @@ function MenuTrigger() {
 
 export function AppLayout({ children, userName }: AppLayoutProps) {
   const [categoriasOpen, setCategoriasOpen] = useState(false)
-  const [contasOpen, setContasOpen] = useState(false)
-  const [cartoesOpen, setCartoesOpen] = useState(false)
   const [settingsDropdownOpen, setSettingsDropdownOpen] = useState(false)
+  const [userDropdownOpen, setUserDropdownOpen] = useState(false)
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
+  const { user, logout } = useAuth()
+
+  useEffect(() => {
+    const fetchAvatar = async () => {
+      if (user) {
+        const { data } = await supabase
+          .from('profiles')
+          .select('avatar_url')
+          .eq('id', user.id)
+          .single()
+        
+        if (data?.avatar_url) {
+          setAvatarUrl(data.avatar_url)
+        }
+      }
+    }
+    fetchAvatar()
+  }, [user])
 
   const getGreeting = () => {
     const hour = new Date().getHours()
@@ -65,7 +83,6 @@ export function AppLayout({ children, userName }: AppLayoutProps) {
     return `${emoji} ${greeting}!`
   }
 
-  const { logout } = useAuth()
   const navigate = useNavigate()
 
   const handleLogout = async () => {
@@ -119,65 +136,85 @@ export function AppLayout({ children, userName }: AppLayoutProps) {
                         setSettingsDropdownOpen(false)
                       }}
                     >
-                      <Cog className="h-4 w-4" />
-                      Cadastro de Categorias
+                      <Tag className="h-4 w-4" />
+                      Categorias
                     </button>
                     <button 
                       className="w-full flex items-center gap-3 px-4 py-3 text-sm text-foreground hover:bg-accent"
                       onClick={() => {
-                        setContasOpen(true)
+                        navigate('/contas')
                         setSettingsDropdownOpen(false)
                       }}
                     >
-                      <MessageSquare className="h-4 w-4" />
-                      Cadastro de Contas
+                      <Wallet className="h-4 w-4" />
+                      Contas
                     </button>
                     <button 
                       className="w-full flex items-center gap-3 px-4 py-3 text-sm text-foreground hover:bg-accent last:rounded-b-lg"
                       onClick={() => {
-                        setCartoesOpen(true)
+                        navigate('/cartoes')
                         setSettingsDropdownOpen(false)
                       }}
                     >
-                      <MessageSquare className="h-4 w-4" />
-                      Cadastro de Cartões
+                      <CreditCard className="h-4 w-4" />
+                      Cartões
                     </button>
                   </div>
                 )}
               </div>
 
               {/* Botão Usuário */}
-              <div className="relative group">
+              <div className="relative">
                 <Button 
                   variant="ghost" 
                   size="icon" 
-                  className="h-9 w-9 rounded-full hover:bg-accent bg-blue-600 text-white hover:bg-blue-700"
+                  className="h-9 w-9 rounded-full hover:bg-accent p-0 overflow-hidden"
+                  onClick={() => setUserDropdownOpen(!userDropdownOpen)}
+                  onBlur={(e) => {
+                    // Só fecha se o clique foi fora do dropdown
+                    if (!e.currentTarget.parentElement?.contains(e.relatedTarget as Node)) {
+                      setTimeout(() => setUserDropdownOpen(false), 200)
+                    }
+                  }}
                 >
-                  <User className="h-5 w-5" />
+                  <Avatar className="h-9 w-9">
+                    <AvatarImage src={avatarUrl || undefined} />
+                    <AvatarFallback className="bg-blue-600 text-white">
+                      <User className="h-5 w-5" />
+                    </AvatarFallback>
+                  </Avatar>
                 </Button>
-                <div className="absolute right-0 top-full mt-2 hidden group-hover:block bg-popover border border-border rounded-lg shadow-lg z-50 w-56">
-                  <button 
-                    className="w-full flex items-center gap-3 px-4 py-3 text-sm text-foreground hover:bg-accent first:rounded-t-lg"
-                    onClick={() => navigate('/perfil')}
-                  >
-                    <Cog className="h-4 w-4" />
-                    Perfil
-                  </button>
-                  <button 
-                    className="w-full flex items-center gap-3 px-4 py-3 text-sm text-foreground hover:bg-accent"
-                    onClick={() => window.open('mailto:contact@finance-app.com')}
-                  >
-                    <MessageSquare className="h-4 w-4" />
-                    Feedback
-                  </button>
-                  <button 
-                    className="w-full flex items-center gap-3 px-4 py-3 text-sm text-red-600 hover:bg-accent last:rounded-b-lg"
-                    onClick={handleLogout}
-                  >
-                    <LogOut className="h-4 w-4" />
-                    Logout
-                  </button>
-                </div>
+                {userDropdownOpen && (
+                  <div className="absolute right-0 top-full mt-2 bg-popover border border-border rounded-lg shadow-lg z-50 w-56">
+                    <button 
+                      className="w-full flex items-center gap-3 px-4 py-3 text-sm text-foreground hover:bg-accent first:rounded-t-lg"
+                      onClick={() => {
+                        navigate('/perfil')
+                        setUserDropdownOpen(false)
+                      }}
+                    >
+                      <User className="h-4 w-4" />
+                      Perfil
+                    </button>
+                    <button 
+                      className="w-full flex items-center gap-3 px-4 py-3 text-sm text-foreground hover:bg-accent"
+                      onClick={() => {
+                        setCategoriasOpen(true)
+                        setUserDropdownOpen(false)
+                      }}
+                    >
+                      <Tag className="h-4 w-4" />
+                      Categorias
+                    </button>
+                    <button 
+                      className="w-full flex items-center gap-3 px-4 py-3 text-sm text-red-600 hover:bg-accent last:rounded-b-lg"
+                      onClick={handleLogout}
+                    >
+                      <LogOut className="h-4 w-4" />
+                      Logout
+                    </button>
+                  </div>
+                )}
               </div>
 
               <ThemeToggle />
@@ -195,20 +232,6 @@ export function AppLayout({ children, userName }: AppLayoutProps) {
       <Dialog open={categoriasOpen} onOpenChange={setCategoriasOpen}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <Categorias />
-        </DialogContent>
-      </Dialog>
-
-      {/* Modal Contas */}
-      <Dialog open={contasOpen} onOpenChange={setContasOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          <Contas />
-        </DialogContent>
-      </Dialog>
-
-      {/* Modal Cartões */}
-      <Dialog open={cartoesOpen} onOpenChange={setCartoesOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          <Cartoes />
         </DialogContent>
       </Dialog>
     </SidebarProvider>

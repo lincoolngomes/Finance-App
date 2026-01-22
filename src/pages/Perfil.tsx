@@ -316,41 +316,45 @@ export default function Perfil() {
     }
   }
 
+
   const uploadAvatar = async (event: React.ChangeEvent<HTMLInputElement>) => {
     try {
-      setUploading(true)
+      console.log('📁 File input changed')
       
       if (!event.target.files || event.target.files.length === 0) {
         throw new Error('Você deve selecionar uma imagem para fazer upload.')
       }
 
       const file = event.target.files[0]
-      const fileExt = file.name.split('.').pop()
-      const fileName = `avatar-${user?.id}-${Math.random()}.${fileExt}`
-
-      const { error: uploadError } = await supabase.storage
-        .from('avatars')
-        .upload(fileName, file)
-
-      if (uploadError) {
-        throw uploadError
+      console.log('📷 File selected:', { name: file.name, size: file.size, type: file.type })
+      
+      const reader = new FileReader()
+      
+      reader.onload = (e) => {
+        console.log('✅ File read as base64')
+        if (e.target?.result) {
+          const base64 = e.target.result as string
+          console.log('📸 Base64 size:', base64.length, 'bytes')
+          setImageToCrop(base64)
+          setShowCropper(true)
+          console.log('🔓 Cropper modal opened')
+        }
       }
 
-      const { data: { publicUrl } } = supabase.storage
-        .from('avatars')
-        .getPublicUrl(fileName)
-
-      setProfile(prev => ({ ...prev, avatar_url: publicUrl }))
+      reader.onerror = (error) => {
+        console.error('❌ FileReader error:', error)
+        throw new Error('Erro ao ler a imagem')
+      }
       
-      toast({ title: "Avatar atualizado com sucesso!" })
+      console.log('📖 Starting to read file as data URL...')
+      reader.readAsDataURL(file)
     } catch (error: any) {
+      console.error('❌ Error in uploadAvatar:', error)
       toast({
-        title: "Erro ao fazer upload da imagem",
+        title: "Erro ao selecionar imagem",
         description: error.message,
         variant: "destructive",
       })
-    } finally {
-      setUploading(false)
     }
   }
 

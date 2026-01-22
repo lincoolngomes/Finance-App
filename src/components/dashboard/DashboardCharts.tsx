@@ -92,6 +92,12 @@ export function DashboardCharts({ transacoes, recentTransacoes, contas = [], lem
     return new Date(Date.UTC(dtIso.getUTCFullYear(), dtIso.getUTCMonth(), dtIso.getUTCDate()))
   }
 
+  // Criar mapa de contas para exibir nome da conta/cartão
+  const accountsMap = contas.reduce((acc, conta) => {
+    acc[conta.id] = conta
+    return acc
+  }, {} as Record<string, any>)
+
   // Usa transações globais para stats do "Resumo do Período"
   const allTransacoes = allTransactions || recentTransacoes || transacoes
 
@@ -562,7 +568,11 @@ export function DashboardCharts({ transacoes, recentTransacoes, contas = [], lem
                         {transacao.estabelecimento || 'Sem estabelecimento'}
                       </div>
                       <div className="text-xs text-muted-foreground">
-                          {transacao.categorias?.nome || 'Sem categoria'} • {
+                          {transacao.categorias?.nome || 'Sem categoria'}
+                          {transacao.account_id && accountsMap[transacao.account_id] && (
+                            <> • {transacao.metodo === 'cartao_credito' ? '💳' : '🏦'} {accountsMap[transacao.account_id].name}</>
+                          )}
+                          {' • '}{
                             (() => {
                               const raw = transacao.quando ?? transacao.created_at
                               const parsed = parseDateUniversal(raw)
@@ -677,6 +687,9 @@ export function DashboardCharts({ transacoes, recentTransacoes, contas = [], lem
                           </span>
                         </div>
                         <div className="text-xs text-muted-foreground">
+                          {transacao.account_id && accountsMap[transacao.account_id] && (
+                            <span>{transacao.metodo === 'cartao_credito' ? '💳' : '🏦'} {accountsMap[transacao.account_id].name} • </span>
+                          )}
                           {(() => {
                             const raw = transacao.quando ?? transacao.created_at
                             const parsed = parseDateUniversal(raw)

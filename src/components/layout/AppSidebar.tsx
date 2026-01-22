@@ -1,5 +1,5 @@
 import { NavLink, useLocation } from 'react-router-dom'
-import { Home, CreditCard, Calendar, CalendarDays, User, LogOut, Tag, FileText, Shield, TestTube, Bell, Wallet, TrendingUp } from 'lucide-react'
+import { Home, Calendar, CalendarDays, User, LogOut, FileText, Shield, Bell, Wallet, TrendingUp, ArrowLeftRight, MessageCircle } from 'lucide-react'
 import {
   Sidebar,
   SidebarContent,
@@ -42,15 +42,12 @@ export function AppSidebar() {
   // Items do menu normal (alfabético, exceto Início que fica em primeiro)
   const normalItems = [
     { title: 'Início', url: '/dashboard', icon: Home },
+    { title: 'Transações', url: '/transacoes', icon: ArrowLeftRight },
     { title: 'Calendário', url: '/calendario', icon: CalendarDays },
-    { title: 'Cartões', url: '/cartoes', icon: CreditCard },
-    { title: 'Categorias', url: '/categorias', icon: Tag },
-    { title: 'Contas', url: '/contas', icon: Wallet },
     { title: 'Investimentos', url: '/investimentos', icon: TrendingUp },
     { title: 'Lembretes', url: '/lembretes', icon: Bell },
-    { title: 'Perfil', url: '/perfil', icon: User },
     { title: 'Relatórios', url: '/relatorios', icon: FileText },
-    { title: 'Transações', url: '/transacoes', icon: CreditCard },
+    { title: 'WhatsApp', url: '/whatsapp', icon: MessageCircle },
   ]
 
   // Items apenas para admin

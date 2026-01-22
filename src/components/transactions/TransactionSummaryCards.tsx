@@ -64,7 +64,7 @@ export function TransactionSummaryCards({ receitas, despesas, saldo, despesasPen
           <div className="text-2xl font-bold text-white">
             {formatCurrency(despesasPendentes)}
           </div>
-          <p className="text-xs text-orange-100 mt-1">À receber</p>
+          <p className="text-xs text-orange-100 mt-1">A pagar</p>
         </CardContent>
       </Card>
     </div>

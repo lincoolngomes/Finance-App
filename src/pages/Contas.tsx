@@ -966,9 +966,9 @@ export default function ContasPage() {
             // Soma receitas e despesas APENAS dessas transações
             // Receitas: soma apenas valores positivos
             const receitas = transacoesConta.filter(t => t.tipo === 'receita').reduce((acc, t) => acc + Math.abs(Number(t.valor) || 0), 0);
-            // Despesas: soma valores absolutos (despesas são salvas como positivas no banco)
-            const despesas = transacoesConta.filter(t => t.tipo === 'despesa').reduce((acc, t) => acc + Math.abs(Number(t.valor) || 0), 0);
-            // Saldo: saldo inicial + receitas - despesas
+            // Despesas: soma valores absolutos EXCLUINDO as pendentes (cartão de crédito)
+            const despesas = transacoesConta.filter(t => t.tipo === 'despesa' && t.status !== 'pendente' && t.status !== 'pendente_fatura').reduce((acc, t) => acc + Math.abs(Number(t.valor) || 0), 0);
+            // Saldo: saldo inicial + receitas - despesas (pendentes não afetam)
             const saldoTotal = saldoInicial + receitas - despesas;
             return (
               <Card key={conta.id} className="mb-4 overflow-hidden border-l-4 border-l-primary hover:shadow-lg transition-shadow">

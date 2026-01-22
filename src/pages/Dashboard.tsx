@@ -213,9 +213,13 @@ export default function Dashboard() {
       return acc + Math.abs(isNaN(s) ? 0 : s)
     }, 0)
 
-    // Soma todas as receitas/despesas com valores absolutos
-    const totalReceitas = transacoes.filter(t => t.tipo === 'receita').reduce((acc, t) => acc + Math.abs(Number(t.valor) || 0), 0)
-    const totalDespesas = transacoes.filter(t => t.tipo === 'despesa').reduce((acc, t) => acc + Math.abs(Number(t.valor) || 0), 0)
+    // Soma todas as receitas/despesas com valores absolutos - EXCLUINDO PENDENTES
+    const totalReceitas = transacoes
+      .filter(t => t.tipo === 'receita' && t.status !== 'pendente' && t.status !== 'pendente_fatura')
+      .reduce((acc, t) => acc + Math.abs(Number(t.valor) || 0), 0)
+    const totalDespesas = transacoes
+      .filter(t => t.tipo === 'despesa' && t.status !== 'pendente' && t.status !== 'pendente_fatura')
+      .reduce((acc, t) => acc + Math.abs(Number(t.valor) || 0), 0)
 
     // Saldo = saldo inicial + receitas - despesas (todos valores absolutos)
     return totalSaldoInicial + totalReceitas - totalDespesas

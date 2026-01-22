@@ -46,6 +46,9 @@ export function ReportTable({ transactions }: ReportTableProps) {
                       </div>
                       <p className="text-xs text-muted-foreground">
                         {transaction.categorias?.nome || 'Sem categoria'}
+                        {transaction.accounts?.name && (
+                          <> • {transaction.metodo === 'cartao_credito' ? '💳' : '🏦'} {transaction.accounts.name}</>
+                        )}
                       </p>
                     </div>
                     <Badge variant={transaction.tipo === 'receita' ? 'default' : 'destructive'} className="text-xs">
@@ -95,6 +98,11 @@ export function ReportTable({ transactions }: ReportTableProps) {
                       </TableCell>
                       <TableCell>
                         {transaction.categorias?.nome || 'Sem categoria'}
+                        {transaction.accounts?.name && (
+                          <div className="text-xs text-muted-foreground">
+                            {transaction.metodo === 'cartao_credito' ? '💳' : '🏦'} {transaction.accounts.name}
+                          </div>
+                        )}
                       </TableCell>
                       <TableCell>
                         <Badge variant={transaction.tipo === 'receita' ? 'default' : 'destructive'}>

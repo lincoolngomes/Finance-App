@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Cache Test - Finance App</title>
+</head>
+<body>
+    <h1>Cache Diagnostic Tool</h1>
+    <button onclick="clearAll()">Clear All Caches</button>
+    <button onclick="testFetch()">Test Fetch</button>
+    <pre id="output"></pre>
+
+    <script>
+        const output = document.getElementById('output');
+        
+        async function clearAll() {
+            output.textContent = 'Clearing caches...\n';
+            
+            // Clear Service Workers
+            if ('serviceWorker' in navigator) {
+                const registrations = await navigator.serviceWorker.getRegistrations();
+                output.textContent += `Found ${registrations.length} service workers\n`;
+                for (let registration of registrations) {
+                    await registration.unregister();
+                    output.textContent += '✅ Unregistered service worker\n';
+                }
+            }
+            
+            // Clear Cache Storage
+            if ('caches' in window) {
+                const cacheNames = await caches.keys();
+                output.textContent += `Found ${cacheNames.length} caches\n`;
+                for (let cacheName of cacheNames) {
+                    await caches.delete(cacheName);
+                    output.textContent += `✅ Deleted cache: ${cacheName}\n`;
+                }
+            }
+            
+            // Clear Local Storage
+            localStorage.clear();
+            output.textContent += '✅ Cleared localStorage\n';
+            
+            // Clear Session Storage
+            sessionStorage.clear();
+            output.textContent += '✅ Cleared sessionStorage\n';
+            
+            output.textContent += '\n🎉 All caches cleared! Reload the page.\n';
+        }
+        
+        async function testFetch() {
+            output.textContent = 'Testing fetch...\n';
+            try {
+                const response = await fetch('/src/pages/Perfil.tsx', {
+                    cache: 'no-store',
+                    headers: { 'Cache-Control': 'no-cache' }
+                });
+                const text = await response.text();
+                const hasCallback = text.includes('v3.0-CALLBACK');
+                const hasBuild = text.includes('BUILD 2026-01-19');
+                
+                output.textContent += `File size: ${text.length} bytes\n`;
+                output.textContent += `Has v3.0-CALLBACK: ${hasCallback ? '✅ YES' : '❌ NO'}\n`;
+                output.textContent += `Has BUILD marker: ${hasBuild ? '✅ YES' : '❌ NO'}\n`;
+                
+                if (hasCallback && hasBuild) {
+                    output.textContent += '\n✅ Server has latest code!\n';
+                } else {
+                    output.textContent += '\n❌ Server has old code!\n';
+                }
+            } catch (error) {
+                output.textContent += `Error: ${error.message}\n`;
+            }
+        }
+        
+        // Auto-run test on load
+        testFetch();
+    </script>
+</body>
+</html>

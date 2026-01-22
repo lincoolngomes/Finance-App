@@ -7,7 +7,7 @@ import path from "path";
 export default defineConfig(({ mode }) => ({
   server: {
     host: "::",
-    port: 8080,
+    port: 8082, // NOVA PORTA PARA FORÇAR REBUILD COMPLETO
     proxy: {
       '/.netlify/functions': {
         target: 'http://localhost:9000',

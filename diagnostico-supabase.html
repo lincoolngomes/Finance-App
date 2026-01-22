@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Diagnóstico Supabase</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        h1 {
+            color: #333;
+            border-bottom: 2px solid #007bff;
+            padding-bottom: 10px;
+        }
+        h2 {
+            color: #555;
+            margin-top: 20px;
+        }
+        .test-item {
+            padding: 12px;
+            margin: 10px 0;
+            border-radius: 4px;
+            border-left: 4px solid #ddd;
+        }
+        .test-item.success {
+            background: #d4edda;
+            border-left-color: #28a745;
+            color: #155724;
+        }
+        .test-item.error {
+            background: #f8d7da;
+            border-left-color: #dc3545;
+            color: #721c24;
+        }
+        .test-item.loading {
+            background: #e2e3e5;
+            border-left-color: #6c757d;
+            color: #383d41;
+        }
+        code {
+            background: #f4f4f4;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        .log-area {
+            background: #1e1e1e;
+            color: #00ff00;
+            padding: 15px;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            max-height: 400px;
+            overflow-y: auto;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 Diagnóstico de Conectividade - Supabase</h1>
+        <p>Este teste verifica a conectividade com o Supabase e as APIs do Finance App.</p>
+        <button onclick="runAllTests()">▶ Executar Todos os Testes</button>
+        <button onclick="clearLog()">🗑 Limpar Log</button>
+    </div>
+
+    <div class="container">
+        <h2>Testes de Conectividade</h2>
+        
+        <div id="test-supabase-url" class="test-item loading">
+            ⏳ Testando URL do Supabase...
+        </div>
+
+        <div id="test-supabase-api" class="test-item loading">
+            ⏳ Testando API REST do Supabase...
+        </div>
+
+        <div id="test-cors" class="test-item loading">
+            ⏳ Testando CORS...
+        </div>
+
+        <div id="test-auth" class="test-item loading">
+            ⏳ Testando autenticação...
+        </div>
+
+        <div id="test-profiles" class="test-item loading">
+            ⏳ Testando acesso à tabela 'profiles'...
+        </div>
+    </div>
+
+    <div class="container">
+        <h2>📋 Log de Execução</h2>
+        <div class="log-area" id="log"></div>
+    </div>
+
+    <script>
+        const SUPABASE_URL = 'https://finance-app-supabase-finance-app.rcnehy.easypanel.host';
+        const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyAgCiAgICAicm9sZSI6ICJhbm9uIiwKICAgICJpc3MiOiAic3VwYWJhc2UtZGVtbyIsCiAgICAiaWF0IjogMTY0MTc2OTIwMCwKICAgICJleHAiOiAxNzk5NTM1NjAwCn0.dc_X5iR_VP_qT0zsiyj_I_OZ2T9FtRU2BBNWN8Bu4GE';
+
+        function log(message) {
+            const logArea = document.getElementById('log');
+            const timestamp = new Date().toLocaleTimeString('pt-BR');
+            logArea.innerHTML += `[${timestamp}] ${message}\n`;
+            logArea.scrollTop = logArea.scrollHeight;
+        }
+
+        function updateTest(testId, status, message) {
+            const element = document.getElementById(testId);
+            element.className = `test-item ${status}`;
+            const statusEmoji = status === 'success' ? '✅' : status === 'error' ? '❌' : '⏳';
+            element.textContent = `${statusEmoji} ${message}`;
+        }
+
+        function clearLog() {
+            document.getElementById('log').innerHTML = '';
+        }
+
+        async function testSupabaseUrl() {
+            log(`▶ Testando URL: ${SUPABASE_URL}`);
+            try {
+                const response = await fetch(SUPABASE_URL, {
+                    method: 'HEAD',
+                    mode: 'cors',
+                });
+                log(`  Status: ${response.status} ${response.statusText}`);
+                updateTest('test-supabase-url', 'success', `URL acessível (${response.status})`);
+                return true;
+            } catch (error) {
+                log(`  ❌ Erro: ${error.message}`);
+                updateTest('test-supabase-url', 'error', `Erro: ${error.message}`);
+                return false;
+            }
+        }
+
+        async function testSupabaseApi() {
+            log(`▶ Testando API REST do Supabase`);
+            try {
+                const response = await fetch(`${SUPABASE_URL}/rest/v1/`, {
+                    headers: {
+                        'apikey': SUPABASE_KEY,
+                    },
+                    mode: 'cors',
+                });
+                const data = await response.json();
+                log(`  Status: ${response.status}`);
+                log(`  Tabelas disponíveis: ${Object.keys(data.definitions || {}).join(', ').substring(0, 100)}...`);
+                updateTest('test-supabase-api', 'success', 'API REST acessível');
+                return true;
+            } catch (error) {
+                log(`  ❌ Erro: ${error.message}`);
+                updateTest('test-supabase-api', 'error', `Erro: ${error.message}`);
+                return false;
+            }
+        }
+
+        async function testCors() {
+            log(`▶ Testando CORS`);
+            try {
+                const response = await fetch(`${SUPABASE_URL}/rest/v1/`, {
+                    method: 'OPTIONS',
+                    headers: {
+                        'Access-Control-Request-Method': 'GET',
+                        'Access-Control-Request-Headers': 'content-type',
+                    },
+                });
+                log(`  Status: ${response.status}`);
+                const corsHeader = response.headers.get('access-control-allow-origin');
+                if (corsHeader) {
+                    log(`  CORS Header: ${corsHeader}`);
+                    updateTest('test-cors', 'success', `CORS configurado (${corsHeader})`);
+                } else {
+                    log(`  ⚠ Sem header CORS na resposta`);
+                    updateTest('test-cors', 'error', 'CORS não configurado');
+                }
+                return !!corsHeader;
+            } catch (error) {
+                log(`  ❌ Erro: ${error.message}`);
+                updateTest('test-cors', 'error', `Erro: ${error.message}`);
+                return false;
+            }
+        }
+
+        async function testAuth() {
+            log(`▶ Testando autenticação`);
+            try {
+                const response = await fetch(`${SUPABASE_URL}/auth/v1/settings`, {
+                    headers: {
+                        'apikey': SUPABASE_KEY,
+                    },
+                    mode: 'cors',
+                });
+                log(`  Status: ${response.status}`);
+                updateTest('test-auth', response.ok ? 'success' : 'error', 
+                    `Autenticação: ${response.status} ${response.statusText}`);
+                return response.ok;
+            } catch (error) {
+                log(`  ❌ Erro: ${error.message}`);
+                updateTest('test-auth', 'error', `Erro: ${error.message}`);
+                return false;
+            }
+        }
+
+        async function testProfiles() {
+            log(`▶ Testando tabela 'profiles'`);
+            try {
+                const response = await fetch(`${SUPABASE_URL}/rest/v1/profiles?limit=1`, {
+                    headers: {
+                        'apikey': SUPABASE_KEY,
+                    },
+                    mode: 'cors',
+                });
+                log(`  Status: ${response.status}`);
+                const data = await response.json();
+                log(`  Resposta: ${JSON.stringify(data).substring(0, 100)}...`);
+                updateTest('test-profiles', response.ok ? 'success' : 'error', 
+                    `Tabela acessível (${response.status})`);
+                return response.ok;
+            } catch (error) {
+                log(`  ❌ Erro: ${error.message}`);
+                updateTest('test-profiles', 'error', `Erro: ${error.message}`);
+                return false;
+            }
+        }
+
+        async function runAllTests() {
+            clearLog();
+            log('═══════════════════════════════════════════');
+            log('🚀 Iniciando diagnóstico de conectividade...');
+            log(`   Supabase: ${SUPABASE_URL}`);
+            log('═══════════════════════════════════════════\n');
+
+            await testSupabaseUrl();
+            log('');
+            await testSupabaseApi();
+            log('');
+            await testCors();
+            log('');
+            await testAuth();
+            log('');
+            await testProfiles();
+            
+            log('\n═══════════════════════════════════════════');
+            log('✅ Diagnóstico concluído!');
+            log('═══════════════════════════════════════════');
+        }
+
+        // Auto-run on load
+        window.addEventListener('load', runAllTests);
+    </script>
+</body>
+</html>
