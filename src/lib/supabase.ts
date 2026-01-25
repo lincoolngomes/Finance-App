@@ -1,11 +1,11 @@
 
 import { createClient } from '@supabase/supabase-js'
 
-// CONFIGURAÇÃO FORÇADA - Usar sempre o Supabase da VPS
-const supabaseUrl = 'https://finance-app-supabase-finance-app.rcnehy.easypanel.host'
+// 🔧 NOVO SUPABASE VPS (Easypanel)
+// URL: https://finance-app-supabase.rcnehy.easypanel.host
+const supabaseUrl = 'https://finance-app-supabase.rcnehy.easypanel.host'
 const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyAgCiAgICAicm9sZSI6ICJhbm9uIiwKICAgICJpc3MiOiAic3VwYWJhc2UtZGVtbyIsCiAgICAiaWF0IjogMTY0MTc2OTIwMCwKICAgICJleHAiOiAxNzk5NTM1NjAwCn0.dc_X5iR_VP_qT0zsiyj_I_OZ2T9FtRU2BBNWN8Bu4GE'
 
-// Log para debug (remover depois)
 console.log('🔧 Supabase URL:', supabaseUrl)
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {

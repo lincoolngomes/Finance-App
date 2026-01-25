@@ -26,18 +26,38 @@ export function LoginForm({ onForgotPassword }: LoginFormProps) {
       const { error } = await signIn(email, password)
 
       if (error) {
+        // Verificar se é erro de CORS
+        if (error.message.includes('fetch') || error.message.includes('CORS')) {
+          toast({
+            title: "⚠️ Erro de Conexão (CORS)",
+            description: "O servidor Supabase não está configurado para aceitar conexões do localhost. Configure as variáveis de ambiente no Easypanel conforme o arquivo CORRECAO-CORS-SUPABASE.md",
+            variant: "destructive",
+            duration: 10000,
+          })
+        } else {
+          toast({
+            title: "Erro no login",
+            description: error.message,
+            variant: "destructive",
+          })
+        }
+      }
+    } catch (error: any) {
+      // Verificar se é erro de CORS
+      if (error.message?.includes('fetch') || error.message?.includes('CORS') || error.message?.includes('Failed to fetch')) {
+        toast({
+          title: "⚠️ Erro de Conexão (CORS)",
+          description: "O servidor Supabase não está configurado para aceitar conexões do localhost. Solução: Configure CORS no Easypanel ou use um proxy local.",
+          variant: "destructive",
+          duration: 10000,
+        })
+      } else {
         toast({
           title: "Erro no login",
-          description: error.message,
+          description: error.message || "Ocorreu um erro ao fazer login",
           variant: "destructive",
         })
       }
-    } catch (error: any) {
-      toast({
-        title: "Erro no login",
-        description: error.message,
-        variant: "destructive",
-      })
     }
 
     setLoading(false)
