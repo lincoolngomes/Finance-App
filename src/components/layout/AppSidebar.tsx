@@ -24,7 +24,7 @@ import { useTheme } from '@/hooks/useTheme'
 export function AppSidebar() {
   const { state, setOpenMobile } = useSidebar()
   const location = useLocation()
-  const { signOut } = useAuth()
+  const { logout } = useAuth()
   const { theme } = useTheme()
   const { isAdmin } = useAdmin()
   const currentPath = location.pathname
