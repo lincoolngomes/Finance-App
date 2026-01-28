@@ -151,7 +151,7 @@ export function AppSidebar() {
         <UserProfile />
         
         <Button
-          onClick={signOut}
+          onClick={logout}
           variant="outline"
           size={isCollapsed ? "icon" : "default"}
           className="w-full"
