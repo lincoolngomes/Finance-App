@@ -5,15 +5,16 @@ import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
 
 export interface ReportTransaction {
-  id: number
+  id: string
   created_at: string
-  quando: string | null
-  estabelecimento: string | null
+  data: string | null
+  descricao: string | null
   valor: number | null
-  detalhes: string | null
+  observacao: string | null
   tipo: string | null
-  category_id: string
-  account_id?: string | null
+  categoria_id: string
+  conta_id?: string | null
+  cartao_id?: string | null
   metodo?: string | null
   categorias?: {
     id: string
@@ -21,8 +22,8 @@ export interface ReportTransaction {
   }
   accounts?: {
     id: string
-    name: string
-    type?: string
+    nome: string
+    tipo?: string
   }
 }
 
@@ -67,8 +68,8 @@ export function useReports() {
           ),
           accounts (
             id,
-            name,
-            type
+            nome,
+            tipo
           )
         `)
         .eq('user_id', user.id)
@@ -90,32 +91,31 @@ export function useReports() {
     console.log('🔍 Filtrando transações. Total:', allTransactions.length, 'Filtros:', filters)
     let filtered = [...allTransactions]
 
-    // ⚠️ TEMPORÁRIO: Desabilitar filtro de datas para exibir todos os dados
-    // TODO: Corrigir a lógica de parsing de datas
-    /*
-    // Apply date filters - usa quando se disponível, senão usa created_at
+    // Apply date filters - usa data se disponível, senão usa created_at
     if (filters.startDate || filters.endDate) {
       const beforeFilter = filtered.length
       filtered = filtered.filter(t => {
         // Usa a mesma lógica do Dashboard para consistência
-        const raw = (t.quando || t.created_at || '').toString().trim()
+        const raw = (t.data || t.created_at || '').toString().trim()
         if (!raw) return false
         
-        // Tenta parsear dd/mm/yyyy primeiro
-        const dmYMatch = raw.match(/^(\d{1,2})\s*\/\s*(\d{1,2})\s*\/\s*(\d{2,4})/)
+        // Prioriza ISO format YYYY-MM-DD
         let dateObj: Date
-        
-        if (dmYMatch) {
-          const d = Number(dmYMatch[1])
-          const m = Number(dmYMatch[2])
-          const y = Number(dmYMatch[3])
-          const fullYear = y < 100 ? (2000 + y) : y
-          dateObj = new Date(Date.UTC(fullYear, m - 1, d))
+        if (raw.match(/^\d{4}-\d{2}-\d{2}/)) {
+          dateObj = new Date(raw + 'T00:00:00Z')
         } else {
-          // Tenta ISO ou outros formatos
-          const dtIso = new Date(raw)
-          if (isNaN(dtIso.getTime())) return false
-          dateObj = new Date(Date.UTC(dtIso.getUTCFullYear(), dtIso.getUTCMonth(), dtIso.getUTCDate()))
+          // Tenta parsear dd/mm/yyyy
+          const dmYMatch = raw.match(/^(\d{1,2})\s*\/\s*(\d{1,2})\s*\/\s*(\d{2,4})/)
+          if (dmYMatch) {
+            const d = Number(dmYMatch[1])
+            const m = Number(dmYMatch[2])
+            const y = Number(dmYMatch[3])
+            const fullYear = y < 100 ? (2000 + y) : y
+            dateObj = new Date(Date.UTC(fullYear, m - 1, d))
+          } else {
+            // Tenta ISO ou outros formatos
+            dateObj = new Date(raw)
+          }
         }
         
         if (isNaN(dateObj.getTime())) return false
@@ -133,7 +133,6 @@ export function useReports() {
       })
       console.log(`📅 Após filtro de datas: ${filtered.length} transações (removidas ${beforeFilter - filtered.length})`)
     }
-    */
 
     // Apply type filter
     if (filters.type) {
@@ -142,7 +141,7 @@ export function useReports() {
 
     // Apply category filter
     if (filters.categoryId) {
-      filtered = filtered.filter(t => t.category_id === filters.categoryId)
+      filtered = filtered.filter(t => t.categoria_id === filters.categoryId)
     }
 
     console.log(`✅ Transações filtradas finais: ${filtered.length}`)

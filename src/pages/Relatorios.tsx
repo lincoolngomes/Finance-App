@@ -706,7 +706,7 @@ export default function Relatorios() {
               <CardContent>
                 <div className="text-2xl font-bold text-red-600">{formatCurrency(analytics.maiorDespesa)}</div>
                 <p className="text-xs text-muted-foreground mt-2">
-                  {analytics.maiorDespesaItem?.estabelecimento || 'N/A'}
+                  {analytics.maiorDespesaItem?.descricao || 'N/A'}
                 </p>
               </CardContent>
             </Card>
@@ -934,7 +934,7 @@ export default function Relatorios() {
                   <div>
                     <div className="text-xs text-muted-foreground mb-1">Maior Receita</div>
                     <div className="text-lg font-bold text-green-600">{formatCurrency(analytics.maiorReceita)}</div>
-                    <div className="text-xs text-muted-foreground truncate">{analytics.maiorReceitaItem?.estabelecimento || 'N/A'}</div>
+                    <div className="text-xs text-muted-foreground truncate">{analytics.maiorReceitaItem?.descricao || 'N/A'}</div>
                   </div>
                   <div>
                     <div className="text-xs text-muted-foreground mb-1">Ticket Médio</div>
@@ -957,7 +957,7 @@ export default function Relatorios() {
                   <div>
                     <div className="text-xs text-muted-foreground mb-1">Maior Despesa</div>
                     <div className="text-lg font-bold text-red-600">{formatCurrency(analytics.maiorDespesa)}</div>
-                    <div className="text-xs text-muted-foreground truncate">{analytics.maiorDespesaItem?.estabelecimento || 'N/A'}</div>
+                    <div className="text-xs text-muted-foreground truncate">{analytics.maiorDespesaItem?.descricao || 'N/A'}</div>
                   </div>
                   <div>
                     <div className="text-xs text-muted-foreground mb-1">Menor Despesa</div>
