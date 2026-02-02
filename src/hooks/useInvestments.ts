@@ -158,7 +158,12 @@ export const useInvestments = () => {
         .eq('user_id', user.id)
         .order('created_at', { ascending: false })
 
-      if (error) throw error
+      if (error) {
+        console.error('❌ ERRO ao buscar investimentos:', error)
+        throw error
+      }
+
+      console.log('✅ INVESTIMENTOS CARREGADOS:', data)
 
       // Buscar cotações atualizadas (apenas para ativos com cotação)
       const investimentosComCotacao = await Promise.all(
@@ -184,7 +189,47 @@ export const useInvestments = () => {
                   usando_valor_manual: true
                 }
               }
-              // 2. MARCAÇÃO A MERCADO: Tesouro Direto
+              // 2. TENTAR CALCULAR RENDA FIXA (se tiver tipo_rentabilidade)
+              else if (inv.tipo_rentabilidade && ['pos', 'pre', 'ipca'].includes(inv.tipo_rentabilidade)) {
+                // Renda fixa com rentabilidade definida - calcular!
+                const dataBase = inv.data_aplicacao || inv.data_primeira_compra
+                
+                console.log('💰 Tentando calcular renda fixa por tipo_rentabilidade:', {
+                  codigo: inv.codigo,
+                  tipo_rentabilidade: inv.tipo_rentabilidade,
+                  dataBase,
+                  data_vencimento: inv.data_vencimento,
+                  taxa_percentual: inv.taxa_percentual,
+                  indexador: inv.indexador
+                })
+
+                if (dataBase && inv.data_vencimento && inv.taxa_percentual) {
+                  console.log('✅ Dados válidos, calculando renda fixa...')
+                  try {
+                    dadosAdicionais = await calcularRendaFixa({
+                      ...inv,
+                      data_aplicacao: dataBase
+                    }, undefined)
+                    valor_atual = dadosAdicionais.valor_atual
+                    console.log('✅ Renda fixa calculada:', {
+                      valor_atual,
+                      rentabilidade: valor_atual - inv.valor_total
+                    })
+                  } catch (error) {
+                    console.error('❌ Erro ao calcular renda fixa:', error)
+                    valor_atual = inv.valor_total
+                  }
+                } else {
+                  console.log('❌ Dados insuficientes para calcular renda fixa')
+                  console.log('Faltando:', {
+                    dataBase: !dataBase,
+                    data_vencimento: !inv.data_vencimento,
+                    taxa_percentual: !inv.taxa_percentual
+                  })
+                  valor_atual = inv.valor_total
+                }
+              }
+              // 3. MARCAÇÃO A MERCADO: Tesouro Direto
               // VALIDAÇÃO: Apenas se tipo === 'tesouro_direto' (não 'renda_fixa')
               else if (inv.tipo_marcacao === 'mercado' && inv.tipo === 'tesouro_direto') {
                 console.log('🏛️ Marcação a Mercado - Tesouro Direto:', {
@@ -231,7 +276,7 @@ export const useInvestments = () => {
                   inv.tipo_marcacao = 'curva'
                 }
               }
-              // 3. MARCAÇÃO A MERCADO: CRI/CRA/Debêntures (por % VU)
+              // 4. MARCAÇÃO A MERCADO: CRI/CRA/Debêntures (por % VU)
               else if (inv.tipo_marcacao === 'mercado' && ['cri', 'cra', 'debenture'].includes(inv.tipo) && inv.percentual_vu) {
                 console.log('💼 Calculando por % do VU:', inv.percentual_vu + '%')
                 valor_atual = calcularMarcacaoMercadoPorVU(inv.valor_total, inv.percentual_vu)
@@ -242,39 +287,13 @@ export const useInvestments = () => {
                   fonte_marcacao: inv.fonte_marcacao || 'manual'
                 }
               }
-              // 4. FALLBACK: Calcular rentabilidade de renda fixa com base na curva
+              // 5. SE NADA ACIMA, DEIXAR VALOR COMO ESTÁ
               else {
-                // Usar data_aplicacao ou data_primeira_compra como fallback
-                const dataBase = inv.data_aplicacao || inv.data_primeira_compra
-                
-                console.log('🔍 Verificando dados de renda fixa:', {
+                console.log('⚠️ Renda fixa sem rentabilidade definida:', {
                   codigo: inv.codigo,
-                  tipo: inv.tipo,
-                  data_aplicacao: inv.data_aplicacao,
-                  data_primeira_compra: inv.data_primeira_compra,
-                  dataBase,
-                  data_vencimento: inv.data_vencimento,
-                  taxa_percentual: inv.taxa_percentual,
-                  tipo_rentabilidade: inv.tipo_rentabilidade,
-                  indexador: inv.indexador,
-                  liquidez: inv.liquidez
+                  valor_atual: inv.valor_total
                 })
-                
-                if (dataBase && inv.data_vencimento && inv.taxa_percentual) {
-                  console.log('✅ Dados válidos, calculando renda fixa...')
-                  dadosAdicionais = await calcularRendaFixa({
-                    ...inv,
-                    data_aplicacao: dataBase
-                  }, undefined) // undefined usa mesReferencia automaticamente
-                  valor_atual = dadosAdicionais.valor_atual
-                } else {
-                  console.log('❌ Dados insuficientes para calcular renda fixa')
-                  console.log('Faltando:', {
-                    dataBase: !dataBase,
-                    data_vencimento: !inv.data_vencimento,
-                    taxa_percentual: !inv.taxa_percentual
-                  })
-                }
+                valor_atual = inv.valor_total
               }
             }
             
@@ -305,7 +324,9 @@ export const useInvestments = () => {
         })
       )
 
+      console.log('📊 INVESTIMENTOS PROCESSADOS COM COTAÇÕES:', investimentosComCotacao)
       setInvestimentos(investimentosComCotacao)
+      console.log('✅ STATE ATUALIZADO COM:', investimentosComCotacao.length, 'investimentos')
       
       // Salvar no sessionStorage para persistir durante a sessão
       try {
@@ -327,32 +348,12 @@ export const useInvestments = () => {
     }
   }, [user, toast, mesReferencia])
 
-  // Buscar transações
+  // Buscar transações (DESCONTINUADO - dados agora estão em investimentos)
   const fetchTransacoes = async (investimentoId?: string) => {
-    if (!user) return
-
-    try {
-      let query = supabase
-        .from('transacoes_investimentos')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('data_transacao', { ascending: false })
-
-      if (investimentoId) {
-        query = query.eq('investimento_id', investimentoId)
-      }
-
-      const { data, error } = await query
-
-      if (error) throw error
-      setTransacoes(data || [])
-    } catch (error: any) {
-      toast({
-        title: 'Erro ao buscar transações',
-        description: error.message,
-        variant: 'destructive'
-      })
-    }
+    // Função mantida apenas para compatibilidade
+    // Todos os dados estão agora na tabela investimentos
+    console.log('ℹ️ fetchTransacoes descontinuado - dados em investimentos')
+    return
   }
 
   // Buscar ou criar investimento
@@ -368,8 +369,21 @@ export const useInvestments = () => {
         codigo: dados.codigo!,
         nome: dados.nome!,
         instituicao: dados.instituicao,
+        quantidade: dados.quantidade || 0, // AGORA pode vir dos dados
+        preco_medio: dados.preco_medio || 0, // AGORA pode vir dos dados
+        valor_total: dados.valor_total || 0, // AGORA pode vir dos dados
         ativo: true,
-        observacoes: dados.observacoes
+        observacoes: dados.observacoes,
+        // Novos campos que devem ser salvos
+        data_primeira_compra: dados.data_primeira_compra,
+        valor_bruto_resgate: dados.valor_bruto_resgate,
+        ir_retido: dados.ir_retido,
+        aliquota_ir: dados.aliquota_ir,
+        valor_atual_manual: dados.valor_atual_manual,
+        preco_mercado: dados.preco_mercado,
+        data_marcacao: dados.data_marcacao,
+        fonte_marcacao: dados.fonte_marcacao,
+        percentual_vu: dados.percentual_vu
       }
 
       console.log('📝 Dados recebidos para criar investimento:', dados)
@@ -404,7 +418,10 @@ export const useInvestments = () => {
           liquidez: dadosInsert.liquidez,
           data_aplicacao: dadosInsert.data_aplicacao,
           isento_ir: dadosInsert.isento_ir,
-          tipo_marcacao: dadosInsert.tipo_marcacao
+          tipo_marcacao: dadosInsert.tipo_marcacao,
+          quantidade: dadosInsert.quantidade,
+          preco_medio: dadosInsert.preco_medio,
+          valor_total: dadosInsert.valor_total
         })
       }
 
@@ -422,6 +439,12 @@ export const useInvestments = () => {
       }
       
       console.log('✅ Investimento criado:', data)
+      
+      // Limpar cache e recarregar
+      sessionStorage.removeItem('investimentos_cache')
+      sessionStorage.removeItem('investimentos_cache_time')
+      lastFetchTimeRef.current = 0
+      
       return data
     } catch (error: any) {
       toast({
@@ -433,30 +456,29 @@ export const useInvestments = () => {
     }
   }
 
-  // Adicionar transação (compra ou venda)
+  // Atualizar investimento diretamente (sem transações separadas)
   const adicionarTransacao = async (dados: Partial<TransacaoInvestimento>) => {
     if (!user) return false
 
     try {
+      // AGORA apenas atualizamos o investimento com os novos valores
       const { error } = await supabase
-        .from('transacoes_investimentos')
-        .insert({
-          investimento_id: dados.investimento_id!,
-          user_id: user.id,
-          tipo_transacao: dados.tipo_transacao!,
+        .from('investimentos')
+        .update({
           quantidade: dados.quantidade!,
           preco_unitario: dados.preco_unitario!,
+          preco_medio: dados.preco_medio || dados.preco_unitario!,
           valor_total: dados.valor_total!,
-          taxa: dados.taxa || 0,
-          data_transacao: dados.data_transacao!,
-          observacoes: dados.observacoes
+          observacoes: (dados.observacoes || '')
         })
+        .eq('id', dados.investimento_id!)
+        .eq('user_id', user.id)
 
       if (error) throw error
 
       toast({
-        title: 'Transação registrada',
-        description: `${dados.tipo_transacao === 'compra' ? 'Compra' : 'Venda'} registrada com sucesso!`
+        title: 'Investimento atualizado',
+        description: `Investimento registrado com sucesso!`
       })
 
       // Limpar cache para forçar atualização
@@ -465,11 +487,10 @@ export const useInvestments = () => {
       lastFetchTimeRef.current = 0
       
       fetchInvestimentos()
-      fetchTransacoes()
       return true
     } catch (error: any) {
       toast({
-        title: 'Erro ao registrar transação',
+        title: 'Erro ao registrar investimento',
         description: error.message,
         variant: 'destructive'
       })
@@ -1031,8 +1052,13 @@ export const useInvestments = () => {
 
   // Calcular resumo
   const getResumo = (): ResumoInvestimentos => {
-    const valorTotal = investimentos.reduce((acc, inv) => acc + (inv.valor_atual || 0), 0)
-    const valorInvestido = investimentos.reduce((acc, inv) => acc + inv.valor_total, 0)
+    // Usar valor_atual se disponível, caso contrário usar valor_total
+    const valorTotal = investimentos.reduce((acc, inv) => {
+      const valor = inv.valor_atual || inv.valor_total || 0
+      return acc + valor
+    }, 0)
+    
+    const valorInvestido = investimentos.reduce((acc, inv) => acc + (inv.valor_total || 0), 0)
     const rentabilidadeTotal = valorTotal - valorInvestido
     const rentabilidadePercentual = valorInvestido > 0 ? (rentabilidadeTotal / valorInvestido) * 100 : 0
 
@@ -1041,8 +1067,9 @@ export const useInvestments = () => {
     investimentos.forEach(inv => {
       // Tesouro Direto é um tipo de Renda Fixa
       const tipoAgrupado = inv.tipo === 'tesouro_direto' ? 'renda_fixa' : inv.tipo
-      const valor = porTipoMap.get(tipoAgrupado) || 0
-      porTipoMap.set(tipoAgrupado, valor + (inv.valor_atual || 0))
+      const valor = inv.valor_atual || inv.valor_total || 0
+      const valorAnterior = porTipoMap.get(tipoAgrupado) || 0
+      porTipoMap.set(tipoAgrupado, valorAnterior + valor)
     })
 
     const porTipo = Array.from(porTipoMap.entries()).map(([tipo, valor]) => ({
@@ -1055,8 +1082,9 @@ export const useInvestments = () => {
     const porInstituicaoMap = new Map<string, number>()
     investimentos.forEach(inv => {
       const inst = inv.instituicao || 'Não informado'
-      const valor = porInstituicaoMap.get(inst) || 0
-      porInstituicaoMap.set(inst, valor + (inv.valor_atual || 0))
+      const valor = inv.valor_atual || inv.valor_total || 0
+      const valorAnterior = porInstituicaoMap.get(inst) || 0
+      porInstituicaoMap.set(inst, valorAnterior + valor)
     })
 
     const porInstituicao = Array.from(porInstituicaoMap.entries()).map(([instituicao, valor]) => ({
@@ -1069,7 +1097,7 @@ export const useInvestments = () => {
       valorTotal,
       rentabilidadeTotal,
       rentabilidadePercentual,
-      quantidadeAtivos: investimentos.filter(i => i.ativo && i.quantidade > 0).length,
+      quantidadeAtivos: investimentos.filter(i => i.ativo).length, // Remover filtro de quantidade > 0
       porTipo,
       porInstituicao,
       evolucaoMensal: [] // Implementar depois com base nas transações

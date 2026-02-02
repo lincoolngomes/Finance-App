@@ -143,7 +143,10 @@ export default function Investimentos() {
   
   // Agrupar investimentos por código
   const investimentosAgrupados = useMemo(() => {
-    const ativos = investimentos.filter(inv => inv.ativo && inv.quantidade > 0)
+    console.log('🔍 [Investimentos.tsx] investimentos no useMemo:', investimentos)
+    console.log('🔍 [Investimentos.tsx] loading:', loading)
+    // Mostrar investimentos ativos (sem filtrar por quantidade, para permitir visualizar mesmo com 0)
+    const ativos = investimentos.filter(inv => inv.ativo)
     
     // Criar mapa de grupos
     const grupos = new Map<string, GrupoInvestimento>()

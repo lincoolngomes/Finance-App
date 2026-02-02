@@ -166,12 +166,41 @@ export const AddTransactionDialog = ({ open, onClose }: AddTransactionDialogProp
     setLoading(true)
 
     try {
-      // 1. Criar ou buscar investimento
+      // Calcular quantidade e valor_total ANTES de criar investimento
+      let qtd: number
+      let preco: number
+      let valorTotal: number
+      
+      if (['fundo', 'previdencia'].includes(tipoAtivo)) {
+        // Para fundos: quantidade = valor aplicado / cota
+        const valorAplicado = parseValorBR(precoUnitario)
+        const cota = parseFloat(cotaAplicacao)
+        qtd = valorAplicado / cota // Quantidade de cotas
+        preco = cota // Preço unitário (cota)
+        valorTotal = valorAplicado
+      } else if (tipoAtivo === 'tesouro_direto' && quantidade !== '1') {
+        // Tesouro com PU de compra informado
+        const puCompra = parseValorBR(quantidade)
+        const valorAplicado = parseValorBR(precoUnitario)
+        qtd = valorAplicado / puCompra // Quantidade de títulos
+        preco = puCompra // PU na compra
+        valorTotal = valorAplicado
+      } else {
+        // Outros tipos ou Tesouro sem PU
+        qtd = parseFloat(quantidade)
+        preco = parseValorBR(precoUnitario)
+        valorTotal = qtd * preco
+      }
+
+      // 1. Criar ou buscar investimento COM TODOS OS DADOS
       const dadosInvestimento: any = {
         tipo: tipoAtivo,
         codigo: codigo.toUpperCase(),
         nome,
-        instituicao: instituicao || undefined
+        instituicao: instituicao || undefined,
+        quantidade: qtd, // NOVO: passar quantidade
+        preco_medio: preco, // NOVO: passar preço unitário
+        valor_total: valorTotal // NOVO: passar valor total
       }
       
       // Adicionar campos específicos de renda fixa (inclui Tesouro, CRI, CRA, Debêntures)
@@ -204,37 +233,13 @@ export const AddTransactionDialog = ({ open, onClose }: AddTransactionDialogProp
         return
       }
 
-      // 2. Adicionar transação
-      let qtd: number
-      let preco: number
-      let valorTotal: number
-      
-      if (['fundo', 'previdencia'].includes(tipoAtivo)) {
-        // Para fundos: quantidade = valor aplicado / cota
-        const valorAplicado = parseValorBR(precoUnitario)
-        const cota = parseFloat(cotaAplicacao)
-        qtd = valorAplicado / cota // Quantidade de cotas
-        preco = cota // Preço unitário (cota)
-        valorTotal = valorAplicado
-      } else if (tipoAtivo === 'tesouro_direto' && quantidade !== '1') {
-        // Tesouro com PU de compra informado
-        const puCompra = parseValorBR(quantidade)
-        const valorAplicado = parseValorBR(precoUnitario)
-        qtd = valorAplicado / puCompra // Quantidade de títulos
-        preco = puCompra // PU na compra
-        valorTotal = valorAplicado
-      } else {
-        // Outros tipos ou Tesouro sem PU
-        qtd = parseFloat(quantidade)
-        preco = parseValorBR(precoUnitario)
-        valorTotal = qtd * preco
-      }
-      
+      // 2. Atualizar investimento com dados da transação (compatibilidade com nova estrutura)
       const sucesso = await adicionarTransacao({
         investimento_id: investimento.id,
         tipo_transacao: tipoTransacao,
         quantidade: qtd,
         preco_unitario: preco,
+        preco_medio: preco,
         valor_total: valorTotal,
         taxa: parseValorBR(taxa) || 0,
         data_transacao: new Date(dataTransacao).toISOString(),
@@ -640,34 +645,22 @@ export const AddTransactionDialog = ({ open, onClose }: AddTransactionDialogProp
                     </p>
                   </div>
 
-                  <div>
-                    <Label htmlFor="dataTransacaoRF">Data da Aplicação *</Label>
-                    <Input
-                      id="dataTransacaoRF"
-                      type="date"
-                      value={dataTransacao}
-                      onChange={(e) => ['fundo', 'previdencia'].includes(tipoAtivo) ? handleDataTransacaoChange(e.target.value) : setDataTransacao(e.target.value)}
-                      disabled={buscandoFundo}
-                      required
-                    />
-                  </div>
+                  {tipoAtivo === 'tesouro_direto' && (
+                    <div>
+                      <Label htmlFor="puCompra">PU na Compra (opcional)</Label>
+                      <Input
+                        id="puCompra"
+                        type="text"
+                        placeholder="0,00"
+                        value={quantidade !== '1' ? quantidade : ''}
+                        onChange={(e) => setQuantidade(formatarValorBR(e.target.value))}
+                      />
+                      <p className="text-xs text-muted-foreground mt-1">
+                        💡 Para marcação a mercado precisa. Se não souber, deixe em branco.
+                      </p>
+                    </div>
+                  )}
                 </div>
-                
-                {tipoAtivo === 'tesouro_direto' && (
-                  <div>
-                    <Label htmlFor="puCompra">PU na Compra (opcional)</Label>
-                    <Input
-                      id="puCompra"
-                      type="text"
-                      placeholder="0,00"
-                      value={quantidade !== '1' ? quantidade : ''}
-                      onChange={(e) => setQuantidade(formatarValorBR(e.target.value))}
-                    />
-                    <p className="text-xs text-muted-foreground mt-1">
-                      💡 Para marcação a mercado precisa. Se não souber, deixe em branco.
-                    </p>
-                  </div>
-                )}
               </div>
             ) : (
               <div className="grid grid-cols-2 gap-4">
