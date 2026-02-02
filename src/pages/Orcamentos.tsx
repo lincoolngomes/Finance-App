@@ -128,10 +128,16 @@ export default function Orcamentos() {
   const carregarTransacoesRealizadas = async () => {
     const { data, error } = await supabase
       .from('transacoes')
-      .select('categoria_id, valor, data, created_at, status, tipo')
+      .select('categoria_id, valor, data, created_at, tipo')
       .eq('user_id', user?.id)
 
-    console.log('📊 Todas transações:', data)
+    console.log('🔍 DEBUG Orcamentos:', {
+      user_id: user?.id,
+      mes_selecionado: mesSelecionado,
+      ano_selecionado: anoSelecionado,
+      transacoes_count: data?.length,
+      error: error?.message
+    })
 
     if (!error && data) {
       // Filtrar transações do mês/ano selecionado (INCLUINDO PENDENTES)
@@ -161,7 +167,7 @@ export default function Orcamentos() {
         
         if (dentroDoMes) {
           console.log('✅ Transação dentro do mês:', {
-            categoria: t.category_id,
+            categoria: t.categoria_id,
             valor: t.valor,
             tipo: t.tipo,
             valorNumber: Number(t.valor),
@@ -179,7 +185,7 @@ export default function Orcamentos() {
 
       // Agrupar por categoria (inverter sinal se for despesa e valor positivo)
       const agrupado = transacoesFiltradas.reduce((acc: Record<string, TransacaoRealizada>, t) => {
-        const catId = t.category_id
+        const catId = t.categoria_id
         if (!acc[catId]) {
           acc[catId] = { categoria_id: catId, total: 0 }
         }
