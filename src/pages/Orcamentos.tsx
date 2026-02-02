@@ -25,7 +25,7 @@ interface OrcamentoCategoria {
   id: string
   user_id: string
   categoria_id: string
-  valor_planejado: number
+  valor: number
   mes: number
   ano: number
   categorias?: Categoria
@@ -108,7 +108,7 @@ export default function Orcamentos() {
 
   const carregarOrcamentos = async () => {
     const { data, error } = await supabase
-      .from('orcamento_categorias')
+      .from('orcamentos')
       .select(`
         *,
         categorias (
@@ -223,7 +223,7 @@ export default function Orcamentos() {
     console.log('📝 Dados para salvar:', {
       user_id: user?.id,
       categoria_id: categoriaSelecionada,
-      valor_planejado: valorNumerico,
+      valor: valorNumerico,
       mes: mesSelecionado,
       ano: anoSelecionado,
       orcamentoEditando
@@ -232,9 +232,9 @@ export default function Orcamentos() {
     if (orcamentoEditando) {
       // Atualizar orçamento existente
       const { error } = await supabase
-        .from('orcamento_categorias')
+        .from('orcamentos')
         .update({
-          valor_planejado: valorNumerico
+          valor: valorNumerico
         })
         .eq('id', orcamentoEditando)
 
@@ -264,9 +264,9 @@ export default function Orcamentos() {
       if (existe) {
         // Se já existe, atualizar em vez de inserir
         const { error } = await supabase
-          .from('orcamento_categorias')
+          .from('orcamentos')
           .update({
-            valor_planejado: valorNumerico
+            valor: valorNumerico
           })
           .eq('id', existe.id)
 
@@ -292,11 +292,11 @@ export default function Orcamentos() {
       }
 
       const { error } = await supabase
-        .from('orcamento_categorias')
+        .from('orcamentos')
         .insert({
           user_id: user?.id,
           categoria_id: categoriaSelecionada,
-          valor_planejado: valorNumerico,
+          valor: valorNumerico,
           mes: mesSelecionado,
           ano: anoSelecionado
         })
@@ -331,8 +331,8 @@ export default function Orcamentos() {
     if (orcamentoExistente) {
       // Atualizar existente
       const { error } = await supabase
-        .from('orcamento_categorias')
-        .update({ valor_planejado: valor })
+        .from('orcamentos')
+        .update({ valor: valor })
         .eq('id', orcamentoExistente.id)
 
       if (!error) {
@@ -341,11 +341,11 @@ export default function Orcamentos() {
     } else {
       // Criar novo
       const { error } = await supabase
-        .from('orcamento_categorias')
+        .from('orcamentos')
         .insert({
           user_id: user?.id,
           categoria_id: categoriaId,
-          valor_planejado: valor,
+          valor: valor,
           mes: mesSelecionado,
           ano: anoSelecionado
         })
@@ -360,7 +360,7 @@ export default function Orcamentos() {
     setOrcamentoEditando(orc.id)
     setCategoriaSelecionada(orc.categoria_id)
     // Formatar valor para exibição (1.000,00)
-    const valorFormatado = orc.valor_planejado.toLocaleString('pt-BR', {
+    const valorFormatado = orc.valor.toLocaleString('pt-BR', {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2
     })
@@ -370,7 +370,7 @@ export default function Orcamentos() {
 
   const removerOrcamento = async (id: string) => {
     const { error } = await supabase
-      .from('orcamento_categorias')
+      .from('orcamentos')
       .delete()
       .eq('id', id)
 
@@ -401,8 +401,8 @@ export default function Orcamentos() {
 
     // Buscar orçamentos do mês anterior
     const { data: orcamentosAnteriores, error: errorBusca } = await supabase
-      .from('orcamento_categorias')
-      .select('categoria_id, valor_planejado')
+      .from('orcamentos')
+      .select('categoria_id, valor')
       .eq('user_id', user?.id)
       .eq('mes', mesAnterior)
       .eq('ano', anoAnterior)
@@ -423,7 +423,7 @@ export default function Orcamentos() {
 
       // Remover orçamentos existentes
       const { error: errorDelete } = await supabase
-        .from('orcamento_categorias')
+        .from('orcamentos')
         .delete()
         .eq('user_id', user?.id)
         .eq('mes', mesSelecionado)
@@ -443,13 +443,13 @@ export default function Orcamentos() {
     const novosOrcamentos = orcamentosAnteriores.map(orc => ({
       user_id: user?.id,
       categoria_id: orc.categoria_id,
-      valor_planejado: orc.valor_planejado,
+      valor: orc.valor,
       mes: mesSelecionado,
       ano: anoSelecionado
     }))
 
     const { error: errorInsert } = await supabase
-      .from('orcamento_categorias')
+      .from('orcamentos')
       .insert(novosOrcamentos)
 
     if (errorInsert) {
@@ -468,7 +468,7 @@ export default function Orcamentos() {
   }
 
   const calculos = useMemo(() => {
-    const totalPlanejado = orcamentos.reduce((sum, o) => sum + (o.valor_planejado || 0), 0)
+    const totalPlanejado = orcamentos.reduce((sum, o) => sum + (o.valor || 0), 0)
     // Somar apenas despesas (valores negativos, em valor absoluto)
     const totalRealizado = transacoesRealizadas.reduce((sum, t) => {
       return sum + (t.total < 0 ? Math.abs(t.total) : 0)
@@ -494,7 +494,7 @@ export default function Orcamentos() {
         id: orc.id,
         categoria_id: orc.categoria_id,
         categoria_nome: orc.categorias?.nome || 'Categoria',
-        valor_planejado: orc.valor_planejado,
+        valor: orc.valor,
         tem_orcamento: true
       })
     })
@@ -508,7 +508,7 @@ export default function Orcamentos() {
           id: null,
           categoria_id: trans.categoria_id,
           categoria_nome: categoria?.nome || 'Categoria',
-          valor_planejado: 0,
+          valor: 0,
           tem_orcamento: false
         })
       }
@@ -535,29 +535,29 @@ export default function Orcamentos() {
             valorB = realizadoB > 0 ? 1 : realizadoB < 0 ? -1 : 0
             break
           case 'planejado':
-            valorA = a.valor_planejado
-            valorB = b.valor_planejado
+            valorA = a.valor
+            valorB = b.valor
             break
           case 'realizado':
             valorA = Math.abs(getValorRealizado(a.categoria_id))
             valorB = Math.abs(getValorRealizado(b.categoria_id))
             break
           case 'diferenca':
-            const difA = a.valor_planejado - Math.abs(getValorRealizado(a.categoria_id))
-            const difB = b.valor_planejado - Math.abs(getValorRealizado(b.categoria_id))
+            const difA = a.valor - Math.abs(getValorRealizado(a.categoria_id))
+            const difB = b.valor - Math.abs(getValorRealizado(b.categoria_id))
             valorA = difA
             valorB = difB
             break
           case 'progresso':
-            const percA = a.valor_planejado > 0 ? (Math.abs(getValorRealizado(a.categoria_id)) / a.valor_planejado) * 100 : 0
-            const percB = b.valor_planejado > 0 ? (Math.abs(getValorRealizado(b.categoria_id)) / b.valor_planejado) * 100 : 0
+            const percA = a.valor > 0 ? (Math.abs(getValorRealizado(a.categoria_id)) / a.valor) * 100 : 0
+            const percB = b.valor > 0 ? (Math.abs(getValorRealizado(b.categoria_id)) / b.valor) * 100 : 0
             valorA = percA
             valorB = percB
             break
           case 'status':
             const getStatus = (linha: any) => {
-              if (linha.valor_planejado === 0) return 0
-              const perc = (Math.abs(getValorRealizado(linha.categoria_id)) / linha.valor_planejado) * 100
+              if (linha.valor === 0) return 0
+              const perc = (Math.abs(getValorRealizado(linha.categoria_id)) / linha.valor) * 100
               if (perc <= 80) return 1
               if (perc <= 100) return 2
               return 3
@@ -737,7 +737,7 @@ export default function Orcamentos() {
                         categorias.map(cat => {
                           const jaTemOrcamento = orcamentos.find(o => o.categoria_id === cat.id)
                           const label = jaTemOrcamento 
-                            ? `${cat.nome} (R$ ${jaTemOrcamento.valor_planejado.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})`
+                            ? `${cat.nome} (R$ ${jaTemOrcamento.valor.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})`
                             : cat.nome
                           return (
                             <SelectItem key={cat.id} value={cat.id}>
@@ -1002,8 +1002,8 @@ export default function Orcamentos() {
                 {linhasTabela.map((linha) => {
                   const realizado = getValorRealizado(linha.categoria_id)
                   const realizadoAbs = Math.abs(realizado)
-                  const diferenca = linha.valor_planejado - realizadoAbs
-                  const percentual = linha.valor_planejado > 0 ? (realizadoAbs / linha.valor_planejado) * 100 : 0
+                  const diferenca = linha.valor - realizadoAbs
+                  const percentual = linha.valor > 0 ? (realizadoAbs / linha.valor) * 100 : 0
 
                   return (
                     <TableRow key={linha.categoria_id}>
@@ -1034,7 +1034,7 @@ export default function Orcamentos() {
                         <Input
                           type="text"
                           placeholder="0,00"
-                          value={linha.valor_planejado > 0 ? linha.valor_planejado.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : ''}
+                          value={linha.valor > 0 ? linha.valor.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : ''}
                           onChange={(e) => {
                             let valor = e.target.value.replace(/\D/g, '')
                             if (valor === '') return
@@ -1064,7 +1064,7 @@ export default function Orcamentos() {
                         </span>
                       </TableCell>
                       <TableCell className="text-right">
-                        {linha.valor_planejado > 0 ? (
+                        {linha.valor > 0 ? (
                           <span className={`font-semibold ${diferenca >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                             {formatCurrency(Math.abs(diferenca))}
                           </span>
@@ -1073,7 +1073,7 @@ export default function Orcamentos() {
                         )}
                       </TableCell>
                       <TableCell>
-                        {linha.valor_planejado > 0 ? (
+                        {linha.valor > 0 ? (
                           <div className="flex flex-col items-center gap-1">
                             <div className="flex items-center gap-2 w-full">
                               <Progress 
@@ -1090,7 +1090,7 @@ export default function Orcamentos() {
                         )}
                       </TableCell>
                       <TableCell className="text-center">
-                        {linha.valor_planejado > 0 ? (
+                        {linha.valor > 0 ? (
                           percentual <= 80 ? (
                             <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
                               Dentro
