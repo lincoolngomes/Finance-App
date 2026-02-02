@@ -137,7 +137,7 @@ export default function Relatorios() {
     // Análise de frequência e padrões
     const transacoesPorDia: { [key: string]: number } = {}
     despesas.forEach(t => {
-      const dia = new Date(t.quando || t.created_at).toLocaleDateString('pt-BR')
+      const dia = new Date(t.data || t.created_at).toLocaleDateString('pt-BR')
       transacoesPorDia[dia] = (transacoesPorDia[dia] || 0) + 1
     })
     const frequenciaMedia = Object.values(transacoesPorDia).length > 0 
@@ -175,11 +175,11 @@ export default function Relatorios() {
     
     // Tendência (últimos 7 dias vs 7 anteriores)
     const ultimos7Dias = despesas.filter(t => {
-      const diff = hoje.getTime() - new Date(t.quando || t.created_at).getTime()
+      const diff = hoje.getTime() - new Date(t.data || t.created_at).getTime()
       return diff <= 7 * 24 * 60 * 60 * 1000
     })
     const anteriores7Dias = despesas.filter(t => {
-      const diff = hoje.getTime() - new Date(t.quando || t.created_at).getTime()
+      const diff = hoje.getTime() - new Date(t.data || t.created_at).getTime()
       return diff > 7 * 24 * 60 * 60 * 1000 && diff <= 14 * 24 * 60 * 60 * 1000
     })
     
@@ -296,7 +296,7 @@ export default function Relatorios() {
     const byDay: { [key: string]: { receitas: number, despesas: number, count: number } } = {}
     
     transactions.forEach(t => {
-      const date = new Date(t.quando || t.created_at).toLocaleDateString('pt-BR')
+      const date = new Date(t.data || t.created_at).toLocaleDateString('pt-BR')
       if (!byDay[date]) byDay[date] = { receitas: 0, despesas: 0, count: 0 }
       
       if (t.tipo === 'receita') {
@@ -385,7 +385,7 @@ export default function Relatorios() {
       }
       
       transactions.filter(t => t.tipo === 'despesa').forEach(t => {
-        const date = new Date(t.quando || t.created_at)
+        const date = new Date(t.data || t.created_at)
         const diaSemana = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'][date.getDay()]
         if (dias[diaSemana]) {
           dias[diaSemana].total += Math.abs(Number(t.valor) || 0)
@@ -410,7 +410,7 @@ export default function Relatorios() {
       const meses: { [key: string]: { receitas: number, despesas: number } } = {}
       
       transactions.forEach(t => {
-        const date = new Date(t.quando || t.created_at)
+        const date = new Date(t.data || t.created_at)
         const mes = date.toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' })
         if (!meses[mes]) meses[mes] = { receitas: 0, despesas: 0 }
         

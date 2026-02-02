@@ -26,8 +26,8 @@ export function useCategories() {
       
       const { data, error } = await supabase
         .from('categorias')
-        .select('id, nome, tags, tipo, created_at, updated_at, userid')
-        .eq('userid', user.id)
+        .select('id, nome, tags, tipo, created_at, user_id')
+          .eq('user_id', user.id)
         .order('nome');
 
       if (error) {

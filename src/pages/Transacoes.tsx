@@ -17,12 +17,13 @@ import { CategorySelector } from '@/components/transactions/CategorySelector'
 import { BankSelector, CardSelector } from '@/components/accounts/BankAndCardSelector'
 import { GerenciarFaturasModal } from '@/components/faturas/GerenciarFaturasModal'
 import { ImportarFaturaModal } from '@/components/faturas/ImportarFaturaModal'
+import { ImportarExtratoModal } from '@/components/extratos/ImportarExtratoModal'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
 import { useCategories } from '@/hooks/useCategories'
 // import { useAccountsMap } from '@/hooks/useAccountsMap'
 import { toast } from '@/hooks/use-toast'
-import { Plus, Edit, Trash2, TrendingUp, TrendingDown, ArrowUpDown, Download, Clock, DollarSign } from 'lucide-react'
+import { Plus, Edit, Trash2, TrendingUp, TrendingDown, ArrowUpDown, Download, Clock, DollarSign, Wallet } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import { formatCurrency } from '@/utils/currency'
 import { parse, format } from 'date-fns'
@@ -30,22 +31,27 @@ import { parse, format } from 'date-fns'
 
 
 interface Transacao {
-  id: number
+  id: string
   created_at: string
-  quando: string | null
-  estabelecimento: string | null
+  data: string | null
+  descricao: string | null
   valor: number | null
-  detalhes: string | null
+  observacao: string | null
   tipo: string | null
-  category_id: string
-  metodo: string | null
-  status: string | null
-  account_id: string | null
-  fatura_id: string | null
+  categoria_id: string
+  pago: boolean
+  conta_id: string | null
+  cartao_id: string | null
   userid: string | null
+  user_id: string | null
   categorias?: {
     id: string
     nome: string
+  }
+  contas?: {
+    id: string
+    nome: string
+    saldo_inicial: number
   }
 }
 
@@ -86,6 +92,7 @@ const Transacoes: React.FC = () => {
   const [advancedFiltersOpen, setAdvancedFiltersOpen] = useState(false);
   const [invoicesOpen, setInvoicesOpen] = useState(false);
   const [importarFaturaOpen, setImportarFaturaOpen] = useState(false);
+  const [importarExtratoOpen, setImportarExtratoOpen] = useState(false);
   const [cartaoParaImportar, setCartaoParaImportar] = useState<string | undefined>(undefined);
   const [hideCardTransactions, setHideCardTransactions] = useState(false);
   const [pendingExpensesDetailOpen, setPendingExpensesDetailOpen] = useState(false);
@@ -110,6 +117,8 @@ const Transacoes: React.FC = () => {
   const [massAccount, setMassAccount] = useState('');
   // Estados para dropdowns
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
+  // Estado para paginação (carregar mais)
+  const [displayCount, setDisplayCount] = useState(30);
 
   // Memo para mapear contas por id (accountsMap)
   const accountsMap = useMemo(() => {
@@ -123,33 +132,45 @@ const Transacoes: React.FC = () => {
   // Memo para filtrar transações conforme filtros visuais
   const filteredTransacoes = useMemo(() => {
     let filtered = [...transacoes];
+    
     if (accountFilter && accountFilter !== 'all') {
-      filtered = filtered.filter(t => t.account_id === accountFilter);
+      filtered = filtered.filter(t => t.conta_id === accountFilter);
     }
     if (typeFilter && typeFilter !== 'all') {
       filtered = filtered.filter(t => t.tipo === typeFilter);
     }
     if (categoryFilter && categoryFilter !== 'all') {
-      filtered = filtered.filter(t => t.category_id === categoryFilter);
+      filtered = filtered.filter(t => t.categoria_id === categoryFilter);
     }
     if (dateFrom) {
-      filtered = filtered.filter(t => t.quando && t.quando >= dateFrom);
+      filtered = filtered.filter(t => t.data && t.data >= dateFrom);
     }
     if (dateTo) {
-      filtered = filtered.filter(t => t.quando && t.quando <= dateTo);
+      filtered = filtered.filter(t => t.data && t.data <= dateTo);
     }
     if (searchTerm) {
       const search = searchTerm.toLowerCase();
       filtered = filtered.filter(t =>
-        (t.estabelecimento?.toLowerCase().includes(search) || '') ||
-        (t.detalhes?.toLowerCase().includes(search) || '') ||
+        (t.descricao?.toLowerCase().includes(search) || '') ||
+        (t.observacao?.toLowerCase().includes(search) || '') ||
         (t.categorias?.nome?.toLowerCase().includes(search) || '')
       );
     }
     // Filtro para ocultar transações de cartão de crédito
     if (hideCardTransactions) {
-      filtered = filtered.filter(t => t.metodo !== 'cartao_credito');
+      filtered = filtered.filter(t => !t.cartao_id);
     }
+
+    // Filtro por mês/ano selecionado (COMENTADO TEMPORARIAMENTE PARA DEBUG)
+    // const monthIndex = (() => { const m = parseInt(filterMonth); return isNaN(m) ? new Date().getMonth() : m })()
+    // const yearNum = parseInt(filterYear) || new Date().getFullYear()
+    // filtered = filtered.filter(t => {
+    //   if (!t.data && !t.created_at) return false
+    //   const dateStr = t.data || t.created_at
+    //   const date = new Date(dateStr)
+    //   return date.getMonth() === monthIndex && date.getFullYear() === yearNum
+    // })
+    
     // Ordenação
     // Helper para parsear datas em vários formatos (dd/mm/yyyy, yyyy-mm-dd, ISO)
     const parseDateToTime = (dateStr) => {
@@ -170,12 +191,14 @@ const Transacoes: React.FC = () => {
     } else if (sortOrder === 'created_desc') {
       filtered.sort((a, b) => parseDateToTime(b.created_at) - parseDateToTime(a.created_at))
     } else if (sortOrder === 'date_asc') {
-      filtered.sort((a, b) => parseDateToTime(a.quando || a.created_at) - parseDateToTime(b.quando || b.created_at))
+      filtered.sort((a, b) => parseDateToTime(a.data || a.created_at) - parseDateToTime(b.data || b.created_at))
     } else if (sortOrder === 'date_desc') {
-      filtered.sort((a, b) => parseDateToTime(b.quando || b.created_at) - parseDateToTime(a.quando || a.created_at))
+      filtered.sort((a, b) => parseDateToTime(b.data || b.created_at) - parseDateToTime(a.data || a.created_at))
     }
+    
+    console.log('✨ Transações filtradas:', filtered.length, 'de', transacoes.length);
     return filtered;
-  }, [transacoes, accountFilter, typeFilter, categoryFilter, dateFrom, dateTo, searchTerm, sortOrder, hideCardTransactions]);
+  }, [transacoes, accountFilter, typeFilter, categoryFilter, dateFrom, dateTo, searchTerm, sortOrder, hideCardTransactions, filterMonth, filterYear]);
 
   // Variáveis auxiliares para seleção em massa (após filteredTransacoes)
   const isAllSelected = filteredTransacoes.length > 0 && selectedIds.length === filteredTransacoes.length;
@@ -194,7 +217,7 @@ const Transacoes: React.FC = () => {
     if (!user?.id) return;
     setLoading(true);
     try {
-      // Busca contas igual à tela de contas
+      // Busca contas
       const { data: contasData, error: contasError } = await supabase
         .from('accounts')
         .select('*')
@@ -202,18 +225,39 @@ const Transacoes: React.FC = () => {
       if (contasError) throw contasError;
       setContas(contasData || []);
 
+      // Busca categorias
+      const { data: categoriasData, error: categoriasError } = await supabase
+        .from('categorias')
+        .select('*')
+        .eq('user_id', user.id);
+      if (categoriasError) throw categoriasError;
+
+      // Busca transações
       const { data, error } = await supabase
         .from('transacoes')
-        .select(`
-          *, 
-          categorias:categorias!transacoes_category_id_fkey(id, nome),
-          accounts:accounts!transacoes_account_id_fkey(id, name, banco, type)
-        `)
-        .eq('userid', user.id)
-        .order('quando', { ascending: false });
+        .select('*')
+        .eq('user_id', user.id)
+        .order('data', { ascending: false });
+      
       if (error) throw error;
-      setTransacoes(data || []);
+      
+      // Fazer o "join" manualmente
+      const mapped = (data || []).map(t => {
+        const categoria = categoriasData?.find(c => c.id === t.categoria_id);
+        const conta = contasData?.find(c => c.id === t.conta_id);
+        
+        return {
+          ...t,
+          categorias: categoria ? { id: categoria.id, nome: categoria.nome } : null,
+          contas: conta ? { id: conta.id, nome: conta.nome, saldo_inicial: conta.saldo_inicial } : null
+        };
+      });
+      
+      console.log('✅ Transações carregadas:', mapped);
+      console.log('📊 Total de transações:', mapped.length);
+      setTransacoes(mapped);
     } catch (error: any) {
+      console.error('❌ Erro ao carregar transações:', error);
       toast({
         title: 'Erro ao carregar transações',
         description: error.message,
@@ -221,6 +265,104 @@ const Transacoes: React.FC = () => {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleImportLancamentos = async (lancamentos: any[], contaId: string, regras: string) => {
+    if (!user || !user.id) {
+      return { success: false, message: 'Usuário não autenticado.' };
+    }
+    try {
+      async function getOrCreateCategoriaId(nomeCategoria: string) {
+        if (!nomeCategoria) return null;
+        const { data: cat } = await supabase
+          .from('categorias')
+          .select('id')
+          .eq('user_id', user.id)
+          .ilike('nome', nomeCategoria)
+          .maybeSingle();
+        if (cat && cat.id) return cat.id;
+        const { data: newCat } = await supabase
+          .from('categorias')
+          .insert({ user_id: user.id, nome: nomeCategoria })
+          .select('id')
+          .maybeSingle();
+        if (newCat && newCat.id) return newCat.id;
+        return null;
+      }
+
+      const lancamentosComCategoriaId = [];
+      const contaSelecionadaObj = contas.find(c => c.id === contaId);
+      if (!contaSelecionadaObj || (contaSelecionadaObj.tipo || '').toLowerCase() !== 'bank') {
+        return { success: false, message: 'Selecione uma conta bancária válida para importar.' };
+      }
+
+      function parseDataBRtoISO(dataBR: string) {
+        if (!dataBR) return null;
+        const [dia, mes, ano] = dataBR.split('/');
+        return `${ano}-${mes.padStart(2, '0')}-${dia.padStart(2, '0')}`;
+      }
+
+      function parseValorBR(valorStr: any) {
+        if (valorStr === undefined || valorStr === null) return 0;
+        let str = String(valorStr).replace(/[^0-9.,-]/g, '');
+        if (str.includes(',')) {
+          str = str.replace(/\./g, '').replace(',', '.');
+        }
+        return parseFloat(str);
+      }
+
+      for (const l of lancamentos) {
+        let categoriaId = null;
+        let nomeCategoria = l.categoria && l.categoria.trim() !== '' ? l.categoria.trim() : (l.tipo === 'receita' ? 'Renda Extra' : l.tipo === 'despesa' ? 'Compras' : 'Outros');
+        const { data: cat } = await supabase
+          .from('categorias')
+          .select('id')
+          .eq('user_id', user.id)
+          .ilike('nome', nomeCategoria)
+          .maybeSingle();
+        if (cat && cat.id) {
+          categoriaId = cat.id;
+        } else {
+          const { data: newCat } = await supabase
+            .from('categorias')
+            .insert({ user_id: user.id, nome: nomeCategoria, tipo: l.tipo })
+            .select('id')
+            .maybeSingle();
+          if (newCat && newCat.id) categoriaId = newCat.id;
+        }
+
+        const valorNum = parseValorBR(l.valor);
+        const tipo = valorNum >= 0 ? 'receita' : 'despesa';
+        lancamentosComCategoriaId.push({
+          user_id: user.id,
+          conta_id: contaId,
+          categoria_id: categoriaId,
+          descricao: l.estabelecimento || l.descricao || '',
+          valor: valorNum,
+          tipo,
+          data: parseDataBRtoISO(l.quando || l.data),
+          pago: true,
+          observacao: '',
+        });
+      }
+
+      lancamentosComCategoriaId.sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime());
+
+      const { data, error } = await supabase.from('transacoes').insert(lancamentosComCategoriaId).select();
+      if (error) {
+        return { success: false, message: 'Erro ao importar: ' + error.message };
+      }
+      fetchTransacoes();
+      const conta = contas.find(c => c.id === contaId);
+      return {
+        success: true,
+        count: (data || []).length,
+        accountName: conta ? conta.nome : contaId,
+        message: `✓ Importação realizada com sucesso!`
+      };
+    } catch (e: any) {
+      return { success: false, message: `Erro ao importar: ${e.message || e}` };
     }
   };
 
@@ -237,35 +379,20 @@ const Transacoes: React.FC = () => {
       return acc + Math.abs(isNaN(s) ? 0 : s)
     }, 0)
 
-    // Soma todas as receitas/despesas com valores absolutos
-    const receitasGlobais = transacoes.filter(t => t.tipo === 'receita').reduce((acc, t) => acc + Math.abs(Number(t.valor) || 0), 0)
+    // Soma todas as receitas/despesas com valores absolutos (usando filteredTransacoes para respeitar filtros)
+    const receitasGlobais = filteredTransacoes.filter(t => t.tipo === 'receita').reduce((acc, t) => acc + Math.abs(Number(t.valor) || 0), 0)
     // Despesas: EXCLUIR as pendentes (cartão de crédito) para não sensibilizar o saldo
-    const despesasGlobais = transacoes.filter(t => t.tipo === 'despesa' && t.status !== 'pendente' && t.status !== 'pendente_fatura').reduce((acc, t) => acc + Math.abs(Number(t.valor) || 0), 0)
+    const despesasGlobais = filteredTransacoes.filter(t => t.tipo === 'despesa' && t.status !== 'pendente' && t.status !== 'pendente_fatura').reduce((acc, t) => acc + Math.abs(Number(t.valor) || 0), 0)
 
     // Saldo = saldo inicial + receitas - despesas (pendentes não afetam)
     const saldoAggregate = totalSaldoInicial + receitasGlobais - despesasGlobais
-
-    // Debug
-    console.log('📊 Cálculo do Saldo:', {
-      contas: contas.length,
-      totalSaldoInicial,
-      receitasGlobais,
-      despesasGlobais,
-      saldoAggregate,
-      formula: `${totalSaldoInicial} + ${receitasGlobais} - ${despesasGlobais} = ${saldoAggregate}`,
-      contasDetalhes: contas.map(c => ({ 
-        name: c.name || c.nome, 
-        saldo_inicial: c.saldo_inicial,
-        saldoInicial: c.saldoInicial 
-      }))
-    })
 
     return {
       receitas: receitasGlobais,
       despesas: despesasGlobais,
       saldoReal: saldoAggregate,
     }
-  }, [transacoes, contas])
+  }, [filteredTransacoes, contas])
 
   // Parser de data reutilizável (normaliza para UTC midnight)
   const parseToDate = (dateStr?: string | null): Date | null => {
@@ -288,8 +415,8 @@ const Transacoes: React.FC = () => {
   const { receitasMes, despesasMes, despesasPendentes, transacoesCountMes, countReceitasMes, countDespesasMes } = useMemo(() => {
     const monthIndex = (() => { const m = parseInt(filterMonth); return isNaN(m) ? new Date().getMonth() : (m > 11 ? m - 1 : m) })()
     const yearNum = parseInt(filterYear) || new Date().getFullYear()
-    const filtered = transacoes.filter(t => {
-      const dt = parseToDate(t.quando || t.created_at)
+    const filtered = filteredTransacoes.filter(t => {
+      const dt = parseToDate(t.data || t.created_at)
       if (!dt) return false
       return dt.getUTCMonth() === monthIndex && dt.getUTCFullYear() === yearNum
     })
@@ -301,7 +428,19 @@ const Transacoes: React.FC = () => {
     // Despesas pendentes: separadas para exibir mas não afetar o saldo
     const despesasPendentes = filtered.filter(t => t.tipo === 'despesa' && (t.status === 'pendente' || t.status === 'pendente_fatura')).reduce((acc, t) => acc + Math.abs(Number(t.valor) || 0), 0)
     return { receitasMes, despesasMes, despesasPendentes, transacoesCountMes: filtered.length, countReceitasMes, countDespesasMes }
-  }, [transacoes, filterMonth, filterYear])
+  }, [filteredTransacoes, filterMonth, filterYear])
+
+  // Cálculo do saldo do mês: saldo inicial + receitas do mês - despesas pagas do mês
+  const saldoMes = useMemo(() => {
+    const totalSaldoInicial = contas.reduce((acc, conta) => {
+      const s = (typeof conta.saldo_inicial !== 'undefined' && conta.saldo_inicial !== null)
+        ? Number(conta.saldo_inicial)
+        : (typeof conta.saldoInicial !== 'undefined' && conta.saldoInicial !== null ? Number(conta.saldoInicial) : 0)
+      return acc + Math.abs(isNaN(s) ? 0 : s)
+    }, 0)
+    return totalSaldoInicial + receitasMes - despesasMes
+  }, [contas, receitasMes, despesasMes])
+
   useEffect(() => {
     // Coloque aqui a lógica de efeito colateral, como fetch de dados, listeners, etc.
     // Não retorne JSX!
@@ -405,17 +544,16 @@ const Transacoes: React.FC = () => {
       }
 
       const transacaoData = {
-        quando: formData.quando || null,
-        estabelecimento: formData.estabelecimento || null,
+        data: formData.quando || null,
+        descricao: formData.estabelecimento || null,
         valor: formData.valor || null,
-        detalhes: formData.detalhes || null,
+        observacao: formData.detalhes || null,
         tipo: formData.tipo || null,
-        category_id: normalizeUuid(formData.category_id),
-        metodo: metodo || null,
-        status: status || null,
-        account_id: normalizeUuid(formData.account_id), // novo campo
-        userid: user?.id || null,
-        fatura_id: normalizeUuid(formData.fatura_id),
+        categoria_id: normalizeUuid(formData.category_id),
+        pago: formData.isPago !== undefined ? formData.isPago : true,
+        conta_id: normalizeUuid(formData.account_id),
+        cartao_id: normalizeUuid(formData.account_id) && formData.metodo === 'cartao_credito' ? normalizeUuid(formData.account_id) : null,
+        user_id: user?.id || null,
       }
 
       // Remove fields that are empty strings (''), Postgres rejects '' for uuid fields
@@ -543,8 +681,8 @@ const Transacoes: React.FC = () => {
   const handleEdit = (transacao: any) => {
     setEditingTransaction(transacao);
     let accountId = '';
-    if (typeof transacao.account_id === 'string' && transacao.account_id) {
-      accountId = transacao.account_id;
+    if (typeof transacao.conta_id === 'string' && transacao.conta_id) {
+      accountId = transacao.conta_id;
     } else if (transacao.accounts && typeof transacao.accounts.id === 'string') {
       accountId = transacao.accounts.id;
     } else {
@@ -561,13 +699,13 @@ const Transacoes: React.FC = () => {
     }
     setFormData({
       quando: dataNormalizada,
-      estabelecimento: transacao.estabelecimento || '',
+      estabelecimento: transacao.descricao || '',
       valor: typeof transacao.valor === 'number' && !isNaN(transacao.valor) ? transacao.valor : 0,
-      detalhes: transacao.detalhes || '',
+      detalhes: transacao.observacao || '',
       tipo: transacao.tipo || '',
-      category_id: transacao.category_id || '',
-      metodo: transacao.metodo || '',
-      status: transacao.status || 'pago',
+      category_id: transacao.categoria_id || '',
+      metodo: transacao.cartao_id ? 'cartao_credito' : transacao.tipo || '',
+      status: transacao.pago ? 'pago' : 'pendente',
       account_id: accountId,
       fatura_id: transacao.fatura_id || '',
       isPago: transacao.status !== 'pendente' && transacao.status !== 'pendente_fatura',
@@ -595,7 +733,7 @@ const Transacoes: React.FC = () => {
         .from('transacoes')
         .delete()
         .eq('id', id)
-        .eq('userid', user.id)
+        .eq('user_id', user.id)
 
       if (error) {
         console.error('Erro ao excluir:', error)
@@ -628,7 +766,7 @@ const Transacoes: React.FC = () => {
       const { error } = await supabase
         .from('transacoes')
         .delete()
-        .eq('userid', user.id)
+        .eq('user_id', user.id)
 
       if (error) throw error
       toast({ title: "Todas as transações foram excluídas com sucesso!" })
@@ -679,7 +817,7 @@ const Transacoes: React.FC = () => {
             .from('transacoes')
             .delete()
             .in('id', batch)
-            .eq('userid', user.id)
+            .eq('user_id', user.id)
             .select()
           
           if (error) {
@@ -734,7 +872,7 @@ const Transacoes: React.FC = () => {
         .from('transacoes')
         .delete()
         .in('id', selectedIds)
-        .eq('userid', user.id)
+        .eq('user_id', user.id)
         .select()
       
       console.log('Resultado delete em lote:', { error, data, selectedIds })
@@ -869,15 +1007,15 @@ const Transacoes: React.FC = () => {
 
     // Prepara os dados das transações para exportação
     const dataToExport = selectedTransacoes.map(t => ({
-      'Data': formatDate(t.quando || t.created_at),
-      'Estabelecimento': t.estabelecimento || 'Sem estabelecimento',
+      'Data': formatDate(t.data || t.created_at),
+      'Estabelecimento': t.descricao || 'Sem descrição',
       'Tipo': t.tipo === 'receita' ? 'Receita' : 'Despesa',
       'Valor': Math.abs(parseFloat(String(t.valor || 0))),
       'Categoria': t.categorias?.nome || 'Sem categoria',
-      'Conta': accountsMap?.[t.account_id || '']?.name || accountsMap?.[t.account_id || '']?.nome || 'Sem conta',
-      'Método': t.metodo === 'cartao_credito' ? 'Cartão de Crédito' : t.metodo || '',
-      'Status': t.status || '',
-      'Detalhes': t.detalhes || ''
+      'Conta': t.contas?.nome || (t.cartao_id ? 'Cartão' : 'Sem conta'),
+      'Método': t.cartao_id ? 'Cartão de Crédito' : t.tipo || '',
+      'Status': t.pago ? 'Pago' : 'Pendente',
+      'Detalhes': t.observacao || ''
     }))
 
     // Combina saldos iniciais com transações
@@ -991,7 +1129,7 @@ const Transacoes: React.FC = () => {
       const { data: allTransactions, error: fetchError } = await supabase
         .from('transacoes')
         .select('id, tipo, valor')
-        .eq('userid', user?.id);
+        .eq('user_id', user?.id);
 
       if (fetchError) throw fetchError;
 
@@ -1037,8 +1175,8 @@ const Transacoes: React.FC = () => {
 
       const { data: allTransactions, error: fetchError } = await supabase
         .from('transacoes')
-        .select('id, category_id, tipo, valor')
-        .eq('userid', user?.id);
+        .select('id, categoria_id, tipo, valor')
+        .eq('user_id', user?.id);
 
       if (fetchError) throw fetchError;
 
@@ -1130,14 +1268,14 @@ const Transacoes: React.FC = () => {
           <CardHeader className="pb-2 pt-4">
             <div className="flex items-center justify-between">
               <CardTitle className="text-sm font-medium text-foreground">Saldo</CardTitle>
-              <DollarSign className="h-5 w-5 text-muted-foreground" />
+              <Wallet className="h-5 w-5 text-blue-500" />
             </div>
           </CardHeader>
           <CardContent className="pb-4">
-            <div className="text-3xl font-bold text-foreground">
+            <div className="text-3xl font-bold text-blue-500">
               {formatCurrency(saldoReal)}
             </div>
-            <p className="text-xs text-muted-foreground mt-1">0 transações</p>
+            <p className="text-xs text-muted-foreground mt-1">Saldo atualizado até hoje</p>
           </CardContent>
         </Card>
 
@@ -1247,19 +1385,22 @@ const Transacoes: React.FC = () => {
             {openDropdown === 'importar' && (
               <div className="absolute right-0 top-full mt-2 bg-slate-800 border border-slate-700 rounded-lg shadow-lg z-50 w-48">
                 <button 
-                  className="w-full text-left px-4 py-2 text-sm text-slate-300 hover:bg-slate-700 first:rounded-t-lg"
+                  className="w-full text-left px-4 py-2 text-sm text-slate-300 hover:bg-slate-700 first:rounded-t-lg rounded-t-lg"
+                  onClick={() => {
+                    setImportarExtratoOpen(true);
+                    setOpenDropdown(null);
+                  }}
                 >
-                  📊 Importar OFX
+                  📊 Importar Extrato
                 </button>
                 <button 
-                  className="w-full text-left px-4 py-2 text-sm text-slate-300 hover:bg-slate-700"
+                  className="w-full text-left px-4 py-2 text-sm text-slate-300 hover:bg-slate-700 last:rounded-b-lg rounded-b-lg"
+                  onClick={() => {
+                    setImportarFaturaOpen(true);
+                    setOpenDropdown(null);
+                  }}
                 >
-                  📄 Importar PDF
-                </button>
-                <button 
-                  className="w-full text-left px-4 py-2 text-sm text-slate-300 hover:bg-slate-700 last:rounded-b-lg"
-                >
-                  📋 Importar CSV
+                  📄 Importar Fatura
                 </button>
               </div>
             )}
@@ -1413,9 +1554,10 @@ const Transacoes: React.FC = () => {
             Nenhuma transação encontrada
           </div>
         ) : (
-          filteredTransacoes.slice(0, 50).map((transacao) => {
+          <>
+            {filteredTransacoes.slice(0, displayCount).map((transacao) => {
             const dataFormatada = (() => {
-              const dateStr = transacao.quando || transacao.created_at;
+              const dateStr = transacao.data || transacao.created_at;
               if (!dateStr) return '-';
               
               try {
@@ -1477,22 +1619,20 @@ const Transacoes: React.FC = () => {
                   {dataFormatada}
                 </div>
                 <div className="font-medium text-slate-200 line-clamp-1">
-                  {transacao.estabelecimento || transacao.detalhes || '-'}
+                  {transacao.descricao || transacao.observacao || '-'}
                 </div>
                 <div className="text-slate-400 truncate text-xs">
                   {transacao.categorias?.nome || '-'}
                 </div>
                 <div className="text-slate-400 truncate text-xs">
                   {/* CONTA: mostra apenas se NÃO for cartão de crédito */}
-                  {transacao.metodo !== 'cartao_credito' && transacao.account_id && accountsMap[transacao.account_id] 
-                    ? accountsMap[transacao.account_id].nome || accountsMap[transacao.account_id].name 
+                  {!transacao.cartao_id && transacao.conta_id && transacao.contas
+                    ? transacao.contas.nome
                     : '-'}
                 </div>
                 <div className="text-slate-400 truncate text-xs">
                   {/* CARTÃO: mostra apenas se for cartão de crédito */}
-                  {transacao.metodo === 'cartao_credito' && transacao.account_id && accountsMap[transacao.account_id] 
-                    ? accountsMap[transacao.account_id].nome || accountsMap[transacao.account_id].name 
-                    : '-'}
+                  {transacao.cartao_id ? 'Cartão' : '-'}
                 </div>
                 <div className={`font-bold text-right ${isReceita ? 'text-green-400' : 'text-red-400'}`}>
                   {isReceita ? '+' : '-'}{formatCurrency(Math.abs(transacao.valor || 0))}
@@ -1545,7 +1685,22 @@ const Transacoes: React.FC = () => {
                 </div>
               </div>
             )
-          })
+          })}
+            
+            {/* Botão Carregar Mais */}
+            {displayCount < filteredTransacoes.length && (
+              <div className="flex justify-center py-6">
+                <Button 
+                  onClick={() => setDisplayCount(displayCount + 30)}
+                  variant="outline"
+                  className="gap-2 hover:bg-primary/10 border-primary/30 text-primary hover:text-primary"
+                >
+                  <span>Carregar mais</span>
+                  <span className="text-xs text-muted-foreground">({displayCount} de {filteredTransacoes.length})</span>
+                </Button>
+              </div>
+            )}
+          </>
         )}
       </div>
 
@@ -2131,6 +2286,17 @@ const Transacoes: React.FC = () => {
         cardId={cartaoParaImportar}
       />
 
+      {/* Modal Importar Extrato */}
+      <ImportarExtratoModal
+        open={importarExtratoOpen}
+        onClose={() => {
+          setImportarExtratoOpen(false);
+          fetchTransacoes(); // Recarrega para mostrar novas transações
+        }}
+        onImport={handleImportLancamentos}
+        contas={contas}
+      />
+
       {/* Modal Despesas Pendentes Details */}
       <Dialog open={pendingExpensesDetailOpen} onOpenChange={setPendingExpensesDetailOpen}>
         <DialogContent className="max-w-md">
@@ -2158,120 +2324,6 @@ const Transacoes: React.FC = () => {
           </div>
         </DialogContent>
       </Dialog>
-
-      {/* Checkbox Selecionar Tudo */}
-      {filteredTransacoes.length > 0 && (
-        <div className="flex items-center gap-2 mb-3">
-          <Checkbox
-            checked={isAllSelected}
-            onCheckedChange={handleSelectAll}
-            id="select-all"
-          />
-          <Label htmlFor="select-all" className="text-sm font-medium cursor-pointer">
-            Selecionar todas ({filteredTransacoes.length})
-          </Label>
-        </div>
-      )}
-
-      {/* Lista de transações */}
-      <div className="grid gap-3 sm:gap-4">
-        {filteredTransacoes.length === 0 ? null : (
-          filteredTransacoes.map((transacao) => {
-            const isReceita = transacao.tipo === 'receita' || (transacao.tipo === null && Number(transacao.valor || 0) > 0);
-            return (
-              <Card key={transacao.id} className={`overflow-hidden border-l-4 hover:shadow-lg transition-all ${
-                selectedIds.includes(transacao.id) ? 'ring-2 ring-primary' : ''
-              } ${isReceita ? 'border-l-green-500' : 'border-l-red-500'}`}>
-                <CardContent className="p-0">
-                  {/* Header com gradiente */}
-                  <div className={`bg-gradient-to-r p-4 border-b border-border/50 ${
-                    isReceita ? 'from-green-500/10 to-transparent' : 'from-red-500/10 to-transparent'
-                  }`}>
-                    <div className="flex items-center gap-3">
-                      <Checkbox
-                        checked={selectedIds.includes(transacao.id)}
-                        onCheckedChange={() => handleToggleSelect(transacao.id)}
-                      />
-                      <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                        isReceita ? 'bg-green-500/20' : 'bg-red-500/20'
-                      }`}>
-                        {isReceita ? (
-                          <TrendingUp className={`h-5 w-5 text-green-500`} />
-                        ) : (
-                          <TrendingDown className={`h-5 w-5 text-red-500`} />
-                        )}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <h3 className="font-bold text-sm sm:text-base line-clamp-1">
-                          {transacao.estabelecimento || 'Sem estabelecimento'}
-                        </h3>
-                        <p className="text-xs text-muted-foreground">
-                          {transacao.categorias?.nome || 'Sem categoria'}
-                        </p>
-                      </div>
-                      <div className="text-right">
-                        <p className={`text-base sm:text-lg font-bold ${isReceita ? 'text-green-500' : 'text-red-500'}`}>
-                          {isReceita ? '+' : '-'}{formatCurrency(Math.abs(transacao.valor || 0))}
-                        </p>
-                        <Badge variant={isReceita ? 'default' : 'destructive'} className={`text-xs mt-1 ${
-                          isReceita ? 'bg-green-500' : 'bg-red-500'
-                        }`}>
-                          {isReceita ? 'Receita' : 'Despesa'}
-                        </Badge>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Body */}
-                  <div className="p-4">
-                    <div className="flex flex-wrap items-center justify-between gap-3">
-                      <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
-                        <div className="flex items-center gap-1.5">
-                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                          </svg>
-                          <span>{formatDate(transacao.quando)}</span>
-                        </div>
-                        <div className="flex items-center gap-1.5">
-                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
-                          </svg>
-                          <span>{accountsMap?.[transacao.account_id || '']?.name || 'Sem conta'}</span>
-                        </div>
-                      </div>
-                      
-                      <div className="flex gap-2">
-                        <Button size="sm" variant="ghost" onClick={() => handleEdit(transacao)} className="h-8 gap-1.5" aria-label="Editar transação">
-                          <Edit className="h-3.5 w-3.5" />
-                          <span className="hidden sm:inline text-xs">Editar</span>
-                        </Button>
-                        <AlertDialog>
-                          <AlertDialogTrigger asChild>
-                            <Button size="sm" variant="ghost" type="button" className="h-8 gap-1.5 text-red-500 hover:text-red-600 hover:bg-red-500/10" aria-label="Remover transação">
-                              <Trash2 className="h-3.5 w-3.5" />
-                              <span className="hidden sm:inline text-xs">Excluir</span>
-                            </Button>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle>Remover transação</AlertDialogTitle>
-                              <AlertDialogDescription>Tem certeza que deseja remover esta transação? Esta ação não pode ser desfeita.</AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                              <AlertDialogAction onClick={() => handleDelete(transacao.id)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Remover</AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })
-        )}
-      </div>
     </div>
   );
 }

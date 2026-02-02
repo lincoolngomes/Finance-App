@@ -420,12 +420,10 @@ export default function Cartoes({ isModal = false }) {
       .from('accounts')
       .select('*');
     if (!error && data) {
-      // Filtro: só tipos cartão/crédito/débito
-      const normaliza = (str) => str.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+      // Filtro: cartões de crédito (type ou tipo = 'credit_card')
       const cartoesFiltrados = data.filter(acc => {
-        if (!acc.type) return false;
-        const tipo = normaliza(acc.type);
-        return tipo.includes('cartao') || tipo.includes('cartão') || tipo.includes('credito') || tipo.includes('debito') || tipo.includes('débito');
+        const tipo = (acc.type || acc.tipo || '').toLowerCase();
+        return tipo === 'credit_card';
       });
       setCartoes(cartoesFiltrados);
     }
@@ -433,7 +431,7 @@ export default function Cartoes({ isModal = false }) {
     // Busca transações
     const { data: transData, error: transError } = await supabase
       .from('transacoes')
-      .select('id, valor, tipo, account_id');
+      .select('id, valor, tipo, conta_id');
     if (!transError && transData) {
       setTransacoes(transData);
     } else {
@@ -488,7 +486,7 @@ export default function Cartoes({ isModal = false }) {
       dia_fechamento: cartaoEditado.dia_fechamento,
       dia_vencimento: cartaoEditado.dia_vencimento,
       cor: cartaoEditado.cor,
-      tipo: cartaoEditado.tipo || 'credito',
+      type: cartaoEditado.type || 'credit_card',
     }).eq('id', cartaoEditado.id);
     setEditOpen(false);
     setEditCartao(null);

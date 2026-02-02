@@ -19,7 +19,6 @@ interface Transacao {
   quando: string | null;
   estabelecimento: string | null;
   valor: number | null;
-  detalhes: string | null;
   tipo: string | null;
   category_id: string;
   userid: string | null;
@@ -48,7 +47,6 @@ export default function Calendario() {
     quando: '',
     estabelecimento: '',
     valor: 0,
-    detalhes: '',
     tipo: '',
     category_id: '',
     metodo: '',
@@ -72,8 +70,8 @@ export default function Calendario() {
             nome
           )
         `)
-        .eq('userid', user.id)
-        .order('quando', { ascending: false });
+        .eq('user_id', user.id)
+        .order('data', { ascending: false });
       if (error) {
         console.error('Erro ao buscar transações:', error);
         toast({
@@ -87,8 +85,8 @@ export default function Calendario() {
       console.log('✅ Transações carregadas:', data?.length || 0)
       if (data && data.length > 0) {
         console.log('📅 Primeiras 5 datas:', data.slice(0, 5).map(t => ({
-          estabelecimento: t.estabelecimento,
-          quando: t.quando
+          descricao: t.descricao,
+          data: t.data
         })))
       }
       
@@ -114,7 +112,7 @@ export default function Calendario() {
     const targetDateString = format(date, 'yyyy-MM-dd')
     
     const filteredTransactions = transacoes.filter(t => {
-      const dataTransacao = t.quando || t.created_at
+      const dataTransacao = t.data || t.created_at
       
       if (!dataTransacao) {
         return false
@@ -216,7 +214,6 @@ export default function Calendario() {
       quando: selectedDate ? format(selectedDate, 'yyyy-MM-dd') : '',
       estabelecimento: '',
       valor: 0,
-      detalhes: '',
       tipo: '',
       category_id: '',
       metodo: '',
@@ -241,15 +238,14 @@ export default function Calendario() {
   const openEditTransaction = (transacao: any) => {
     setEditingTransaction(transacao)
     setFormData({
-      quando: transacao.quando ? format(new Date(transacao.quando), 'yyyy-MM-dd') : '',
-      estabelecimento: transacao.estabelecimento || '',
+      quando: transacao.data ? format(new Date(transacao.data), 'yyyy-MM-dd') : '',
+      estabelecimento: transacao.descricao || '',
       valor: Number(transacao.valor) || 0,
-      detalhes: transacao.detalhes || '',
       tipo: transacao.tipo || '',
-      category_id: transacao.category_id || '',
-      metodo: transacao.metodo || '',
-      status: transacao.status || '',
-      account_id: transacao.account_id || '',
+      category_id: transacao.categoria_id || '',
+      metodo: transacao.cartao_id ? 'cartao_credito' : transacao.tipo || '',
+      status: transacao.pago ? 'pago' : 'pendente',
+      account_id: transacao.conta_id || '',
       fatura_id: transacao.fatura_id || ''
     })
     setDialogOpen(true)
@@ -268,17 +264,16 @@ export default function Calendario() {
       }
 
       const transactionData = {
-        quando: formData.quando || null,
-        estabelecimento: formData.estabelecimento || null,
+        data: formData.quando || null,
+        descricao: formData.estabelecimento || null,
         valor: Number(formData.valor) || null,
-        detalhes: formData.detalhes || null,
         tipo: formData.tipo || null,
-        category_id: normalizeUuid(formData.category_id),
-        metodo: formData.metodo || null,
-        status: formData.status || null,
-        account_id: normalizeUuid(formData.account_id),
+        categoria_id: normalizeUuid(formData.category_id),
+        cartao_id: formData.metodo === 'cartao_credito' ? normalizeUuid(formData.account_id) : null,
+        conta_id: formData.metodo !== 'cartao_credito' ? normalizeUuid(formData.account_id) : null,
+        pago: formData.status === 'pago' ? true : false,
         fatura_id: normalizeUuid(formData.fatura_id),
-        userid: user.id
+        user_id: user.id
       }
 
       if (editingTransaction) {
@@ -344,7 +339,7 @@ export default function Calendario() {
         .from('transacoes')
         .delete()
         .eq('id', id)
-        .eq('userid', user.id) // Garantir que só exclui transações do próprio usuário
+        .eq('user_id', user.id) // Garantir que só exclui transações do próprio usuário
         .select()
 
       if (error) {
@@ -404,9 +399,9 @@ export default function Calendario() {
 
       const { data, error } = await supabase
         .from('transacoes')
-        .update({ quando: newDateString })
+        .update({ data: newDateString })
         .eq('id', transactionId)
-        .eq('userid', user.id) // Garantir que só move transações do próprio usuário
+        .eq('user_id', user.id) // Garantir que só move transações do próprio usuário
         .select()
 
       if (error) {
@@ -670,7 +665,7 @@ export default function Calendario() {
                           >
                             <div className="flex-1 min-w-0">
                               <div className="font-medium text-sm truncate">
-                                {transaction.estabelecimento || 'Sem nome'}
+                                {transaction.descricao || 'Sem nome'}
                               </div>
                               <div className="text-xs text-muted-foreground truncate">
                                 {transaction.categorias?.nome}
@@ -686,7 +681,7 @@ export default function Calendario() {
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation()
-                                  handleDelete(transaction.id, transaction.estabelecimento)
+                                  handleDelete(transaction.id, transaction.descricao)
                                 }}
                                 className="p-1 rounded hover:bg-red-100 dark:hover:bg-red-900/20 text-red-500"
                               >
@@ -823,7 +818,7 @@ export default function Calendario() {
                             >
                               <div className="flex-1 truncate">
                                 <div className="font-medium truncate">
-                                  {transaction.estabelecimento || 'Sem nome'}
+                                  {transaction.descricao || 'Sem nome'}
                                 </div>
                                 <div className="text-muted-foreground truncate">
                                   {transaction.categorias?.nome}

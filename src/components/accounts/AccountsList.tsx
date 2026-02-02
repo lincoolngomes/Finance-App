@@ -17,7 +17,7 @@ export default function AccountsList() {
   useEffect(() => {
     async function fetchAccounts() {
       setLoading(true);
-      const { data, error } = await supabase.from("accounts").select("id, name, type");
+      const { data, error } = await supabase.from("accounts").select("id, nome, type");
       // Log para depuração (mesmo se vazio ou erro)
       // eslint-disable-next-line no-console
       console.log('[DEBUG AccountsList] contas carregadas:', data);

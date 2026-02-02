@@ -179,12 +179,12 @@ export function GerenciarFaturasModal({
       .from('transacoes')
       .select(`
         *,
-        categorias:categorias!transacoes_category_id_fkey(id, nome)
+        categorias(id, nome)
       `)
-      .eq('account_id', selectedCard)
-      .gte('quando', inicioPeriodo.toISOString())
-      .lte('quando', fimPeriodo.toISOString())
-      .order('quando', { ascending: false })
+      .eq('conta_id', selectedCard)
+      .gte('data', inicioPeriodo.toISOString())
+      .lte('data', fimPeriodo.toISOString())
+      .order('data', { ascending: false })
 
     if (error) {
       console.error('Erro ao buscar transações:', error)

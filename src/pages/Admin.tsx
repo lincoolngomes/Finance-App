@@ -3,6 +3,7 @@ import { useAdmin } from '@/hooks/useAdmin'
 import { supabase } from '@/lib/supabase'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
+import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -446,9 +447,10 @@ export default function Admin() {
                     <TableRow key={user.id} className="hover:bg-muted/50">
                       <TableCell>
                         <div className="flex items-center gap-2 sm:gap-3">
-                          <div className="w-8 h-8 sm:w-10 sm:h-10 bg-gradient-to-br from-primary to-primary/80 rounded-full flex items-center justify-center text-white font-semibold text-xs sm:text-sm">
-                            {(user.nome || user.email || 'U').charAt(0).toUpperCase()}
-                          </div>
+                          <Avatar className="w-8 h-8 sm:w-10 sm:h-10">
+                            <AvatarImage src={user.avatar_url || undefined} alt={user.nome || user.email || 'Usuário'} />
+                            <AvatarFallback>{(user.nome || user.email || 'U').charAt(0).toUpperCase()}</AvatarFallback>
+                          </Avatar>
                           <div className="min-w-0 flex-1">
                             <div className="font-medium text-xs sm:text-sm truncate">{user.nome || 'Nome não informado'}</div>
                             <div className="text-xs sm:text-sm text-muted-foreground truncate">{user.email}</div>

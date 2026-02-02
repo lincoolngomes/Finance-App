@@ -103,14 +103,14 @@ export default function Perfil() {
       const { count: transacoesCount } = await supabase
         .from('transacoes')
         .select('*', { count: 'exact', head: true })
-        .eq('userid', user?.id)
-        .gte('quando', inicioMes.toISOString())
-        .lte('quando', fimMes.toISOString())
+        .eq('user_id', user?.id)
+        .gte('data', inicioMes.toISOString())
+        .lte('data', fimMes.toISOString())
 
       const { count: categoriasCount } = await supabase
         .from('categorias')
         .select('*', { count: 'exact', head: true })
-        .eq('userid', user?.id)
+        .eq('user_id', user?.id)
 
       setStats({
         transacoes: transacoesCount || 0,

@@ -27,6 +27,7 @@ import ConfigCategorias from "./pages/ConfigCategorias";
 import Feedback from "./pages/Feedback";
 import WhatsApp from "./pages/WhatsApp";
 import Orcamentos from "./pages/Orcamentos";
+import Diagnostico from "./pages/Diagnostico";
 
 const queryClient = new QueryClient();
 
@@ -234,6 +235,14 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <WhatsApp />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/diagnostico"
+        element={
+          <ProtectedRoute>
+            <Diagnostico />
           </ProtectedRoute>
         }
       />

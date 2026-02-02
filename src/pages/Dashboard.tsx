@@ -9,14 +9,14 @@ import { DashboardCharts } from '@/components/dashboard/DashboardCharts'
 interface Transacao {
   id: number
   created_at: string
-  quando: string | null
-  estabelecimento: string | null
+  data: string | null
+  descricao: string | null
   valor: number | null
-  detalhes: string | null
+  observacao: string | null
   tipo: string | null
-  category_id: string
-  account_id?: string | null
-  userid: string | null
+  categoria_id: string
+  conta_id?: string | null
+  user_id: string | null
   categorias?: {
     id: string
     nome: string
@@ -49,7 +49,7 @@ export default function Dashboard() {
       // Logar datas das transações para diagnóstico
       const datas = transacoes.slice(0, 20).map(t => ({
         id: t.id,
-        quando: t.quando,
+        data: t.data,
         created_at: t.created_at,
         tipo: t.tipo,
         valor: t.valor
@@ -68,9 +68,9 @@ export default function Dashboard() {
     if (transacoes.length > 0) {
       // Encontrar a data mais recente
       const mostRecent = transacoes.reduce((max, t) => {
-        const d = new Date(t.quando || t.created_at);
+        const d = new Date(t.data || t.created_at);
         return d > max ? d : max;
-      }, new Date(transacoes[0].quando || transacoes[0].created_at));
+      }, new Date(transacoes[0].data || transacoes[0].created_at));
       setFilterMonth(mostRecent.getMonth().toString());
       setFilterYear(mostRecent.getFullYear().toString());
     }
@@ -87,12 +87,12 @@ export default function Dashboard() {
           .from('transacoes')
           .select(`
             *,
-            categorias!transacoes_category_id_fkey (
+            categorias (
               id,
               nome
             )
           `)
-          .eq('userid', user?.id)
+          .eq('user_id', user?.id)
           .order('created_at', { ascending: false })
 
         if (import.meta.env.DEV) {
@@ -142,6 +142,16 @@ export default function Dashboard() {
       if (!dateStr) return null
       const s = String(dateStr).trim()
 
+      // ISO format YYYY-MM-DD (priority)
+      if (s.match(/^\d{4}-\d{2}-\d{2}/)) {
+        const dt = new Date(s + 'T00:00:00Z') // Add time and Z to ensure UTC
+        if (!isNaN(dt.getTime())) {
+          // Normalize to UTC midnight of that date
+          const normalized = new Date(Date.UTC(dt.getUTCFullYear(), dt.getUTCMonth(), dt.getUTCDate()))
+          return normalized
+        }
+      }
+
       // dd/mm/yyyy or d/m/yyyy
       const dmYMatch = s.match(/^(\d{1,2})\s*\/\s*(\d{1,2})\s*\/\s*(\d{2,4})/)
       if (dmYMatch) {
@@ -154,11 +164,7 @@ export default function Dashboard() {
         return isNaN(dt.getTime()) ? null : dt
       }
 
-      // ISO or other formats -> normalize to UTC midnight of that date
-      const dtIso = new Date(s)
-      if (isNaN(dtIso.getTime())) return null
-      const normalized = new Date(Date.UTC(dtIso.getUTCFullYear(), dtIso.getUTCMonth(), dtIso.getUTCDate()))
-      return normalized
+      return null
     }
 
     // normalize filter month: accept either 0-11 or 1-12 from the select
@@ -170,27 +176,30 @@ export default function Dashboard() {
 
     const filterYearNum = parseInt(filterYear) || new Date().getFullYear()
 
-    if (import.meta.env.DEV) {
-      console.log('Filtro: mês', filterMonthIndex, 'ano', filterYearNum)
-    }
-
     const resultado = transacoes.filter(transacao => {
-      const raw = (transacao.quando || transacao.created_at || '').toString().trim()
+      const raw = (transacao.data || transacao.created_at || '').toString().trim()
       const transacaoDate = parseToDate(raw)
-      if (!transacaoDate) return false
+      if (!transacaoDate) {
+        if (import.meta.env.DEV) {
+          console.log('⚠️ Falha ao parsear data:', raw, 'de transação', transacao.id)
+        }
+        return false
+      }
 
       const transacaoMonth = transacaoDate.getUTCMonth()
       const transacaoYear = transacaoDate.getUTCFullYear()
-
-      if (import.meta.env.DEV) {
-        console.log('Transação', transacao.id, 'data:', raw, '->', transacaoDate.toISOString(), 'mês:', transacaoMonth, 'ano:', transacaoYear)
-      }
 
       return transacaoMonth === filterMonthIndex && transacaoYear === filterYearNum
     })
 
     if (import.meta.env.DEV) {
-      console.log('Transações após filtro:', resultado.length)
+      console.log('📊 Dashboard Filter:', {
+        filterMonthIndex,
+        filterYearNum,
+        totalTransacoes: transacoes.length,
+        filteredCount: resultado.length,
+        sampleData: resultado.slice(0, 2)
+      })
     }
 
     return resultado

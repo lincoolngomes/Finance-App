@@ -116,9 +116,9 @@ export function ImportarFaturaModal({ open, onClose, cardId }: ImportarFaturaMod
 
     const { data } = await supabase
       .from('transacoes')
-      .select('quando, estabelecimento, valor')
-      .eq('account_id', selectedCard)
-      .gte('quando', new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString()) // Últimos 90 dias
+      .select('data, descricao, valor')
+      .eq('conta_id', selectedCard)
+      .gte('data', new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString()) // Últimos 90 dias
     
     if (data) setTransacoesExistentes(data)
   }
@@ -127,7 +127,7 @@ export function ImportarFaturaModal({ open, onClose, cardId }: ImportarFaturaMod
     const { data } = await supabase
       .from('categorias')
       .select('id, nome')
-      .eq('userid', user?.id)
+      .eq('user_id', user?.id)
     
     if (data) setCategorias(data)
   }

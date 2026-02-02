@@ -25,11 +25,36 @@
     return '';
   }
 import React, { useEffect, useState } from 'react';
+import { supabase } from "../lib/supabase";
+import { useAuth } from "../hooks/useAuth";
 import Papa from 'papaparse';
 // Modal de importação de extrato bancário
 
 
 function ImportarExtratoModal({ open, onClose, onImport, contas }) {
+    // Funções utilitárias para formatação
+    function formatarValorBR(valor) {
+      return (typeof valor === 'number') ? valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : '';
+    }
+    function formatarDataBR(dataStr) {
+      if (!dataStr) return '';
+      if (/^\d{4}-\d{2}-\d{2}$/.test(dataStr)) {
+        const [ano, mes, dia] = dataStr.split('-');
+        return `${dia}/${mes}/${ano}`;
+      }
+      if (/^\d{2}\/\d{2}\/\d{4}$/.test(dataStr)) {
+        return dataStr;
+      }
+      const d = new Date(dataStr);
+      if (!isNaN(d)) {
+        const dia = String(d.getDate()).padStart(2, '0');
+        const mes = String(d.getMonth() + 1).padStart(2, '0');
+        const ano = d.getFullYear();
+        return `${dia}/${mes}/${ano}`;
+      }
+      return dataStr;
+    }
+  const { user } = useAuth();
     // Estado local para controlar edição de valor por linha
     const [valorEditando, setValorEditando] = useState({});
   // Estados principais do modal de importação
@@ -38,7 +63,82 @@ function ImportarExtratoModal({ open, onClose, onImport, contas }) {
   const [csvFile, setCsvFile] = useState(null);
   const [lancamentos, setLancamentos] = useState([]);
   const [parseError, setParseError] = useState("");
-  const [contaSelecionada, setContaSelecionada] = useState(contas?.[0]?.id || '');
+  // Sempre inicializa com a primeira conta bancária
+  const getPrimeiraContaBancariaId = (contasArr) => {
+    if (!contasArr || contasArr.length === 0) return '';
+    const contaBank = contasArr.find(c => (c.tipo || '').toLowerCase() === 'bank');
+    return contaBank ? contaBank.id : '';
+  };
+  const [contaSelecionada, setContaSelecionada] = useState(getPrimeiraContaBancariaId(contas));
+
+  // Categorias do usuário
+  const [categorias, setCategorias] = useState([]);
+  // Removido: const { user } = typeof window !== 'undefined' && window.useAuth ? window.useAuth() : {};
+
+  // Categorias padrão para cada tipo
+  const categoriasPadrao = [
+    { nome: 'Aluguel', tipo: 'receita' },
+    { nome: 'Investimentos', tipo: 'receita' },
+    { nome: 'Recompensas', tipo: 'receita' },
+    { nome: 'Renda Extra', tipo: 'receita' },
+    { nome: 'Salário', tipo: 'receita' },
+    { nome: 'Transferência', tipo: 'receita' },
+    { nome: 'Vendas', tipo: 'receita' },
+    { nome: 'Academia', tipo: 'despesa' },
+    { nome: 'Água', tipo: 'despesa' },
+    { nome: 'Alimentação', tipo: 'despesa' },
+    { nome: 'Aluguel', tipo: 'despesa' },
+    { nome: 'Assinaturas', tipo: 'despesa' },
+    { nome: 'Carro Fin.', tipo: 'despesa' },
+    { nome: 'Celular', tipo: 'despesa' },
+    { nome: 'Compras', tipo: 'despesa' },
+    { nome: 'Condomínio', tipo: 'despesa' },
+    { nome: 'Diarista', tipo: 'despesa' },
+    { nome: 'Dívida', tipo: 'despesa' },
+    { nome: 'Educação', tipo: 'despesa' },
+    { nome: 'Energia', tipo: 'despesa' },
+    { nome: 'Farmácia', tipo: 'despesa' },
+    { nome: 'Internet', tipo: 'despesa' },
+    { nome: 'Investimento', tipo: 'despesa' },
+    { nome: 'Lazer', tipo: 'despesa' },
+    { nome: 'Necessidades', tipo: 'despesa' },
+    { nome: 'Salão / Barbearia', tipo: 'despesa' },
+    { nome: 'Saúde', tipo: 'despesa' },
+    { nome: 'Transporte', tipo: 'despesa' },
+    { nome: 'Transferência', tipo: 'despesa' },
+  ];
+
+  // Buscar/criar categorias do usuário ao abrir modal
+  useEffect(() => {
+    async function fetchOrCreateCategorias() {
+      if (!user || !user.id) return;
+      // Busca todas as categorias do usuário
+      let { data: existentes, error } = await supabase
+        .from('categorias')
+        .select('id, nome, tipo, user_id, tags, created_at')
+        .eq('user_id', user.id);
+      if (error) existentes = [];
+      // Descobre quais categorias padrão faltam
+      const faltantes = categoriasPadrao.filter(catPadrao =>
+        !existentes?.some(cat => cat.nome === catPadrao.nome && cat.tipo === catPadrao.tipo)
+      );
+      // Cria apenas as faltantes
+      if (faltantes.length > 0) {
+        await supabase
+          .from('categorias')
+          .insert(faltantes.map(cat => ({ ...cat, user_id: user.id })));
+        // Recarrega após inserir
+        let { data: atualizadas } = await supabase
+          .from('categorias')
+          .select('id, nome, tipo, user_id, tags, created_at')
+          .eq('user_id', user.id);
+        setCategorias(atualizadas || []);
+      } else {
+        setCategorias(existentes || []);
+      }
+    }
+    if (open) fetchOrCreateCategorias();
+  }, [open, user]);
 
   // Atualiza categorias automaticamente ao editar regrasTexto, mas só para lançamentos que não foram editados manualmente
   React.useEffect(() => {
@@ -67,13 +167,19 @@ function ImportarExtratoModal({ open, onClose, onImport, contas }) {
   }, [regrasTexto]);
 
   // Atualiza contaSelecionada sempre que contas mudar
+  // Sempre que abrir o modal, ou mudar o array de contas, garanta que a conta selecionada é uma conta bancária
   React.useEffect(() => {
-    if (contas && contas.length > 0) {
-      setContaSelecionada(contas[0].id);
-    } else {
-      setContaSelecionada('');
+    if (open) {
+      setContaSelecionada(getPrimeiraContaBancariaId(contas));
     }
-  }, [contas]);
+  }, [contas, open]);
+
+  // Sempre que avançar para a etapa 1 (início), garanta que a conta selecionada é uma conta bancária
+  React.useEffect(() => {
+    if (step === 1) {
+      setContaSelecionada(getPrimeiraContaBancariaId(contas));
+    }
+  }, [step]);
 
   // Carregar regras do localStorage ao iniciar
   React.useEffect(() => {
@@ -87,6 +193,9 @@ function ImportarExtratoModal({ open, onClose, onImport, contas }) {
   }, [regrasTexto]);
 
   // ...existing code...
+    // Estados globais para edição de valor/data
+    const [editandoValor, setEditandoValor] = useState({}); // { uid: boolean }
+    const [editandoData, setEditandoData] = useState({}); // { uid: boolean }
 
   // Atualiza contaSelecionada sempre que contas mudar
   React.useEffect(() => {
@@ -184,7 +293,14 @@ function ImportarExtratoModal({ open, onClose, onImport, contas }) {
     }));
   };
   const getSortedLancamentos = () => {
-    if (!sortConfig.key) return lancamentos;
+    // Ordenação padrão: mais novo para mais antigo
+    if (!sortConfig.key) {
+      return [...lancamentos].sort((a, b) => {
+        const da = new Date(a.data || a.quando);
+        const db = new Date(b.data || b.quando);
+        return db - da;
+      });
+    }
     return [...lancamentos].sort((a, b) => {
       if (a[sortConfig.key] < b[sortConfig.key]) return sortConfig.direction === 'asc' ? -1 : 1;
       if (a[sortConfig.key] > b[sortConfig.key]) return sortConfig.direction === 'asc' ? 1 : -1;
@@ -280,9 +396,10 @@ function ImportarExtratoModal({ open, onClose, onImport, contas }) {
                   onChange={e => setContaSelecionada(e.target.value)}
                 >
                   {(contas && Array.isArray(contas) && contas.length > 0) ? (
-                    contas.map((conta) => (
-                      <option key={conta.id} value={conta.id}>{conta.name} ({conta.type})</option>
-                    ))
+                    contas.filter(conta => (conta.tipo || '').toLowerCase() === 'bank')
+                      .map((conta) => (
+                        <option key={conta.id} value={conta.id}>{conta.nome} ({conta.tipo})</option>
+                      ))
                   ) : (
                     <option value="">Nenhuma conta cadastrada</option>
                   )}
@@ -371,83 +488,60 @@ function ImportarExtratoModal({ open, onClose, onImport, contas }) {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-700/50">
-                    {lancamentos.length === 0 ? (
-                      <tr>
-                        <td colSpan={5} className="px-4 py-12 text-center text-slate-500 text-sm">
-                          <svg className="h-8 w-8 mx-auto mb-2 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                          </svg>
-                          Nenhum lançamento encontrado
+                    {getSortedLancamentos().map((l, idx) => (
+                      <tr key={idx} className={`border-b border-slate-700/30 hover:bg-slate-800/40 transition ${idx % 2 === 0 ? 'bg-slate-900/20' : ''}`}>
+                        <td className="px-1 py-2">
+                          <input
+                            type="text"
+                            placeholder="DD/MM/YYYY"
+                            className="w-full px-1 py-1 rounded-lg bg-slate-700/30 border border-slate-600/50 text-slate-100 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition"
+                            value={editandoData[l.uid] ? l.quando : formatarDataBR(l.quando)}
+                            onFocus={() => setEditandoData(ed => ({ ...ed, [l.uid]: true }))}
+                            onBlur={e => { setEditandoData(ed => ({ ...ed, [l.uid]: false })); handleEditLancamento(l, 'quando', e.target.value); }}
+                            onChange={e => handleEditLancamento(l, 'quando', e.target.value)}
+                          />
+                        </td>
+                        <td className="px-1 py-2">
+                          <input
+                            type="text"
+                            className="w-full px-1 py-1 rounded-lg bg-slate-700/30 border border-slate-600/50 text-slate-100 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition"
+                            value={l.estabelecimento}
+                            onChange={e => handleEditLancamento(l, 'estabelecimento', e.target.value)}
+                          />
+                        </td>
+                        <td className="px-1 py-2">
+                          <input
+                            type="text"
+                            inputMode="decimal"
+                            className="w-full px-1 py-1 rounded-lg bg-slate-700/30 border border-slate-600/50 text-slate-100 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition"
+                            value={editandoValor[l.uid] ? l.valor : formatarValorBR(l.valor)}
+                            onFocus={() => setEditandoValor(ev => ({ ...ev, [l.uid]: true }))}
+                            onBlur={e => { setEditandoValor(ev => ({ ...ev, [l.uid]: false })); handleEditLancamento(l, 'valor', e.target.value); }}
+                            onChange={e => handleEditLancamento(l, 'valor', e.target.value)}
+                          />
+                        </td>
+                        <td className="px-1 py-2">
+                          <select
+                            className="w-full px-1 py-1 rounded-lg bg-slate-700/30 border border-slate-600/50 text-slate-100 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition cursor-pointer"
+                            value={l.tipo}
+                            onChange={e => handleEditLancamento(l, 'tipo', e.target.value)}
+                          >
+                            <option value="">Selecione</option>
+                            <option value="receita">receita</option>
+                            <option value="despesa">despesa</option>
+                          </select>
+                        </td>
+                        <td className="px-1 py-2">
+                          <input
+                            type="text"
+                            className="w-full px-1 py-1 rounded-lg bg-slate-700/30 border border-slate-600/50 text-slate-100 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition"
+                            value={l.categoria && l.categoria.trim() !== '' ? l.categoria : ''}
+                            placeholder="Categoria"
+                            onChange={e => handleEditLancamento(l, 'categoria', e.target.value)}
+                          />
                         </td>
                       </tr>
-                    ) : (
-                      getSortedLancamentos().map((l, idx) => (
-                        <tr key={l.uid} className={`hover:bg-slate-800/40 transition ${idx % 2 === 0 ? 'bg-slate-900/20' : ''}`}>
-                          <td className="px-1 py-2">
-                            <input
-                              type="text"
-                              placeholder="DD/MM/YYYY"
-                              className="w-full px-1 py-1 rounded-lg bg-slate-700/30 border border-slate-600/50 text-slate-100 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition"
-                              value={l.quando}
-                              onChange={e => handleEditLancamento(l, 'quando', e.target.value)}
-                            />
-                          </td>
-                          <td className="px-1 py-2">
-                            <input
-                              type="text"
-                              className="w-full px-1 py-1 rounded-lg bg-slate-700/30 border border-slate-600/50 text-slate-100 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition"
-                              value={l.estabelecimento}
-                              onChange={e => handleEditLancamento(l, 'estabelecimento', e.target.value)}
-                            />
-                          </td>
-                          <td className="px-1 py-2">
-                            <input
-                              type="text"
-                              inputMode="decimal"
-                              className="w-full px-1 py-1 rounded-lg bg-slate-700/30 border border-slate-600/50 text-slate-100 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition"
-                              value={
-                                valorEditando[l.uid] !== undefined
-                                  ? valorEditando[l.uid]
-                                  : (l.valor ? (Number(l.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })) : '0,00')
-                              }
-                              onFocus={e => {
-                                setValorEditando(v => ({ ...v, [l.uid]: l.valor ? l.valor.toString().replace('.', ',') : '' }));
-                              }}
-                              onChange={e => {
-                                const raw = e.target.value.replace(/[^\d,]/g, '');
-                                setValorEditando(v => ({ ...v, [l.uid]: raw }));
-                              }}
-                              onBlur={e => {
-                                const raw = valorEditando[l.uid] ?? '';
-                                const num = parseValorBR(raw);
-                                handleEditLancamento(l, 'valor', num);
-                                setValorEditando(v => ({ ...v, [l.uid]: num.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }));
-                              }}
-                            />
-                          </td>
-                          <td className="px-1 py-2">
-                            <select
-                              className="w-full px-1 py-1 rounded-lg bg-slate-700/30 border border-slate-600/50 text-slate-100 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition cursor-pointer"
-                              value={l.tipo}
-                              onChange={e => handleEditLancamento(l, 'tipo', e.target.value)}
-                            >
-                              <option value="">Selecione</option>
-                              <option value="receita">receita</option>
-                              <option value="despesa">despesa</option>
-                            </select>
-                          </td>
-                          <td className="px-1 py-2">
-                            <input
-                              type="text"
-                              className="w-full px-1 py-1 rounded-lg bg-slate-700/30 border border-slate-600/50 text-slate-100 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition"
-                              value={l.categoria && l.categoria.trim() !== '' ? l.categoria : ''}
-                              placeholder="Categoria"
-                              onChange={e => handleEditLancamento(l, 'categoria', e.target.value)}
-                            />
-                          </td>
-                        </tr>
-                      ))
-                    )}
+                    ))}
                   </tbody>
                 </table>
               </div>
@@ -488,53 +582,54 @@ function ImportarExtratoModal({ open, onClose, onImport, contas }) {
                             type="text"
                             placeholder="DD/MM/YYYY"
                             className="w-full px-1 py-1 rounded-lg bg-slate-700/30 border border-slate-600/50 text-slate-100 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition"
-                            value={l.quando}
-                            onChange={e => handleEditLancamento(l, 'quando', e.target.value)}
-                          />
-                        </td>
-                        <td className="px-1 py-2">
-                          <input
-                            type="text"
-                            className="w-full px-1 py-1 rounded-lg bg-slate-700/30 border border-slate-600/50 text-slate-100 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition"
-                            value={l.estabelecimento}
-                            onChange={e => handleEditLancamento(l, 'estabelecimento', e.target.value)}
-                          />
-                        </td>
-                        <td className="px-1 py-2">
-                          <input
-                            type="text"
-                            inputMode="decimal"
-                            className="w-full px-1 py-1 rounded-lg bg-slate-700/30 border border-slate-600/50 text-slate-100 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition"
-                            value={formatarValorBR(l.valor?.toString() ?? '')}
-                            onChange={e => {
-                              const formatted = formatarValorBR(e.target.value);
-                              handleEditLancamento(l, 'valor', parseValorBR(formatted));
-                            }}
-                          />
-                        </td>
-                        <td className="px-1 py-2">
-                          <select
-                            className="w-full px-1 py-1 rounded-lg bg-slate-700/30 border border-slate-600/50 text-slate-100 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition cursor-pointer"
-                            value={l.tipo}
-                            onChange={e => handleEditLancamento(l, 'tipo', e.target.value)}
-                          >
-                            <option value="">Selecione</option>
-                            <option value="receita">receita</option>
-                            <option value="despesa">despesa</option>
-                          </select>
-                        </td>
-                        <td className="px-1 py-2">
-                          <input
-                            type="text"
-                            className="w-full px-1 py-1 rounded-lg bg-slate-700/30 border border-slate-600/50 text-slate-100 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition"
-                            value={l.categoria && l.categoria.trim() !== '' ? l.categoria : ''}
-                            placeholder="Categoria"
-                            onChange={e => handleEditLancamento(l, 'categoria', e.target.value)}
-                          />
-                        </td>
-                      </tr>
-                    ))
-                  )}
+                            value={editandoData[l.uid] ? l.quando : formatarDataBR(l.quando)}
+          onFocus={() => setEditandoData(ed => ({ ...ed, [l.uid]: true }))}
+          onBlur={e => { setEditandoData(ed => ({ ...ed, [l.uid]: false })); handleEditLancamento(l, 'quando', e.target.value); }}
+          onChange={e => handleEditLancamento(l, 'quando', e.target.value)}
+        />
+      </td>
+      <td className="px-1 py-2">
+        <input
+          type="text"
+          className="w-full px-1 py-1 rounded-lg bg-slate-700/30 border border-slate-600/50 text-slate-100 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition"
+          value={l.estabelecimento}
+          onChange={e => handleEditLancamento(l, 'estabelecimento', e.target.value)}
+        />
+      </td>
+      <td className="px-1 py-2">
+        <input
+          type="text"
+          inputMode="decimal"
+          className="w-full px-1 py-1 rounded-lg bg-slate-700/30 border border-slate-600/50 text-slate-100 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition"
+          value={editandoValor[l.uid] ? l.valor : formatarValorBR(l.valor)}
+          onFocus={() => setEditandoValor(ev => ({ ...ev, [l.uid]: true }))}
+          onBlur={e => { setEditandoValor(ev => ({ ...ev, [l.uid]: false })); handleEditLancamento(l, 'valor', e.target.value); }}
+          onChange={e => handleEditLancamento(l, 'valor', e.target.value)}
+        />
+      </td>
+      <td className="px-1 py-2">
+        <select
+          className="w-full px-1 py-1 rounded-lg bg-slate-700/30 border border-slate-600/50 text-slate-100 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition cursor-pointer"
+          value={l.tipo}
+          onChange={e => handleEditLancamento(l, 'tipo', e.target.value)}
+        >
+          <option value="">Selecione</option>
+          <option value="receita">receita</option>
+          <option value="despesa">despesa</option>
+        </select>
+      </td>
+      <td className="px-1 py-2">
+        <input
+          type="text"
+          className="w-full px-1 py-1 rounded-lg bg-slate-700/30 border border-slate-600/50 text-slate-100 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition"
+          value={l.categoria && l.categoria.trim() !== '' ? l.categoria : ''}
+          placeholder="Categoria"
+          onChange={e => handleEditLancamento(l, 'categoria', e.target.value)}
+        />
+      </td>
+    </tr>
+  ))
+)}
                 </tbody>
               </table>
             </div>
@@ -655,15 +750,15 @@ import { useAuth } from "../hooks/useAuth";
 // Stub temporário para evitar erro de compilação
 function EditContaModal({ conta, open, onClose, onSave }: { conta: any, open: boolean, onClose: () => void, onSave: (contaEditada: any) => Promise<void> }) {
   const [form, setForm] = useState({
-    name: conta?.name || '',
-    type: conta?.type || '',
-    saldoInicial: conta?.saldo_inicial ?? conta?.saldoInicial ?? 0,
+    nome: conta?.nome || '',
+    tipo: conta?.tipo || '',
+    saldo_inicial: conta?.saldo_inicial ?? 0,
   });
   React.useEffect(() => {
     setForm({
-      name: conta?.name || '',
-      type: conta?.type || '',
-      saldoInicial: conta?.saldo_inicial ?? conta?.saldoInicial ?? 0,
+      nome: conta?.nome || '',
+      tipo: conta?.tipo || '',
+      saldo_inicial: conta?.saldo_inicial ?? 0,
     });
   }, [conta]);
   if (!open || !conta) return null;
@@ -697,8 +792,8 @@ function EditContaModal({ conta, open, onClose, onSave }: { conta: any, open: bo
             <input 
               className="w-full px-4 py-3 rounded-lg bg-secondary/50 border border-border focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all outline-none" 
               placeholder="Ex: Conta Corrente, Poupança..."
-              value={form.name} 
-              onChange={e => setForm(f => ({ ...f, name: e.target.value }))} 
+              value={form.nome} 
+              onChange={e => setForm(f => ({ ...f, nome: e.target.value }))} 
             />
           </div>
 
@@ -711,8 +806,8 @@ function EditContaModal({ conta, open, onClose, onSave }: { conta: any, open: bo
             </label>
             <select 
               className="w-full px-4 py-3 rounded-lg bg-secondary/50 border border-border focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all outline-none" 
-              value={form.type} 
-              onChange={e => setForm(f => ({ ...f, type: e.target.value }))}
+              value={form.tipo} 
+              onChange={e => setForm(f => ({ ...f, tipo: e.target.value }))}
             >
               <option value="Conta Corrente">Conta Corrente</option>
               <option value="Poupança">Poupança</option>
@@ -735,8 +830,8 @@ function EditContaModal({ conta, open, onClose, onSave }: { conta: any, open: bo
               step="0.01"
               className="w-full px-4 py-3 rounded-lg bg-secondary/50 border border-border focus:border-primary focus:ring-2 focus:ring-primary/20 transition-all outline-none" 
               placeholder="0.00"
-              value={form.saldoInicial} 
-              onChange={e => setForm(f => ({ ...f, saldoInicial: e.target.value }))} 
+              value={form.saldo_inicial} 
+              onChange={e => setForm(f => ({ ...f, saldo_inicial: e.target.value }))} 
             />
             <p className="text-xs text-muted-foreground">Digite o saldo atual da conta</p>
           </div>
@@ -752,7 +847,7 @@ function EditContaModal({ conta, open, onClose, onSave }: { conta: any, open: bo
           </button>
           <button 
             className="px-6 py-2.5 rounded-lg bg-primary hover:bg-primary/90 text-primary-foreground font-medium transition-all shadow-lg shadow-primary/20" 
-            onClick={() => onSave({ ...conta, ...form })}
+            onClick={() => onSave(conta?.id ? { ...conta, ...form, id: conta.id } : { ...form })}
           >
             Salvar Alterações
           </button>
@@ -787,8 +882,8 @@ export default function ContasPage() {
     // Busca transações do usuário
     const { data: transData, error: transError } = await supabase
       .from('transacoes')
-      .select('id, valor, tipo, account_id')
-      .eq('userid', user.id);
+      .select('id, valor, tipo, conta_id')
+      .eq('user_id', user.id);
     if (!transError && transData) {
       setTransacoes(transData);
     } else {
@@ -820,7 +915,29 @@ export default function ContasPage() {
 
   // Salvar edição
   async function handleSaveConta(contaEditada) {
-    const { error } = await supabase.from('accounts').update({ name: contaEditada.name, type: contaEditada.type, saldoInicial: contaEditada.saldoInicial ?? contaEditada.saldo_inicial }).eq('id', contaEditada.id);
+    if (!contaEditada.id) {
+      // Nova conta: insert
+      const { error } = await supabase.from('accounts').insert({
+        nome: contaEditada.nome,
+        tipo: 'bank', // Força o campo correto do banco
+        saldo_inicial: contaEditada.saldo_inicial ?? 0,
+        user_id: user.id
+      });
+      setEditOpen(false);
+      setEditConta(null);
+      if (error) {
+        alert('Erro ao criar conta: ' + error.message);
+      } else {
+        fetchContas();
+      }
+      return;
+    }
+    // Edição de conta existente
+    const { error } = await supabase.from('accounts').update({
+      nome: contaEditada.nome,
+      tipo: 'bank', // Força o campo correto do banco
+      saldo_inicial: contaEditada.saldo_inicial ?? 0
+    }).eq('id', contaEditada.id);
     setEditOpen(false);
     setEditConta(null);
     if (error) {
@@ -843,14 +960,14 @@ export default function ContasPage() {
         const { data: cat, error: catErr } = await supabase
           .from('categorias')
           .select('id')
-          .eq('userid', user.id)
+          .eq('user_id', user.id)
           .ilike('nome', nomeCategoria)
           .maybeSingle();
         if (cat && cat.id) return cat.id;
         // Cria se não existir
         const { data: newCat, error: newCatErr } = await supabase
           .from('categorias')
-          .insert({ userid: user.id, nome: nomeCategoria, tags: null })
+          .insert({ user_id: user.id, nome: nomeCategoria })
           .select('id')
           .maybeSingle();
         if (newCat && newCat.id) return newCat.id;
@@ -887,33 +1004,71 @@ export default function ContasPage() {
         }
       };
       
+      // Valida se a conta selecionada é realmente bancária
+      console.log('contas:', contas);
+      console.log('contaId:', contaId);
+      const contaSelecionadaObj = contas.find(c => c.id === contaId);
+      console.log('contaSelecionadaObj:', contaSelecionadaObj);
+      if (!contaSelecionadaObj || (contaSelecionadaObj.tipo || '').toLowerCase() !== 'bank') {
+        return { success: false, message: 'Selecione uma conta bancária válida para importar.' };
+      }
+
       for (const l of lancamentos) {
-        let categoryId = null;
-        if (l.categoria && l.categoria.trim() !== '') {
-          categoryId = await getOrCreateCategoriaId(l.categoria.trim());
+        let categoriaId = null;
+        let nomeCategoria = l.categoria && l.categoria.trim() !== '' ? l.categoria.trim() : (l.tipo === 'receita' ? 'Renda Extra' : l.tipo === 'despesa' ? 'Compras' : 'Outros');
+        // Busca categoria do usuário pelo nome e tipo
+        const { data: cat, error: catErr } = await supabase
+          .from('categorias')
+          .select('id')
+          .eq('user_id', user.id)
+          .ilike('nome', nomeCategoria)
+          .maybeSingle();
+        if (cat && cat.id) {
+          categoriaId = cat.id;
         } else {
-          // Se não tiver categoria, usa a padrão de acordo com o tipo
-          if (l.tipo === 'receita') {
-            categoryId = rendaExtraCategoriaId;
-          } else if (l.tipo === 'despesa') {
-            categoryId = comprasCategoriaId;
-          } else {
-            categoryId = outrosCategoriaId;
-          }
+          // Cria se não existir
+          const { data: newCat, error: newCatErr } = await supabase
+            .from('categorias')
+            .insert({ user_id: user.id, nome: nomeCategoria, tipo: l.tipo })
+            .select('id')
+            .maybeSingle();
+          if (newCat && newCat.id) categoriaId = newCat.id;
         }
+        // Conversão de campos do CSV para o schema do banco
+        function parseDataBRtoISO(dataBR) {
+          if (!dataBR) return null;
+          const [dia, mes, ano] = dataBR.split('/');
+          return `${ano}-${mes.padStart(2, '0')}-${dia.padStart(2, '0')}`;
+        }
+        function parseValorBR(valorStr) {
+          if (valorStr === undefined || valorStr === null) return 0;
+          let str = String(valorStr).replace(/[^0-9.,-]/g, '');
+          if (str.includes(',')) {
+            str = str.replace(/\./g, '').replace(',', '.');
+          }
+          return parseFloat(str);
+        }
+        const valorNum = parseValorBR(l.valor);
+        const tipo = valorNum >= 0 ? 'receita' : 'despesa';
         lancamentosComCategoriaId.push({
-          quando: l.quando,
-          estabelecimento: l.estabelecimento,
-          valor: Number(l.valor),
-          tipo: l.tipo,
-          category_id: categoryId,
-          account_id: contaId,
-          userid: user.id,
-          detalhes: '',
-          status: determinarStatus(l.quando),
+          user_id: user.id,
+          conta_id: contaId,
+          categoria_id: categoriaId,
+          descricao: l.estabelecimento || l.descricao || '',
+          valor: valorNum,
+          tipo,
+          data: parseDataBRtoISO(l.quando || l.data),
+          pago: true,
+          observacao: '',
         });
       }
 
+      // Ordena lançamentos do mais novo para o mais antigo
+      lancamentosComCategoriaId.sort((a, b) => new Date(b.data) - new Date(a.data));
+      // Ordena prévia e validação final também
+      if (Array.isArray(lancamentos)) {
+        lancamentos.sort((a, b) => new Date(b.data || b.quando) - new Date(a.data || a.quando));
+      }
       // Insere em lote
       const { data, error } = await supabase.from('transacoes').insert(lancamentosComCategoriaId).select();
       if (error) {
@@ -925,7 +1080,7 @@ export default function ContasPage() {
       return {
         success: true,
         count: (data || []).length,
-        accountName: conta ? conta.name : contaId,
+        accountName: conta ? conta.nome : contaId,
         message: `✓ Importação realizada com sucesso!`
       };
     } catch (e) {
@@ -949,10 +1104,8 @@ export default function ContasPage() {
       ) : (
         contas
           .filter(conta => {
-            // Ignora qualquer conta cujo type contenha 'cartao' ou 'cartão' (case insensitive, sem acento)
-            if (!conta.type) return true;
-            const tipo = (conta.type || '').normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase();
-            return !tipo.includes('cartao');
+            // Mostra apenas contas bancárias (tipo 'bank')
+            return (conta.tipo || '').toLowerCase() === 'bank';
           })
           .map((conta) => {
             // Saldo inicial (compatível com saldo_inicial e saldoInicial)
@@ -983,7 +1136,7 @@ export default function ContasPage() {
                           </svg>
                         </div>
                         <div>
-                          <h3 className="font-bold text-lg">{conta.name}</h3>
+                          <h3 className="font-bold text-lg">{conta.nome}</h3>
                           <span className="text-xs text-muted-foreground px-2 py-0.5 rounded-full bg-secondary/50">{conta.type}</span>
                         </div>
                       </div>
@@ -1058,7 +1211,9 @@ export default function ContasPage() {
         onImport={handleImportLancamentos}
         contas={contas}
       />
-      <Button className="mt-4">Adicionar Conta</Button>
+      <Button className="mt-4" onClick={() => { setEditConta({ nome: '', tipo: '', saldo_inicial: 0 }); setEditOpen(true); }}>
+        Adicionar Conta
+      </Button>
     </div>
   );
 }

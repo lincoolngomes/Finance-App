@@ -11,7 +11,7 @@ export default function AccountForm({ onAccountCreated }: { onAccountCreated?: (
     e.preventDefault();
     setLoading(true);
     setError("");
-    const { error } = await supabase.from("accounts").insert({ name, type });
+    const { error } = await supabase.from("accounts").insert({ nome: name, type });
     setLoading(false);
     if (error) setError(error.message);
     else {

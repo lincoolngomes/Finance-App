@@ -98,7 +98,7 @@ export default function Orcamentos() {
     const { data, error } = await supabase
       .from('categorias')
       .select('id, nome')
-      .eq('userid', user?.id)
+      .eq('user_id', user?.id)
       .order('nome')
 
     if (!error && data) {
@@ -128,15 +128,15 @@ export default function Orcamentos() {
   const carregarTransacoesRealizadas = async () => {
     const { data, error } = await supabase
       .from('transacoes')
-      .select('category_id, valor, quando, created_at, status, tipo')
-      .eq('userid', user?.id)
+      .select('categoria_id, valor, data, created_at, status, tipo')
+      .eq('user_id', user?.id)
 
     console.log('📊 Todas transações:', data)
 
     if (!error && data) {
       // Filtrar transações do mês/ano selecionado (INCLUINDO PENDENTES)
       const transacoesFiltradas = data.filter(t => {
-        const dataTransacao = t.quando || t.created_at
+        const dataTransacao = t.data || t.created_at
         if (!dataTransacao) return false
         
         // Parse da data
@@ -583,9 +583,9 @@ export default function Orcamentos() {
       const { data, error } = await supabase
         .from('transacoes')
         .select('*')
-        .eq('userid', user?.id)
-        .eq('category_id', categoriaId)
-        .order('quando', { ascending: false })
+        .eq('user_id', user?.id)
+        .eq('categoria_id', categoriaId)
+        .order('data', { ascending: false })
 
       console.log('📦 Dados recebidos:', data?.length, 'transações')
       if (error) {
@@ -595,7 +595,7 @@ export default function Orcamentos() {
 
       // Filtrar pelo mês e ano selecionados
       const transacoesFiltradas = (data || []).filter(t => {
-        const dataTransacao = t.quando || t.created_at
+        const dataTransacao = t.data || t.created_at
         let mesTransacao, anoTransacao
 
         if (dataTransacao.includes('/')) {
@@ -1169,7 +1169,7 @@ export default function Orcamentos() {
                         <TableRow>
                           <TableHead>Data</TableHead>
                           <TableHead>Estabelecimento</TableHead>
-                          <TableHead>Detalhes</TableHead>
+                          {/* <TableHead>Detalhes</TableHead> */}
                           <TableHead className="text-right">Valor</TableHead>
                           <TableHead>Status</TableHead>
                         </TableRow>
@@ -1178,13 +1178,13 @@ export default function Orcamentos() {
                         {receitasCategoria.map((transacao) => (
                           <TableRow key={transacao.id}>
                             <TableCell>
-                              {new Date(transacao.quando || transacao.created_at).toLocaleDateString('pt-BR')}
+                              {new Date(transacao.data || transacao.created_at).toLocaleDateString('pt-BR')}
                             </TableCell>
                             <TableCell className="font-medium">
-                              {transacao.estabelecimento || '-'}
+                              {transacao.descricao || '-'}
                             </TableCell>
                             <TableCell className="text-muted-foreground text-sm">
-                              {transacao.detalhes || '-'}
+                              {/* {transacao.observacao || '-'} */}
                             </TableCell>
                             <TableCell className="text-right font-semibold text-green-600">
                               {formatCurrency(transacao.valor)}
@@ -1226,7 +1226,7 @@ export default function Orcamentos() {
                         <TableRow>
                           <TableHead>Data</TableHead>
                           <TableHead>Estabelecimento</TableHead>
-                          <TableHead>Detalhes</TableHead>
+                          {/* <TableHead>Detalhes</TableHead> */}
                           <TableHead className="text-right">Valor</TableHead>
                           <TableHead>Status</TableHead>
                         </TableRow>
@@ -1235,13 +1235,13 @@ export default function Orcamentos() {
                         {despesasCategoria.map((transacao) => (
                           <TableRow key={transacao.id}>
                             <TableCell>
-                              {new Date(transacao.quando || transacao.created_at).toLocaleDateString('pt-BR')}
+                              {new Date(transacao.data || transacao.created_at).toLocaleDateString('pt-BR')}
                             </TableCell>
                             <TableCell className="font-medium">
-                              {transacao.estabelecimento || '-'}
+                              {transacao.descricao || '-'}
                             </TableCell>
                             <TableCell className="text-muted-foreground text-sm">
-                              {transacao.detalhes || '-'}
+                              {/* {transacao.observacao || '-'} */}
                             </TableCell>
                             <TableCell className="text-right font-semibold text-red-600">
                               {formatCurrency(Math.abs(transacao.valor))}

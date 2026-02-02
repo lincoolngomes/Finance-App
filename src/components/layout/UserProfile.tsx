@@ -38,7 +38,8 @@ export function UserProfile() {
 
   if (!profile) return null
 
-  const getInitials = (name: string) => {
+  const getInitials = (name?: string | null) => {
+    if (!name) return '';
     return name
       .split(' ')
       .map(n => n[0])

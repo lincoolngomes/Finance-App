@@ -61,17 +61,17 @@ export function useReports() {
         .from('transacoes')
         .select(`
           *,
-          categorias!transacoes_category_id_fkey (
+          categorias (
             id,
             nome
           ),
-          accounts!transacoes_account_id_fkey (
+          accounts (
             id,
             name,
             type
           )
         `)
-        .eq('userid', user.id)
+        .eq('user_id', user.id)
         .order('created_at', { ascending: false })
 
       if (error) {

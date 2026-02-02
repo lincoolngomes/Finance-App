@@ -53,7 +53,7 @@ export function HistoricoImportacoesModal({ open, onClose }: HistoricoImportacoe
           cor
         )
       `)
-      .eq('userid', user?.id)
+      .eq('user_id', user?.id)
       .order('imported_at', { ascending: false })
       .limit(50)
 

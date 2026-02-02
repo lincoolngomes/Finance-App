@@ -44,7 +44,7 @@ export default function Lembretes() {
       const { data, error } = await supabase
         .from('lembretes')
         .select('*')
-        .eq('userid', user?.id)
+        .eq('user_id', user?.id)
         .order('data', { ascending: true })
 
       if (error) throw error
@@ -141,7 +141,7 @@ export default function Lembretes() {
       const { error } = await supabase
         .from('lembretes')
         .delete()
-        .eq('userid', user?.id)
+        .eq('user_id', user?.id)
 
       if (error) throw error
       toast({ title: "Todos os lembretes foram excluídos com sucesso!" })

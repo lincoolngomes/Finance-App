@@ -33,15 +33,17 @@ const RechartsTooltipStyle = () => (
 )
 
 interface Transacao {
-  id: number
+  id: string
   created_at: string
-  quando: string | null
-  estabelecimento: string | null
+  data: string | null
+  descricao: string | null
   valor: number | null
-  detalhes: string | null
+  observacao: string | null
   tipo: string | null
-  category_id: string
-  userid: string | null
+  categoria_id: string
+  user_id: string | null
+  conta_id?: string | null
+  cartao_id?: string | null
   categorias?: {
     id: string
     nome: string
@@ -104,9 +106,9 @@ export function DashboardCharts({ transacoes, recentTransacoes, contas = [], lem
   if (import.meta.env.DEV) {
     const sample = allTransacoes.slice(0, 10).map(t => ({
       id: t.id,
-      quando: t.quando,
+      data: t.data,
       created_at: t.created_at,
-      parsed_quando: parseDateUniversal(t.quando)?.toISOString() ?? null,
+      parsed_data: parseDateUniversal(t.data)?.toISOString() ?? null,
       parsed_created_at: parseDateUniversal(t.created_at)?.toISOString() ?? null
     }))
     console.debug('DashboardCharts sample dates:', sample)
@@ -135,8 +137,8 @@ export function DashboardCharts({ transacoes, recentTransacoes, contas = [], lem
     return transacoes
       .filter(t => t.categorias?.nome === categoryName && t.tipo === tipo)
       .sort((a, b) => {
-        const dateA = parseDateUniversal(a.quando)
-        const dateB = parseDateUniversal(b.quando)
+        const dateA = parseDateUniversal(a.data)
+        const dateB = parseDateUniversal(b.data)
         if (!dateA || !dateB) return 0
         return dateB.getTime() - dateA.getTime()
       })
@@ -165,7 +167,7 @@ export function DashboardCharts({ transacoes, recentTransacoes, contas = [], lem
 
     // Agrupar transações por mês (usando TODAS as transações do ano selecionado)
     allTransacoes.forEach(t => {
-      const date = parseDateUniversal(t.quando || t.created_at)
+      const date = parseDateUniversal(t.data || t.created_at)
       if (!date) return
       
       // Filtrar apenas transações do ano selecionado
@@ -549,8 +551,8 @@ export function DashboardCharts({ transacoes, recentTransacoes, contas = [], lem
               { (recentTransacoes ?? transacoes)
                 .slice()
                 .sort((a, b) => {
-                  const aTime = parseDateUniversal(a.quando ?? a.created_at)?.getTime() || 0
-                  const bTime = parseDateUniversal(b.quando ?? b.created_at)?.getTime() || 0
+                  const aTime = parseDateUniversal(a.data ?? a.created_at)?.getTime() || 0
+                  const bTime = parseDateUniversal(b.data ?? b.created_at)?.getTime() || 0
                   return bTime - aTime
                 })
                 .slice(0, 5)
@@ -565,7 +567,7 @@ export function DashboardCharts({ transacoes, recentTransacoes, contas = [], lem
                       }`} />
                     <div>
                       <div className="font-medium text-sm">
-                        {transacao.estabelecimento || 'Sem estabelecimento'}
+                        {transacao.descricao || 'Sem descrição'}
                       </div>
                       <div className="text-xs text-muted-foreground">
                           {transacao.categorias?.nome || 'Sem categoria'}
@@ -574,7 +576,7 @@ export function DashboardCharts({ transacoes, recentTransacoes, contas = [], lem
                           )}
                           {' • '}{
                             (() => {
-                              const raw = transacao.quando ?? transacao.created_at
+                              const raw = transacao.data ?? transacao.created_at
                               const parsed = parseDateUniversal(raw)
                               return parsed ? parsed.toLocaleDateString('pt-BR', { timeZone: 'UTC' }) : String(raw || '')
                             })()
@@ -683,7 +685,7 @@ export function DashboardCharts({ transacoes, recentTransacoes, contas = [], lem
                             transacao.tipo === 'receita' ? 'bg-green-500' : 'bg-red-500'
                           }`} />
                           <span className="font-semibold text-sm">
-                            {transacao.estabelecimento || 'Sem estabelecimento'}
+                            {transacao.descricao || 'Sem descrição'}
                           </span>
                         </div>
                         <div className="text-xs text-muted-foreground">
@@ -691,14 +693,14 @@ export function DashboardCharts({ transacoes, recentTransacoes, contas = [], lem
                             <span>{transacao.metodo === 'cartao_credito' ? '💳' : '🏦'} {accountsMap[transacao.account_id].name} • </span>
                           )}
                           {(() => {
-                            const raw = transacao.quando ?? transacao.created_at
+                            const raw = transacao.data ?? transacao.created_at
                             const parsed = parseDateUniversal(raw)
                             return parsed ? parsed.toLocaleDateString('pt-BR', { timeZone: 'UTC' }) : String(raw || '')
                           })()}
                         </div>
-                        {transacao.detalhes && (
+                        {transacao.observacao && (
                           <div className="text-xs text-muted-foreground mt-1">
-                            {transacao.detalhes}
+                            {transacao.observacao}
                           </div>
                         )}
                       </div>

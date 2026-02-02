@@ -59,8 +59,8 @@ export default function Categorias() {
       const { data, error } = await supabase
         .from('transacoes')
         .select('*, conta:accounts(name)')
-        .eq('category_id', categoria.id)
-        .order('quando', { ascending: false });
+        .eq('categoria_id', categoria.id)
+        .order('data', { ascending: false });
       if (error) throw error;
       setModalLancamentos(data || []);
     } catch (err) {
@@ -224,7 +224,7 @@ export default function Categorias() {
           const { data, error } = await supabase
             .from('transacoes')
             .update({ tipo: newType })
-            .eq('category_id', id)
+            .eq('categoria_id', id)
             .select();
           // Log para debug
           console.log('[DEBUG] Update transacoes:', { id, newType, data, error });
@@ -325,7 +325,7 @@ export default function Categorias() {
                 <tbody>
                   {sortedModalLancamentos.map((lanc) => (
                     <tr key={lanc.id} className="border-b hover:bg-muted/50">
-                      <td className="px-2 py-1 border">{lanc.quando}</td>
+                      <td className="px-2 py-1 border">{lanc.data}</td>
                       <td className="px-2 py-1 border">{lanc.estabelecimento}</td>
                       <td className="px-2 py-1 border text-right">{Number(lanc.valor).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>
                       <td className="px-2 py-1 border">{lanc.conta?.name || 'Sem conta'}</td>

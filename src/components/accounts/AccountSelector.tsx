@@ -22,7 +22,7 @@ export default function AccountSelector({ value, onValueChange, placeholder }: {
   useEffect(() => {
     async function fetchAccounts() {
       setLoading(true);
-      const { data, error } = await supabase.from("accounts").select("id, name, type");
+      const { data, error } = await supabase.from("accounts").select("id, nome, type");
       if (!error && data) setAccounts(data);
       setLoading(false);
     }

@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { useAuth } from "@/hooks/useAuth";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 
 export type Account = {
@@ -13,27 +14,40 @@ export function BankSelector({ value, onValueChange, placeholder }: {
   onValueChange: (value: string) => void;
   placeholder?: string;
 }) {
+  const { user } = useAuth();
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function fetchAccounts() {
+      if (!user || !user.id) {
+        setLoading(false);
+        return;
+      }
       setLoading(true);
-      const { data, error } = await supabase.from("accounts").select("id, name, type");
+      const { data, error } = await supabase
+        .from("accounts")
+        .select("*")
+        .eq('user_id', user.id);
       if (!error && data) {
-        // Filtrar apenas contas (excluir cartões)
+        // Filtrar apenas contas (tipo 'bank')
         const normaliza = (str: string) => str.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
-        const filtered = data.filter(acc => {
-          if (!acc.type) return true; // Se não tem tipo, assume que é conta
-          const tipo = normaliza(acc.type);
-          return !(tipo.includes('cartao') || tipo.includes('credito') || tipo.includes('debito'));
+        const filtered = data.filter((acc: any) => {
+          const tipo = (acc.type || acc.tipo || '').toLowerCase();
+          return tipo === 'bank' || tipo === 'conta' || !tipo;
         });
-        setAccounts(filtered);
+        // Mapear para o tipo Account
+        const mapped = filtered.map((acc: any) => ({
+          id: acc.id,
+          name: acc.nome || acc.name,
+          type: 'banco'
+        }));
+        setAccounts(mapped);
       }
       setLoading(false);
     }
     fetchAccounts();
-  }, []);
+  }, [user?.id]);
 
   // Permite mostrar o valor mesmo se ainda não carregou a lista
   const selectValue = value || '';
@@ -64,27 +78,39 @@ export function CardSelector({ value, onValueChange, placeholder }: {
   onValueChange: (value: string) => void;
   placeholder?: string;
 }) {
+  const { user } = useAuth();
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function fetchAccounts() {
+      if (!user || !user.id) {
+        setLoading(false);
+        return;
+      }
       setLoading(true);
-      const { data, error } = await supabase.from("accounts").select("id, name, type");
+      const { data, error } = await supabase
+        .from("accounts")
+        .select("*")
+        .eq('user_id', user.id);
       if (!error && data) {
-        // Filtrar apenas cartões
-        const normaliza = (str: string) => str.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
-        const filtered = data.filter(acc => {
-          if (!acc.type) return false;
-          const tipo = normaliza(acc.type);
-          return tipo.includes('cartao') || tipo.includes('credito') || tipo.includes('debito');
+        // Filtrar apenas cartões de crédito
+        const filtered = data.filter((acc: any) => {
+          const tipo = (acc.type || acc.tipo || '').toLowerCase();
+          return tipo === 'credit_card';
         });
-        setAccounts(filtered);
+        // Mapear para o tipo Account
+        const mapped = filtered.map((acc: any) => ({
+          id: acc.id,
+          name: acc.nome || acc.name,
+          type: 'cartao'
+        }));
+        setAccounts(mapped);
       }
       setLoading(false);
     }
     fetchAccounts();
-  }, []);
+  }, [user?.id]);
 
   // Permite mostrar o valor mesmo se ainda não carregou a lista
   const selectValue = value || '';
