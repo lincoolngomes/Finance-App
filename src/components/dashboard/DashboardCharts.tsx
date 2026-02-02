@@ -54,6 +54,7 @@ interface Lembrete {
   id: number
   created_at: string
   userid: string | null
+  titulo: string | null
   descricao: string | null
   data: string | null
   valor: number | null
@@ -620,7 +621,10 @@ export function DashboardCharts({ transacoes, recentTransacoes, contas = [], lem
                 
                 return proximoLembrete ? (
                   <div className="space-y-2 p-4 rounded-lg border bg-card">
-                    <p className="font-medium text-sm">{proximoLembrete.descricao}</p>
+                    <p className="font-medium text-sm">{proximoLembrete.titulo}</p>
+                    {proximoLembrete.descricao && (
+                      <p className="text-xs text-muted-foreground">{proximoLembrete.descricao}</p>
+                    )}
                     <div className="flex items-center gap-2 text-xs text-muted-foreground">
                       <Calendar className="h-3 w-3" />
                       <span>{new Date(proximoLembrete.data!).toLocaleDateString('pt-BR')}</span>

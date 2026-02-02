@@ -13,9 +13,10 @@ import { toast } from '@/hooks/use-toast'
 import { Plus, Edit, Trash2, Calendar, Clock } from 'lucide-react'
 
 interface Lembrete {
-  id: number
+  id: string
   created_at: string
   userid: string | null
+  titulo: string | null
   descricao: string | null
   data: string | null
   valor: number | null
@@ -28,6 +29,7 @@ export default function Lembretes() {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editingLembrete, setEditingLembrete] = useState<Lembrete | null>(null)
   const [formData, setFormData] = useState({
+    titulo: '',
     descricao: '',
     data: '',
     valor: '',
@@ -65,9 +67,10 @@ export default function Lembretes() {
 
     try {
       const lembreteData = {
+        titulo: formData.titulo,
         descricao: formData.descricao,
         data: formData.data,
-        valor: formData.valor ? parseFloat(formData.valor) : null,
+        valor: formData.valor ? parseFloat(formData.valor) : 0,
         userid: user?.id,
       }
 
@@ -91,6 +94,7 @@ export default function Lembretes() {
       setDialogOpen(false)
       setEditingLembrete(null)
       setFormData({
+        titulo: '',
         descricao: '',
         data: '',
         valor: '',
@@ -108,14 +112,15 @@ export default function Lembretes() {
   const handleEdit = (lembrete: Lembrete) => {
     setEditingLembrete(lembrete)
     setFormData({
+      titulo: lembrete.titulo || '',
       descricao: lembrete.descricao || '',
-      data: lembrete.data || '',
-      valor: lembrete.valor?.toString() || '',
+      data: lembrete.data ? lembrete.data.split('T')[0] : '',
+      valor: lembrete.valor ? lembrete.valor.toString() : '',
     })
     setDialogOpen(true)
   }
 
-  const handleDelete = async (id: number) => {
+  const handleDelete = async (id: string) => {
     if (!confirm('Tem certeza que deseja excluir este lembrete?')) return
 
     try {
@@ -253,6 +258,23 @@ export default function Lembretes() {
               
               <form onSubmit={handleSubmit} className="space-y-5 pt-2">
                 <div className="space-y-2">
+                  <Label htmlFor="titulo" className="text-sm font-medium flex items-center gap-2">
+                    <svg className="w-4 h-4 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                    </svg>
+                    Título
+                  </Label>
+                  <Input
+                    id="titulo"
+                    type="text"
+                    placeholder="Ex: Pagar conta de luz, Aniversário da Maria..."
+                    className="bg-background/50"
+                    value={formData.titulo}
+                    onChange={(e) => setFormData({...formData, titulo: e.target.value})}
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
                   <Label htmlFor="descricao" className="text-sm font-medium flex items-center gap-2">
                     <svg className="w-4 h-4 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -261,45 +283,42 @@ export default function Lembretes() {
                   </Label>
                   <Textarea
                     id="descricao"
-                    placeholder="Ex: Pagar conta de luz, Aniversário da Maria..."
+                    placeholder="Adicione mais detalhes sobre o lembrete..."
                     className="bg-background/50"
                     value={formData.descricao}
                     onChange={(e) => setFormData({...formData, descricao: e.target.value})}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="data" className="text-sm font-medium flex items-center gap-2">
+                    <Calendar className="h-4 w-4 text-primary" />
+                    Data
+                  </Label>
+                  <Input
+                    id="data"
+                    type="date"
+                    className="bg-background/50"
+                    value={formData.data}
+                    onChange={(e) => setFormData({...formData, data: e.target.value})}
                     required
                   />
                 </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="data" className="text-sm font-medium flex items-center gap-2">
-                      <Calendar className="h-4 w-4 text-primary" />
-                      Data
-                    </Label>
-                    <Input
-                      id="data"
-                      type="date"
-                      className="bg-background/50"
-                      value={formData.data}
-                      onChange={(e) => setFormData({...formData, data: e.target.value})}
-                      required
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="valor" className="text-sm font-medium flex items-center gap-2">
-                      <svg className="w-4 h-4 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                      Valor (opcional)
-                    </Label>
-                    <Input
-                      id="valor"
-                      type="number"
-                      step="0.01"
-                      placeholder="0,00"
-                      className="bg-background/50"
-                      value={formData.valor}
-                      onChange={(e) => setFormData({...formData, valor: e.target.value})}
-                    />
-                  </div>
+                <div className="space-y-2">
+                  <Label htmlFor="valor" className="text-sm font-medium flex items-center gap-2">
+                    <svg className="w-4 h-4 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    Valor (opcional)
+                  </Label>
+                  <Input
+                    id="valor"
+                    type="number"
+                    step="0.01"
+                    placeholder="0,00"
+                    className="bg-background/50"
+                    value={formData.valor}
+                    onChange={(e) => setFormData({...formData, valor: e.target.value})}
+                  />
                 </div>
                 
                 <div className="bg-secondary/30 -mx-6 -mb-6 p-4 border-t border-border/50">
@@ -364,13 +383,16 @@ export default function Lembretes() {
                       </div>
                       <div className="flex-1">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <h3 className="font-bold text-base">{lembrete.descricao}</h3>
+                          <h3 className="font-bold text-base">{lembrete.titulo}</h3>
                           {dateStatus && (
                             <Badge variant={dateStatus.variant} className="text-xs">
                               {dateStatus.label}
                             </Badge>
                           )}
                         </div>
+                        {lembrete.descricao && (
+                          <p className="text-sm text-muted-foreground mt-1">{lembrete.descricao}</p>
+                        )}
                         {lembrete.valor && (
                           <p className="text-sm text-muted-foreground mt-1">
                             Valor: <span className="font-semibold text-foreground">{formatCurrency(lembrete.valor)}</span>

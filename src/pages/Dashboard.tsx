@@ -27,6 +27,7 @@ interface Lembrete {
   id: number
   created_at: string
   userid: string | null
+  titulo: string | null
   descricao: string | null
   data: string | null
   valor: number | null
