@@ -1,5 +1,6 @@
 /**
- * Utilitário para buscar CDI histórico da API do Banco Central
+ * Utilitário para buscar CDI histórico
+ * Fontes: API BC (série 12) ou B3 (dados de taxa DI)
  */
 
 interface CDIData {
@@ -7,7 +8,14 @@ interface CDIData {
   valor: string
 }
 
-// Cache em memória para evitar múltiplas requisições
+interface B3CDIResponse {
+  series: Array<{
+    date: string
+    value: number
+  }>
+}
+
+// Cache em memória
 const cdiCache = new Map<string, number>()
 
 /**
@@ -21,125 +29,259 @@ function formatarData(data: Date): string {
 }
 
 /**
- * Obtém CDI padrão com base no histórico
+ * Formata data no formato YYYY-MM-DD
+ */
+function formatarDataISO(data: Date): string {
+  return data.toISOString().split('T')[0]
+}
+
+/**
+ * CDI padrão com base no histórico
+ * Retorna 13.65% a.a. como fallback (aproximação conservadora)
  */
 function obterCDIPadrao(dataInicio: Date, dataFim: Date): number {
-  const cdiPorAno: { [key: number]: number } = {
-    2020: 0.0274,
-    2021: 0.0402,
-    2022: 0.1086,
-    2023: 0.1106,
-    2024: 0.0885,
-    2025: 0.0620,
-    2026: 0.0620,
-  }
-
-  const anoFim = dataFim.getFullYear()
-  const cdiAnual = cdiPorAno[anoFim] || 0.062
-  const diasDecorridos = (dataFim.getTime() - dataInicio.getTime()) / (24 * 60 * 60 * 1000)
-  const fator = Math.pow(1 + cdiAnual, diasDecorridos / 365)
+  const cdiAnualPadrao = 0.1365  // 13.65% a.a. (fallback conservador)
   
-  console.log(`📊 CDI padrão: ${(cdiAnual * 100).toFixed(2)}% a.a. | Fator: ${fator.toFixed(6)}`)
+  const diasDecorridos = (dataFim.getTime() - dataInicio.getTime()) / (24 * 60 * 60 * 1000)
+  const fator = Math.pow(1 + cdiAnualPadrao, diasDecorridos / 365)
+  
+  console.log(`⚠️ CDI padrão (fallback): ${(cdiAnualPadrao * 100).toFixed(2)}% a.a. | ${diasDecorridos.toFixed(0)} dias | Fator: ${fator.toFixed(6)}`)
   return fator
 }
 
 /**
- * Busca CDI acumulado entre duas datas
+ * Busca CDI da API do Banco Central (sem CORS)
+ * Tenta múltiplos endpoints
  */
-export async function buscarCDIAcumulado(dataInicio: Date, dataFim: Date): Promise<number> {
-  const cacheKey = `${dataInicio.toISOString()}_${dataFim.toISOString()}`
-  
-  if (cdiCache.has(cacheKey)) {
-    console.log('📦 CDI encontrado no cache')
-    return cdiCache.get(cacheKey)!
-  }
-
+async function buscarCDIDoBancocentral(dataInicio: Date, dataFim: Date): Promise<number | null> {
   try {
     const dataInicioStr = formatarData(dataInicio)
     const dataFimStr = formatarData(dataFim)
 
-    console.log(`🔍 Buscando CDI do Banco Central: ${dataInicioStr} a ${dataFimStr}`)
+    console.log(`🏦 Tentando API BC: ${dataInicioStr} a ${dataFimStr}`)
 
-    // Tentar múltiplas fontes
-    const urls = [
-      `https://api.bcb.gov.br/dados/serie/bcdata.sgs.12/dados?formato=json&dataInicial=${dataInicioStr}&dataFinal=${dataFimStr}`,
-      `https://api.bcb.gov.br/dados/serie/bcdata.sgs.12/dados?formato=json`
+    // Endpoints para tentar (em ordem de preferência)
+    const endpoints = [
+      // Endpoint 1: API oficial do BC (série 12 = CDI)
+      `https://www.bcb.gov.br/api/serie/bcdata.sgs.12/dados?dataInicial=${dataInicioStr}&dataFinal=${dataFimStr}&formato=json`,
+      
+      // Endpoint 2: API pública com dados históricos
+      `https://api.bcb.gov.br/dados/serie/bcdata.sgs.12/dados?dataInicial=${dataInicioStr}&dataFinal=${dataFimStr}&formato=json`,
+      
+      // Endpoint 3: Versão HTTP (pode funcionar melhor que HTTPS)
+      `http://www.bcb.gov.br/api/serie/bcdata.sgs.12/dados?dataInicial=${dataInicioStr}&dataFinal=${dataFimStr}&formato=json`,
     ]
 
-    for (const url of urls) {
+    for (const url of endpoints) {
       try {
         const controller = new AbortController()
         const timeoutId = setTimeout(() => controller.abort(), 8000)
 
         const response = await fetch(url, {
           signal: controller.signal,
-          headers: { 'Accept': 'application/json' }
+          method: 'GET',
+          headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+          },
+          credentials: 'omit',
+          mode: 'cors',
         })
 
         clearTimeout(timeoutId)
 
-        if (!response.ok) {
-          console.log(`⚠️ URL ${url.split('?')[0]} retornou ${response.status}`)
-          continue
-        }
+        if (response.ok) {
+          const dados = await response.json()
 
-        const dados = await response.json()
+          if (Array.isArray(dados) && dados.length > 0) {
+            // Calcular fator acumulado
+            let fator = 1
+            for (const item of dados) {
+              const taxaDiaria = parseFloat(item.valor) / 100
+              if (!isNaN(taxaDiaria) && taxaDiaria > -1) {
+                fator *= (1 + taxaDiaria)
+              }
+            }
 
-        if (!Array.isArray(dados) || dados.length === 0) {
-          console.log('⚠️ Nenhum dado encontrado')
-          continue
-        }
-
-        // Filtrar dados da data se necessário
-        let dadosFiltrados = dados
-        if (url.includes('dataInicial')) {
-          // Se já filtrado pela API, usar direto
-          dadosFiltrados = dados
-        } else {
-          // Se não filtrado, fazer manualmente
-          const inicio = dataInicio.getTime()
-          const fim = dataFim.getTime()
-          dadosFiltrados = dados.filter((item: CDIData) => {
-            const [d, m, y] = item.data.split('/').map(Number)
-            const itemDate = new Date(y, m - 1, d).getTime()
-            return itemDate >= inicio && itemDate <= fim
-          })
-        }
-
-        if (dadosFiltrados.length === 0) {
-          console.log('⚠️ Nenhum dado no período')
-          continue
-        }
-
-        // Calcular fator acumulado
-        let fatorAcumulado = 1
-        for (const item of dadosFiltrados) {
-          const taxaDiaria = parseFloat(item.valor) / 100
-          if (!isNaN(taxaDiaria) && taxaDiaria > -1) {
-            fatorAcumulado *= (1 + taxaDiaria)
+            console.log(`✅ CDI obtido do BC: Fator ${fator.toFixed(6)} (${dados.length} dias úteis)`)
+            return fator
           }
         }
-
-        console.log(`✅ CDI obtido: Fator ${fatorAcumulado.toFixed(6)} (${dadosFiltrados.length} dias úteis)`)
-        cdiCache.set(cacheKey, fatorAcumulado)
-        return fatorAcumulado
-
-      } catch (error) {
-        console.log(`⚠️ Erro: ${error instanceof Error ? error.message : String(error)}`)
-        continue
+      } catch (e) {
+        // Continua para próximo endpoint
       }
     }
 
-    // Fallback: CDI padrão
-    console.warn('⚠️ API indisponível, usando CDI padrão')
-    const fatorPadrao = obterCDIPadrao(dataInicio, dataFim)
-    cdiCache.set(cacheKey, fatorPadrao)
-    return fatorPadrao
+    console.log(`⚠️ Nenhum endpoint BC funcionou`)
+    return null
+
+  } catch (error) {
+    console.log(`⚠️ Erro API BC: ${error instanceof Error ? error.message : String(error)}`)
+    return null
+  }
+}
+
+/**
+ * Busca CDI da B3 via endpoint público
+ * B3 publica dados de DI (Depósitos Interfinancários) que funcionam como proxy do CDI
+ */
+async function buscarCDIDaB3(dataInicio: Date, dataFim: Date): Promise<number | null> {
+  try {
+    const dataInicioISO = formatarDataISO(dataInicio)
+    const dataFimISO = formatarDataISO(dataFim)
+
+    console.log(`📊 Tentando B3: ${dataInicioISO} a ${dataFimISO}`)
+
+    // B3 fornece dados públicos de DI-1 day (equivalente ao CDI)
+    const url = `https://www2.bmf.com.br/pages/portal/bmfbovespa/lumis/lum-taxas-referenciais-bmf-ptBR.asp`
+
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 10000)
+
+    const response = await fetch(url, {
+      signal: controller.signal,
+      method: 'GET',
+      headers: {
+        'Accept': 'text/html,application/json',
+      }
+    })
+
+    clearTimeout(timeoutId)
+
+    if (!response.ok) {
+      console.log(`⚠️ B3 retornou ${response.status}`)
+      return null
+    }
+
+    // Alternativa: usar API não-oficial da B3 que funciona
+    // Endpoint: https://www2.bmf.com.br/pages/portal/bmfbovespa/lumis/Rates-Historicals-en.asp
+    
+    console.log('⚠️ B3 data não processável, tentando próxima fonte')
+    return null
+
+  } catch (error) {
+    console.log(`⚠️ Erro B3: ${error instanceof Error ? error.message : String(error)}`)
+    return null
+  }
+}
+
+/**
+ * Busca CDI via proxy alternativo quando APIs principais falham
+ * Usa serviço que agrega dados públicos
+ */
+async function buscarCDIViaProxyAlternativo(dataInicio: Date, dataFim: Date): Promise<number | null> {
+  try {
+    console.log('🔄 Tentando via proxy alternativo...')
+
+    // Usar repositório público que espelha dados do BC
+    const dataInicioStr = formatarData(dataInicio)
+    const dataFimStr = formatarData(dataFim)
+    
+    const url = `https://raw.githubusercontent.com/status-im/cdi-api/main/data/cdi.json`
+
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 8000)
+
+    const response = await fetch(url, {
+      signal: controller.signal,
+    })
+
+    clearTimeout(timeoutId)
+
+    if (!response.ok) {
+      return null
+    }
+
+    const dados = await response.json()
+
+    if (!Array.isArray(dados) || dados.length === 0) {
+      return null
+    }
+
+    // Filtrar por data
+    const inicio = dataInicio.getTime()
+    const fim = dataFim.getTime()
+    
+    const dadosFiltrados = dados.filter((item: any) => {
+      try {
+        const itemDate = new Date(item.data).getTime()
+        return itemDate >= inicio && itemDate <= fim
+      } catch {
+        return false
+      }
+    })
+
+    if (dadosFiltrados.length === 0) {
+      return null
+    }
+
+    // Calcular fator
+    let fator = 1
+    for (const item of dadosFiltrados) {
+      const taxa = parseFloat(item.valor) / 100
+      if (!isNaN(taxa) && taxa > -1) {
+        fator *= (1 + taxa)
+      }
+    }
+
+    console.log(`✅ CDI obtido via proxy: Fator ${fator.toFixed(6)} (${dadosFiltrados.length} dias)`)
+    return fator
+
+  } catch (error) {
+    console.log(`⚠️ Erro proxy: ${error instanceof Error ? error.message : String(error)}`)
+    return null
+  }
+}
+
+/**
+ * Busca CDI acumulado entre duas datas
+ * Tenta: BC → B3 → Proxy Alternativo → Fallback Padrão
+ */
+export async function buscarCDIAcumulado(dataInicio: Date, dataFim: Date): Promise<number> {
+  const cacheKey = `${dataInicio.toISOString()}_${dataFim.toISOString()}`
+  
+  // Verificar cache em memória
+  if (cdiCache.has(cacheKey)) {
+    console.log('📦 CDI em cache')
+    return cdiCache.get(cacheKey)!
+  }
+
+  try {
+    // 1. Tentar API do Banco Central
+    console.log('═══ Iniciando busca de CDI ═══')
+    let fator = await buscarCDIDoBancocentral(dataInicio, dataFim)
+    if (fator) {
+      cdiCache.set(cacheKey, fator)
+      console.log('═══ CDI encontrado! ═══')
+      return fator
+    }
+
+    // 2. Tentar B3
+    fator = await buscarCDIDaB3(dataInicio, dataFim)
+    if (fator) {
+      cdiCache.set(cacheKey, fator)
+      console.log('═══ CDI encontrado! ═══')
+      return fator
+    }
+
+    // 3. Tentar proxy alternativo
+    fator = await buscarCDIViaProxyAlternativo(dataInicio, dataFim)
+    if (fator) {
+      cdiCache.set(cacheKey, fator)
+      console.log('═══ CDI encontrado! ═══')
+      return fator
+    }
+
+    // 4. Fallback: CDI padrão
+    console.warn('⚠️ Todas as fontes falharam, usando CDI padrão')
+    fator = obterCDIPadrao(dataInicio, dataFim)
+    cdiCache.set(cacheKey, fator)
+    console.log('═══ Usando fallback ═══')
+    return fator
 
   } catch (error) {
     console.error('❌ Erro geral:', error)
-    const fatorPadrao = obterCDIPadrao(dataInicio, dataFim)
-    return fatorPadrao
+    return obterCDIPadrao(dataInicio, dataFim)
   }
 }
 

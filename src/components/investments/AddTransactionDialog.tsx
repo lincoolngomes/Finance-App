@@ -208,15 +208,18 @@ export const AddTransactionDialog = ({ open, onClose }: AddTransactionDialogProp
         dadosInvestimento.tipo_rentabilidade = tipoRentabilidade
         dadosInvestimento.taxa_percentual = parseFloat(taxaPercentual)
         dadosInvestimento.indexador = indexador
-        dadosInvestimento.data_vencimento = dataVencimento
+        // Converter para ISO considerando o timezone local
+        dadosInvestimento.data_vencimento = dataVencimento ? new Date(dataVencimento + 'T00:00:00').toISOString() : undefined
         dadosInvestimento.liquidez = liquidez
-        dadosInvestimento.data_aplicacao = dataTransacao // Usa data de transação como aplicação
+        // Converter para ISO considerando o timezone local
+        dadosInvestimento.data_aplicacao = new Date(dataTransacao + 'T00:00:00').toISOString()
         dadosInvestimento.isento_ir = isentoIR
       }
       
       // Adicionar campos específicos de fundos e previdência
       if (['fundo', 'previdencia'].includes(tipoAtivo)) {
-        dadosInvestimento.data_aplicacao = dataTransacao
+        // Converter para ISO considerando o timezone local
+        dadosInvestimento.data_aplicacao = new Date(dataTransacao + 'T00:00:00').toISOString()
         dadosInvestimento.cotacao_atual = parseFloat(cotaAplicacao) || parseFloat(precoUnitario)
         dadosInvestimento.preco_medio = parseFloat(cotaAplicacao) || parseFloat(precoUnitario)
         dadosInvestimento.fonte_marcacao = 'estimado'

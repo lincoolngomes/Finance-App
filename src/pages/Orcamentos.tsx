@@ -19,6 +19,7 @@ type OrdenacaoDirecao = 'asc' | 'desc' | null
 interface Categoria {
   id: string
   nome: string
+  tipo?: 'receita' | 'despesa'
 }
 
 interface OrcamentoCategoria {
@@ -59,6 +60,7 @@ export default function Orcamentos() {
   const [despesasCategoria, setDespesasCategoria] = useState<any[]>([])
   const [ordenacaoColuna, setOrdenacaoColuna] = useState<OrdenacaoColuna | null>(null)
   const [ordenacaoDirecao, setOrdenacaoDirecao] = useState<OrdenacaoDirecao>(null)
+  const [valoresEditandoTabela, setValoresEditandoTabela] = useState<{ [key: string]: string }>({})
 
   const handleOrdenar = (coluna: OrdenacaoColuna) => {
     if (ordenacaoColuna === coluna) {
@@ -97,7 +99,7 @@ export default function Orcamentos() {
   const carregarCategorias = async () => {
     const { data, error } = await supabase
       .from('categorias')
-      .select('id, nome')
+      .select('id, nome, tipo')
       .eq('user_id', user?.id)
       .order('nome')
 
@@ -119,7 +121,7 @@ export default function Orcamentos() {
       .eq('user_id', user?.id)
       .eq('mes', mesSelecionado)
       .eq('ano', anoSelecionado)
-
+    
     if (!error && data) {
       setOrcamentos(data)
     }
@@ -325,15 +327,30 @@ export default function Orcamentos() {
   const atualizarOrcamento = async (categoriaId: string, valor: number) => {
     if (isNaN(valor) || valor < 0) return
 
-    // Buscar se já existe orçamento
-    const orcamentoExistente = orcamentos.find(o => o.categoria_id === categoriaId)
+    // Buscar TODOS os orçamentos existentes para esta categoria (pode haver duplicatas)
+    const orcamentosExistentes = orcamentos.filter(o => o.categoria_id === categoriaId && o.mes === mesSelecionado && o.ano === anoSelecionado)
 
-    if (orcamentoExistente) {
-      // Atualizar existente
+    if (orcamentosExistentes.length > 0) {
+      // Se houver múltiplos registros, deletar todos
+      if (orcamentosExistentes.length > 1) {
+        for (const orc of orcamentosExistentes) {
+          await supabase
+            .from('orcamentos')
+            .delete()
+            .eq('id', orc.id)
+        }
+      }
+      
+      // Agora inserir um novo com o valor atualizado
       const { error } = await supabase
         .from('orcamentos')
-        .update({ valor: valor })
-        .eq('id', orcamentoExistente.id)
+        .insert({
+          user_id: user?.id,
+          categoria_id: categoriaId,
+          valor: valor,
+          mes: mesSelecionado,
+          ano: anoSelecionado
+        })
 
       if (!error) {
         carregarOrcamentos()
@@ -468,21 +485,39 @@ export default function Orcamentos() {
   }
 
   const calculos = useMemo(() => {
-    const totalPlanejado = orcamentos.reduce((sum, o) => sum + (o.valor || 0), 0)
-    // Somar apenas despesas (valores negativos, em valor absoluto)
-    const totalRealizado = transacoesRealizadas.reduce((sum, t) => {
-      return sum + (t.total < 0 ? Math.abs(t.total) : 0)
-    }, 0)
-    const economia = totalPlanejado - totalRealizado
-    const percentualGasto = totalPlanejado > 0 ? (totalRealizado / totalPlanejado) * 100 : 0
+    // Separar despesas e receitas do orçamento planejado
+    const despesasOrçadas = orcamentos
+      .filter(o => {
+        const categoria = categorias.find(c => c.id === o.categoria_id)
+        return categoria?.tipo === 'despesa'
+      })
+      .reduce((sum, o) => sum + (o.valor || 0), 0)
+
+    const receitasOrçadas = orcamentos
+      .filter(o => {
+        const categoria = categorias.find(c => c.id === o.categoria_id)
+        return categoria?.tipo === 'receita'
+      })
+      .reduce((sum, o) => sum + (o.valor || 0), 0)
+
+    // Separar despesas e receitas realizadas
+    const despesasRealizadas = transacoesRealizadas
+      .filter(t => t.total < 0)
+      .reduce((sum, t) => sum + Math.abs(t.total), 0)
+
+    const receitasRealizadas = transacoesRealizadas
+      .filter(t => t.total > 0)
+      .reduce((sum, t) => sum + t.total, 0)
 
     return {
-      totalPlanejado,
-      totalRealizado,
-      economia,
-      percentualGasto
+      despesasOrçadas,
+      receitasOrçadas,
+      despesasRealizadas,
+      receitasRealizadas,
+      percentualDespesas: despesasOrçadas > 0 ? (despesasRealizadas / despesasOrçadas) * 100 : 0,
+      percentualReceitas: receitasOrçadas > 0 ? (receitasRealizadas / receitasOrçadas) * 100 : 0
     }
-  }, [orcamentos, transacoesRealizadas])
+  }, [orcamentos, transacoesRealizadas, categorias])
 
   // Criar lista completa: orçamentos definidos + categorias com gastos
   const linhasTabela = useMemo(() => {
@@ -728,23 +763,29 @@ export default function Orcamentos() {
                       {orcamentoEditando ? (
                         categorias
                           .filter(c => c.id === categoriaSelecionada)
-                          .map(cat => (
-                            <SelectItem key={cat.id} value={cat.id}>
-                              {cat.nome}
+                          .map(c => (
+                            <SelectItem key={c.id} value={c.id}>
+                              {c.nome}
+                              {c.tipo && (
+                                <span className="ml-2 text-xs text-muted-foreground">
+                                  ({c.tipo === 'receita' ? '💰 Receita' : '📊 Despesa'})
+                                </span>
+                              )}
                             </SelectItem>
                           ))
                       ) : (
-                        categorias.map(cat => {
-                          const jaTemOrcamento = orcamentos.find(o => o.categoria_id === cat.id)
-                          const label = jaTemOrcamento 
-                            ? `${cat.nome} (R$ ${jaTemOrcamento.valor.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})`
-                            : cat.nome
-                          return (
-                            <SelectItem key={cat.id} value={cat.id}>
-                              {label}
-                            </SelectItem>
-                          )
-                        })
+                        categorias.map(c => (
+                          <SelectItem key={c.id} value={c.id}>
+                            <span className="flex items-center gap-2">
+                              {c.nome}
+                              {c.tipo && (
+                                <span className="text-xs text-muted-foreground">
+                                  ({c.tipo === 'receita' ? '💰 Receita' : '📊 Despesa'})
+                                </span>
+                              )}
+                            </span>
+                          </SelectItem>
+                        ))
                       )}
                     </SelectContent>
                   </Select>
@@ -801,74 +842,67 @@ export default function Orcamentos() {
       </div>
 
       {/* Cards de Resumo */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Planejado</CardTitle>
-            <Target className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-blue-600">
-              {formatCurrency(calculos.totalPlanejado)}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              O orçamento soma dos orçamentos
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Realizado</CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-orange-600">
-              {formatCurrency(calculos.totalRealizado)}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              {calculos.percentualGasto.toFixed(0)}% do orçamento
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              {calculos.economia >= 0 ? 'Economia' : 'Excedente'}
-            </CardTitle>
-            {calculos.economia >= 0 ? (
-              <TrendingUp className="h-4 w-4 text-green-600" />
-            ) : (
-              <TrendingDown className="h-4 w-4 text-red-600" />
-            )}
-          </CardHeader>
-          <CardContent>
-            <div className={`text-2xl font-bold ${calculos.economia >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-              {formatCurrency(Math.abs(calculos.economia))}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              {calculos.economia >= 0 ? 'Dentro do orçamento' : 'Acima do planejado'}
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Progresso Geral</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              <div className="text-2xl font-bold">
-                {calculos.percentualGasto.toFixed(0)}%
+      <div className="grid gap-6 grid-cols-1 md:grid-cols-4 mb-8">
+        {/* Despesa Planejada */}
+        <Card className="border-0 shadow-md">
+          <CardContent className="pt-6">
+            <div className="flex justify-between items-start">
+              <div>
+                <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Despesa Planejada</p>
+                <p className="text-2xl font-bold text-red-600 mt-2">{formatCurrency(calculos.despesasOrçadas)}</p>
               </div>
-              <Progress 
-                value={Math.min(calculos.percentualGasto, 100)} 
-                className="h-2"
-              />
-              <p className="text-xs text-muted-foreground">
-                Do orçamento utilizado
-              </p>
+              <TrendingDown className="h-5 w-5 text-red-500/50" />
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Despesa Realizada */}
+        <Card className="border-0 shadow-md">
+          <CardContent className="pt-6">
+            <div className="flex justify-between items-start">
+              <div>
+                <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Despesa Realizada</p>
+                <p className="text-2xl font-bold text-orange-600 mt-2">{formatCurrency(calculos.despesasRealizadas)}</p>
+                <div className="mt-3">
+                  <div className="flex justify-between items-center mb-1">
+                    <span className="text-xs text-muted-foreground">{calculos.percentualDespesas.toFixed(0)}%</span>
+                  </div>
+                  <Progress value={Math.min(calculos.percentualDespesas, 100)} className="h-1.5" />
+                </div>
+              </div>
+              <DollarSign className="h-5 w-5 text-orange-500/50" />
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Receita Planejada */}
+        <Card className="border-0 shadow-md">
+          <CardContent className="pt-6">
+            <div className="flex justify-between items-start">
+              <div>
+                <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Receita Planejada</p>
+                <p className="text-2xl font-bold text-green-600 mt-2">{formatCurrency(calculos.receitasOrçadas)}</p>
+              </div>
+              <TrendingUp className="h-5 w-5 text-green-500/50" />
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Receita Realizada */}
+        <Card className="border-0 shadow-md">
+          <CardContent className="pt-6">
+            <div className="flex justify-between items-start">
+              <div>
+                <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Receita Realizada</p>
+                <p className="text-2xl font-bold text-emerald-600 mt-2">{formatCurrency(calculos.receitasRealizadas)}</p>
+                <div className="mt-3">
+                  <div className="flex justify-between items-center mb-1">
+                    <span className="text-xs text-muted-foreground">{calculos.percentualReceitas.toFixed(0)}%</span>
+                  </div>
+                  <Progress value={Math.min(calculos.percentualReceitas, 100)} className="h-1.5" />
+                </div>
+              </div>
+              <DollarSign className="h-5 w-5 text-emerald-500/50" />
             </div>
           </CardContent>
         </Card>
@@ -1034,28 +1068,59 @@ export default function Orcamentos() {
                         <Input
                           type="text"
                           placeholder="0,00"
-                          value={linha.valor > 0 ? linha.valor.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : ''}
+                          value={
+                            valoresEditandoTabela[linha.categoria_id] !== undefined
+                              ? valoresEditandoTabela[linha.categoria_id]
+                              : (linha.valor > 0 ? linha.valor.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '')
+                          }
                           onChange={(e) => {
-                            let valor = e.target.value.replace(/\D/g, '')
-                            if (valor === '') return
-                            
-                            const numero = parseInt(valor) / 100
-                            const formatado = numero.toLocaleString('pt-BR', {
-                              minimumFractionDigits: 2,
-                              maximumFractionDigits: 2
-                            })
-                            
-                            // Converter para número e salvar
-                            const valorNumerico = parseFloat(formatado.replace(/\./g, '').replace(',', '.'))
-                            atualizarOrcamento(linha.categoria_id, valorNumerico)
+                            const novoValor = e.target.value
+                            setValoresEditandoTabela(prev => ({
+                              ...prev,
+                              [linha.categoria_id]: novoValor
+                            }))
                           }}
-                          onBlur={(e) => {
-                            // Ao sair do campo, se estiver vazio, salvar como 0
-                            if (!e.target.value) {
-                              atualizarOrcamento(linha.categoria_id, 0)
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault()
+                              
+                              // Ao pressionar Enter, salvar o valor
+                              const inputValue = (e.target as HTMLInputElement).value
+                              
+                              if (inputValue.trim() === '') {
+                                return
+                              }
+                              
+                              // Parse da string brasileira para número
+                              const valorLimpo = inputValue.trim().replace(/\./g, '').replace(',', '.')
+                              const valorNumerico = parseFloat(valorLimpo)
+                              
+                              if (!isNaN(valorNumerico) && valorNumerico >= 0) {
+                                atualizarOrcamento(linha.categoria_id, valorNumerico)
+                                // Limpar o estado imediatamente
+                                setTimeout(() => {
+                                  setValoresEditandoTabela(prev => {
+                                    const novoState = { ...prev }
+                                    delete novoState[linha.categoria_id]
+                                    return novoState
+                                  })
+                                }, 100)
+                              }
                             }
                           }}
-                          className="w-32 ml-auto text-right"
+                          onBlur={() => {
+                            // Limpar estado ao sair do campo
+                            setValoresEditandoTabela(prev => {
+                              const novoState = { ...prev }
+                              delete novoState[linha.categoria_id]
+                              return novoState
+                            })
+                          }}
+                          onFocus={(e) => {
+                            e.target.select()
+                          }}
+                          className="w-32 ml-auto text-right border border-input rounded-md px-3 py-2 hover:bg-accent focus:outline-none focus:ring-2 focus:ring-ring"
+                          style={{ cursor: 'text' }}
                         />
                       </TableCell>
                       <TableCell className="text-right">

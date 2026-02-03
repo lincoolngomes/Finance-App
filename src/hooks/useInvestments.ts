@@ -363,6 +363,17 @@ export const useInvestments = () => {
     try {
       // Sempre criar novo investimento (permitir múltiplos lastros do mesmo código)
       // Criar novo (não incluir campos gerados automaticamente)
+      // Lista de campos válidos para a tabela investimentos
+      const camposValidos = [
+        'user_id', 'tipo', 'codigo', 'nome', 'instituicao', 'quantidade', 'preco_medio',
+        'valor_total', 'ativo', 'observacoes', 'data_primeira_compra', 'valor_bruto_resgate',
+        'ir_retido', 'aliquota_ir', 'valor_atual_manual', 'preco_mercado', 'data_marcacao',
+        'fonte_marcacao', 'percentual_vu', 'tipo_rentabilidade', 'taxa_percentual', 'indexador',
+        'data_vencimento', 'liquidez', 'data_aplicacao', 'isento_ir', 'tipo_marcacao',
+        'cotacao_atual', 'valor_atual', 'rentabilidade', 'rentabilidade_percentual',
+        'dias_aplicado', 'dias_ate_vencimento', 'rentabilidade_projetada'
+      ]
+      
       const dadosInsert: any = {
         user_id: user.id,
         tipo: dados.tipo!,
@@ -386,7 +397,13 @@ export const useInvestments = () => {
         percentual_vu: dados.percentual_vu
       }
 
-      console.log('📝 Dados recebidos para criar investimento:', dados)
+      // Remover campos inválidos/não suportados pela tabela ANTES de construir dadosInsert
+      const camposParaRemover = ['cotacao_atual', 'tipo_previdencia', 'preco_unitario', 'id', 'created_at', 'updated_at', 'valor_atual', 'rentabilidade', 'rentabilidade_percentual', 'dias_aplicado', 'dias_ate_vencimento', 'rentabilidade_projetada']
+      camposParaRemover.forEach(campo => {
+        delete (dados as any)[campo]
+      })
+
+      console.log('💾 Dados após limpeza:', dados)
 
       // Adicionar campos específicos de renda fixa (inclui Tesouro, CRI, CRA, Debêntures)
       if (['renda_fixa', 'tesouro_direto', 'cri', 'cra', 'debenture'].includes(dados.tipo!)) {
@@ -425,11 +442,42 @@ export const useInvestments = () => {
         })
       }
 
-      console.log('💾 Inserindo no Supabase:', dadosInsert)
+      // Construir objeto APENAS com campos válidos da tabela
+      const dadosParaInserir = {
+        user_id: dadosInsert.user_id,
+        tipo: dadosInsert.tipo,
+        codigo: dadosInsert.codigo,
+        nome: dadosInsert.nome,
+        instituicao: dadosInsert.instituicao,
+        quantidade: dadosInsert.quantidade,
+        preco_medio: dadosInsert.preco_medio,
+        valor_total: dadosInsert.valor_total,
+        ativo: dadosInsert.ativo,
+        observacoes: dadosInsert.observacoes,
+        data_primeira_compra: dadosInsert.data_primeira_compra,
+        valor_bruto_resgate: dadosInsert.valor_bruto_resgate,
+        ir_retido: dadosInsert.ir_retido,
+        aliquota_ir: dadosInsert.aliquota_ir,
+        valor_atual_manual: dadosInsert.valor_atual_manual,
+        preco_mercado: dadosInsert.preco_mercado,
+        data_marcacao: dadosInsert.data_marcacao,
+        fonte_marcacao: dadosInsert.fonte_marcacao,
+        percentual_vu: dadosInsert.percentual_vu,
+        tipo_rentabilidade: dadosInsert.tipo_rentabilidade,
+        taxa_percentual: dadosInsert.taxa_percentual,
+        indexador: dadosInsert.indexador,
+        data_vencimento: dadosInsert.data_vencimento,
+        liquidez: dadosInsert.liquidez,
+        data_aplicacao: dadosInsert.data_aplicacao,
+        isento_ir: dadosInsert.isento_ir,
+        tipo_marcacao: dadosInsert.tipo_marcacao
+      }
+
+      console.log('💾 Inserindo no Supabase:', dadosParaInserir)
 
       const { data, error } = await supabase
         .from('investimentos')
-        .insert(dadosInsert)
+        .insert(dadosParaInserir, { count: 'exact' })
         .select()
         .single()
 
@@ -815,11 +863,9 @@ export const useInvestments = () => {
             })
           } else {
             // CDI ou SELIC padrão: percentual do indexador
-            // FÓRMULA CORRETA (testada com extrato do banco): Linear
-            // valorBruto = valorInicial × (1 + (rendimentoCDI × percentualContratado))
-            const rendimentoCDI = fatorCDI - 1 // Ex: 1.384160 - 1 = 0.384160 (38.416%)
+            // Fórmula correta: valorBruto = valorInicial × (fatorCDI ^ percentualContratado)
             const percentualContratado = inv.taxa_percentual / 100 // Ex: 101/100 = 1.01
-            valorBruto = inv.valor_total * (1 + (rendimentoCDI * percentualContratado))
+            valorBruto = inv.valor_total * Math.pow(fatorCDI, percentualContratado)
           }
           
           const rendimentoBrutoValor = valorBruto - inv.valor_total

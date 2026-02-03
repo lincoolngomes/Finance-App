@@ -84,9 +84,11 @@ export const EditInvestmentDialog = ({ open, onClose, investimento }: EditInvest
         dadosAtualizados.tipo_rentabilidade = tipoRentabilidade
         dadosAtualizados.taxa_percentual = parseValorBR(taxaPercentual) || undefined
         dadosAtualizados.indexador = indexador
-        dadosAtualizados.data_vencimento = dataVencimento || undefined
+        // Converter para ISO considerando o timezone local
+        dadosAtualizados.data_vencimento = dataVencimento ? new Date(dataVencimento + 'T00:00:00').toISOString() : undefined
         dadosAtualizados.liquidez = liquidez
-        dadosAtualizados.data_aplicacao = dataAplicacao || undefined
+        // Converter para ISO considerando o timezone local
+        dadosAtualizados.data_aplicacao = dataAplicacao ? new Date(dataAplicacao + 'T00:00:00').toISOString() : undefined
         
         // Valor atual manual (se informado)
         if (usarValorManual && valorAtualManual) {
