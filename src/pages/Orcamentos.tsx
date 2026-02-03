@@ -14,7 +14,12 @@ import { useToast } from '@/hooks/use-toast'
 import { Progress } from '@/components/ui/progress'
 
 type OrdenacaoColuna = 'categoria' | 'tipo' | 'planejado' | 'realizado' | 'diferenca' | 'progresso' | 'status'
-type OrdenacaoDirecao = 'asc' | 'desc' | null
+type OrdenacaoDirecao = 'asc' | 'desc'
+
+interface OrdenacaoItem {
+  coluna: OrdenacaoColuna
+  direcao: OrdenacaoDirecao
+}
 
 interface Categoria {
   id: string
@@ -58,23 +63,33 @@ export default function Orcamentos() {
   const [categoriaNomeModal, setCategoriaNomeModal] = useState('')
   const [receitasCategoria, setReceitasCategoria] = useState<any[]>([])
   const [despesasCategoria, setDespesasCategoria] = useState<any[]>([])
-  const [ordenacaoColuna, setOrdenacaoColuna] = useState<OrdenacaoColuna | null>(null)
-  const [ordenacaoDirecao, setOrdenacaoDirecao] = useState<OrdenacaoDirecao>(null)
+  const [ordenacoes, setOrdenacoes] = useState<OrdenacaoItem[]>([])
   const [valoresEditandoTabela, setValoresEditandoTabela] = useState<{ [key: string]: string }>({})
 
   const handleOrdenar = (coluna: OrdenacaoColuna) => {
-    if (ordenacaoColuna === coluna) {
-      // Ciclo: asc -> desc -> null
-      if (ordenacaoDirecao === 'asc') {
-        setOrdenacaoDirecao('desc')
-      } else if (ordenacaoDirecao === 'desc') {
-        setOrdenacaoDirecao(null)
-        setOrdenacaoColuna(null)
+    setOrdenacoes(prev => {
+      const novasOrdenacoes = [...prev]
+      const indexExistente = novasOrdenacoes.findIndex(o => o.coluna === coluna)
+      
+      if (indexExistente !== -1) {
+        // Se já existe, inverte a direção ou remove se era desc
+        if (novasOrdenacoes[indexExistente].direcao === 'asc') {
+          novasOrdenacoes[indexExistente].direcao = 'desc'
+        } else {
+          novasOrdenacoes.splice(indexExistente, 1)
+        }
+      } else {
+        // Se não existe, adiciona novo (máximo 3)
+        if (novasOrdenacoes.length < 3) {
+          novasOrdenacoes.push({ coluna, direcao: 'asc' })
+        }
       }
-    } else {
-      setOrdenacaoColuna(coluna)
-      setOrdenacaoDirecao('asc')
-    }
+      return novasOrdenacoes
+    })
+  }
+
+  const resetarOrdenacao = () => {
+    setOrdenacoes([])
   }
 
   useEffect(() => {
@@ -104,7 +119,14 @@ export default function Orcamentos() {
       .order('nome')
 
     if (!error && data) {
-      setCategorias(data)
+      // Remover duplicatas (manter apenas a primeira ocorrência de cada nome)
+      const categoriasUnicas = data.reduce((acc: any[], cat) => {
+        if (!acc.find(c => c.nome === cat.nome)) {
+          acc.push(cat)
+        }
+        return acc
+      }, [])
+      setCategorias(categoriasUnicas)
     }
   }
 
@@ -419,7 +441,11 @@ export default function Orcamentos() {
     // Buscar orçamentos do mês anterior
     const { data: orcamentosAnteriores, error: errorBusca } = await supabase
       .from('orcamentos')
-      .select('categoria_id, valor')
+      .select(`
+        categoria_id,
+        valor,
+        categorias!inner(tipo)
+      `)
       .eq('user_id', user?.id)
       .eq('mes', mesAnterior)
       .eq('ano', anoAnterior)
@@ -519,17 +545,25 @@ export default function Orcamentos() {
     }
   }, [orcamentos, transacoesRealizadas, categorias])
 
+  // Função auxiliar para obter valor realizado de uma categoria
+  const getValorRealizado = (categoriaId: string) => {
+    const transacao = transacoesRealizadas.find(t => t.categoria_id === categoriaId)
+    return transacao?.total || 0
+  }
+
   // Criar lista completa: orçamentos definidos + categorias com gastos
   const linhasTabela = useMemo(() => {
     const categoriasMap = new Map()
 
     // Adicionar todas as categorias do orçamento
     orcamentos.forEach(orc => {
+      const categoria = categorias.find(c => c.id === orc.categoria_id)
       categoriasMap.set(orc.categoria_id, {
         id: orc.id,
         categoria_id: orc.categoria_id,
         categoria_nome: orc.categorias?.nome || 'Categoria',
         valor: orc.valor,
+        tipo: categoria?.tipo || null,
         tem_orcamento: true
       })
     })
@@ -544,6 +578,7 @@ export default function Orcamentos() {
           categoria_id: trans.categoria_id,
           categoria_nome: categoria?.nome || 'Categoria',
           valor: 0,
+          tipo: categoria?.tipo || null,
           tem_orcamento: false
         })
       }
@@ -552,71 +587,51 @@ export default function Orcamentos() {
     const resultado = Array.from(categoriasMap.values())
     console.log('📋 Linhas da tabela:', resultado)
     
-    // Aplicar ordenação se houver
-    if (ordenacaoColuna && ordenacaoDirecao) {
+    // Função para extrair valor de ordenação
+    const extrairValor = (linha: any, coluna: OrdenacaoColuna): any => {
+      switch (coluna) {
+        case 'categoria':
+          return linha.categoria_nome.toLowerCase()
+        case 'tipo':
+          return linha.tipo || ''
+        case 'planejado':
+          return linha.valor
+        case 'realizado':
+          return Math.abs(getValorRealizado(linha.categoria_id))
+        case 'diferenca':
+          return linha.valor - Math.abs(getValorRealizado(linha.categoria_id))
+        case 'progresso':
+          return linha.valor > 0 ? (Math.abs(getValorRealizado(linha.categoria_id)) / linha.valor) * 100 : 0
+        case 'status':
+          const getStatus = (l: any) => {
+            if (l.valor === 0) return 0
+            const perc = (Math.abs(getValorRealizado(l.categoria_id)) / l.valor) * 100
+            if (perc <= 80) return 1
+            if (perc <= 100) return 2
+            return 3
+          }
+          return getStatus(linha)
+        default:
+          return 0
+      }
+    }
+    
+    // Aplicar múltiplas ordenações
+    if (ordenacoes.length > 0) {
       resultado.sort((a, b) => {
-        let valorA: any
-        let valorB: any
-        
-        switch (ordenacaoColuna) {
-          case 'categoria':
-            valorA = a.categoria_nome.toLowerCase()
-            valorB = b.categoria_nome.toLowerCase()
-            break
-          case 'tipo':
-            const realizadoA = getValorRealizado(a.categoria_id)
-            const realizadoB = getValorRealizado(b.categoria_id)
-            valorA = realizadoA > 0 ? 1 : realizadoA < 0 ? -1 : 0
-            valorB = realizadoB > 0 ? 1 : realizadoB < 0 ? -1 : 0
-            break
-          case 'planejado':
-            valorA = a.valor
-            valorB = b.valor
-            break
-          case 'realizado':
-            valorA = Math.abs(getValorRealizado(a.categoria_id))
-            valorB = Math.abs(getValorRealizado(b.categoria_id))
-            break
-          case 'diferenca':
-            const difA = a.valor - Math.abs(getValorRealizado(a.categoria_id))
-            const difB = b.valor - Math.abs(getValorRealizado(b.categoria_id))
-            valorA = difA
-            valorB = difB
-            break
-          case 'progresso':
-            const percA = a.valor > 0 ? (Math.abs(getValorRealizado(a.categoria_id)) / a.valor) * 100 : 0
-            const percB = b.valor > 0 ? (Math.abs(getValorRealizado(b.categoria_id)) / b.valor) * 100 : 0
-            valorA = percA
-            valorB = percB
-            break
-          case 'status':
-            const getStatus = (linha: any) => {
-              if (linha.valor === 0) return 0
-              const perc = (Math.abs(getValorRealizado(linha.categoria_id)) / linha.valor) * 100
-              if (perc <= 80) return 1
-              if (perc <= 100) return 2
-              return 3
-            }
-            valorA = getStatus(a)
-            valorB = getStatus(b)
-            break
-          default:
-            return 0
+        for (const ord of ordenacoes) {
+          const valorA = extrairValor(a, ord.coluna)
+          const valorB = extrairValor(b, ord.coluna)
+          
+          if (valorA < valorB) return ord.direcao === 'asc' ? -1 : 1
+          if (valorA > valorB) return ord.direcao === 'asc' ? 1 : -1
         }
-        
-        if (valorA < valorB) return ordenacaoDirecao === 'asc' ? -1 : 1
-        if (valorA > valorB) return ordenacaoDirecao === 'asc' ? 1 : -1
         return 0
       })
     }
     
     return resultado
-  }, [orcamentos, transacoesRealizadas, categorias, ordenacaoColuna, ordenacaoDirecao])
-
-  const getValorRealizado = (categoriaId: string) => {
-    const transacao = transacoesRealizadas.find(t => t.categoria_id === categoriaId)
-    return transacao?.total || 0
-  }
+  }, [orcamentos, transacoesRealizadas, categorias, ordenacoes, getValorRealizado])
 
   const visualizarTransacoesCategoria = async (categoriaId: string, categoriaNome: string) => {
     console.log('👁️ Visualizar transações - Categoria:', categoriaNome, 'ID:', categoriaId)
@@ -680,6 +695,37 @@ export default function Orcamentos() {
       <div className="flex items-center justify-center min-h-screen">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
       </div>
+    )
+  }
+
+  // Função auxiliar para renderizar header de coluna com indicador de ordenação
+  const renderHeaderColuna = (coluna: OrdenacaoColuna, label: string, className: string = '') => {
+    const indexOrdenacao = ordenacoes.findIndex(o => o.coluna === coluna)
+    const temOrdenacao = indexOrdenacao !== -1
+    const direcaoOrdenacao = temOrdenacao ? ordenacoes[indexOrdenacao].direcao : null
+    
+    return (
+      <Button 
+        variant="ghost" 
+        onClick={() => handleOrdenar(coluna)}
+        className={`h-8 px-2 flex items-center gap-1 hover:bg-transparent ${className}`}
+      >
+        <span className="flex items-center gap-1">
+          {label}
+          {temOrdenacao && (
+            <span className="inline-flex items-center justify-center w-5 h-5 text-xs font-bold bg-blue-500 text-white rounded-full">
+              {indexOrdenacao + 1}
+            </span>
+          )}
+        </span>
+        {direcaoOrdenacao === 'asc' ? (
+          <ArrowUp className="h-3 w-3" />
+        ) : direcaoOrdenacao === 'desc' ? (
+          <ArrowDown className="h-3 w-3" />
+        ) : (
+          <ArrowUpDown className="h-3 w-3 opacity-50" />
+        )}
+      </Button>
     )
   }
 
@@ -932,104 +978,42 @@ export default function Orcamentos() {
               <TableHeader>
                 <TableRow>
                   <TableHead>
-                    <Button 
-                      variant="ghost" 
-                      onClick={() => handleOrdenar('categoria')}
-                      className="h-8 px-2 flex items-center gap-1 hover:bg-transparent"
-                    >
-                      Categoria
-                      {ordenacaoColuna === 'categoria' ? (
-                        ordenacaoDirecao === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
-                      ) : (
-                        <ArrowUpDown className="h-3 w-3 opacity-50" />
-                      )}
-                    </Button>
+                    {renderHeaderColuna('categoria', 'Categoria')}
                   </TableHead>
                   <TableHead className="text-center">
-                    <Button 
-                      variant="ghost" 
-                      onClick={() => handleOrdenar('tipo')}
-                      className="h-8 px-2 flex items-center gap-1 mx-auto hover:bg-transparent"
-                    >
-                      Tipo
-                      {ordenacaoColuna === 'tipo' ? (
-                        ordenacaoDirecao === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
-                      ) : (
-                        <ArrowUpDown className="h-3 w-3 opacity-50" />
-                      )}
-                    </Button>
+                    {renderHeaderColuna('tipo', 'Tipo', 'mx-auto')}
                   </TableHead>
                   <TableHead className="text-right">
-                    <Button 
-                      variant="ghost" 
-                      onClick={() => handleOrdenar('planejado')}
-                      className="h-8 px-2 flex items-center gap-1 ml-auto hover:bg-transparent"
-                    >
-                      Planejado
-                      {ordenacaoColuna === 'planejado' ? (
-                        ordenacaoDirecao === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
-                      ) : (
-                        <ArrowUpDown className="h-3 w-3 opacity-50" />
-                      )}
-                    </Button>
+                    {renderHeaderColuna('planejado', 'Planejado', 'ml-auto')}
                   </TableHead>
                   <TableHead className="text-right">
-                    <Button 
-                      variant="ghost" 
-                      onClick={() => handleOrdenar('realizado')}
-                      className="h-8 px-2 flex items-center gap-1 ml-auto hover:bg-transparent"
-                    >
-                      Realizado
-                      {ordenacaoColuna === 'realizado' ? (
-                        ordenacaoDirecao === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
-                      ) : (
-                        <ArrowUpDown className="h-3 w-3 opacity-50" />
-                      )}
-                    </Button>
+                    {renderHeaderColuna('realizado', 'Realizado', 'ml-auto')}
                   </TableHead>
                   <TableHead className="text-right">
-                    <Button 
-                      variant="ghost" 
-                      onClick={() => handleOrdenar('diferenca')}
-                      className="h-8 px-2 flex items-center gap-1 ml-auto hover:bg-transparent"
-                    >
-                      Diferença
-                      {ordenacaoColuna === 'diferenca' ? (
-                        ordenacaoDirecao === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
-                      ) : (
-                        <ArrowUpDown className="h-3 w-3 opacity-50" />
-                      )}
-                    </Button>
+                    {renderHeaderColuna('diferenca', 'Diferença', 'ml-auto')}
                   </TableHead>
                   <TableHead className="text-center">
-                    <Button 
-                      variant="ghost" 
-                      onClick={() => handleOrdenar('progresso')}
-                      className="h-8 px-2 flex items-center gap-1 mx-auto hover:bg-transparent"
-                    >
-                      Progresso
-                      {ordenacaoColuna === 'progresso' ? (
-                        ordenacaoDirecao === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
-                      ) : (
-                        <ArrowUpDown className="h-3 w-3 opacity-50" />
-                      )}
-                    </Button>
+                    {renderHeaderColuna('progresso', 'Progresso', 'mx-auto')}
                   </TableHead>
                   <TableHead className="text-center">
-                    <Button 
-                      variant="ghost" 
-                      onClick={() => handleOrdenar('status')}
-                      className="h-8 px-2 flex items-center gap-1 mx-auto hover:bg-transparent"
-                    >
-                      Status
-                      {ordenacaoColuna === 'status' ? (
-                        ordenacaoDirecao === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
-                      ) : (
-                        <ArrowUpDown className="h-3 w-3 opacity-50" />
-                      )}
-                    </Button>
+                    {renderHeaderColuna('status', 'Status', 'mx-auto')}
                   </TableHead>
-                  <TableHead className="text-center">Ações</TableHead>
+                  <TableHead className="text-center">
+                    <div className="flex items-center justify-center gap-2">
+                      Ações
+                      {ordenacoes.length > 0 && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={resetarOrdenacao}
+                          className="h-6 px-1 text-xs"
+                          title="Resetar ordenação"
+                        >
+                          ✕
+                        </Button>
+                      )}
+                    </div>
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -1048,12 +1032,12 @@ export default function Orcamentos() {
                         )}
                       </TableCell>
                       <TableCell className="text-center">
-                        {realizado > 0 ? (
+                        {linha.tipo === 'receita' ? (
                           <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
                             <TrendingUp className="h-3 w-3" />
                             Receita
                           </span>
-                        ) : realizado < 0 ? (
+                        ) : linha.tipo === 'despesa' ? (
                           <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400">
                             <TrendingDown className="h-3 w-3" />
                             Despesa
