@@ -15,14 +15,16 @@ import { ptBR } from 'date-fns/locale'
 
 interface Cartao {
   id: string
-  name: string
-  banco: string
-  limite: number
-  dia_fechamento: string
-  dia_vencimento: string
-  cor: string
+  nome: string
+  banco?: string
+  limite?: number
+  dia_fechamento?: string
+  dia_vencimento?: string
+  cor?: string
   tipo: string
   linked_account_id?: string | null
+  saldo_inicial?: number
+  user_id?: string
 }
 
 interface Transacao {
@@ -111,25 +113,26 @@ export function GerenciarFaturasModal({
   }, [selectedCard, selectedMonth, selectedYear])
 
   async function fetchCartoes() {
+    if (!user?.id) {
+      console.log('⚠️ User não carregado ainda em GerenciarFaturasModal')
+      return
+    }
+    
     const { data, error } = await supabase
       .from('accounts')
       .select('*')
-      .eq('user_id', user?.id)
-      .order('name')
+      .eq('user_id', user.id)
 
     if (error) {
       console.error('Erro ao buscar cartões:', error)
       return
     }
 
-    // Filtro: só tipos cartão/crédito/débito (mesma lógica da página Cartões)
-    const normaliza = (str: string) => str.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
-    const cartoesFiltrados = (data || []).filter(acc => {
-      if (!acc.type) return false
-      const tipo = normaliza(acc.type)
-      return tipo.includes('cartao') || tipo.includes('cartão') || tipo.includes('credito') || tipo.includes('debito') || tipo.includes('débito')
-    })
+    console.log('📋 Cartões carregados:', data)
 
+    // Filtro: apenas cartões de crédito (tipo === 'credit_card')
+    const cartoesFiltrados = (data || []).filter(acc => acc.tipo === 'credit_card')
+    console.log('✅ Cartões filtrados em GerenciarFaturasModal:', cartoesFiltrados)
     setCartoes(cartoesFiltrados)
   }
 
@@ -241,7 +244,7 @@ export function GerenciarFaturasModal({
           .insert({
             userid: user?.id,
             quando: new Date().toISOString(),
-            estabelecimento: `Pagamento Fatura ${cartao.name} - ${fatura.mes}/${fatura.ano}`,
+            estabelecimento: `Pagamento Fatura ${cartao.nome} - ${fatura.mes}/${fatura.ano}`,
             valor: fatura.total,
             tipo: 'despesa',
             metodo: 'debito',
@@ -330,7 +333,7 @@ export function GerenciarFaturasModal({
                           className="w-3 h-3 rounded-full"
                           style={{ backgroundColor: cartao.cor || '#3b82f6' }}
                         />
-                        {cartao.name} - {cartao.banco || 'Sem banco'}
+                        {cartao.nome} - {cartao.banco || 'Sem banco'}
                       </div>
                     </SelectItem>
                   ))}

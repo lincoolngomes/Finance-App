@@ -87,9 +87,9 @@ export function ImportarFaturaModal({ open, onClose, cardId }: ImportarFaturaMod
   const fetchCartoes = async () => {
     const { data, error } = await supabase
       .from('accounts')
-      .select('id, name, banco, cor, type')
+      .select('id, nome, tipo')
       .eq('user_id', user?.id)
-      .order('name')
+      .eq('tipo', 'credit_card')
     
     if (error) {
       console.error('Erro ao buscar cartões:', error)
@@ -99,26 +99,20 @@ export function ImportarFaturaModal({ open, onClose, cardId }: ImportarFaturaMod
         variant: 'destructive'
       })
     } else if (data) {
-      // Filtro: só tipos cartão/crédito/débito (mesma lógica da página Cartões)
-      const normaliza = (str: string) => str.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
-      const cartoesFiltrados = data.filter(acc => {
-        if (!acc.type) return false
-        const tipo = normaliza(acc.type)
-        return tipo.includes('cartao') || tipo.includes('cartão') || tipo.includes('credito') || tipo.includes('debito') || tipo.includes('débito')
-      })
-      console.log('Cartões encontrados:', cartoesFiltrados)
-      setCartoes(cartoesFiltrados)
+      console.log('Cartões encontrados:', data)
+      setCartoes(data)
     }
   }
 
   const fetchTransacoesExistentes = async () => {
     if (!selectedCard) return
 
+    const dataLimite = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString()
     const { data } = await supabase
       .from('transacoes')
-      .select('data, descricao, valor')
-      .eq('conta_id', selectedCard)
-      .gte('data', new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString()) // Últimos 90 dias
+      .select('quando, estabelecimento, valor')
+      .eq('cartao_id', selectedCard)
+      .gte('quando', dataLimite)
     
     if (data) setTransacoesExistentes(data)
   }
@@ -216,6 +210,7 @@ export function ImportarFaturaModal({ open, onClose, cardId }: ImportarFaturaMod
           const descricao = (
             row.descricao || row.Descricao || 
             row.description || row.Description || 
+            row.lançamento || row.Lançamento ||
             row.estabelecimento || row.Estabelecimento ||
             row.historico || row.Histórico || 
             row['histórico'] || ''
@@ -525,13 +520,7 @@ export function ImportarFaturaModal({ open, onClose, cardId }: ImportarFaturaMod
                     <SelectContent>
                       {cartoes.map(cartao => (
                         <SelectItem key={cartao.id} value={cartao.id}>
-                          <div className="flex items-center gap-2">
-                            <div
-                              className="w-3 h-3 rounded-full"
-                              style={{ backgroundColor: cartao.cor || '#3b82f6' }}
-                            />
-                            {cartao.name} - {cartao.banco || 'Sem banco'}
-                          </div>
+                          {cartao.nome}
                         </SelectItem>
                       ))}
                     </SelectContent>

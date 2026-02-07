@@ -28,6 +28,7 @@ import Feedback from "./pages/Feedback";
 import WhatsApp from "./pages/WhatsApp";
 import Orcamentos from "./pages/Orcamentos";
 import Diagnostico from "./pages/Diagnostico";
+import Patrimonio from "./pages/Patrimonio";
 
 const queryClient = new QueryClient();
 
@@ -211,6 +212,14 @@ function AppRoutes() {
         element={
           <ProtectedRoute>
             <Orcamentos />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/patrimonio"
+        element={
+          <ProtectedRoute>
+            <Patrimonio />
           </ProtectedRoute>
         }
       />

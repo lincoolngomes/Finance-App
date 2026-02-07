@@ -254,13 +254,16 @@ export default function Orcamentos() {
     })
 
     if (orcamentoEditando) {
-      // Atualizar orçamento existente
+      // Atualizar orçamento existente (todas as duplicatas da mesma categoria/mês/ano)
       const { error } = await supabase
         .from('orcamentos')
         .update({
           valor: valorNumerico
         })
-        .eq('id', orcamentoEditando)
+        .eq('user_id', user?.id)
+        .eq('mes', mesSelecionado)
+        .eq('ano', anoSelecionado)
+        .eq('categoria_id', categoriaSelecionada)
 
       console.log('❌ Erro ao atualizar:', error)
 
@@ -286,13 +289,16 @@ export default function Orcamentos() {
       const existe = orcamentos.find(o => o.categoria_id === categoriaSelecionada)
       
       if (existe) {
-        // Se já existe, atualizar em vez de inserir
+        // Se já existe, atualizar em vez de inserir (todas as duplicatas da mesma categoria/mês/ano)
         const { error } = await supabase
           .from('orcamentos')
           .update({
             valor: valorNumerico
           })
-          .eq('id', existe.id)
+          .eq('user_id', user?.id)
+          .eq('mes', mesSelecionado)
+          .eq('ano', anoSelecionado)
+          .eq('categoria_id', categoriaSelecionada)
 
         console.log('❌ Erro ao atualizar existente:', error)
 
@@ -349,22 +355,24 @@ export default function Orcamentos() {
   const atualizarOrcamento = async (categoriaId: string, valor: number) => {
     if (isNaN(valor) || valor < 0) return
 
-    // Buscar TODOS os orçamentos existentes para esta categoria (pode haver duplicatas)
-    const orcamentosExistentes = orcamentos.filter(o => o.categoria_id === categoriaId && o.mes === mesSelecionado && o.ano === anoSelecionado)
+    try {
+      // SEMPRE deletar TODOS os registros existentes para esta categoria/mês/ano
+      // Isso evita duplicatas quando há múltiplos registros ou quando apenas um existe
+      const { error: errorDelete } = await supabase
+        .from('orcamentos')
+        .delete()
+        .eq('user_id', user?.id)
+        .eq('categoria_id', categoriaId)
+        .eq('mes', mesSelecionado)
+        .eq('ano', anoSelecionado)
 
-    if (orcamentosExistentes.length > 0) {
-      // Se houver múltiplos registros, deletar todos
-      if (orcamentosExistentes.length > 1) {
-        for (const orc of orcamentosExistentes) {
-          await supabase
-            .from('orcamentos')
-            .delete()
-            .eq('id', orc.id)
-        }
+      if (errorDelete) {
+        console.error('❌ Erro ao deletar orçamentos antigos:', errorDelete)
+        return
       }
-      
-      // Agora inserir um novo com o valor atualizado
-      const { error } = await supabase
+
+      // Agora inserir um novo registro com o valor atualizado
+      const { error: errorInsert } = await supabase
         .from('orcamentos')
         .insert({
           user_id: user?.id,
@@ -374,24 +382,25 @@ export default function Orcamentos() {
           ano: anoSelecionado
         })
 
-      if (!error) {
-        carregarOrcamentos()
-      }
-    } else {
-      // Criar novo
-      const { error } = await supabase
-        .from('orcamentos')
-        .insert({
-          user_id: user?.id,
-          categoria_id: categoriaId,
-          valor: valor,
-          mes: mesSelecionado,
-          ano: anoSelecionado
+      if (errorInsert) {
+        console.error('❌ Erro ao inserir novo orçamento:', errorInsert)
+        toast({
+          title: "Erro",
+          description: "Erro ao atualizar orçamento",
+          variant: "destructive"
         })
-
-      if (!error) {
-        carregarOrcamentos()
+        return
       }
+
+      // Sucesso - recarregar orçamentos
+      carregarOrcamentos()
+    } catch (error) {
+      console.error('❌ Erro ao atualizar orçamento:', error)
+      toast({
+        title: "Erro",
+        description: "Erro ao atualizar orçamento",
+        variant: "destructive"
+      })
     }
   }
 
@@ -407,11 +416,14 @@ export default function Orcamentos() {
     setModalOpen(true)
   }
 
-  const removerOrcamento = async (id: string) => {
+  const removerOrcamento = async (categoriaId: string) => {
     const { error } = await supabase
       .from('orcamentos')
       .delete()
-      .eq('id', id)
+      .eq('user_id', user?.id)
+      .eq('mes', mesSelecionado)
+      .eq('ano', anoSelecionado)
+      .eq('categoria_id', categoriaId)
 
     if (error) {
       toast({
@@ -482,8 +494,16 @@ export default function Orcamentos() {
       }
     }
 
-    // Inserir novos orçamentos
-    const novosOrcamentos = orcamentosAnteriores.map(orc => ({
+    // Deduplicar por categoria antes de inserir
+    const mapaPorCategoria = new Map<string, { categoria_id: string; valor: number }>()
+    for (const orc of orcamentosAnteriores) {
+      mapaPorCategoria.set(orc.categoria_id, {
+        categoria_id: orc.categoria_id,
+        valor: orc.valor
+      })
+    }
+
+    const novosOrcamentos = Array.from(mapaPorCategoria.values()).map(orc => ({
       user_id: user?.id,
       categoria_id: orc.categoria_id,
       valor: orc.valor,
@@ -1174,7 +1194,7 @@ export default function Orcamentos() {
                             <Button
                               variant="ghost"
                               size="icon"
-                              onClick={() => removerOrcamento(linha.id)}
+                              onClick={() => removerOrcamento(linha.categoria_id)}
                               className="h-8 w-8"
                               title="Remover orçamento"
                             >

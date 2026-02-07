@@ -1,12 +1,13 @@
 
 import React, { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
+import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { GerenciarFaturasModal } from '@/components/faturas/GerenciarFaturasModal';
-import { ImportarFaturaModal } from '@/components/faturas/ImportarFaturaModal';
+import { ImportarFaturaModalNovo } from '@/components/faturas/ImportarFaturaModalNovo';
 import { HistoricoImportacoesModal } from '@/components/faturas/HistoricoImportacoesModal';
 import { formatCurrency, formatarValorBR, parseValorBR } from '@/utils/currency';
 import { Card, CardContent } from '@/components/ui/card';
@@ -402,6 +403,7 @@ function adjustColor(color: string, percent: number) {
 
 
 export default function Cartoes({ isModal = false }) {
+  const { user } = useAuth();
   const [importOpen, setImportOpen] = useState(false);
   const [cartoes, setCartoes] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -418,13 +420,16 @@ export default function Cartoes({ isModal = false }) {
     setLoading(true);
     const { data, error } = await supabase
       .from('accounts')
-      .select('*');
+      .select('*')
+      .eq('user_id', user?.id);
+    
+    console.log('📋 Todas as contas carregadas:', data)
+    console.log('❌ Erro:', error)
+    
     if (!error && data) {
-      // Filtro: cartões de crédito (type ou tipo = 'credit_card')
-      const cartoesFiltrados = data.filter(acc => {
-        const tipo = (acc.type || acc.tipo || '').toLowerCase();
-        return tipo === 'credit_card';
-      });
+      // Filtro: apenas cartões de crédito (tipo === 'credit_card')
+      const cartoesFiltrados = data.filter(acc => acc.tipo === 'credit_card');
+      console.log('✅ Cartões filtrados:', cartoesFiltrados)
       setCartoes(cartoesFiltrados);
     }
     setLoading(false);
@@ -440,8 +445,10 @@ export default function Cartoes({ isModal = false }) {
   }
 
   useEffect(() => {
-    fetchCartoes();
-  }, []);
+    if (user) {
+      fetchCartoes();
+    }
+  }, [user]);
 
   // Importação de fatura
   async function handleImportLancamentos(lancs) {
@@ -457,6 +464,34 @@ export default function Cartoes({ isModal = false }) {
     } else {
       fetchCartoes();
       alert('Importação realizada com sucesso!');
+    }
+  }
+
+  // Importar fatura do cartão
+  async function handleImportFatura(transacoes, cartaoId, regrasTexto) {
+    // Salvar regras no localStorage é feito no componente
+    const toInsert = transacoes.map(t => ({
+      quando: t.quando,
+      estabelecimento: t.estabelecimento,
+      valor: t.valor,
+      tipo: 'despesa',
+      categoria: t.categoria,
+      cartao_id: cartaoId,
+      account_id: cartaoId, // Compatibilidade
+    }));
+
+    const { error } = await supabase.from('transacoes').insert(toInsert);
+    if (error) {
+      return {
+        success: false,
+        message: `Erro ao importar: ${error.message}`
+      };
+    } else {
+      fetchCartoes();
+      return {
+        success: true,
+        message: `Importação realizada com sucesso! ${transacoes.length} transações importadas.`
+      };
     }
   }
 
@@ -755,14 +790,15 @@ export default function Cartoes({ isModal = false }) {
       />
 
       {/* Modal de Importar Fatura */}
-      <ImportarFaturaModal
+      <ImportarFaturaModalNovo
         open={importarFaturaOpen}
         onClose={() => {
           setImportarFaturaOpen(false);
           setCartaoParaImportar(undefined);
           fetchCartoes(); // Recarrega para mostrar novas transações
         }}
-        cardId={cartaoParaImportar}
+        onImport={handleImportFatura}
+        cartoes={cartoes}
       />
 
       {/* Modal de Histórico de Importações */}
