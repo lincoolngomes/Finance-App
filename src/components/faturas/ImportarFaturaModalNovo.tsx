@@ -3,36 +3,15 @@ import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
 import Papa from 'papaparse';
 import { toast } from '@/hooks/use-toast';
-
-// Função utilitária para normalizar strings
-function normalizar(str: string): string {
-  return (str || "")
-    .normalize("NFD")
-    .replace(/\p{Diacritic}/gu, "")
-    .replace(/\s+/g, " ")
-    .trim()
-    .toLowerCase();
-}
-
-function categorizar(descricao: string, regrasTexto: string): string {
-  if (!descricao) return 'Compras';
-  const descNorm = normalizar(descricao);
-  const regras = regrasTexto.split('\n').filter(l => l.includes('=')).map(l => l.trim());
-  for (const regra of regras) {
-    const [termo, categoria] = regra.split('=').map(s => s.trim());
-    if (descNorm.includes(normalizar(termo))) {
-      const catNorm = categoria.trim();
-      return catNorm.charAt(0).toUpperCase() + catNorm.slice(1);
-    }
-  }
-  return 'Compras';
-}
+import { normalizar, categorizar, REGRAS_PADRAO } from '@/utils/categorizacao';
+import { formatCurrency } from '@/utils/currency';
 
 interface Transacao {
   uid: string;
   quando: string;
   estabelecimento: string;
   valor: number;
+  tipo?: string;
   categoria: string;
   categoriaManual?: boolean;
 }
@@ -40,7 +19,7 @@ interface Transacao {
 interface ImportarFaturaModalNovoProps {
   open: boolean;
   onClose: () => void;
-  onImport: (transacoes: Transacao[], cartaoId: string, regrasTexto: string) => Promise<any>;
+  onImport: (transacoes: Transacao[], cartaoId: string, regrasTexto: string, mesReferencia?: string, anoReferencia?: string) => Promise<any>;
   cartoes: any[];
 }
 
@@ -51,15 +30,18 @@ export function ImportarFaturaModalNovo({ open, onClose, onImport, cartoes }: Im
 
   // Estados principais
   const [step, setStep] = useState(1);
-  const [regrasTexto, setRegrasTexto] = useState(`# ===== CATEGORIAS DE CARTÃO =====\n\n# Alimentação\nifood = Alimentação\nubereats = Alimentação\nrestaurante = Alimentação\nlanchonete = Alimentação\npadaria = Alimentação\npizzaria = Alimentação\nhamburgueria = Alimentação\nhabibs = Alimentação\noutback = Alimentação\nmcdonalds = Alimentação\nburger king = Alimentação\nbk = Alimentação\ngiraffas = Alimentação\nsubway = Alimentação\nspoleto = Alimentação\nsupermercado = Alimentação\ncarrefour = Alimentação\npao de acucar = Alimentação\nassai = Alimentação\n\n# Transporte\nuber = Transporte\n99 app = Transporte\n99pop = Transporte\ncabify = Transporte\nindriver = Transporte\ntaxi = Transporte\n\n# Compras\nmercado livre = Compras\nmagalu = Compras\namericanas = Compras\nsubmarino = Compras\ncasas bahia = Compras\nshopee = Compras\namazon = Compras\nkabum = Compras\nfast shop = Compras\ncentauro = Compras\nkalunga = Compras\nshein = Compras\naliexpress = Compras\npaypal = Compras\npagseguro = Compras\nstone = Compras\nsumup = Compras\ngetnet = Compras\ncielo = Compras\nrede = Compras\n\n# Assinaturas\nnetflix = Assinaturas\nspotify = Assinaturas\nprime video = Assinaturas\ndisney = Assinaturas\ngloboplay = Assinaturas\nmax = Assinaturas\nhbo = Assinaturas\nyoutube premium = Assinaturas\napple tv = Assinaturas\napple music = Assinaturas\nicloud = Assinaturas\ngoogle one = Assinaturas\nmicrosoft 365 = Assinaturas\nadobe = Assinaturas\nchatgpt = Assinaturas\nnotion = Assinaturas\nonepassword = Assinaturas\ndeezer = Assinaturas\nparamount = Assinaturas\ncanva = Assinaturas\n\n# Saúde\nhospital = Saúde\nclinica = Saúde\nlaboratorio = Saúde\nexame = Saúde\nvacina = Saúde\ndasa = Saúde\nfleury = Saúde\nsabin = Saúde\neinstein = Saúde\nsirio = Saúde\nunimed = Saúde\namil = Saúde\nhapvida = Saúde\nprevent = Saúde\nfarmacia = Saúde\ndrogaraia = Saúde\ndroga raia = Saúde\ndrogasil = Saúde\npacheco = Saúde\n\n# Combustível\nposto = Combustível\ngasolina = Combustível\netanol = Combustível\ndiesel = Combustível\nipiranga = Combustível\nshell = Combustível\nbr = Combustível\n\n# Lazer\ncinema = Lazer\ncinemark = Lazer\ncinepolis = Lazer\nteatro = Lazer\nshow = Lazer\ningresso = Lazer\nparque = Lazer\nmuseu = Lazer\nthermas = Lazer\nhotel = Lazer\nbooking = Lazer\ndecolar = Lazer\nairbnb = Lazer\nresort = Lazer\nsympla = Lazer\n\n# Academia\nsmart fit = Academia\nbluefit = Academia\nselfit = Academia\nbodytech = Academia\njust fit = Academia\ngympass = Academia\nacademia = Academia\nfitness = Academia\n\n# Vestuário\nrenner = Vestuário\nriachuelo = Vestuário\ncea = Vestuário\nc&a = Vestuário\nzara = Vestuário\nhering = Vestuário\nmarisa = Vestuário\nyoucom = Vestuário\nnetshoes = Vestuário\ndafiti = Vestuário\nlojas leroy = Vestuário\n\n# Educação\nescola = Educação\nfaculdade = Educação\nuniversidade = Educação\ncurso = Educação\nead = Educação\nalura = Educação\nrocketseat = Educação\nudemy = Educação\ncoursera = Educação\nsenai = Educação\netec = Educação\n\n# Serviços\nmanicure = Serviços\nbarbearia = Serviços\nsalao = Serviços\ncabeleireiro = Serviços\nesmalteria = Serviços\nbarber = Serviços\n\n# Utilidades\nluz = Utilidades\nenergia = Utilidades\nenel = Utilidades\nlight = Utilidades\ncemig = Utilidades\ncopel = Utilidades\nequatorial = Utilidades\nrge = Utilidades\ncelesc = Utilidades\ncpfl = Utilidades\nenergisa = Utilidades\naguasaneos = Utilidades\nsabesp = Utilidades\nsanepar = Utilidades\ncopasa = Utilidades\ncaesb = Utilidades\ninternet = Utilidades\nvivo = Utilidades\nclaro = Utilidades\ntim = Utilidades\noi = Utilidades\ntelephone = Utilidades\ncelular = Utilidades`);
+  const [regrasTexto, setRegrasTexto] = useState(REGRAS_PADRAO);
   const [csvFile, setCsvFile] = useState<File | null>(null);
   const [transacoes, setTransacoes] = useState<Transacao[]>([]);
   const [parseError, setParseError] = useState("");
   const [cartaoSelecionado, setCartaoSelecionado] = useState(cartoes?.[0]?.id || '');
+  const [mesReferencia, setMesReferencia] = useState(String(new Date().getMonth() + 1).padStart(2, '0'));
+  const [anoReferencia, setAnoReferencia] = useState(String(new Date().getFullYear()));
   const [loading, setLoading] = useState(false);
   const [importFeedback, setImportFeedback] = useState<any>(null);
   const [scrollPosition, setScrollPosition] = useState(0);
   const [editandoData, setEditandoData] = useState<{ [key: string]: boolean }>({});
+  const [editandoValor, setEditandoValor] = useState<{ [key: string]: boolean }>({});
   const [sortBy, setSortBy] = useState<string>('');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
 
@@ -68,6 +50,13 @@ export function ImportarFaturaModalNovo({ open, onClose, onImport, cartoes }: Im
     const saved = localStorage.getItem('regrasFatura');
     if (saved) setRegrasTexto(saved);
   }, []);
+
+  // Atualizar cartão selecionado quando os cartões carregam
+  useEffect(() => {
+    if (cartoes && cartoes.length > 0 && !cartaoSelecionado) {
+      setCartaoSelecionado(cartoes[0].id);
+    }
+  }, [cartoes]);
 
   // Salvar regras no localStorage
   useEffect(() => {
@@ -123,7 +112,7 @@ export function ImportarFaturaModalNovo({ open, onClose, onImport, cartoes }: Im
             ).trim();
             
             const valorStr = row.valor || row.Valor || row.amount || row.Amount || '0';
-            let valor = 0;
+            let valorRaw = 0;
             if (typeof valorStr === 'string') {
               let cleanValue = valorStr.replace(/[R$\s]/g, '');
               if (cleanValue.includes('.') && cleanValue.includes(',')) {
@@ -131,35 +120,41 @@ export function ImportarFaturaModalNovo({ open, onClose, onImport, cartoes }: Im
               } else if (cleanValue.includes(',')) {
                 cleanValue = cleanValue.replace(',', '.');
               }
-              valor = Math.abs(parseFloat(cleanValue) || 0);
+              valorRaw = parseFloat(cleanValue) || 0;
             } else {
-              valor = Math.abs(Number(valorStr) || 0);
+              valorRaw = Number(valorStr) || 0;
             }
+
+            // Valores negativos = pagamentos/estornos (receita), positivos = despesas
+            const tipo = valorRaw < 0 ? 'receita' : 'despesa';
+            const valor = Math.abs(valorRaw);
 
             return {
               uid: `${quando}-${estabelecimento}-${valor}-${index}`,
               quando,
               estabelecimento,
               valor,
+              tipo,
               categoria: categorizar(estabelecimento, regrasTexto)
             };
           })
           .filter(t => t.estabelecimento && t.valor > 0);
 
-        // Remover duplicados
-        const unicos: Transacao[] = [];
-        for (const t of dados) {
-          const isDup = unicos.some(u =>
+        // Marcar possíveis duplicados (mas manter todos)
+        for (let i = 0; i < dados.length; i++) {
+          const t = dados[i];
+          const isDup = dados.some((u, j) =>
+            j < i &&
             u.quando === t.quando &&
             normalizar(u.estabelecimento) === normalizar(t.estabelecimento) &&
             Math.abs(u.valor - t.valor) < 0.01
           );
-          if (!isDup) {
-            unicos.push(t);
+          if (isDup) {
+            (t as any).isDuplicate = true;
           }
         }
 
-        setTransacoes(unicos);
+        setTransacoes(dados);
         setStep(2);
         setSortBy('');
         setSortOrder('asc');
@@ -246,7 +241,7 @@ export function ImportarFaturaModalNovo({ open, onClose, onImport, cartoes }: Im
 
     setLoading(true);
     try {
-      const result = await onImport(transacoes, cartaoSelecionado, regrasTexto);
+      const result = await onImport(transacoes, cartaoSelecionado, regrasTexto, mesReferencia, anoReferencia);
       setImportFeedback(result || {
         success: true,
         message: `Importação realizada com sucesso! ${transacoes.length} transações importadas.`
@@ -273,6 +268,8 @@ export function ImportarFaturaModalNovo({ open, onClose, onImport, cartoes }: Im
     setImportFeedback(null);
     setSortBy('');
     setSortOrder('asc');
+    setMesReferencia(String(new Date().getMonth() + 1).padStart(2, '0'));
+    setAnoReferencia(String(new Date().getFullYear()));
     onClose();
   };
 
@@ -336,6 +333,42 @@ export function ImportarFaturaModalNovo({ open, onClose, onImport, cartoes }: Im
                   </select>
                 </div>
 
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-200 mb-3">Mês de vencimento</label>
+                    <select
+                      className="w-full px-4 py-3 rounded-xl border border-slate-700 bg-slate-800/50 text-slate-100 hover:border-slate-600 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition"
+                      value={mesReferencia}
+                      onChange={e => setMesReferencia(e.target.value)}
+                    >
+                      <option value="01">Janeiro</option>
+                      <option value="02">Fevereiro</option>
+                      <option value="03">Março</option>
+                      <option value="04">Abril</option>
+                      <option value="05">Maio</option>
+                      <option value="06">Junho</option>
+                      <option value="07">Julho</option>
+                      <option value="08">Agosto</option>
+                      <option value="09">Setembro</option>
+                      <option value="10">Outubro</option>
+                      <option value="11">Novembro</option>
+                      <option value="12">Dezembro</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-slate-200 mb-3">Ano</label>
+                    <select
+                      className="w-full px-4 py-3 rounded-xl border border-slate-700 bg-slate-800/50 text-slate-100 hover:border-slate-600 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition"
+                      value={anoReferencia}
+                      onChange={e => setAnoReferencia(e.target.value)}
+                    >
+                      {[new Date().getFullYear() - 1, new Date().getFullYear(), new Date().getFullYear() + 1].map(y => (
+                        <option key={y} value={String(y)}>{y}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
                 <div>
                   <label className="block text-sm font-semibold text-slate-200 mb-3">Arquivo CSV</label>
                   <input
@@ -394,18 +427,28 @@ export function ImportarFaturaModalNovo({ open, onClose, onImport, cartoes }: Im
               </div>
 
               <div className="mb-6">
-                <div className="grid grid-cols-3 gap-4 mb-4">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
                   <div className="p-4 bg-blue-500/10 border border-blue-500/30 rounded-xl">
-                    <p className="text-sm text-blue-400 font-medium">Total de transações</p>
-                    <p className="text-3xl font-bold text-blue-100 mt-1">{transacoes.length}</p>
+                    <p className="text-sm text-blue-400 font-medium">Transações</p>
+                    <p className="text-2xl font-bold text-blue-100 mt-1">{transacoes.length}</p>
+                  </div>
+                  <div className="p-4 bg-red-500/10 border border-red-500/30 rounded-xl">
+                    <p className="text-sm text-red-400 font-medium">Despesas</p>
+                    <p className="text-lg font-bold text-red-300 mt-1">
+                      {formatCurrency(transacoes.filter(t => t.tipo !== 'receita').reduce((s, t) => s + t.valor, 0))}
+                    </p>
+                    <p className="text-xs text-red-400/70 mt-0.5">{transacoes.filter(t => t.tipo !== 'receita').length} itens</p>
                   </div>
                   <div className="p-4 bg-green-500/10 border border-green-500/30 rounded-xl">
-                    <p className="text-sm text-green-400 font-medium">Válidas</p>
-                    <p className="text-3xl font-bold text-green-100 mt-1">{transacoes.length}</p>
+                    <p className="text-sm text-green-400 font-medium">Créditos / Pagamentos</p>
+                    <p className="text-lg font-bold text-green-300 mt-1">
+                      {formatCurrency(transacoes.filter(t => t.tipo === 'receita').reduce((s, t) => s + t.valor, 0))}
+                    </p>
+                    <p className="text-xs text-green-400/70 mt-0.5">{transacoes.filter(t => t.tipo === 'receita').length} itens</p>
                   </div>
                   <div className="p-4 bg-amber-500/10 border border-amber-500/30 rounded-xl">
-                    <p className="text-sm text-amber-400 font-medium">Duplicatas</p>
-                    <p className="text-3xl font-bold text-amber-100 mt-1">0</p>
+                    <p className="text-sm text-amber-400 font-medium">Possíveis duplicatas</p>
+                    <p className="text-2xl font-bold text-amber-100 mt-1">{transacoes.filter(t => (t as any).isDuplicate).length}</p>
                   </div>
                 </div>
               </div>
@@ -423,13 +466,13 @@ export function ImportarFaturaModalNovo({ open, onClose, onImport, cartoes }: Im
                       <tr className="bg-gradient-to-r from-slate-800/80 to-slate-900/80 border-b border-slate-700/50">
                         <th className="px-1 py-2 text-left font-semibold text-slate-300 w-32 cursor-pointer hover:bg-slate-700/50 transition" onClick={() => handleSort('quando')}>Data{renderSortIndicator('quando')}</th>
                         <th className="px-1 py-2 text-left font-semibold text-slate-300 flex-1 min-w-80 cursor-pointer hover:bg-slate-700/50 transition" onClick={() => handleSort('estabelecimento')}>Descrição{renderSortIndicator('estabelecimento')}</th>
-                        <th className="px-1 py-2 text-left font-semibold text-slate-300 w-32 cursor-pointer hover:bg-slate-700/50 transition" onClick={() => handleSort('valor')}>Valor{renderSortIndicator('valor')}</th>
+                        <th className="px-1 py-2 text-right font-semibold text-slate-300 w-36 cursor-pointer hover:bg-slate-700/50 transition" onClick={() => handleSort('valor')}>Valor{renderSortIndicator('valor')}</th>
                         <th className="px-1 py-2 text-left font-semibold text-slate-300 w-44 cursor-pointer hover:bg-slate-700/50 transition" onClick={() => handleSort('categoria')}>Categoria{renderSortIndicator('categoria')}</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-700/50">
                       {getSortedLancamentos().map((t, idx) => (
-                        <tr key={t.uid} className={`border-b border-slate-700/30 hover:bg-slate-800/40 transition ${idx % 2 === 0 ? 'bg-slate-900/20' : ''}`}>
+                        <tr key={t.uid} className={`border-b border-slate-700/30 hover:bg-slate-800/40 transition ${(t as any).isDuplicate ? 'bg-amber-500/10 border-l-2 border-l-amber-500' : idx % 2 === 0 ? 'bg-slate-900/20' : ''}`}>
                           <td className="px-1 py-2">
                             <input
                               type="text"
@@ -449,14 +492,23 @@ export function ImportarFaturaModalNovo({ open, onClose, onImport, cartoes }: Im
                               onChange={e => handleEditLancamento(t, 'estabelecimento', e.target.value)}
                             />
                           </td>
-                          <td className="px-1 py-2">
-                            <input
-                              type="text"
-                              inputMode="decimal"
-                              className="w-full px-1 py-1 rounded-lg bg-slate-700/30 border border-slate-600/50 text-slate-100 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition"
-                              value={t.valor}
-                              onChange={e => handleEditLancamento(t, 'valor', e.target.value)}
-                            />
+                          <td className="px-1 py-2 text-right">
+                            <div className="flex items-center justify-end gap-1">
+                              {t.tipo === 'receita' && (
+                                <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-green-500/20 text-green-400 flex-shrink-0">CRÉDITO</span>
+                              )}
+                              <input
+                                type="text"
+                                inputMode="decimal"
+                                className={`w-28 px-2 py-1 rounded-lg bg-slate-700/30 border border-slate-600/50 text-sm text-right font-mono focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition ${
+                                  t.tipo === 'receita' ? 'text-green-400' : 'text-red-400'
+                                }`}
+                                value={editandoValor[t.uid] ? t.valor : Number(t.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                onFocus={() => setEditandoValor(ev => ({ ...ev, [t.uid]: true }))}
+                                onBlur={() => setEditandoValor(ev => ({ ...ev, [t.uid]: false }))}
+                                onChange={e => handleEditLancamento(t, 'valor', e.target.value)}
+                              />
+                            </div>
                           </td>
                           <td className="px-1 py-2">
                             <select

@@ -8,20 +8,22 @@ import { Badge } from '@/components/ui/badge'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
 import { formatCurrency } from '@/utils/currency'
-import { Calendar, CreditCard, DollarSign, Clock, CheckCircle2, AlertCircle, Upload } from 'lucide-react'
+import { Calendar, CreditCard, DollarSign, Clock, CheckCircle2, AlertCircle, Upload, Tags, ChevronDown, ChevronUp, Pencil, Trash2, Square, CheckSquare, X, Check } from 'lucide-react'
 import { toast } from '@/hooks/use-toast'
 import { addMonths, format, startOfMonth, endOfMonth, parseISO, isWithinInterval } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
+import { categorizar, REGRAS_PADRAO } from '@/utils/categorizacao'
+import { Input } from '@/components/ui/input'
 
 interface Cartao {
   id: string
   nome: string
   banco?: string
   limite?: number
-  dia_fechamento?: string
-  dia_vencimento?: string
+  dia_fechamento?: string | number
+  dia_vencimento?: string | number
   cor?: string
-  tipo: string
+  tipo?: string
   linked_account_id?: string | null
   saldo_inicial?: number
   user_id?: string
@@ -29,15 +31,21 @@ interface Cartao {
 
 interface Transacao {
   id: number
-  quando: string
-  estabelecimento: string
+  data?: string
+  quando?: string
+  estabelecimento?: string
+  descricao?: string
   valor: number
   tipo: string
   categoria?: string
   categorias?: { id: string; nome: string }
-  account_id: string
+  conta_id?: string
+  cartao_id?: string
   parcela_atual?: number
   total_parcelas?: number
+  fatura_mes?: number
+  fatura_ano?: number
+  observacao?: string
 }
 
 interface Fatura {
@@ -69,6 +77,13 @@ export function GerenciarFaturasModal({
   const [selectedYear, setSelectedYear] = useState<string>('')
   const [fatura, setFatura] = useState<Fatura | null>(null)
   const [loading, setLoading] = useState(false)
+  const [regrasTexto, setRegrasTexto] = useState(REGRAS_PADRAO)
+  const [showRegras, setShowRegras] = useState(false)
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
+  const [editingId, setEditingId] = useState<number | null>(null)
+  const [editForm, setEditForm] = useState({ descricao: '', valor: '', data: '', categoria_id: '' })
+  const [deleting, setDeleting] = useState(false)
+  const [categorias, setCategorias] = useState<{id: string, nome: string}[]>([])
 
   const meses = [
     { value: '01', label: 'Janeiro' },
@@ -86,18 +101,19 @@ export function GerenciarFaturasModal({
   ]
 
   const currentYear = new Date().getFullYear()
-  const anos = Array.from({ length: 3 }, (_, i) => ({
-    value: String(currentYear + i),
-    label: String(currentYear + i),
+  const anos = Array.from({ length: 5 }, (_, i) => ({
+    value: String(currentYear - 2 + i),
+    label: String(currentYear - 2 + i),
   }))
 
   useEffect(() => {
     if (open && user) {
       fetchCartoes()
-      // Inicializar com mês/ano atual
-      const now = new Date()
-      setSelectedMonth(String(now.getMonth() + 1).padStart(2, '0'))
-      setSelectedYear(String(now.getFullYear()))
+      fetchCategorias()
+      
+      // Carregar regras salvas
+      const saved = localStorage.getItem('regrasFatura')
+      if (saved) setRegrasTexto(saved)
       
       // Se há um cartão pré-selecionado, definir
       if (initialCardId) {
@@ -106,11 +122,41 @@ export function GerenciarFaturasModal({
     }
   }, [open, user, initialCardId])
 
+  // Quando o cartão é selecionado, buscar o mês mais recente com transações
+  useEffect(() => {
+    if (selectedCard && user) {
+      buscarMesMaisRecente(selectedCard)
+    }
+  }, [selectedCard])
+
   useEffect(() => {
     if (selectedCard && selectedMonth && selectedYear) {
       calcularFatura()
     }
   }, [selectedCard, selectedMonth, selectedYear])
+
+  async function buscarMesMaisRecente(cartaoId: string) {
+    // Buscar fatura_mes/fatura_ano mais recente com transações
+    const { data } = await supabase
+      .from('transacoes')
+      .select('fatura_mes, fatura_ano')
+      .eq('cartao_id', cartaoId)
+      .not('fatura_mes', 'is', null)
+      .not('fatura_ano', 'is', null)
+      .order('fatura_ano', { ascending: false })
+      .order('fatura_mes', { ascending: false })
+      .limit(1)
+
+    if (data && data.length > 0 && data[0].fatura_mes && data[0].fatura_ano) {
+      setSelectedMonth(String(data[0].fatura_mes).padStart(2, '0'))
+      setSelectedYear(String(data[0].fatura_ano))
+    } else {
+      // Fallback: mês atual
+      const now = new Date()
+      setSelectedMonth(String(now.getMonth() + 1).padStart(2, '0'))
+      setSelectedYear(String(now.getFullYear()))
+    }
+  }
 
   async function fetchCartoes() {
     if (!user?.id) {
@@ -119,7 +165,7 @@ export function GerenciarFaturasModal({
     }
     
     const { data, error } = await supabase
-      .from('accounts')
+      .from('cartoes')
       .select('*')
       .eq('user_id', user.id)
 
@@ -129,11 +175,22 @@ export function GerenciarFaturasModal({
     }
 
     console.log('📋 Cartões carregados:', data)
+    setCartoes(data || [])
+    
+    // Auto-selecionar primeiro cartão se nenhum selecionado
+    if (!selectedCard && data && data.length > 0 && !initialCardId) {
+      setSelectedCard(data[0].id)
+    }
+  }
 
-    // Filtro: apenas cartões de crédito (tipo === 'credit_card')
-    const cartoesFiltrados = (data || []).filter(acc => acc.tipo === 'credit_card')
-    console.log('✅ Cartões filtrados em GerenciarFaturasModal:', cartoesFiltrados)
-    setCartoes(cartoesFiltrados)
+  async function fetchCategorias() {
+    if (!user?.id) return
+    const { data } = await supabase
+      .from('categorias')
+      .select('id, nome')
+      .eq('user_id', user.id)
+      .order('nome')
+    setCategorias(data || [])
   }
 
   function calcularDatasFatura(cartao: Cartao, mes: string, ano: string): { fechamento: Date; vencimento: Date; inicioPeriodo: Date; fimPeriodo: Date } {
@@ -177,17 +234,44 @@ export function GerenciarFaturasModal({
       selectedYear
     )
 
-    // Buscar transações do período
-    const { data: transacoes, error } = await supabase
+    const mesNum = parseInt(selectedMonth)
+    const anoNum = parseInt(selectedYear)
+
+    // Buscar transações por fatura_mes/fatura_ano (prioridade)
+    // OU por período de data (fallback para transações antigas sem fatura_mes/fatura_ano)
+    const { data: transacoesFatura, error: errorFatura } = await supabase
       .from('transacoes')
       .select(`
         *,
         categorias(id, nome)
       `)
-      .eq('conta_id', selectedCard)
+      .eq('cartao_id', selectedCard)
+      .eq('fatura_mes', mesNum)
+      .eq('fatura_ano', anoNum)
+      .order('data', { ascending: false })
+
+    // Fallback: buscar por data para transações que não têm fatura_mes/fatura_ano
+    const { data: transacoesPeriodo, error: errorPeriodo } = await supabase
+      .from('transacoes')
+      .select(`
+        *,
+        categorias(id, nome)
+      `)
+      .eq('cartao_id', selectedCard)
+      .is('fatura_mes', null)
       .gte('data', inicioPeriodo.toISOString())
       .lte('data', fimPeriodo.toISOString())
       .order('data', { ascending: false })
+
+    const error = errorFatura || errorPeriodo
+    // Combinar e deduplicar
+    const allTransacoes = [...(transacoesFatura || []), ...(transacoesPeriodo || [])]
+    const seen = new Set<number>()
+    const transacoes = allTransacoes.filter(t => {
+      if (seen.has(t.id)) return false
+      seen.add(t.id)
+      return true
+    })
 
     if (error) {
       console.error('Erro ao buscar transações:', error)
@@ -200,10 +284,12 @@ export function GerenciarFaturasModal({
       return
     }
 
-    // Calcular total (apenas despesas)
+    // Calcular total da fatura (despesas apenas - créditos são pagamentos da fatura anterior)
     const total = (transacoes || [])
-      .filter(t => t.tipo === 'despesa')
-      .reduce((acc, t) => acc + (t.valor || 0), 0)
+      .reduce((acc, t) => {
+        if (t.tipo === 'receita') return acc - (t.valor || 0)
+        return acc + (t.valor || 0)
+      }, 0)
 
     const agora = new Date()
     const vencida = vencimento < agora
@@ -242,15 +328,13 @@ export function GerenciarFaturasModal({
         const { error: debitoError } = await supabase
           .from('transacoes')
           .insert({
-            userid: user?.id,
-            quando: new Date().toISOString(),
-            estabelecimento: `Pagamento Fatura ${cartao.nome} - ${fatura.mes}/${fatura.ano}`,
+            user_id: user?.id,
+            data: new Date().toISOString(),
+            descricao: `Pagamento Fatura ${cartao.nome} - ${fatura.mes}/${fatura.ano}`,
             valor: fatura.total,
             tipo: 'despesa',
-            metodo: 'debito',
-            account_id: cartao.linked_account_id,
-            status: 'pago',
-            created_at: new Date().toISOString()
+            conta_id: cartao.linked_account_id,
+            pago: true,
           })
 
         if (debitoError) throw debitoError
@@ -278,6 +362,97 @@ export function GerenciarFaturasModal({
   }
 
   const cartaoSelecionado = cartoes.find(c => c.id === selectedCard)
+
+  function toggleSelect(id: number) {
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  function toggleSelectAll() {
+    if (!fatura) return
+    if (selectedIds.size === fatura.transacoes.length) {
+      setSelectedIds(new Set())
+    } else {
+      setSelectedIds(new Set(fatura.transacoes.map(t => t.id)))
+    }
+  }
+
+  function startEdit(transacao: Transacao) {
+    setEditingId(transacao.id)
+    setEditForm({
+      descricao: transacao.descricao || transacao.estabelecimento || '',
+      valor: String(transacao.valor || 0),
+      data: transacao.data || transacao.quando || '',
+      categoria_id: transacao.categorias?.id || '',
+    })
+  }
+
+  async function saveEdit() {
+    if (editingId === null) return
+    try {
+      const { error } = await supabase
+        .from('transacoes')
+        .update({
+          descricao: editForm.descricao,
+          valor: parseFloat(editForm.valor) || 0,
+          data: editForm.data,
+          categoria_id: editForm.categoria_id && editForm.categoria_id !== 'none' ? editForm.categoria_id : null,
+        })
+        .eq('id', editingId)
+
+      if (error) throw error
+
+      toast({ title: 'Transação atualizada ✅' })
+      setEditingId(null)
+      calcularFatura()
+    } catch (err: any) {
+      toast({ title: 'Erro ao editar', description: err.message, variant: 'destructive' })
+    }
+  }
+
+  async function deleteSelected() {
+    if (selectedIds.size === 0) return
+    if (!window.confirm(`Excluir ${selectedIds.size} transação(ões)?`)) return
+
+    setDeleting(true)
+    try {
+      const { error } = await supabase
+        .from('transacoes')
+        .delete()
+        .in('id', Array.from(selectedIds))
+
+      if (error) throw error
+
+      toast({ title: `${selectedIds.size} transação(ões) excluída(s) ✅` })
+      setSelectedIds(new Set())
+      calcularFatura()
+    } catch (err: any) {
+      toast({ title: 'Erro ao excluir', description: err.message, variant: 'destructive' })
+    } finally {
+      setDeleting(false)
+    }
+  }
+
+  async function deleteSingle(id: number) {
+    if (!window.confirm('Excluir esta transação?')) return
+    try {
+      const { error } = await supabase
+        .from('transacoes')
+        .delete()
+        .eq('id', id)
+
+      if (error) throw error
+
+      toast({ title: 'Transação excluída ✅' })
+      calcularFatura()
+    } catch (err: any) {
+      toast({ title: 'Erro ao excluir', description: err.message, variant: 'destructive' })
+    }
+  }
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
@@ -451,9 +626,42 @@ export function GerenciarFaturasModal({
 
               {/* Lista de Transações */}
               <div>
-                <h3 className="font-semibold mb-3">
-                  Transações ({fatura.transacoes.length})
-                </h3>
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="font-semibold">
+                    Transações ({fatura.transacoes.length})
+                  </h3>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowRegras(!showRegras)}
+                    className="gap-1.5 text-xs"
+                  >
+                    <Tags className="h-3.5 w-3.5" />
+                    Regras de Categorização
+                    {showRegras ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                  </Button>
+                </div>
+
+                {showRegras && (
+                  <Card className="mb-4">
+                    <CardContent className="p-4">
+                      <p className="text-xs text-muted-foreground mb-2">
+                        Defina regras no formato: <code className="bg-muted px-1 rounded">termo = Categoria</code> (uma por linha)
+                      </p>
+                      <textarea
+                        className="w-full px-3 py-2 rounded-lg bg-background border text-sm font-mono focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 transition"
+                        style={{ minHeight: 120, maxHeight: 200, overflow: 'auto' }}
+                        value={regrasTexto}
+                        onChange={e => {
+                          setRegrasTexto(e.target.value)
+                          localStorage.setItem('regrasFatura', e.target.value)
+                        }}
+                        placeholder="burger king = Alimentação&#10;netflix = Assinaturas&#10;uber = Transporte"
+                      />
+                    </CardContent>
+                  </Card>
+                )}
+
                 {fatura.transacoes.length === 0 ? (
                   <Card>
                     <CardContent className="p-8 text-center">
@@ -462,37 +670,171 @@ export function GerenciarFaturasModal({
                     </CardContent>
                   </Card>
                 ) : (
-                  <div className="space-y-2 max-h-[400px] overflow-y-auto">
-                    {fatura.transacoes.map((transacao) => (
-                      <Card key={transacao.id}>
-                        <CardContent className="p-3">
-                          <div className="flex items-center justify-between">
-                            <div className="flex-1">
-                              <p className="font-medium text-sm">{transacao.estabelecimento || 'Sem descrição'}</p>
-                              <div className="flex items-center gap-2 mt-1">
-                                <p className="text-xs text-muted-foreground">
-                                  {format(parseISO(transacao.quando), "dd/MM/yyyy", { locale: ptBR })}
-                                </p>
-                                {(transacao.categorias?.nome || transacao.categoria) && (
-                                  <Badge variant="secondary" className="text-xs">
-                                    {transacao.categorias?.nome || transacao.categoria}
-                                  </Badge>
-                                )}
-                                {transacao.total_parcelas && transacao.total_parcelas > 1 && (
-                                  <Badge variant="outline" className="text-xs">
-                                    {transacao.parcela_atual}/{transacao.total_parcelas}
-                                  </Badge>
-                                )}
-                              </div>
-                            </div>
-                            <p className={`font-bold ${transacao.tipo === 'despesa' ? 'text-red-500' : 'text-green-500'}`}>
-                              {transacao.tipo === 'despesa' ? '-' : '+'}{formatCurrency(transacao.valor)}
-                            </p>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    ))}
-                  </div>
+                  <>
+                    {/* Barra de ações em lote */}
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={toggleSelectAll}
+                          className="gap-1.5 text-xs h-8 px-2"
+                        >
+                          {selectedIds.size === fatura.transacoes.length && fatura.transacoes.length > 0
+                            ? <CheckSquare className="h-4 w-4 text-blue-500" />
+                            : <Square className="h-4 w-4" />
+                          }
+                          {selectedIds.size > 0 ? `${selectedIds.size} selecionada(s)` : 'Selecionar tudo'}
+                        </Button>
+                      </div>
+                      {selectedIds.size > 0 && (
+                        <Button
+                          variant="destructive"
+                          size="sm"
+                          onClick={deleteSelected}
+                          disabled={deleting}
+                          className="gap-1.5 text-xs h-8"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                          Excluir ({selectedIds.size})
+                        </Button>
+                      )}
+                    </div>
+
+                    <div className="space-y-2 max-h-[400px] overflow-y-auto">
+                      {fatura.transacoes.map((transacao) => {
+                        const categoriaRegra = categorizar(transacao.descricao || transacao.estabelecimento || '', regrasTexto)
+                        const categoriaFinal = transacao.categorias?.nome || categoriaRegra || transacao.categoria
+                        const isSelected = selectedIds.has(transacao.id)
+                        const isEditing = editingId === transacao.id
+
+                        return (
+                          <Card key={transacao.id} className={`transition-colors ${isSelected ? 'border-blue-500 bg-blue-500/5' : ''}`}>
+                            <CardContent className="p-3">
+                              {isEditing ? (
+                                <div className="space-y-2">
+                                  <div className="flex gap-2">
+                                    <Input
+                                      value={editForm.descricao}
+                                      onChange={e => setEditForm(f => ({ ...f, descricao: e.target.value }))}
+                                      placeholder="Descrição"
+                                      className="flex-1 h-8 text-sm"
+                                    />
+                                    <Input
+                                      type="number"
+                                      step="0.01"
+                                      value={editForm.valor}
+                                      onChange={e => setEditForm(f => ({ ...f, valor: e.target.value }))}
+                                      placeholder="Valor"
+                                      className="w-28 h-8 text-sm"
+                                    />
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <Input
+                                      type="date"
+                                      value={editForm.data?.split('T')[0] || ''}
+                                      onChange={e => setEditForm(f => ({ ...f, data: e.target.value }))}
+                                      className="w-36 h-8 text-sm"
+                                    />
+                                    <Select
+                                      value={editForm.categoria_id}
+                                      onValueChange={v => setEditForm(f => ({ ...f, categoria_id: v }))}
+                                    >
+                                      <SelectTrigger className="flex-1 h-8 text-sm">
+                                        <SelectValue placeholder="Categoria" />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="none">Sem categoria</SelectItem>
+                                        {categorias.map(cat => (
+                                          <SelectItem key={cat.id} value={cat.id}>{cat.nome}</SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                    <Button size="sm" variant="ghost" onClick={() => setEditingId(null)} className="h-8 w-8 p-0 flex-shrink-0">
+                                      <X className="h-4 w-4" />
+                                    </Button>
+                                    <Button size="sm" onClick={saveEdit} className="h-8 w-8 p-0 bg-green-600 hover:bg-green-700 flex-shrink-0">
+                                      <Check className="h-4 w-4" />
+                                    </Button>
+                                  </div>
+                                </div>
+                              ) : (
+                                <div className="flex items-center gap-2">
+                                  {/* Checkbox */}
+                                  <button
+                                    onClick={() => toggleSelect(transacao.id)}
+                                    className="flex-shrink-0 p-0.5 rounded hover:bg-muted transition"
+                                  >
+                                    {isSelected
+                                      ? <CheckSquare className="h-4 w-4 text-blue-500" />
+                                      : <Square className="h-4 w-4 text-muted-foreground" />
+                                    }
+                                  </button>
+
+                                  {/* Conteúdo */}
+                                  <div className="flex-1 min-w-0">
+                                    <p className="font-medium text-sm truncate">{transacao.descricao || transacao.estabelecimento || 'Sem descrição'}</p>
+                                    <div className="flex items-center gap-2 mt-1">
+                                      <p className="text-xs text-muted-foreground">
+                                        {format(parseISO(transacao.data || transacao.quando), "dd/MM/yyyy", { locale: ptBR })}
+                                      </p>
+                                      {categoriaFinal ? (
+                                        <Badge 
+                                          variant="secondary" 
+                                          className="text-xs cursor-pointer hover:bg-primary/20 transition"
+                                          onClick={(e) => { e.stopPropagation(); startEdit(transacao); }}
+                                          title="Clique para editar categoria"
+                                        >
+                                          {categoriaFinal}
+                                        </Badge>
+                                      ) : (
+                                        <Badge 
+                                          variant="outline" 
+                                          className="text-xs cursor-pointer opacity-50 hover:opacity-100 transition"
+                                          onClick={(e) => { e.stopPropagation(); startEdit(transacao); }}
+                                          title="Clique para adicionar categoria"
+                                        >
+                                          + Categoria
+                                        </Badge>
+                                      )}
+                                      {transacao.total_parcelas && transacao.total_parcelas > 1 && (
+                                        <Badge variant="outline" className="text-xs">
+                                          {transacao.parcela_atual}/{transacao.total_parcelas}
+                                        </Badge>
+                                      )}
+                                    </div>
+                                  </div>
+
+                                  {/* Valor */}
+                                  <p className={`font-bold text-sm flex-shrink-0 ${transacao.tipo === 'despesa' ? 'text-red-500' : 'text-green-500'}`}>
+                                    {transacao.tipo === 'despesa' ? '-' : '+'}{formatCurrency(transacao.valor)}
+                                  </p>
+
+                                  {/* Botões de ação */}
+                                  <div className="flex gap-1 flex-shrink-0 ml-1">
+                                    <button
+                                      onClick={() => startEdit(transacao)}
+                                      className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-blue-500 transition"
+                                      title="Editar"
+                                    >
+                                      <Pencil className="h-3.5 w-3.5" />
+                                    </button>
+                                    <button
+                                      onClick={() => deleteSingle(transacao.id)}
+                                      className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-red-500 transition"
+                                      title="Excluir"
+                                    >
+                                      <Trash2 className="h-3.5 w-3.5" />
+                                    </button>
+                                  </div>
+                                </div>
+                              )}
+                            </CardContent>
+                          </Card>
+                        )
+                      })}
+                    </div>
+                  </>
                 )}
               </div>
             </>

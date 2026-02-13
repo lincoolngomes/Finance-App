@@ -146,6 +146,7 @@ function ImportarExtratoModal({ open, onClose, onImport }) {
 }
 
 function EditCartaoModal({ cartao, open, onClose, onSave }) {
+  const { user } = useAuth();
   const [formData, setFormData] = useState({
     name: '',
     limite: 0,
@@ -188,11 +189,11 @@ function EditCartaoModal({ cartao, open, onClose, onSave }) {
   const fetchContasVincular = async () => {
     const { data } = await supabase
       .from('accounts')
-      .select('id, name, type')
-      .neq('type', 'Cart\u00e3o de Cr\u00e9dito')
-      .order('name');
+      .select('id, nome, tipo')
+      .eq('user_id', user?.id)
+      .order('nome');
     
-    if (data) setContas(data);
+    if (data) setContas(data.map(c => ({ ...c, name: c.nome || c.name })));
   };
 
   const handleChange = (field: string, value: any) => {
@@ -419,24 +420,27 @@ export default function Cartoes({ isModal = false }) {
   async function fetchCartoes() {
     setLoading(true);
     const { data, error } = await supabase
-      .from('accounts')
+      .from('cartoes')
       .select('*')
       .eq('user_id', user?.id);
     
-    console.log('📋 Todas as contas carregadas:', data)
+    console.log('📋 Cartões carregados:', data)
     console.log('❌ Erro:', error)
     
     if (!error && data) {
-      // Filtro: apenas cartões de crédito (tipo === 'credit_card')
-      const cartoesFiltrados = data.filter(acc => acc.tipo === 'credit_card');
-      console.log('✅ Cartões filtrados:', cartoesFiltrados)
-      setCartoes(cartoesFiltrados);
+      // Mapear campos para manter compatibilidade com o componente
+      const cartoesFormatados = data.map(c => ({
+        ...c,
+        name: c.nome, // alias para compatibilidade
+      }));
+      console.log('✅ Cartões:', cartoesFormatados)
+      setCartoes(cartoesFormatados);
     }
     setLoading(false);
     // Busca transações
     const { data: transData, error: transError } = await supabase
       .from('transacoes')
-      .select('id, valor, tipo, conta_id');
+      .select('id, valor, tipo, cartao_id, status, quando');
     if (!transError && transData) {
       setTransacoes(transData);
     } else {
@@ -455,8 +459,13 @@ export default function Cartoes({ isModal = false }) {
     // Se houver apenas um cartão, já associa automaticamente
     const cartaoId = cartoes.length === 1 ? cartoes[0].id : undefined;
     const toInsert = lancs.map(l => ({
-      ...l,
-      account_id: cartaoId,
+      data: l.quando,
+      descricao: l.estabelecimento,
+      valor: l.valor,
+      tipo: l.tipo || 'despesa',
+      cartao_id: cartaoId,
+      user_id: user?.id,
+      pago: false,
     }));
     const { error } = await supabase.from('transacoes').insert(toInsert);
     if (error) {
@@ -468,16 +477,22 @@ export default function Cartoes({ isModal = false }) {
   }
 
   // Importar fatura do cartão
-  async function handleImportFatura(transacoes, cartaoId, regrasTexto) {
+  async function handleImportFatura(transacoes, cartaoId, regrasTexto, mesReferencia?: string, anoReferencia?: string) {
     // Salvar regras no localStorage é feito no componente
+    const refFatura = mesReferencia && anoReferencia ? `${mesReferencia}/${anoReferencia}` : null;
+    const faturaMes = mesReferencia ? parseInt(mesReferencia) : null;
+    const faturaAno = anoReferencia ? parseInt(anoReferencia) : null;
     const toInsert = transacoes.map(t => ({
-      quando: t.quando,
-      estabelecimento: t.estabelecimento,
+      data: t.quando,
+      descricao: t.estabelecimento,
       valor: t.valor,
-      tipo: 'despesa',
-      categoria: t.categoria,
+      tipo: t.tipo || 'despesa',
       cartao_id: cartaoId,
-      account_id: cartaoId, // Compatibilidade
+      user_id: user?.id,
+      pago: false,
+      ...(refFatura ? { observacao: `Fatura ${refFatura}` } : {}),
+      ...(faturaMes ? { fatura_mes: faturaMes } : {}),
+      ...(faturaAno ? { fatura_ano: faturaAno } : {}),
     }));
 
     const { error } = await supabase.from('transacoes').insert(toInsert);
@@ -498,7 +513,7 @@ export default function Cartoes({ isModal = false }) {
   // Excluir cartão
   async function handleDeleteCartao(cartao) {
     if (!window.confirm('Tem certeza que deseja excluir este cartão?')) return;
-    const { error } = await supabase.from('accounts').delete().eq('id', cartao.id);
+    const { error } = await supabase.from('cartoes').delete().eq('id', cartao.id);
     if (error) {
       alert('Erro ao excluir: ' + error.message);
     } else {
@@ -514,21 +529,43 @@ export default function Cartoes({ isModal = false }) {
 
   // Salvar edição
   async function handleSaveCartao(cartaoEditado) {
-    const { error } = await supabase.from('accounts').update({ 
-      name: cartaoEditado.name,
-      banco: cartaoEditado.banco,
-      limite: cartaoEditado.limite,
-      dia_fechamento: cartaoEditado.dia_fechamento,
-      dia_vencimento: cartaoEditado.dia_vencimento,
-      cor: cartaoEditado.cor,
-      type: cartaoEditado.type || 'credit_card',
-    }).eq('id', cartaoEditado.id);
-    setEditOpen(false);
-    setEditCartao(null);
-    if (error) {
-      alert('Erro ao editar: ' + error.message);
+    if (cartaoEditado.id) {
+      // Edição de cartão existente
+      const { error } = await supabase.from('cartoes').update({ 
+        nome: cartaoEditado.name,
+        banco: cartaoEditado.banco,
+        limite: cartaoEditado.limite,
+        dia_fechamento: cartaoEditado.dia_fechamento,
+        dia_vencimento: cartaoEditado.dia_vencimento,
+        cor: cartaoEditado.cor,
+        linked_account_id: cartaoEditado.linked_account_id,
+      }).eq('id', cartaoEditado.id);
+      setEditOpen(false);
+      setEditCartao(null);
+      if (error) {
+        alert('Erro ao editar: ' + error.message);
+      } else {
+        fetchCartoes();
+      }
     } else {
-      fetchCartoes();
+      // Novo cartão
+      const { error } = await supabase.from('cartoes').insert({
+        user_id: user?.id,
+        nome: cartaoEditado.name,
+        banco: cartaoEditado.banco,
+        limite: cartaoEditado.limite,
+        dia_fechamento: cartaoEditado.dia_fechamento,
+        dia_vencimento: cartaoEditado.dia_vencimento,
+        cor: cartaoEditado.cor,
+        linked_account_id: cartaoEditado.linked_account_id,
+      });
+      setEditOpen(false);
+      setEditCartao(null);
+      if (error) {
+        alert('Erro ao criar cartão: ' + error.message);
+      } else {
+        fetchCartoes();
+      }
     }
   }
 
@@ -594,7 +631,7 @@ export default function Cartoes({ isModal = false }) {
         <div className={isModal ? "space-y-6" : "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8"}>
           {cartoes.map((cartao) => {
             const saldoInicial = cartao.saldo_inicial || 0;
-            const transacoesCartao = transacoes.filter(t => t.account_id === cartao.id);
+            const transacoesCartao = transacoes.filter(t => t.cartao_id === cartao.id);
             const saldoTransacoes = transacoesCartao.reduce((acc, t) => {
               if (t.tipo === 'receita') return acc + (t.valor || 0);
               if (t.tipo === 'despesa') return acc - (t.valor || 0);

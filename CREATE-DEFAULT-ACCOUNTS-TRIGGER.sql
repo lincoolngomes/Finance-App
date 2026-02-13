@@ -2,13 +2,13 @@
 create or replace function public.handle_new_user_accounts()
 returns trigger as $$
 begin
-  -- Conta bancária principal
-  insert into public.accounts (user_id, nome, tipo, icone, cor)
-  values (new.id, 'Conta Bancária Principal', 'bank', 'bank', '#2563eb');
+  -- Conta bancária principal (na tabela accounts)
+  insert into public.accounts (user_id, nome, tipo, cor)
+  values (new.id, 'Conta Principal', 'bank', '#2563eb');
 
-  -- Cartão de crédito principal
-  insert into public.accounts (user_id, nome, tipo, icone, cor)
-  values (new.id, 'Cartão de Crédito Principal', 'credit_card', 'credit_card', '#eab308');
+  -- Cartão de crédito principal (na tabela cartoes - separada de accounts)
+  insert into public.cartoes (user_id, nome, cor, limite, dia_fechamento, dia_vencimento)
+  values (new.id, 'Cartão de Crédito Principal', '#eab308', 0, '1', '10');
 
   return new;
 end;

@@ -551,8 +551,8 @@ const Transacoes: React.FC = () => {
         tipo: formData.tipo || null,
         categoria_id: normalizeUuid(formData.category_id),
         pago: formData.isPago !== undefined ? formData.isPago : true,
-        conta_id: normalizeUuid(formData.account_id),
-        cartao_id: normalizeUuid(formData.account_id) && formData.metodo === 'cartao_credito' ? normalizeUuid(formData.account_id) : null,
+        conta_id: formData.metodo === 'cartao_credito' ? null : normalizeUuid(formData.account_id),
+        cartao_id: formData.metodo === 'cartao_credito' ? normalizeUuid(formData.account_id) : null,
         user_id: user?.id || null,
       }
 

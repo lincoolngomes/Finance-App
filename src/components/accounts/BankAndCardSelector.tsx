@@ -83,33 +83,27 @@ export function CardSelector({ value, onValueChange, placeholder }: {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    async function fetchAccounts() {
+    async function fetchCartoes() {
       if (!user || !user.id) {
         setLoading(false);
         return;
       }
       setLoading(true);
       const { data, error } = await supabase
-        .from("accounts")
+        .from("cartoes")
         .select("*")
         .eq('user_id', user.id);
       if (!error && data) {
-        // Filtrar apenas cartões de crédito
-        const filtered = data.filter((acc: any) => {
-          const tipo = (acc.type || acc.tipo || '').toLowerCase();
-          return tipo === 'credit_card';
-        });
-        // Mapear para o tipo Account
-        const mapped = filtered.map((acc: any) => ({
-          id: acc.id,
-          name: acc.nome || acc.name,
-          type: 'cartao'
+        const mapped = data.map((cartao: any) => ({
+          id: cartao.id,
+          name: cartao.nome,
+          type: 'cartao' as const
         }));
         setAccounts(mapped);
       }
       setLoading(false);
     }
-    fetchAccounts();
+    fetchCartoes();
   }, [user?.id]);
 
   // Permite mostrar o valor mesmo se ainda não carregou a lista

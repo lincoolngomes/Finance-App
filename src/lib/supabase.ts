@@ -155,6 +155,53 @@ export type Database = {
           updated_at?: string
         }
       }
+      cartoes: {
+        Row: {
+          id: string
+          user_id: string
+          nome: string
+          bandeira: string | null
+          limite: number
+          dia_fechamento: string | null
+          dia_vencimento: string | null
+          cor: string | null
+          banco: string | null
+          linked_account_id: string | null
+          ativo: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          nome: string
+          bandeira?: string | null
+          limite?: number
+          dia_fechamento?: string | null
+          dia_vencimento?: string | null
+          cor?: string | null
+          banco?: string | null
+          linked_account_id?: string | null
+          ativo?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          nome?: string
+          bandeira?: string | null
+          limite?: number
+          dia_fechamento?: string | null
+          dia_vencimento?: string | null
+          cor?: string | null
+          banco?: string | null
+          linked_account_id?: string | null
+          ativo?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+      }
     }
   }
 }

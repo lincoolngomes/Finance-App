@@ -86,10 +86,9 @@ export function ImportarFaturaModal({ open, onClose, cardId }: ImportarFaturaMod
 
   const fetchCartoes = async () => {
     const { data, error } = await supabase
-      .from('accounts')
-      .select('id, nome, tipo')
+      .from('cartoes')
+      .select('id, nome')
       .eq('user_id', user?.id)
-      .eq('tipo', 'credit_card')
     
     if (error) {
       console.error('Erro ao buscar cartões:', error)
@@ -110,9 +109,9 @@ export function ImportarFaturaModal({ open, onClose, cardId }: ImportarFaturaMod
     const dataLimite = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString()
     const { data } = await supabase
       .from('transacoes')
-      .select('quando, estabelecimento, valor')
+      .select('data, descricao, valor')
       .eq('cartao_id', selectedCard)
-      .gte('quando', dataLimite)
+      .gte('data', dataLimite)
     
     if (data) setTransacoesExistentes(data)
   }
@@ -136,7 +135,7 @@ export function ImportarFaturaModal({ open, onClose, cardId }: ImportarFaturaMod
     if (!categoria) {
       const { data, error } = await supabase
         .from('categorias')
-        .insert({ userid: user?.id, nome: nomeCategoria })
+        .insert({ user_id: user?.id, nome: nomeCategoria })
         .select()
         .single()
       
@@ -151,9 +150,9 @@ export function ImportarFaturaModal({ open, onClose, cardId }: ImportarFaturaMod
 
   const isDuplicate = (transacao: Transacao): boolean => {
     return transacoesExistentes.some(existing => {
-      const sameDate = new Date(existing.quando).toDateString() === new Date(transacao.quando).toDateString()
+      const sameDate = new Date(existing.data).toDateString() === new Date(transacao.quando).toDateString()
       const sameValue = Math.abs(existing.valor - transacao.valor) < 0.01
-      const similarDescription = existing.estabelecimento.toLowerCase().includes(transacao.estabelecimento.toLowerCase().substring(0, 10))
+      const similarDescription = (existing.descricao || '').toLowerCase().includes(transacao.estabelecimento.toLowerCase().substring(0, 10))
       
       return sameDate && sameValue && similarDescription
     })
@@ -219,7 +218,7 @@ export function ImportarFaturaModal({ open, onClose, cardId }: ImportarFaturaMod
           const valorStr = row.valor || row.Valor || row.amount || row.Amount || row.total || row.Total || '0'
           
           // Converter valor (formato BR: 1.234,56 ou US: 1234.56)
-          let valor = 0
+          let valorRaw = 0
           if (typeof valorStr === 'string') {
             let cleanValue = valorStr.replace(/[R$\s]/g, '')
             
@@ -229,10 +228,14 @@ export function ImportarFaturaModal({ open, onClose, cardId }: ImportarFaturaMod
               cleanValue = cleanValue.replace(',', '.')
             }
             
-            valor = Math.abs(parseFloat(cleanValue) || 0)
+            valorRaw = parseFloat(cleanValue) || 0
           } else {
-            valor = Math.abs(Number(valorStr) || 0)
+            valorRaw = Number(valorStr) || 0
           }
+
+          // Valores negativos = pagamentos/estornos (receita)
+          const tipo = valorRaw < 0 ? 'receita' : 'despesa'
+          const valor = Math.abs(valorRaw)
 
           // Detectar parcelas
           let parcela_atual: number | undefined
@@ -251,7 +254,7 @@ export function ImportarFaturaModal({ open, onClose, cardId }: ImportarFaturaMod
             quando: data,
             estabelecimento: descricao,
             valor,
-            tipo: 'despesa',
+            tipo,
             categoria,
             parcela_atual,
             total_parcelas
@@ -415,20 +418,25 @@ export function ImportarFaturaModal({ open, onClose, cardId }: ImportarFaturaMod
           const dataISO = dataValida ? new Date(t.quando).toISOString() : new Date().toISOString()
           const categoryId = await getCategoryId(t.categoria)
           
+          // Determinar mês/ano da fatura baseado na data da transação
+          const dataObj = new Date(dataISO)
+          const faturaMes = dataObj.getMonth() + 1
+          const faturaAno = dataObj.getFullYear()
+
           return {
-            userid: user?.id,
-            quando: dataISO,
-            estabelecimento: t.estabelecimento,
+            user_id: user?.id,
+            data: dataISO,
+            descricao: t.estabelecimento,
             valor: t.valor,
             tipo: t.tipo,
-            detalhes: t.parcela_atual && t.total_parcelas 
+            observacao: t.parcela_atual && t.total_parcelas 
               ? `Parcela ${t.parcela_atual}/${t.total_parcelas}` 
               : null,
-            category_id: categoryId,
-            metodo: 'cartao_credito',
-            account_id: selectedCard,
-            status: 'pendente', // Lançamentos de cartão sempre pendentes até pagar fatura
-            created_at: new Date().toISOString()
+            categoria_id: categoryId,
+            cartao_id: selectedCard,
+            pago: false,
+            fatura_mes: faturaMes,
+            fatura_ano: faturaAno,
           }
         }))
 
@@ -444,8 +452,8 @@ export function ImportarFaturaModal({ open, onClose, cardId }: ImportarFaturaMod
 
       // Registrar no histórico de importações
       await supabase.from('import_history').insert({
-        userid: user?.id,
-        account_id: selectedCard,
+        user_id: user?.id,
+        cartao_id: selectedCard,
         file_name: file?.name,
         file_type: file?.name.endsWith('.csv') ? 'csv' : 'pdf',
         transactions_count: transacoes.length,
