@@ -145,7 +145,7 @@ function ImportarExtratoModal({ open, onClose, onImport }) {
   );
 }
 
-function EditCartaoModal({ cartao, open, onClose, onSave }) {
+function EditCartaoModal({ cartao, open, onClose, onSave, onDelete }) {
   const { user } = useAuth();
   const [formData, setFormData] = useState({
     name: '',
@@ -374,13 +374,33 @@ function EditCartaoModal({ cartao, open, onClose, onSave }) {
           </div>
 
           {/* Botões */}
-          <div className="flex gap-2 justify-end pt-4 border-t border-border/40">
-            <Button variant="outline" onClick={onClose} className="h-9">
-              Cancelar
-            </Button>
-            <Button onClick={handleSave} className="bg-blue-600 hover:bg-blue-700 h-9">
-              Salvar Cartão
-            </Button>
+          <div className="flex items-center pt-4 border-t border-border/40">
+            {cartao && onDelete && (
+              <Button 
+                variant="ghost" 
+                onClick={() => {
+                  if (window.confirm('Tem certeza que deseja excluir este cartão? Todas as transações vinculadas serão desvinculadas.')) {
+                    onDelete(cartao);
+                    onClose();
+                  }
+                }} 
+                className="h-9 text-red-500 hover:text-red-600 hover:bg-red-500/10 gap-1.5"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+                Excluir Cartão
+              </Button>
+            )}
+            <div className="flex-1" />
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={onClose} className="h-9">
+                Cancelar
+              </Button>
+              <Button onClick={handleSave} className="bg-blue-600 hover:bg-blue-700 h-9">
+                Salvar Cartão
+              </Button>
+            </div>
           </div>
         </div>
       </DialogContent>
@@ -440,7 +460,7 @@ export default function Cartoes({ isModal = false }) {
     // Busca transações
     const { data: transData, error: transError } = await supabase
       .from('transacoes')
-      .select('id, valor, tipo, cartao_id, status, quando');
+      .select('id, valor, tipo, cartao_id, data, descricao, fatura_mes, fatura_ano');
     if (!transError && transData) {
       setTransacoes(transData);
     } else {
@@ -486,7 +506,7 @@ export default function Cartoes({ isModal = false }) {
       data: t.quando,
       descricao: t.estabelecimento,
       valor: t.valor,
-      tipo: t.tipo || 'despesa',
+      tipo: (t.tipo === 'pagamento' || t.tipo === 'estorno') ? 'receita' : 'despesa',
       cartao_id: cartaoId,
       user_id: user?.id,
       pago: false,
@@ -529,14 +549,19 @@ export default function Cartoes({ isModal = false }) {
 
   // Salvar edição
   async function handleSaveCartao(cartaoEditado) {
+    // Converter strings vazias para null (campos INTEGER no banco)
+    const diaFechamento = cartaoEditado.dia_fechamento ? parseInt(cartaoEditado.dia_fechamento) || null : null;
+    const diaVencimento = cartaoEditado.dia_vencimento ? parseInt(cartaoEditado.dia_vencimento) || null : null;
+    const limite = cartaoEditado.limite ? Number(cartaoEditado.limite) || 0 : 0;
+
     if (cartaoEditado.id) {
       // Edição de cartão existente
       const { error } = await supabase.from('cartoes').update({ 
         nome: cartaoEditado.name,
         banco: cartaoEditado.banco,
-        limite: cartaoEditado.limite,
-        dia_fechamento: cartaoEditado.dia_fechamento,
-        dia_vencimento: cartaoEditado.dia_vencimento,
+        limite,
+        dia_fechamento: diaFechamento,
+        dia_vencimento: diaVencimento,
         cor: cartaoEditado.cor,
         linked_account_id: cartaoEditado.linked_account_id,
       }).eq('id', cartaoEditado.id);
@@ -553,9 +578,9 @@ export default function Cartoes({ isModal = false }) {
         user_id: user?.id,
         nome: cartaoEditado.name,
         banco: cartaoEditado.banco,
-        limite: cartaoEditado.limite,
-        dia_fechamento: cartaoEditado.dia_fechamento,
-        dia_vencimento: cartaoEditado.dia_vencimento,
+        limite,
+        dia_fechamento: diaFechamento,
+        dia_vencimento: diaVencimento,
         cor: cartaoEditado.cor,
         linked_account_id: cartaoEditado.linked_account_id,
       });
@@ -630,29 +655,37 @@ export default function Cartoes({ isModal = false }) {
       ) : (
         <div className={isModal ? "space-y-6" : "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8"}>
           {cartoes.map((cartao) => {
-            const saldoInicial = cartao.saldo_inicial || 0;
             const transacoesCartao = transacoes.filter(t => t.cartao_id === cartao.id);
-            const saldoTransacoes = transacoesCartao.reduce((acc, t) => {
-              if (t.tipo === 'receita') return acc + (t.valor || 0);
-              if (t.tipo === 'despesa') return acc - (t.valor || 0);
-              return acc;
-            }, 0);
-            const saldoTotal = saldoInicial + saldoTransacoes;
             
-            // Calcular fatura do mês atual (transações pendentes)
-            const hoje = new Date();
-            const mesAtual = hoje.getMonth();
-            const anoAtual = hoje.getFullYear();
-            const faturaAberta = transacoesCartao
-              .filter(t => {
-                if (t.status !== 'pendente' && t.status !== 'pendente_fatura') return false;
-                if (t.tipo !== 'despesa') return false;
-                const dataTransacao = new Date(t.quando);
-                return dataTransacao.getMonth() === mesAtual && dataTransacao.getFullYear() === anoAtual;
-              })
+            // Helper para detectar pagamento de fatura
+            const isPagamentoFatura = (descricao: string) => {
+              if (!descricao) return false;
+              const d = descricao.toUpperCase();
+              return d.includes('PAGAMENTO') || d.includes('PAG FATURA') || d.includes('PGTO');
+            };
+            
+            // Calcular TODAS as despesas em aberto (todas as faturas, não só mês atual)
+            // Despesas = todas as despesas do cartão
+            const totalDespesas = transacoesCartao
+              .filter(t => t.tipo === 'despesa')
+              .reduce((acc, t) => acc + Math.abs(t.valor || 0), 0);
+            // Estornos = receitas que NÃO são pagamento de fatura
+            const totalEstornos = transacoesCartao
+              .filter(t => t.tipo === 'receita' && !isPagamentoFatura(t.descricao))
+              .reduce((acc, t) => acc + Math.abs(t.valor || 0), 0);
+            // Pagamentos de fatura = receitas que SÃO pagamento
+            const totalPagamentos = transacoesCartao
+              .filter(t => t.tipo === 'receita' && isPagamentoFatura(t.descricao))
               .reduce((acc, t) => acc + Math.abs(t.valor || 0), 0);
             
-            const despesas = Math.abs(transacoesCartao.filter(t => t.tipo === 'despesa').reduce((acc, t) => acc + (t.valor || 0), 0));
+            // Saldo em aberto = despesas - estornos - pagamentos já feitos
+            const faturaAberta = Math.max(0, totalDespesas - totalEstornos - totalPagamentos);
+            
+            // Limite usado = saldo em aberto
+            const limiteUsado = faturaAberta;
+            const limite = cartao.limite || 0;
+            const limiteDisponivel = Math.max(0, limite - limiteUsado);
+            const percentualUsado = limite > 0 ? Math.min(100, (limiteUsado / limite) * 100) : 0;
             
             return (
               <div key={cartao.id} className="group">
@@ -721,7 +754,7 @@ export default function Cartoes({ isModal = false }) {
                       </div>
                       <div className="text-right">
                         <p className="opacity-60 font-semibold mb-0.5">Disponível</p>
-                        <p className="text-sm font-bold">{formatCurrency((cartao.limite || 0) - despesas)}</p>
+                        <p className="text-sm font-bold">{formatCurrency(limiteDisponivel)}</p>
                       </div>
                     </div>
                   </div>
@@ -762,43 +795,48 @@ export default function Cartoes({ isModal = false }) {
                       </svg>
                       Editar
                     </Button>
-                    <Button 
-                      size="sm" 
-                      onClick={(e) => { e.stopPropagation(); handleDeleteCartao(cartao); }}
-                      className="bg-red-500 text-white hover:bg-red-600 font-semibold gap-1.5 shadow-lg text-xs h-8 px-2"
-                    >
-                      <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                      </svg>
-                      Excluir
-                    </Button>
                   </div>
                 </div>
 
-                {/* Informações em Grid 2x2 - Ultra Compacto */}
-                <div className="grid grid-cols-2 gap-2">
-                  {/* Limite Total */}
-                  <div className="p-2 rounded-md bg-slate-800/30 border border-slate-700/40">
-                    <p className="text-xs text-slate-500 font-semibold uppercase tracking-wider mb-0.5">Limite</p>
-                    <p className="text-sm font-bold text-slate-300">{formatCurrency(cartao.limite || 0)}</p>
+                {/* Informações em Grid - Compacto */}
+                <div className="space-y-2">
+                  {/* Saldo em Aberto com destaque */}
+                  <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/30">
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs text-red-400 font-semibold uppercase tracking-wider">Saldo em Aberto</p>
+                      <p className="text-xs text-slate-500">{transacoesCartao.filter(t => t.tipo === 'despesa').length} despesas</p>
+                    </div>
+                    <p className="text-lg font-bold text-red-400 mt-0.5">{formatCurrency(faturaAberta)}</p>
                   </div>
 
-                  {/* Utilizado */}
-                  <div className="p-2 rounded-md bg-slate-800/30 border border-slate-700/40">
-                    <p className="text-xs text-slate-500 font-semibold uppercase tracking-wider mb-0.5">Utilizado</p>
-                    <p className="text-sm font-bold text-slate-300">{formatCurrency(despesas)}</p>
+                  {/* Limite Usado com barra de progresso */}
+                  <div className="p-2.5 rounded-md bg-slate-800/30 border border-slate-700/40">
+                    <div className="flex items-center justify-between mb-1">
+                      <p className="text-xs text-slate-500 font-semibold uppercase tracking-wider">Limite Usado</p>
+                      <p className="text-xs font-bold text-slate-400">{percentualUsado.toFixed(0)}%</p>
+                    </div>
+                    <div className="w-full bg-slate-700/50 rounded-full h-1.5 mb-1">
+                      <div 
+                        className={`h-1.5 rounded-full transition-all ${percentualUsado > 80 ? 'bg-red-500' : percentualUsado > 50 ? 'bg-yellow-500' : 'bg-blue-500'}`}
+                        style={{ width: `${percentualUsado}%` }}
+                      />
+                    </div>
+                    <p className="text-sm font-bold text-slate-300">{formatCurrency(limiteUsado)} <span className="text-xs text-slate-500 font-normal">de {formatCurrency(limite)}</span></p>
                   </div>
 
-                  {/* Fatura em Aberto */}
-                  <div className="p-2 rounded-md bg-slate-800/30 border border-slate-700/40">
-                    <p className="text-xs text-slate-500 font-semibold uppercase tracking-wider mb-0.5">Fatura Aberta</p>
-                    <p className="text-sm font-bold text-orange-400">{formatCurrency(faturaAberta)}</p>
-                  </div>
+                  {/* Grid 2 colunas */}
+                  <div className="grid grid-cols-2 gap-2">
+                    {/* Limite Disponível */}
+                    <div className="p-2 rounded-md bg-slate-800/30 border border-slate-700/40">
+                      <p className="text-xs text-slate-500 font-semibold uppercase tracking-wider mb-0.5">Disponível</p>
+                      <p className="text-sm font-bold text-green-400">{formatCurrency(limiteDisponivel)}</p>
+                    </div>
 
-                  {/* Transações */}
-                  <div className="p-2 rounded-md bg-slate-800/30 border border-slate-700/40">
-                    <p className="text-xs text-slate-500 font-semibold uppercase tracking-wider mb-0.5">Transações</p>
-                    <p className="text-sm font-bold text-slate-300">{transacoesCartao.length}</p>
+                    {/* Total Transações */}
+                    <div className="p-2 rounded-md bg-slate-800/30 border border-slate-700/40">
+                      <p className="text-xs text-slate-500 font-semibold uppercase tracking-wider mb-0.5">Total Transações</p>
+                      <p className="text-sm font-bold text-slate-300">{transacoesCartao.length}</p>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -813,6 +851,7 @@ export default function Cartoes({ isModal = false }) {
         open={editOpen}
         onClose={() => { setEditOpen(false); setEditCartao(null); }}
         onSave={handleSaveCartao}
+        onDelete={handleDeleteCartao}
       />
 
       {/* Modal de Faturas */}
@@ -822,7 +861,8 @@ export default function Cartoes({ isModal = false }) {
         initialCardId={cartaoSelecionado}
         onImportClick={(cardId) => {
           setCartaoParaImportar(cardId);
-          setImportarFaturaOpen(true);
+          setFaturasOpen(false); // Fechar faturas antes de abrir importação
+          setTimeout(() => setImportarFaturaOpen(true), 200);
         }}
       />
 
@@ -830,12 +870,20 @@ export default function Cartoes({ isModal = false }) {
       <ImportarFaturaModalNovo
         open={importarFaturaOpen}
         onClose={() => {
+          const voltarParaFatura = !!cartaoParaImportar;
+          const cardId = cartaoParaImportar;
           setImportarFaturaOpen(false);
           setCartaoParaImportar(undefined);
-          fetchCartoes(); // Recarrega para mostrar novas transações
+          fetchCartoes();
+          // Reabrir modal de faturas com o cartão selecionado
+          if (voltarParaFatura && cardId) {
+            setCartaoSelecionado(cardId);
+            setTimeout(() => setFaturasOpen(true), 200);
+          }
         }}
         onImport={handleImportFatura}
         cartoes={cartoes}
+        initialCardId={cartaoParaImportar}
       />
 
       {/* Modal de Histórico de Importações */}

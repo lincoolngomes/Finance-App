@@ -55,6 +55,8 @@ interface Fatura {
   dataVencimento: Date
   transacoes: Transacao[]
   total: number
+  totalParceladas: number
+  qtdParceladas: number
   paga: boolean
   vencida: boolean
 }
@@ -83,7 +85,8 @@ export function GerenciarFaturasModal({
   const [editingId, setEditingId] = useState<number | null>(null)
   const [editForm, setEditForm] = useState({ descricao: '', valor: '', data: '', categoria_id: '' })
   const [deleting, setDeleting] = useState(false)
-  const [categorias, setCategorias] = useState<{id: string, nome: string}[]>([])
+  const [categorias, setCategorias] = useState<{id: string, nome: string, tipo?: string}[]>([])
+  const [filtroParceladas, setFiltroParceladas] = useState(false)
 
   const meses = [
     { value: '01', label: 'Janeiro' },
@@ -187,7 +190,7 @@ export function GerenciarFaturasModal({
     if (!user?.id) return
     const { data } = await supabase
       .from('categorias')
-      .select('id, nome')
+      .select('id, nome, tipo')
       .eq('user_id', user.id)
       .order('nome')
     setCategorias(data || [])
@@ -284,12 +287,41 @@ export function GerenciarFaturasModal({
       return
     }
 
-    // Calcular total da fatura (despesas apenas - créditos são pagamentos da fatura anterior)
+    // Calcular total da fatura
+    // Despesas contam positivo, estornos (receita com valor pequeno) subtraem
+    // Pagamentos de fatura anterior (PAGAMENTO EFETUADO) NÃO entram no cálculo
+    const isPagamentoFatura = (t: any) => {
+      const desc = (t.descricao || t.estabelecimento || '').toUpperCase()
+      return t.tipo === 'receita' && (desc.includes('PAGAMENTO') || desc.includes('PAG FATURA') || desc.includes('PGTO'))
+    }
     const total = (transacoes || [])
       .reduce((acc, t) => {
-        if (t.tipo === 'receita') return acc - (t.valor || 0)
-        return acc + (t.valor || 0)
+        if (isPagamentoFatura(t)) return acc // Não conta no total
+        if (t.tipo === 'receita') return acc - (t.valor || 0) // Estornos subtraem
+        return acc + (t.valor || 0) // Despesas somam
       }, 0)
+
+    // Calcular total de compras parceladas nesta fatura
+    // Detecta parcelas pelo campo total_parcelas OU pelo padrão XX/XX na descrição
+    const extrairParcela = (t: any): { atual: number; total: number } | null => {
+      if (t.total_parcelas && t.total_parcelas > 1) {
+        return { atual: t.parcela_atual || 1, total: t.total_parcelas }
+      }
+      const desc = t.descricao || t.estabelecimento || ''
+      const match = desc.match(/(\d{2})\/(\d{2})\s*$/)
+      if (match) {
+        const atual = parseInt(match[1])
+        const total = parseInt(match[2])
+        if (total > 1 && atual >= 1 && atual <= total) {
+          return { atual, total }
+        }
+      }
+      return null
+    }
+    const transacoesParceladas = (transacoes || []).filter(t => 
+      t.tipo === 'despesa' && extrairParcela(t) !== null
+    )
+    const totalParceladas = transacoesParceladas.reduce((acc, t) => acc + (t.valor || 0), 0)
 
     const agora = new Date()
     const vencida = vencimento < agora
@@ -301,6 +333,8 @@ export function GerenciarFaturasModal({
       dataVencimento: vencimento,
       transacoes: transacoes || [],
       total,
+      totalParceladas,
+      qtdParceladas: transacoesParceladas.length,
       paga: false, // TODO: implementar controle de pagamento
       vencida
     })
@@ -434,6 +468,29 @@ export function GerenciarFaturasModal({
       toast({ title: 'Erro ao excluir', description: err.message, variant: 'destructive' })
     } finally {
       setDeleting(false)
+    }
+  }
+
+  async function changeCategoriaSelected(categoriaId: string) {
+    if (selectedIds.size === 0) return
+    try {
+      const { error } = await supabase
+        .from('transacoes')
+        .update({
+          categoria_id: categoriaId === 'none' ? null : categoriaId,
+        })
+        .in('id', Array.from(selectedIds))
+
+      if (error) throw error
+
+      const catNome = categoriaId === 'none' 
+        ? 'Sem categoria' 
+        : categorias.find(c => c.id === categoriaId)?.nome || 'categoria'
+      toast({ title: `Categoria "${catNome}" aplicada a ${selectedIds.size} transação(ões) ✅` })
+      setSelectedIds(new Set())
+      calcularFatura()
+    } catch (err: any) {
+      toast({ title: 'Erro ao alterar categoria', description: err.message, variant: 'destructive' })
     }
   }
 
@@ -583,42 +640,77 @@ export function GerenciarFaturasModal({
             </div>
           ) : fatura ? (
             <>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
                 <Card>
-                  <CardContent className="p-4">
-                    <div className="flex items-center gap-2 mb-2">
-                      <Calendar className="h-4 w-4 text-muted-foreground" />
+                  <CardContent className="p-3">
+                    <div className="flex items-center gap-1.5 mb-1">
+                      <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
                       <p className="text-xs text-muted-foreground">Fechamento</p>
                     </div>
-                    <p className="text-lg font-bold">
+                    <p className="text-base font-bold">
                       {format(fatura.dataFechamento, "dd/MM/yyyy", { locale: ptBR })}
                     </p>
                   </CardContent>
                 </Card>
 
                 <Card>
-                  <CardContent className="p-4">
-                    <div className="flex items-center gap-2 mb-2">
-                      <Clock className="h-4 w-4 text-muted-foreground" />
+                  <CardContent className="p-3">
+                    <div className="flex items-center gap-1.5 mb-1">
+                      <Clock className="h-3.5 w-3.5 text-muted-foreground" />
                       <p className="text-xs text-muted-foreground">Vencimento</p>
                     </div>
-                    <p className={`text-lg font-bold ${fatura.vencida ? 'text-red-500' : 'text-foreground'}`}>
+                    <p className={`text-base font-bold ${fatura.vencida ? 'text-red-500' : 'text-foreground'}`}>
                       {format(fatura.dataVencimento, "dd/MM/yyyy", { locale: ptBR })}
                     </p>
                     {fatura.vencida && (
-                      <Badge variant="destructive" className="mt-1">Vencida</Badge>
+                      <Badge variant="destructive" className="mt-1 text-[10px]">Vencida</Badge>
+                    )}
+                  </CardContent>
+                </Card>
+
+                <Card className="border-red-500/30">
+                  <CardContent className="p-3">
+                    <div className="flex items-center gap-1.5 mb-1">
+                      <DollarSign className="h-3.5 w-3.5 text-red-500" />
+                      <p className="text-xs text-muted-foreground">Saldo em Aberto</p>
+                    </div>
+                    <p className="text-xl font-bold text-red-500">
+                      {formatCurrency(fatura.total)}
+                    </p>
+                  </CardContent>
+                </Card>
+
+                <Card 
+                  className={`cursor-pointer transition-all hover:border-amber-500/50 ${filtroParceladas ? 'border-amber-500 bg-amber-500/5' : ''}`}
+                  onClick={() => setFiltroParceladas(!filtroParceladas)}
+                >
+                  <CardContent className="p-3">
+                    <div className="flex items-center gap-1.5 mb-1">
+                      <CreditCard className="h-3.5 w-3.5 text-amber-500" />
+                      <p className="text-xs text-muted-foreground">Parceladas</p>
+                      {filtroParceladas && (
+                        <Badge variant="outline" className="text-[9px] px-1 py-0 border-amber-500/40 text-amber-400 ml-auto">Filtro ativo</Badge>
+                      )}
+                    </div>
+                    <p className="text-base font-bold text-amber-500">
+                      {formatCurrency(fatura.totalParceladas)}
+                    </p>
+                    {fatura.qtdParceladas > 0 && (
+                      <p className="text-[10px] text-muted-foreground mt-0.5">
+                        {fatura.qtdParceladas} compra{fatura.qtdParceladas > 1 ? 's' : ''} parcelada{fatura.qtdParceladas > 1 ? 's' : ''}
+                      </p>
                     )}
                   </CardContent>
                 </Card>
 
                 <Card>
-                  <CardContent className="p-4">
-                    <div className="flex items-center gap-2 mb-2">
-                      <DollarSign className="h-4 w-4 text-muted-foreground" />
-                      <p className="text-xs text-muted-foreground">Total</p>
+                  <CardContent className="p-3">
+                    <div className="flex items-center gap-1.5 mb-1">
+                      <CreditCard className="h-3.5 w-3.5 text-green-500" />
+                      <p className="text-xs text-muted-foreground">Limite Disponível</p>
                     </div>
-                    <p className="text-2xl font-bold text-red-500">
-                      {formatCurrency(fatura.total)}
+                    <p className="text-base font-bold text-green-500">
+                      {formatCurrency(Math.max(0, (cartaoSelecionado?.limite || 0) - fatura.total))}
                     </p>
                   </CardContent>
                 </Card>
@@ -627,9 +719,25 @@ export function GerenciarFaturasModal({
               {/* Lista de Transações */}
               <div>
                 <div className="flex items-center justify-between mb-3">
-                  <h3 className="font-semibold">
-                    Transações ({fatura.transacoes.length})
-                  </h3>
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-semibold">
+                      Transações ({fatura.transacoes.length})
+                    </h3>
+                    <Button
+                      variant={filtroParceladas ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => setFiltroParceladas(!filtroParceladas)}
+                      className={`gap-1.5 text-xs h-7 px-2.5 ${
+                        filtroParceladas ? 'bg-amber-600 hover:bg-amber-700 text-white' : 'text-amber-500 border-amber-500/40 hover:bg-amber-500/10'
+                      }`}
+                    >
+                      <CreditCard className="h-3 w-3" />
+                      Parceladas
+                      {filtroParceladas && fatura.qtdParceladas > 0 && (
+                        <span className="bg-white/20 rounded-full px-1.5 text-[10px]">{fatura.qtdParceladas}</span>
+                      )}
+                    </Button>
+                  </div>
                   <Button
                     variant="outline"
                     size="sm"
@@ -688,21 +796,56 @@ export function GerenciarFaturasModal({
                         </Button>
                       </div>
                       {selectedIds.size > 0 && (
-                        <Button
-                          variant="destructive"
-                          size="sm"
-                          onClick={deleteSelected}
-                          disabled={deleting}
-                          className="gap-1.5 text-xs h-8"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                          Excluir ({selectedIds.size})
-                        </Button>
+                        <div className="flex items-center gap-2">
+                          <Select onValueChange={changeCategoriaSelected}>
+                            <SelectTrigger className="h-8 text-xs w-[180px] gap-1">
+                              <Tags className="h-3.5 w-3.5" />
+                              <SelectValue placeholder="Alterar categoria" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="none">Sem categoria</SelectItem>
+                              {categorias.map(cat => (
+                                <SelectItem key={cat.id} value={cat.id}>
+                                  <span className="flex items-center gap-2">
+                                    <span className={`inline-block w-2 h-2 rounded-full flex-shrink-0 ${
+                                      cat.tipo === 'receita' ? 'bg-green-500' : cat.tipo === 'despesa' ? 'bg-red-500' : 'bg-gray-400'
+                                    }`} />
+                                    {cat.nome}
+                                  </span>
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            onClick={deleteSelected}
+                            disabled={deleting}
+                            className="gap-1.5 text-xs h-8"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                            Excluir ({selectedIds.size})
+                          </Button>
+                        </div>
                       )}
                     </div>
 
                     <div className="space-y-2 max-h-[400px] overflow-y-auto">
-                      {fatura.transacoes.map((transacao) => {
+                      {fatura.transacoes
+                        .filter(transacao => {
+                          if (!filtroParceladas) return true
+                          // Filtrar só parceladas
+                          if (transacao.total_parcelas && transacao.total_parcelas > 1) return true
+                          const desc = transacao.descricao || transacao.estabelecimento || ''
+                          const match = desc.match(/(\d{2})\/(\d{2})\s*$/)
+                          if (match) {
+                            const atual = parseInt(match[1])
+                            const total = parseInt(match[2])
+                            if (total > 1 && atual >= 1 && atual <= total) return true
+                          }
+                          return false
+                        })
+                        .map((transacao) => {
                         const categoriaRegra = categorizar(transacao.descricao || transacao.estabelecimento || '', regrasTexto)
                         const categoriaFinal = transacao.categorias?.nome || categoriaRegra || transacao.categoria
                         const isSelected = selectedIds.has(transacao.id)
@@ -746,7 +889,19 @@ export function GerenciarFaturasModal({
                                       <SelectContent>
                                         <SelectItem value="none">Sem categoria</SelectItem>
                                         {categorias.map(cat => (
-                                          <SelectItem key={cat.id} value={cat.id}>{cat.nome}</SelectItem>
+                                          <SelectItem key={cat.id} value={cat.id}>
+                                            <span className="flex items-center gap-2">
+                                              <span className={`inline-block w-2 h-2 rounded-full flex-shrink-0 ${
+                                                cat.tipo === 'receita' ? 'bg-green-500' : cat.tipo === 'despesa' ? 'bg-red-500' : 'bg-gray-400'
+                                              }`} />
+                                              {cat.nome}
+                                              <span className={`text-[10px] ${
+                                                cat.tipo === 'receita' ? 'text-green-400' : cat.tipo === 'despesa' ? 'text-red-400' : 'text-gray-400'
+                                              }`}>
+                                                {cat.tipo === 'receita' ? 'R' : cat.tipo === 'despesa' ? 'D' : '?'}
+                                              </span>
+                                            </span>
+                                          </SelectItem>
                                         ))}
                                       </SelectContent>
                                     </Select>
@@ -773,7 +928,19 @@ export function GerenciarFaturasModal({
 
                                   {/* Conteúdo */}
                                   <div className="flex-1 min-w-0">
-                                    <p className="font-medium text-sm truncate">{transacao.descricao || transacao.estabelecimento || 'Sem descrição'}</p>
+                                    <div className="flex items-center gap-1.5">
+                                      <p className="font-medium text-sm truncate">{transacao.descricao || transacao.estabelecimento || 'Sem descrição'}</p>
+                                      <Badge 
+                                        variant="outline" 
+                                        className={`text-[10px] px-1 py-0 flex-shrink-0 ${
+                                          transacao.tipo === 'despesa' 
+                                            ? 'border-red-500/40 text-red-400' 
+                                            : 'border-green-500/40 text-green-400'
+                                        }`}
+                                      >
+                                        {transacao.tipo === 'despesa' ? 'D' : 'C'}
+                                      </Badge>
+                                    </div>
                                     <div className="flex items-center gap-2 mt-1">
                                       <p className="text-xs text-muted-foreground">
                                         {format(parseISO(transacao.data || transacao.quando), "dd/MM/yyyy", { locale: ptBR })}
@@ -797,11 +964,30 @@ export function GerenciarFaturasModal({
                                           + Categoria
                                         </Badge>
                                       )}
-                                      {transacao.total_parcelas && transacao.total_parcelas > 1 && (
-                                        <Badge variant="outline" className="text-xs">
-                                          {transacao.parcela_atual}/{transacao.total_parcelas}
-                                        </Badge>
-                                      )}
+                                      {(() => {
+                                        // Detectar parcela pelo campo ou pela descrição
+                                        if (transacao.total_parcelas && transacao.total_parcelas > 1) {
+                                          return (
+                                            <Badge variant="outline" className="text-xs text-amber-400 border-amber-500/40">
+                                              {transacao.parcela_atual}/{transacao.total_parcelas}
+                                            </Badge>
+                                          )
+                                        }
+                                        const desc = transacao.descricao || transacao.estabelecimento || ''
+                                        const match = desc.match(/(\d{2})\/(\d{2})\s*$/)
+                                        if (match) {
+                                          const atual = parseInt(match[1])
+                                          const total = parseInt(match[2])
+                                          if (total > 1 && atual >= 1 && atual <= total) {
+                                            return (
+                                              <Badge variant="outline" className="text-xs text-amber-400 border-amber-500/40">
+                                                {atual}/{total}
+                                              </Badge>
+                                            )
+                                          }
+                                        }
+                                        return null
+                                      })()}
                                     </div>
                                   </div>
 

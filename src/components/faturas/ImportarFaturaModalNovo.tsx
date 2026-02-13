@@ -21,9 +21,10 @@ interface ImportarFaturaModalNovoProps {
   onClose: () => void;
   onImport: (transacoes: Transacao[], cartaoId: string, regrasTexto: string, mesReferencia?: string, anoReferencia?: string) => Promise<any>;
   cartoes: any[];
+  initialCardId?: string;
 }
 
-export function ImportarFaturaModalNovo({ open, onClose, onImport, cartoes }: ImportarFaturaModalNovoProps) {
+export function ImportarFaturaModalNovo({ open, onClose, onImport, cartoes, initialCardId }: ImportarFaturaModalNovoProps) {
   const { user } = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const scrollableRef = useRef<HTMLDivElement>(null);
@@ -34,7 +35,7 @@ export function ImportarFaturaModalNovo({ open, onClose, onImport, cartoes }: Im
   const [csvFile, setCsvFile] = useState<File | null>(null);
   const [transacoes, setTransacoes] = useState<Transacao[]>([]);
   const [parseError, setParseError] = useState("");
-  const [cartaoSelecionado, setCartaoSelecionado] = useState(cartoes?.[0]?.id || '');
+  const [cartaoSelecionado, setCartaoSelecionado] = useState(initialCardId || cartoes?.[0]?.id || '');
   const [mesReferencia, setMesReferencia] = useState(String(new Date().getMonth() + 1).padStart(2, '0'));
   const [anoReferencia, setAnoReferencia] = useState(String(new Date().getFullYear()));
   const [loading, setLoading] = useState(false);
@@ -53,7 +54,9 @@ export function ImportarFaturaModalNovo({ open, onClose, onImport, cartoes }: Im
 
   // Atualizar cartão selecionado quando os cartões carregam
   useEffect(() => {
-    if (cartoes && cartoes.length > 0 && !cartaoSelecionado) {
+    if (initialCardId) {
+      setCartaoSelecionado(initialCardId);
+    } else if (cartoes && cartoes.length > 0 && !cartaoSelecionado) {
       setCartaoSelecionado(cartoes[0].id);
     }
   }, [cartoes]);
@@ -125,8 +128,19 @@ export function ImportarFaturaModalNovo({ open, onClose, onImport, cartoes }: Im
               valorRaw = Number(valorStr) || 0;
             }
 
-            // Valores negativos = pagamentos/estornos (receita), positivos = despesas
-            const tipo = valorRaw < 0 ? 'receita' : 'despesa';
+            // Classificar tipo:
+            // - Valores negativos grandes com "PAGAMENTO" = pagamento de fatura anterior
+            // - Valores negativos pequenos = estorno/crédito
+            // - Valores positivos = despesa
+            let tipo = 'despesa';
+            if (valorRaw < 0) {
+              const descUpper = estabelecimento.toUpperCase();
+              if (descUpper.includes('PAGAMENTO') || descUpper.includes('PAG FATURA') || descUpper.includes('PGTO')) {
+                tipo = 'pagamento';
+              } else {
+                tipo = 'estorno';
+              }
+            }
             const valor = Math.abs(valorRaw);
 
             return {
@@ -139,20 +153,6 @@ export function ImportarFaturaModalNovo({ open, onClose, onImport, cartoes }: Im
             };
           })
           .filter(t => t.estabelecimento && t.valor > 0);
-
-        // Marcar possíveis duplicados (mas manter todos)
-        for (let i = 0; i < dados.length; i++) {
-          const t = dados[i];
-          const isDup = dados.some((u, j) =>
-            j < i &&
-            u.quando === t.quando &&
-            normalizar(u.estabelecimento) === normalizar(t.estabelecimento) &&
-            Math.abs(u.valor - t.valor) < 0.01
-          );
-          if (isDup) {
-            (t as any).isDuplicate = true;
-          }
-        }
 
         setTransacoes(dados);
         setStep(2);
@@ -427,30 +427,46 @@ export function ImportarFaturaModalNovo({ open, onClose, onImport, cartoes }: Im
               </div>
 
               <div className="mb-6">
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-                  <div className="p-4 bg-blue-500/10 border border-blue-500/30 rounded-xl">
-                    <p className="text-sm text-blue-400 font-medium">Transações</p>
-                    <p className="text-2xl font-bold text-blue-100 mt-1">{transacoes.length}</p>
-                  </div>
-                  <div className="p-4 bg-red-500/10 border border-red-500/30 rounded-xl">
-                    <p className="text-sm text-red-400 font-medium">Despesas</p>
-                    <p className="text-lg font-bold text-red-300 mt-1">
-                      {formatCurrency(transacoes.filter(t => t.tipo !== 'receita').reduce((s, t) => s + t.valor, 0))}
-                    </p>
-                    <p className="text-xs text-red-400/70 mt-0.5">{transacoes.filter(t => t.tipo !== 'receita').length} itens</p>
-                  </div>
-                  <div className="p-4 bg-green-500/10 border border-green-500/30 rounded-xl">
-                    <p className="text-sm text-green-400 font-medium">Créditos / Pagamentos</p>
-                    <p className="text-lg font-bold text-green-300 mt-1">
-                      {formatCurrency(transacoes.filter(t => t.tipo === 'receita').reduce((s, t) => s + t.valor, 0))}
-                    </p>
-                    <p className="text-xs text-green-400/70 mt-0.5">{transacoes.filter(t => t.tipo === 'receita').length} itens</p>
-                  </div>
-                  <div className="p-4 bg-amber-500/10 border border-amber-500/30 rounded-xl">
-                    <p className="text-sm text-amber-400 font-medium">Possíveis duplicatas</p>
-                    <p className="text-2xl font-bold text-amber-100 mt-1">{transacoes.filter(t => (t as any).isDuplicate).length}</p>
-                  </div>
-                </div>
+                {(() => {
+                  const despesas = transacoes.filter(t => t.tipo === 'despesa');
+                  const estornos = transacoes.filter(t => t.tipo === 'estorno');
+                  const pagamentos = transacoes.filter(t => t.tipo === 'pagamento');
+                  const totalDespesas = despesas.reduce((s, t) => s + t.valor, 0);
+                  const totalEstornos = estornos.reduce((s, t) => s + t.valor, 0);
+                  const totalPagamentos = pagamentos.reduce((s, t) => s + t.valor, 0);
+                  const saldoFatura = totalDespesas - totalEstornos;
+                  return (
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+                      <div className="p-4 bg-slate-500/10 border border-slate-500/30 rounded-xl">
+                        <p className="text-sm text-slate-400 font-medium">Transações</p>
+                        <p className="text-2xl font-bold text-slate-100 mt-1">{transacoes.length}</p>
+                      </div>
+                      <div className="p-4 bg-red-500/10 border border-red-500/30 rounded-xl">
+                        <p className="text-sm text-red-400 font-medium">Despesas</p>
+                        <p className="text-lg font-bold text-red-300 mt-1">{formatCurrency(totalDespesas)}</p>
+                        <p className="text-xs text-red-400/70 mt-0.5">{despesas.length} itens</p>
+                      </div>
+                      <div className="p-4 bg-blue-500/10 border border-blue-500/30 rounded-xl">
+                        <p className="text-sm text-blue-400 font-medium">Saldo da Fatura</p>
+                        <p className="text-lg font-bold text-blue-100 mt-1">{formatCurrency(saldoFatura)}</p>
+                        {totalEstornos > 0 && <p className="text-xs text-green-400/70 mt-0.5">- {formatCurrency(totalEstornos)} estornos</p>}
+                      </div>
+                      {pagamentos.length > 0 ? (
+                        <div className="p-4 bg-green-500/10 border border-green-500/30 rounded-xl">
+                          <p className="text-sm text-green-400 font-medium">Pgto Fatura Anterior</p>
+                          <p className="text-lg font-bold text-green-300 mt-1">{formatCurrency(totalPagamentos)}</p>
+                          <p className="text-xs text-green-400/70 mt-0.5">Não entra no total</p>
+                        </div>
+                      ) : (
+                        <div className="p-4 bg-green-500/10 border border-green-500/30 rounded-xl">
+                          <p className="text-sm text-green-400 font-medium">Estornos</p>
+                          <p className="text-lg font-bold text-green-300 mt-1">{formatCurrency(totalEstornos)}</p>
+                          <p className="text-xs text-green-400/70 mt-0.5">{estornos.length} itens</p>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
               </div>
 
               <div className="mb-24">
@@ -472,7 +488,7 @@ export function ImportarFaturaModalNovo({ open, onClose, onImport, cartoes }: Im
                     </thead>
                     <tbody className="divide-y divide-slate-700/50">
                       {getSortedLancamentos().map((t, idx) => (
-                        <tr key={t.uid} className={`border-b border-slate-700/30 hover:bg-slate-800/40 transition ${(t as any).isDuplicate ? 'bg-amber-500/10 border-l-2 border-l-amber-500' : idx % 2 === 0 ? 'bg-slate-900/20' : ''}`}>
+                        <tr key={t.uid} className={`border-b border-slate-700/30 hover:bg-slate-800/40 transition ${t.tipo === 'pagamento' ? 'bg-purple-500/5' : t.tipo === 'estorno' ? 'bg-green-500/5' : idx % 2 === 0 ? 'bg-slate-900/20' : ''}`}>
                           <td className="px-1 py-2">
                             <input
                               type="text"
@@ -494,14 +510,17 @@ export function ImportarFaturaModalNovo({ open, onClose, onImport, cartoes }: Im
                           </td>
                           <td className="px-1 py-2 text-right">
                             <div className="flex items-center justify-end gap-1">
-                              {t.tipo === 'receita' && (
-                                <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-green-500/20 text-green-400 flex-shrink-0">CRÉDITO</span>
+                              {t.tipo === 'pagamento' && (
+                                <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-400 flex-shrink-0">PGTO</span>
+                              )}
+                              {t.tipo === 'estorno' && (
+                                <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-green-500/20 text-green-400 flex-shrink-0">ESTORNO</span>
                               )}
                               <input
                                 type="text"
                                 inputMode="decimal"
                                 className={`w-28 px-2 py-1 rounded-lg bg-slate-700/30 border border-slate-600/50 text-sm text-right font-mono focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition ${
-                                  t.tipo === 'receita' ? 'text-green-400' : 'text-red-400'
+                                  t.tipo === 'pagamento' ? 'text-purple-400' : t.tipo === 'estorno' ? 'text-green-400' : 'text-red-400'
                                 }`}
                                 value={editandoValor[t.uid] ? t.valor : Number(t.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                 onFocus={() => setEditandoValor(ev => ({ ...ev, [t.uid]: true }))}
