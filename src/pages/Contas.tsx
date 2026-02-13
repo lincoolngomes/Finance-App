@@ -882,7 +882,7 @@ export default function ContasPage() {
     // Busca transações do usuário
     const { data: transData, error: transError } = await supabase
       .from('transacoes')
-      .select('id, valor, tipo, conta_id')
+      .select('id, valor, tipo, conta_id, status, cartao_id')
       .eq('user_id', user.id);
     if (!transError && transData) {
       setTransacoes(transData);
@@ -1109,13 +1109,11 @@ export default function ContasPage() {
           })
           .map((conta) => {
             // Saldo inicial (compatível com saldo_inicial e saldoInicial)
-            const saldoInicial =
-              (typeof conta.saldo_inicial !== 'undefined' && conta.saldo_inicial !== null)
-                ? Number(conta.saldo_inicial)
-                : (typeof conta.saldoInicial !== 'undefined' && conta.saldoInicial !== null ? Number(conta.saldoInicial) : 0);
+            // Tenta: saldo_inicial → saldoInicial → saldo (campo original da tabela)
+            const saldoInicial = Number(conta.saldo_inicial ?? conta.saldoInicial ?? conta.saldo ?? 0) || 0;
 
-            // Filtra apenas transações da conta exibida
-            const transacoesConta = transacoes.filter(t => t.account_id === conta.id);
+            // Filtra apenas transações da conta exibida (excluindo cartão)
+            const transacoesConta = transacoes.filter(t => t.conta_id === conta.id && !t.cartao_id);
             // Soma receitas e despesas APENAS dessas transações
             // Receitas: soma apenas valores positivos
             const receitas = transacoesConta.filter(t => t.tipo === 'receita').reduce((acc, t) => acc + Math.abs(Number(t.valor) || 0), 0);

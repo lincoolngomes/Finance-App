@@ -5,6 +5,7 @@ import { toast } from '@/hooks/use-toast'
 import { DashboardStats } from '@/components/dashboard/DashboardStats'
 import { DashboardFilters } from '@/components/dashboard/DashboardFilters'
 import { DashboardCharts } from '@/components/dashboard/DashboardCharts'
+import { getTransactionMonth, enrichCardTransactions } from '@/utils/dateParser'
 
 interface Transacao {
   id: number
@@ -18,6 +19,9 @@ interface Transacao {
   conta_id?: string | null
   cartao_id?: string | null
   user_id: string | null
+  fatura_mes?: number | null
+  fatura_ano?: number | null
+  pago?: boolean | null
   categorias?: {
     id: string
     nome: string
@@ -39,8 +43,9 @@ export default function Dashboard() {
   const [transacoes, setTransacoes] = useState<Transacao[]>([])
   const [lembretes, setLembretes] = useState<Lembrete[]>([])
   const [contas, setContas] = useState<any[]>([])
+  const [cartoes, setCartoes] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
-  const [showCardTransactions, setShowCardTransactions] = useState(false)
+  const [showCardTransactions, setShowCardTransactions] = useState(true)
 
   // Inicialização temporária, será ajustada após carregar as transações
   const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth());
@@ -107,6 +112,50 @@ export default function Dashboard() {
 
         if (transacoesError) throw transacoesError
 
+        // Aplicar categorização retroativa para transações sem categoria
+        if (transacoesData) {
+          const { categorizar, REGRAS_PADRAO } = await import('@/utils/categorizacao');
+          const regrasTexto = localStorage.getItem('regrasFatura') || REGRAS_PADRAO;
+          
+          // Buscar todas as categorias do usuário
+          const { data: categoriasData } = await supabase
+            .from('categorias')
+            .select('id, nome')
+            .eq('user_id', user?.id);
+          
+          const categoriasMap = new Map((categoriasData || []).map(c => [c.nome?.toLowerCase(), c]));
+          
+          for (const t of transacoesData) {
+            if (!t.categoria_id && t.descricao) {
+              const nomeCategoria = categorizar(t.descricao, regrasTexto);
+              if (nomeCategoria) {
+                let cat = categoriasMap.get(nomeCategoria.toLowerCase());
+                if (!cat) {
+                  const { data: newCat } = await supabase
+                    .from('categorias')
+                    .insert({ user_id: user?.id, nome: nomeCategoria })
+                    .select('id, nome')
+                    .maybeSingle();
+                  if (newCat) {
+                    cat = newCat;
+                    categoriasMap.set(nomeCategoria.toLowerCase(), newCat);
+                  }
+                }
+                if (cat) {
+                  t.categoria_id = cat.id;
+                  t.categorias = { id: cat.id, nome: cat.nome };
+                  // Salvar no banco em background
+                  supabase.from('transacoes').update({ categoria_id: cat.id }).eq('id', t.id).then();
+                }
+              }
+            }
+            // Corrigir status de cartão (apenas em memória, sem salvar no banco)
+            if (t.cartao_id && !t.status) {
+              t.status = t.pago ? 'pago' : 'pendente_fatura';
+            }
+          }
+        }
+
         // Buscar lembretes
         const { data: lembretesData, error: lembretesError } = await supabase
           .from('lembretes')
@@ -116,7 +165,6 @@ export default function Dashboard() {
 
         if (lembretesError) throw lembretesError
 
-        setTransacoes(transacoesData || [])
         // Buscar contas do usuário (usadas para cálculo de saldo por conta)
         const { data: contasData, error: contasError } = await supabase
           .from('accounts')
@@ -124,6 +172,23 @@ export default function Dashboard() {
           .eq('user_id', user?.id)
 
         if (!contasError) setContas(contasData || [])
+
+        // Buscar cartões do usuário (precisamos do dia_fechamento + nome para exibição)
+        const { data: cartoesData } = await supabase
+          .from('cartoes')
+          .select('id, nome, dia_fechamento, bandeira, cor')
+          .eq('user_id', user?.id)
+
+        if (cartoesData) setCartoes(cartoesData)
+
+        // Enriquecer transações de cartão que não têm fatura_mes/fatura_ano
+        // Calcula baseado no dia_fechamento do cartão (mesma lógica de GerenciarFaturasModal)
+        if (transacoesData && cartoesData && cartoesData.length > 0) {
+          enrichCardTransactions(transacoesData, cartoesData)
+        }
+
+        // Setar transações (já enriquecidas com fatura_mes/fatura_ano calculados)
+        setTransacoes(transacoesData || [])
         setLembretes(lembretesData || [])
       } catch (error: any) {
         toast({
@@ -141,67 +206,24 @@ export default function Dashboard() {
 
   // Filtrar transações por mês e ano
   const filteredTransacoes = useMemo(() => {
-    const parseToDate = (dateStr?: string | null) => {
-      if (!dateStr) return null
-      const s = String(dateStr).trim()
-
-      // ISO format YYYY-MM-DD (priority)
-      if (s.match(/^\d{4}-\d{2}-\d{2}/)) {
-        const dt = new Date(s + 'T00:00:00Z') // Add time and Z to ensure UTC
-        if (!isNaN(dt.getTime())) {
-          // Normalize to UTC midnight of that date
-          const normalized = new Date(Date.UTC(dt.getUTCFullYear(), dt.getUTCMonth(), dt.getUTCDate()))
-          return normalized
-        }
-      }
-
-      // dd/mm/yyyy or d/m/yyyy
-      const dmYMatch = s.match(/^(\d{1,2})\s*\/\s*(\d{1,2})\s*\/\s*(\d{2,4})/)
-      if (dmYMatch) {
-        const d = Number(dmYMatch[1])
-        const m = Number(dmYMatch[2])
-        const y = Number(dmYMatch[3])
-        const fullYear = y < 100 ? (2000 + y) : y
-        // normalize to UTC midnight for the given date to avoid timezone shift
-        const dt = new Date(Date.UTC(fullYear, m - 1, d))
-        return isNaN(dt.getTime()) ? null : dt
-      }
-
-      return null
-    }
-
     // normalize filter month: accept either 0-11 or 1-12 from the select
     const filterMonthIndex = (() => {
       const m = parseInt(filterMonth)
       if (isNaN(m)) return new Date().getMonth()
       return m > 11 ? m - 1 : m
     })()
-
     const filterYearNum = parseInt(filterYear) || new Date().getFullYear()
 
     const resultado = transacoes.filter(transacao => {
-      const raw = (transacao.data || transacao.created_at || '').toString().trim()
-      const transacaoDate = parseToDate(raw)
-      if (!transacaoDate) {
-        if (import.meta.env.DEV) {
-          console.log('⚠️ Falha ao parsear data:', raw, 'de transação', transacao.id)
-        }
+      // Filtrar transações de cartão quando toggle desativado
+      if (!showCardTransactions && transacao.cartao_id) {
         return false
       }
 
-      const transacaoMonth = transacaoDate.getUTCMonth()
-      const transacaoYear = transacaoDate.getUTCFullYear()
-      
-      // Filtrar por cartão se showCardTransactions está desativado
-      if (!showCardTransactions && transacao.conta_id === null) {
-        // Se não tem conta_id mas tem cartão_id, é uma transação de cartão
-        // Mas esse campo não está no interface, então verificar com hasOwnProperty
-        if ('cartao_id' in transacao && transacao.cartao_id) {
-          return false
-        }
-      }
-
-      return transacaoMonth === filterMonthIndex && transacaoYear === filterYearNum
+      // Usar função centralizada para determinar mês/ano da transação
+      const tm = getTransactionMonth(transacao)
+      if (!tm) return false
+      return tm.month === filterMonthIndex && tm.year === filterYearNum
     })
 
     if (import.meta.env.DEV) {
@@ -210,12 +232,14 @@ export default function Dashboard() {
         filterYearNum,
         totalTransacoes: transacoes.length,
         filteredCount: resultado.length,
-        sampleData: resultado.slice(0, 2)
+        showCardTransactions,
+        cartaoCount: resultado.filter(t => t.cartao_id).length,
+        contaCount: resultado.filter(t => !t.cartao_id).length,
       })
     }
 
     return resultado
-  }, [transacoes, filterMonth, filterYear])
+  }, [transacoes, filterMonth, filterYear, showCardTransactions])
 
   // DEBUG: Logar transacoes filtradas
   useEffect(() => {
@@ -227,35 +251,51 @@ export default function Dashboard() {
   // Calcular estatísticas
   // Saldo atual (global) — não deve depender do filtro de mês/ano
   const saldoAtual = useMemo(() => {
-    // Soma do saldo inicial de todas as contas (valores absolutos)
+    // Soma do saldo inicial de todas as contas (respeitando sinal — pode ser negativo)
+    // Tenta: saldo_inicial → saldoInicial → saldo (campo original da tabela)
     const totalSaldoInicial = contas.reduce((acc, conta) => {
-      const s = (typeof conta.saldo_inicial !== 'undefined' && conta.saldo_inicial !== null)
-        ? Number(conta.saldo_inicial)
-        : (typeof conta.saldoInicial !== 'undefined' && conta.saldoInicial !== null ? Number(conta.saldoInicial) : 0)
-      return acc + Math.abs(isNaN(s) ? 0 : s)
+      const s = conta.saldo_inicial ?? conta.saldoInicial ?? conta.saldo ?? 0
+      const n = Number(s)
+      return acc + (isNaN(n) ? 0 : n)
     }, 0)
 
-    // Soma todas as receitas/despesas com valores absolutos - EXCLUINDO PENDENTES
-    const totalReceitas = transacoes
-      .filter(t => t.tipo === 'receita' && t.status !== 'pendente' && t.status !== 'pendente_fatura')
+    // SALDO: apenas transações de CONTAS (sem cartão de crédito)
+    const transacoesConta = transacoes.filter(t => !t.cartao_id)
+    const totalReceitas = transacoesConta
+      .filter(t => t.tipo === 'receita')
       .reduce((acc, t) => acc + Math.abs(Number(t.valor) || 0), 0)
-    const totalDespesas = transacoes
-      .filter(t => t.tipo === 'despesa' && t.status !== 'pendente' && t.status !== 'pendente_fatura')
+    const totalDespesas = transacoesConta
+      .filter(t => t.tipo === 'despesa')
       .reduce((acc, t) => acc + Math.abs(Number(t.valor) || 0), 0)
 
-    // Saldo = saldo inicial + receitas - despesas (todos valores absolutos)
+    // Saldo = saldo inicial + receitas - despesas (apenas contas, cartão não afeta)
     return totalSaldoInicial + totalReceitas - totalDespesas
   }, [transacoes, contas])
 
   const stats = useMemo(() => {
     // Usa transações FILTRADAS do mês/ano selecionado
+    const transacoesCartao = filteredTransacoes.filter(t => t.cartao_id)
+    const transacoesConta = filteredTransacoes.filter(t => !t.cartao_id)
+    
     const totalReceitas = filteredTransacoes
-      .filter(t => t.tipo === 'receita')
+      .filter(t => t.tipo === 'receita' && !t.cartao_id) // Receitas de cartão são estornos/pgto fatura, não receita real
       .reduce((acc, t) => acc + Math.abs(Number(t.valor) || 0), 0)
     
     const totalDespesas = filteredTransacoes
       .filter(t => t.tipo === 'despesa')
       .reduce((acc, t) => acc + Math.abs(Number(t.valor) || 0), 0)
+    
+    if (import.meta.env.DEV) {
+      console.log('📊 STATS DEBUG:', {
+        filteredCount: filteredTransacoes.length,
+        cartaoCount: transacoesCartao.length,
+        contaCount: transacoesConta.length,
+        despesasCartao: transacoesCartao.filter(t => t.tipo === 'despesa').reduce((a, t) => a + Math.abs(Number(t.valor) || 0), 0),
+        despesasConta: transacoesConta.filter(t => t.tipo === 'despesa').reduce((a, t) => a + Math.abs(Number(t.valor) || 0), 0),
+        totalReceitas,
+        totalDespesas,
+      })
+    }
     
     // Saldo atual (global, não dependente do filtro)
     const saldo = saldoAtual
@@ -275,8 +315,6 @@ export default function Dashboard() {
       lembretesCount
     }
   }, [filteredTransacoes, lembretes, filterMonth, filterYear, saldoAtual])
-
-  // (debug logs removed)
 
   if (loading) {
     return (
@@ -304,6 +342,8 @@ export default function Dashboard() {
         transactionCount={filteredTransacoes.length}
         hideValues={hideValues}
         setHideValues={setHideValues}
+        showCardTransactions={showCardTransactions}
+        setShowCardTransactions={setShowCardTransactions}
       />
       
       <DashboardStats stats={stats} hideValues={hideValues} />
@@ -312,10 +352,12 @@ export default function Dashboard() {
         transacoes={filteredTransacoes} 
         recentTransacoes={transacoes} 
         contas={contas}
+        cartoes={cartoes}
         lembretes={lembretes}
         selectedMonth={String(parseInt(filterMonth)).padStart(2, '0')}
         selectedYear={filterYear}
         allTransactions={transacoes}
+        showCardTransactions={showCardTransactions}
       />
     </div>
   )

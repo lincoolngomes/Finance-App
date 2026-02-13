@@ -129,6 +129,23 @@ const Transacoes: React.FC = () => {
     return map;
   }, [contas]);
 
+  // Parser de data reutilizável (normaliza para UTC midnight)
+  const parseToDate = (dateStr?: string | null): Date | null => {
+    if (!dateStr) return null
+    const s = String(dateStr).trim()
+    const dmYMatch = s.match(/^(\d{1,2})\s*\/\s*(\d{1,2})\s*\/\s*(\d{2,4})/)
+    if (dmYMatch) {
+      const d = Number(dmYMatch[1])
+      const m = Number(dmYMatch[2])
+      const y = Number(dmYMatch[3])
+      const fullYear = y < 100 ? 2000 + y : y
+      return new Date(Date.UTC(fullYear, m - 1, d))
+    }
+    const dt = new Date(s)
+    if (isNaN(dt.getTime())) return null
+    return new Date(Date.UTC(dt.getUTCFullYear(), dt.getUTCMonth(), dt.getUTCDate()))
+  }
+
   // Memo para filtrar transações conforme filtros visuais
   const filteredTransacoes = useMemo(() => {
     let filtered = [...transacoes];
@@ -161,15 +178,19 @@ const Transacoes: React.FC = () => {
       filtered = filtered.filter(t => !t.cartao_id);
     }
 
-    // Filtro por mês/ano selecionado (COMENTADO TEMPORARIAMENTE PARA DEBUG)
-    // const monthIndex = (() => { const m = parseInt(filterMonth); return isNaN(m) ? new Date().getMonth() : m })()
-    // const yearNum = parseInt(filterYear) || new Date().getFullYear()
-    // filtered = filtered.filter(t => {
-    //   if (!t.data && !t.created_at) return false
-    //   const dateStr = t.data || t.created_at
-    //   const date = new Date(dateStr)
-    //   return date.getMonth() === monthIndex && date.getFullYear() === yearNum
-    // })
+    // Filtro por mês/ano selecionado
+    const monthIndex = (() => { const m = parseInt(filterMonth); return isNaN(m) ? new Date().getMonth() : (m > 11 ? m - 1 : m) })()
+    const yearNum = parseInt(filterYear) || new Date().getFullYear()
+    filtered = filtered.filter(t => {
+      // Transações de cartão: usar fatura_mes/fatura_ano (mês de vencimento)
+      if (t.cartao_id && t.fatura_mes && t.fatura_ano) {
+        return (t.fatura_mes - 1) === monthIndex && t.fatura_ano === yearNum
+      }
+      // Transações normais: usar data da transação
+      const dt = parseToDate(t.data || t.created_at)
+      if (!dt) return false
+      return dt.getUTCMonth() === monthIndex && dt.getUTCFullYear() === yearNum
+    })
     
     // Ordenação
     // Helper para parsear datas em vários formatos (dd/mm/yyyy, yyyy-mm-dd, ISO)
@@ -232,6 +253,12 @@ const Transacoes: React.FC = () => {
         .eq('user_id', user.id);
       if (categoriasError) throw categoriasError;
 
+      // Busca cartões
+      const { data: cartoesData } = await supabase
+        .from('cartoes')
+        .select('id, nome')
+        .eq('user_id', user.id);
+
       // Busca transações
       const { data, error } = await supabase
         .from('transacoes')
@@ -241,17 +268,75 @@ const Transacoes: React.FC = () => {
       
       if (error) throw error;
       
-      // Fazer o "join" manualmente
+      // Importar regras de categorização para aplicar retroativamente
+      const { categorizar, REGRAS_PADRAO } = await import('@/utils/categorizacao');
+      const regrasTexto = localStorage.getItem('regrasFatura') || REGRAS_PADRAO;
+
+      // Cache para buscar/criar categorias
+      const categoriaCacheMap: Record<string, string> = {};
+      async function getOrCreateCatId(nome: string): Promise<string | null> {
+        if (!nome) return null;
+        if (categoriaCacheMap[nome]) return categoriaCacheMap[nome];
+        const found = categoriasData?.find(c => c.nome?.toLowerCase() === nome.toLowerCase());
+        if (found) { categoriaCacheMap[nome] = found.id; return found.id; }
+        const { data: created } = await supabase.from('categorias').insert({ user_id: user.id, nome }).select('id').maybeSingle();
+        if (created?.id) { categoriaCacheMap[nome] = created.id; categoriasData?.push({ id: created.id, nome, user_id: user.id }); return created.id; }
+        return null;
+      }
+
+      // Fazer o "join" manualmente e aplicar categorização retroativa
+      const idsParaAtualizar: { id: string, categoria_id: string }[] = [];
       const mapped = (data || []).map(t => {
-        const categoria = categoriasData?.find(c => c.id === t.categoria_id);
+        let categoriaId = t.categoria_id;
+        let categoria = categoriaId ? categoriasData?.find(c => c.id === categoriaId) : null;
         const conta = contasData?.find(c => c.id === t.conta_id);
+        const cartao = cartoesData?.find(c => c.id === t.cartao_id);
+        
+        // Aplicar categorização retroativa se não tem categoria
+        if (!categoriaId && t.descricao) {
+          const nomeCategoria = categorizar(t.descricao, regrasTexto);
+          if (nomeCategoria) {
+            // Buscar no array local
+            const catLocal = categoriasData?.find(c => c.nome?.toLowerCase() === nomeCategoria.toLowerCase());
+            if (catLocal) {
+              categoriaId = catLocal.id;
+              categoria = catLocal;
+              idsParaAtualizar.push({ id: t.id, categoria_id: catLocal.id });
+            }
+          }
+        }
+        
+        // Derivar status em memória (não salvar no banco — coluna pode não existir)
+        let statusDerivado = t.status;
+        if (!statusDerivado) {
+          if (t.cartao_id) {
+            statusDerivado = t.pago ? 'pago' : 'pendente_fatura';
+          } else {
+            statusDerivado = t.pago ? 'pago' : 'pendente';
+          }
+        }
         
         return {
           ...t,
+          categoria_id: categoriaId,
+          status: statusDerivado,
           categorias: categoria ? { id: categoria.id, nome: categoria.nome } : null,
-          contas: conta ? { id: conta.id, nome: conta.nome, saldo_inicial: conta.saldo_inicial } : null
+          contas: conta ? { id: conta.id, nome: conta.nome, saldo_inicial: conta.saldo_inicial } : null,
+          cartao_nome: cartao?.nome || null
         };
       });
+
+      // Salvar categorizações retroativas no banco (em background) — apenas categoria_id
+      if (idsParaAtualizar.length > 0) {
+        const uniqueUpdates = new Map<string, string>();
+        idsParaAtualizar.forEach(u => {
+          if (u.categoria_id) uniqueUpdates.set(u.id, u.categoria_id);
+        });
+        for (const [id, catId] of uniqueUpdates) {
+          supabase.from('transacoes').update({ categoria_id: catId }).eq('id', id).then();
+        }
+        console.log(`🔄 Categorizando retroativamente ${uniqueUpdates.size} transações...`);
+      }
       
       console.log('✅ Transações carregadas:', mapped);
       console.log('📊 Total de transações:', mapped.length);
@@ -369,74 +454,72 @@ const Transacoes: React.FC = () => {
 
 
 
-  // Memo para receitas, despesas e saldo (calcula saldo agregado por conta como no Dashboard)
-  const { receitas, despesas, saldoReal } = useMemo(() => {
-    // Soma do saldo inicial de todas as contas (valores absolutos, tratando tipo)
+  // Memo para saldo GLOBAL (não depende de filtros visuais)
+  // SALDO: usa TODAS as transações de CONTAS (sem cartão de crédito), independente de filtros
+  const saldoReal = useMemo(() => {
+    // Soma do saldo inicial de todas as contas (respeitando sinal — pode ser negativo)
+    // Tenta: saldo_inicial → saldoInicial → saldo (campo original da tabela)
     const totalSaldoInicial = contas.reduce((acc, conta) => {
-      const s = (typeof conta.saldo_inicial !== 'undefined' && conta.saldo_inicial !== null)
-        ? Number(conta.saldo_inicial)
-        : (typeof conta.saldoInicial !== 'undefined' && conta.saldoInicial !== null ? Number(conta.saldoInicial) : 0)
-      return acc + Math.abs(isNaN(s) ? 0 : s)
+      const s = conta.saldo_inicial ?? conta.saldoInicial ?? conta.saldo ?? 0
+      const n = Number(s)
+      return acc + (isNaN(n) ? 0 : n)
     }, 0)
 
-    // Soma todas as receitas/despesas com valores absolutos (usando filteredTransacoes para respeitar filtros)
-    const receitasGlobais = filteredTransacoes.filter(t => t.tipo === 'receita').reduce((acc, t) => acc + Math.abs(Number(t.valor) || 0), 0)
-    // Despesas: EXCLUIR as pendentes (cartão de crédito) para não sensibilizar o saldo
-    const despesasGlobais = filteredTransacoes.filter(t => t.tipo === 'despesa' && t.status !== 'pendente' && t.status !== 'pendente_fatura').reduce((acc, t) => acc + Math.abs(Number(t.valor) || 0), 0)
+    // SALDO: usa 'transacoes' (GLOBAL), não 'filteredTransacoes' — filtros visuais não devem afetar o saldo
+    const transacoesConta = transacoes.filter(t => !t.cartao_id)
+    const receitasGlobais = transacoesConta.filter(t => t.tipo === 'receita').reduce((acc, t) => acc + Math.abs(Number(t.valor) || 0), 0)
+    const despesasGlobais = transacoesConta.filter(t => t.tipo === 'despesa').reduce((acc, t) => acc + Math.abs(Number(t.valor) || 0), 0)
 
-    // Saldo = saldo inicial + receitas - despesas (pendentes não afetam)
-    const saldoAggregate = totalSaldoInicial + receitasGlobais - despesasGlobais
-
-    return {
-      receitas: receitasGlobais,
-      despesas: despesasGlobais,
-      saldoReal: saldoAggregate,
-    }
-  }, [filteredTransacoes, contas])
-
-  // Parser de data reutilizável (normaliza para UTC midnight)
-  const parseToDate = (dateStr?: string | null): Date | null => {
-    if (!dateStr) return null
-    const s = String(dateStr).trim()
-    const dmYMatch = s.match(/^(\d{1,2})\s*\/\s*(\d{1,2})\s*\/\s*(\d{2,4})/)
-    if (dmYMatch) {
-      const d = Number(dmYMatch[1])
-      const m = Number(dmYMatch[2])
-      const y = Number(dmYMatch[3])
-      const fullYear = y < 100 ? 2000 + y : y
-      return new Date(Date.UTC(fullYear, m - 1, d))
-    }
-    const dt = new Date(s)
-    if (isNaN(dt.getTime())) return null
-    return new Date(Date.UTC(dt.getUTCFullYear(), dt.getUTCMonth(), dt.getUTCDate()))
-  }
+    // Saldo = saldo inicial + receitas - despesas (apenas de contas, cartão não afeta, sem filtros)
+    const saldo = totalSaldoInicial + receitasGlobais - despesasGlobais
+    console.log('💰 SALDO DEBUG:', {
+      contas: contas.map(c => ({ id: c.id, nome: c.nome, saldo_inicial: c.saldo_inicial, saldoInicial: c.saldoInicial, saldo: c.saldo, TODOS_CAMPOS: Object.keys(c) })),
+      totalSaldoInicial,
+      totalTransacoes: transacoes.length,
+      transacoesConta: transacoesConta.length,
+      receitasGlobais,
+      despesasGlobais,
+      saldo,
+      amostraTransacoes: transacoesConta.slice(0, 5).map(t => ({ id: t.id, desc: t.descricao, valor: t.valor, tipo: t.tipo, cartao_id: t.cartao_id }))
+    })
+    return saldo
+  }, [transacoes, contas])
 
   // Totais para o mês/ano selecionado
   const { receitasMes, despesasMes, despesasPendentes, transacoesCountMes, countReceitasMes, countDespesasMes } = useMemo(() => {
     const monthIndex = (() => { const m = parseInt(filterMonth); return isNaN(m) ? new Date().getMonth() : (m > 11 ? m - 1 : m) })()
     const yearNum = parseInt(filterYear) || new Date().getFullYear()
-    const filtered = filteredTransacoes.filter(t => {
+    
+    // Filtrar por mês/ano usando TODAS as transações (não filteredTransacoes)
+    const todasDoMes = transacoes.filter(t => {
+      // Transações de cartão: usar fatura_mes/fatura_ano (mês de vencimento)
+      if (t.cartao_id && t.fatura_mes && t.fatura_ano) {
+        return (t.fatura_mes - 1) === monthIndex && t.fatura_ano === yearNum
+      }
+      // Transações normais: usar data da transação
       const dt = parseToDate(t.data || t.created_at)
       if (!dt) return false
       return dt.getUTCMonth() === monthIndex && dt.getUTCFullYear() === yearNum
     })
-    const receitasMes = filtered.filter(t => t.tipo === 'receita').reduce((acc, t) => acc + Math.abs(Number(t.valor) || 0), 0)
-    const countReceitasMes = filtered.filter(t => t.tipo === 'receita').length
-    // Despesas: apenas as que NÃO são pendentes (para sensibilizar o saldo)
-    const despesasMes = filtered.filter(t => t.tipo === 'despesa' && t.status !== 'pendente' && t.status !== 'pendente_fatura').reduce((acc, t) => acc + Math.abs(Number(t.valor) || 0), 0)
-    const countDespesasMes = filtered.filter(t => t.tipo === 'despesa' && t.status !== 'pendente' && t.status !== 'pendente_fatura').length
-    // Despesas pendentes: separadas para exibir mas não afetar o saldo
-    const despesasPendentes = filtered.filter(t => t.tipo === 'despesa' && (t.status === 'pendente' || t.status === 'pendente_fatura')).reduce((acc, t) => acc + Math.abs(Number(t.valor) || 0), 0)
-    return { receitasMes, despesasMes, despesasPendentes, transacoesCountMes: filtered.length, countReceitasMes, countDespesasMes }
-  }, [filteredTransacoes, filterMonth, filterYear])
+    
+    // Receitas do mês: apenas de CONTAS (sem cartão)
+    const contaDoMes = todasDoMes.filter(t => !t.cartao_id)
+    const receitasMes = contaDoMes.filter(t => t.tipo === 'receita').reduce((acc, t) => acc + Math.abs(Number(t.valor) || 0), 0)
+    const countReceitasMes = contaDoMes.filter(t => t.tipo === 'receita').length
+    // Despesas do mês: apenas de CONTAS (sem cartão)
+    const despesasMes = contaDoMes.filter(t => t.tipo === 'despesa').reduce((acc, t) => acc + Math.abs(Number(t.valor) || 0), 0)
+    const countDespesasMes = contaDoMes.filter(t => t.tipo === 'despesa').length
+    // Despesas pendentes: transações de cartão (fatura) + pendentes de conta — usa TODAS do mês
+    const despesasPendentes = todasDoMes.filter(t => t.tipo === 'despesa' && (t.cartao_id || t.status === 'pendente' || t.status === 'pendente_fatura')).reduce((acc, t) => acc + Math.abs(Number(t.valor) || 0), 0)
+    return { receitasMes, despesasMes, despesasPendentes, transacoesCountMes: todasDoMes.length, countReceitasMes, countDespesasMes }
+  }, [transacoes, filterMonth, filterYear])
 
-  // Cálculo do saldo do mês: saldo inicial + receitas do mês - despesas pagas do mês
+  // Cálculo do saldo do mês: saldo inicial + receitas do mês - despesas pagas do mês (APENAS CONTAS, sem cartão)
   const saldoMes = useMemo(() => {
     const totalSaldoInicial = contas.reduce((acc, conta) => {
-      const s = (typeof conta.saldo_inicial !== 'undefined' && conta.saldo_inicial !== null)
-        ? Number(conta.saldo_inicial)
-        : (typeof conta.saldoInicial !== 'undefined' && conta.saldoInicial !== null ? Number(conta.saldoInicial) : 0)
-      return acc + Math.abs(isNaN(s) ? 0 : s)
+      const s = conta.saldo_inicial ?? conta.saldoInicial ?? conta.saldo ?? 0
+      const n = Number(s)
+      return acc + (isNaN(n) ? 0 : n)
     }, 0)
     return totalSaldoInicial + receitasMes - despesasMes
   }, [contas, receitasMes, despesasMes])
@@ -593,7 +676,6 @@ const Transacoes: React.FC = () => {
               valor: Math.round(valorParcela * 100) / 100, // Evita erros de ponto flutuante
               quando: dataFormatada,
               estabelecimento: `${formData.estabelecimento} (Parcela ${i + 1}/${numeroParcelas})`,
-              status: 'pendente_fatura',
             });
           }
           
@@ -1631,8 +1713,8 @@ const Transacoes: React.FC = () => {
                     : '-'}
                 </div>
                 <div className="text-slate-400 truncate text-xs">
-                  {/* CARTÃO: mostra apenas se for cartão de crédito */}
-                  {transacao.cartao_id ? 'Cartão' : '-'}
+                  {/* CARTÃO: mostra nome do cartão */}
+                  {transacao.cartao_id ? (transacao.cartao_nome || 'Cartão') : '-'}
                 </div>
                 <div className={`font-bold text-right ${isReceita ? 'text-green-400' : 'text-red-400'}`}>
                   {isReceita ? '+' : '-'}{formatCurrency(Math.abs(transacao.valor || 0))}
@@ -1642,12 +1724,10 @@ const Transacoes: React.FC = () => {
                     className={`text-xs px-2 py-1 rounded font-semibold ${
                       transacao.status === 'pendente' || transacao.status === 'pendente_fatura'
                         ? 'bg-yellow-900/60 text-yellow-300 border border-yellow-700/50'
-                        : transacao.status === 'pago'
-                        ? 'bg-slate-700/50 text-slate-300 border border-slate-600/50'
                         : 'bg-slate-700/50 text-slate-300 border border-slate-600/50'
                     }`}
                   >
-                    {transacao.status === 'pendente' || transacao.status === 'pendente_fatura' ? 'Pend.' : 'Pago'}
+                    {transacao.status === 'pendente_fatura' ? 'Fatura' : transacao.status === 'pendente' ? 'Pend.' : 'Pago'}
                   </Badge>
                   <div className="flex gap-1">
                     <Button 

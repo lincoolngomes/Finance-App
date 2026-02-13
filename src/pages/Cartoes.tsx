@@ -502,24 +502,64 @@ export default function Cartoes({ isModal = false }) {
     const refFatura = mesReferencia && anoReferencia ? `${mesReferencia}/${anoReferencia}` : null;
     const faturaMes = mesReferencia ? parseInt(mesReferencia) : null;
     const faturaAno = anoReferencia ? parseInt(anoReferencia) : null;
-    const toInsert = transacoes.map(t => ({
-      data: t.quando,
-      descricao: t.estabelecimento,
-      valor: t.valor,
-      tipo: (t.tipo === 'pagamento' || t.tipo === 'estorno') ? 'receita' : 'despesa',
-      cartao_id: cartaoId,
-      user_id: user?.id,
-      pago: false,
-      ...(refFatura ? { observacao: `Fatura ${refFatura}` } : {}),
-      ...(faturaMes ? { fatura_mes: faturaMes } : {}),
-      ...(faturaAno ? { fatura_ano: faturaAno } : {}),
-    }));
 
+    // Buscar/criar categorias para associar categoria_id
+    const categoriaCache: Record<string, string> = {};
+    async function getOrCreateCategoriaId(nomeCategoria: string): Promise<string | null> {
+      if (!nomeCategoria || nomeCategoria.trim() === '') return null;
+      const nome = nomeCategoria.trim();
+      if (categoriaCache[nome]) return categoriaCache[nome];
+      // Buscar existente
+      const { data: existing } = await supabase
+        .from('categorias')
+        .select('id')
+        .eq('user_id', user?.id)
+        .ilike('nome', nome)
+        .maybeSingle();
+      if (existing?.id) {
+        categoriaCache[nome] = existing.id;
+        return existing.id;
+      }
+      // Criar nova
+      const { data: created } = await supabase
+        .from('categorias')
+        .insert({ user_id: user?.id, nome })
+        .select('id')
+        .maybeSingle();
+      if (created?.id) {
+        categoriaCache[nome] = created.id;
+        return created.id;
+      }
+      return null;
+    }
+
+    const toInsert = [];
+    for (const t of transacoes) {
+      const categoriaId = await getOrCreateCategoriaId(t.categoria || '');
+      toInsert.push({
+        data: t.quando,
+        descricao: t.estabelecimento,
+        valor: t.valor,
+        tipo: (t.tipo === 'pagamento' || t.tipo === 'estorno') ? 'receita' : 'despesa',
+        cartao_id: cartaoId,
+        user_id: user?.id,
+        pago: false,
+        ...(categoriaId ? { categoria_id: categoriaId } : {}),
+        ...(refFatura ? { observacao: `Fatura ${refFatura}` } : {}),
+        ...(faturaMes ? { fatura_mes: faturaMes } : {}),
+        ...(faturaAno ? { fatura_ano: faturaAno } : {}),
+      });
+    }
+
+    console.log('📦 Inserindo transações:', JSON.stringify(toInsert[0], null, 2));
+    console.log('📦 Total a inserir:', toInsert.length);
     const { error } = await supabase.from('transacoes').insert(toInsert);
     if (error) {
+      console.error('❌ Erro ao inserir transações:', error);
+      console.error('❌ Detalhes:', JSON.stringify(error, null, 2));
       return {
         success: false,
-        message: `Erro ao importar: ${error.message}`
+        message: `Erro ao importar: ${error.message} (code: ${error.code}, details: ${error.details})`
       };
     } else {
       fetchCartoes();
@@ -776,12 +816,16 @@ export default function Cartoes({ isModal = false }) {
                         setCartaoParaImportar(cartao.id); 
                         setImportarFaturaOpen(true); 
                       }}
-                      className="bg-blue-600 text-white hover:bg-blue-700 font-semibold gap-1.5 shadow-lg text-xs h-8 px-2"
+                      className={`font-semibold gap-1.5 shadow-lg text-xs h-8 px-2 text-white ${
+                        faturaAberta === 0 
+                          ? 'bg-green-600 hover:bg-green-700' 
+                          : 'bg-orange-600 hover:bg-orange-700'
+                      }`}
                     >
                       <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                       </svg>
-                      Importar
+                      {faturaAberta === 0 ? '✓ Pago' : 'Em Aberto'}
                     </Button>
                     <Button 
                       size="sm" 

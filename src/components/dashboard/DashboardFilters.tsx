@@ -11,6 +11,8 @@ interface DashboardFiltersProps {
   transactionCount: number
   hideValues?: boolean
   setHideValues?: (hide: boolean) => void
+  showCardTransactions?: boolean
+  setShowCardTransactions?: (show: boolean) => void
 }
 
 export function DashboardFilters({ 
@@ -20,7 +22,9 @@ export function DashboardFilters({
   setFilterYear, 
   transactionCount,
   hideValues = false,
-  setHideValues
+  setHideValues,
+  showCardTransactions = false,
+  setShowCardTransactions
 }: DashboardFiltersProps) {
 
   return (
@@ -44,6 +48,27 @@ export function DashboardFilters({
           >
             {hideValues ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
           </Button>
+        )}
+        {setShowCardTransactions && (
+          <div className="flex items-center gap-2 bg-secondary/50 rounded-lg px-3 py-2 border border-border/40">
+            <svg className="h-4 w-4 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+            </svg>
+            <span className="text-xs text-muted-foreground whitespace-nowrap">Cartões</span>
+            <button
+              onClick={() => setShowCardTransactions(!showCardTransactions)}
+              className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none ${
+                showCardTransactions ? 'bg-blue-600' : 'bg-slate-600'
+              }`}
+              title={showCardTransactions ? 'Incluindo cartões' : 'Sem cartões'}
+            >
+              <span
+                className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
+                  showCardTransactions ? 'translate-x-[18px]' : 'translate-x-[3px]'
+                }`}
+              />
+            </button>
+          </div>
         )}
         <Filter className="h-4 w-4 text-muted-foreground" />
         <Select value={filterMonth} onValueChange={setFilterMonth}>

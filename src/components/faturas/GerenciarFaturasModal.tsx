@@ -352,7 +352,7 @@ export function GerenciarFaturasModal({
       const transactionIds = fatura.transacoes.map(t => t.id)
       const { error: updateError } = await supabase
         .from('transacoes')
-        .update({ status: 'pago' })
+        .update({ pago: true })
         .in('id', transactionIds)
 
       if (updateError) throw updateError

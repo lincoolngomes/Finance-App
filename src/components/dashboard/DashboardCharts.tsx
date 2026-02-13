@@ -2,6 +2,7 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { formatCurrency } from '@/utils/currency'
+import { getTransactionMonth, parseToDateUTC } from '@/utils/dateParser'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line, Legend, ReferenceLine } from 'recharts'
 import { Calendar, TrendingDown, TrendingUp } from 'lucide-react'
 import { useEffect, useState, useMemo } from 'react'
@@ -44,6 +45,9 @@ interface Transacao {
   user_id: string | null
   conta_id?: string | null
   cartao_id?: string | null
+  fatura_mes?: number | null
+  fatura_ano?: number | null
+  pago?: boolean | null
   categorias?: {
     id: string
     nome: string
@@ -64,53 +68,42 @@ interface DashboardChartsProps {
   transacoes: Transacao[]
   recentTransacoes?: Transacao[]
   contas?: any[]
+  cartoes?: any[]
   lembretes?: Lembrete[]
   selectedMonth?: string
   selectedYear?: string
   allTransactions?: Transacao[]
+  showCardTransactions?: boolean
 }
 
 const COLORS = ['#6366f1', '#8b5cf6', '#ec4899', '#06b6d4', '#10b981', '#f59e0b', '#ef4444', '#84cc16']
 
-export function DashboardCharts({ transacoes, recentTransacoes, contas = [], lembretes = [], selectedMonth, selectedYear, allTransactions }: DashboardChartsProps) {
-  const parseDateUniversal = (dateStr: any): Date | null => {
-    if (!dateStr && dateStr !== 0) return null
-    const s = String(dateStr).trim()
-
-    // dd/mm/yyyy or d/m/yyyy
-    const dmYMatch = s.match(/^(\d{1,2})\s*\/\s*(\d{1,2})\s*\/\s*(\d{2,4})$/)
-    if (dmYMatch) {
-      const d = Number(dmYMatch[1])
-      const m = Number(dmYMatch[2])
-      const y = Number(dmYMatch[3])
-      const fullYear = y < 100 ? 2000 + y : y
-      // normalize to UTC midnight
-      const dt = new Date(Date.UTC(fullYear, m - 1, d))
-      return isNaN(dt.getTime()) ? null : dt
-    }
-
-    // ISO or other
-    const dtIso = new Date(s)
-    if (isNaN(dtIso.getTime())) return null
-    return new Date(Date.UTC(dtIso.getUTCFullYear(), dtIso.getUTCMonth(), dtIso.getUTCDate()))
-  }
-
-  // Criar mapa de contas para exibir nome da conta/cartão
+export function DashboardCharts({ transacoes, recentTransacoes, contas = [], cartoes = [], lembretes = [], selectedMonth, selectedYear, allTransactions, showCardTransactions = false }: DashboardChartsProps) {
+  // Criar mapa de contas para exibir nome da conta
   const accountsMap = contas.reduce((acc, conta) => {
     acc[conta.id] = conta
     return acc
   }, {} as Record<string, any>)
 
-  // Usa transações globais para stats do "Resumo do Período"
-  const allTransacoes = allTransactions || recentTransacoes || transacoes
+  // Criar mapa de cartões para exibir nome do cartão
+  const cartoesMap = cartoes.reduce((acc, cartao) => {
+    acc[cartao.id] = cartao
+    return acc
+  }, {} as Record<string, any>)
+
+  // Filtra transações de cartão se showCardTransactions está desativado
+  const allTransacoesRaw = allTransactions || recentTransacoes || transacoes
+  const allTransacoes = showCardTransactions
+    ? allTransacoesRaw
+    : allTransacoesRaw.filter(t => !t.cartao_id)
 
   if (import.meta.env.DEV) {
     const sample = allTransacoes.slice(0, 10).map(t => ({
       id: t.id,
       data: t.data,
       created_at: t.created_at,
-      parsed_data: parseDateUniversal(t.data)?.toISOString() ?? null,
-      parsed_created_at: parseDateUniversal(t.created_at)?.toISOString() ?? null
+      parsed_data: parseToDateUTC(t.data)?.toISOString() ?? null,
+      parsed_created_at: parseToDateUTC(t.created_at)?.toISOString() ?? null
     }))
     console.debug('DashboardCharts sample dates:', sample)
   }
@@ -123,30 +116,37 @@ export function DashboardCharts({ transacoes, recentTransacoes, contas = [], lem
     const categorias: { [key: string]: number } = {}
     
     transacoes.forEach(t => {
-      if (t.categorias?.nome && t.valor && t.tipo === tipo) {
-        categorias[t.categorias.nome] = (categorias[t.categorias.nome] || 0) + Math.abs(t.valor)
+      if (t.valor && t.tipo === tipo) {
+        // Receitas de cartão são estornos/pagamentos, não receita real
+        if (tipo === 'receita' && t.cartao_id) return
+        const nomeCategoria = t.categorias?.nome || 'Sem categoria'
+        categorias[nomeCategoria] = (categorias[nomeCategoria] || 0) + Math.abs(t.valor)
       }
     })
 
     return Object.entries(categorias)
       .map(([name, value]) => ({ name, value }))
       .sort((a, b) => b.value - a.value)
-      .slice(0, 6) // Limitar a 6 categorias para melhor visualização
+      .slice(0, 8) // Limitar a 8 categorias para melhor visualização
   }
 
   const getCategoryTransactions = (categoryName: string, tipo: 'receita' | 'despesa') => {
     return transacoes
-      .filter(t => t.categorias?.nome === categoryName && t.tipo === tipo)
+      .filter(t => {
+        const nome = t.categorias?.nome || 'Sem categoria'
+        return nome === categoryName && t.tipo === tipo
+      })
       .sort((a, b) => {
-        const dateA = parseDateUniversal(a.data)
-        const dateB = parseDateUniversal(b.data)
+        const dateA = parseToDateUTC(a.data)
+        const dateB = parseToDateUTC(b.data)
         if (!dateA || !dateB) return 0
         return dateB.getTime() - dateA.getTime()
       })
   }
 
   const getReceitasDespesasData = () => {
-    const receitas = transacoes.filter(t => t.tipo === 'receita').reduce((sum, t) => sum + (Number(t.valor) || 0), 0)
+    // Receitas: apenas de contas (receitas de cartão são pgto fatura/estorno, ignorar)
+    const receitas = transacoes.filter(t => t.tipo === 'receita' && !t.cartao_id).reduce((sum, t) => sum + (Number(t.valor) || 0), 0)
     const despesas = transacoes.filter(t => t.tipo === 'despesa').reduce((sum, t) => sum + Math.abs(Number(t.valor) || 0), 0)
 
     return [
@@ -168,24 +168,24 @@ export function DashboardCharts({ transacoes, recentTransacoes, contas = [], lem
 
     // Agrupar transações por mês (usando TODAS as transações do ano selecionado)
     allTransacoes.forEach(t => {
-      const date = parseDateUniversal(t.data || t.created_at)
-      if (!date) return
-      
-      // Filtrar apenas transações do ano selecionado
-      if (date.getUTCFullYear() !== currentYear) return
+      const tm = getTransactionMonth(t)
+      if (!tm) return
+      if (tm.year !== currentYear) return
+      const monthKey = String(tm.month).padStart(2, '0')
 
-      const monthKey = String(date.getUTCMonth()).padStart(2, '0')
       if (monthlyData[monthKey]) {
-        if (t.tipo === 'receita') {
+        if (t.tipo === 'receita' && !t.cartao_id) {
+          // Receitas: apenas de contas (receitas de cartão são pgto fatura/estorno, ignorar)
           monthlyData[monthKey].receitas += Math.abs(Number(t.valor) || 0)
         } else if (t.tipo === 'despesa') {
           monthlyData[monthKey].despesas += Math.abs(Number(t.valor) || 0)
         }
+        // Receitas de cartão (pagamentos/estornos) são ignoradas
       }
     })
 
     // Converter para array ordenado (Janeiro a Dezembro)
-    return Object.keys(monthlyData)
+    const result = Object.keys(monthlyData)
       .sort((a, b) => parseInt(a) - parseInt(b)) // Ordenar de 0 (Jan) a 11 (Dez)
       .map((key) => {
         const month = parseInt(key)
@@ -193,30 +193,23 @@ export function DashboardCharts({ transacoes, recentTransacoes, contas = [], lem
         return {
           monthKey: key,
           month: monthName.charAt(0).toUpperCase() + monthName.slice(1),
-          receitas: Math.round(monthlyData[key].receitas),
-          despesas: Math.round(monthlyData[key].despesas)
+          receitas: parseFloat(monthlyData[key].receitas.toFixed(2)),
+          despesas: parseFloat(monthlyData[key].despesas.toFixed(2))
         }
       })
-  }
-
-  // Calcula stats usando TODAS as transações (global), não apenas filtradas
-  const totalSaldoInicial = contas.reduce((acc, conta) => {
-    const s = (typeof conta.saldo_inicial !== 'undefined' && conta.saldo_inicial !== null)
-      ? Number(conta.saldo_inicial)
-      : (typeof conta.saldoInicial !== 'undefined' && conta.saldoInicial !== null ? Number(conta.saldoInicial) : 0)
-    return acc + Math.abs(isNaN(s) ? 0 : s)
-  }, 0)
-  
-  const totalReceitas = allTransacoes.filter(t => t.tipo === 'receita').reduce((sum, t) => sum + Math.abs(t.valor || 0), 0)
-  const totalDespesas = allTransacoes.filter(t => t.tipo === 'despesa').reduce((sum, t) => sum + Math.abs(t.valor || 0), 0)
-  const saldo = totalSaldoInicial + totalReceitas - totalDespesas
-
-  const stats = {
-    totalReceitas,
-    totalDespesas,
-    saldo,
-    transacoesCount: allTransacoes.length,
-    lembretesCount: 0
+    
+    if (import.meta.env.DEV) {
+      console.log('📊 GRÁFICO BARRAS:', {
+        currentYear,
+        showCardTransactions,
+        totalAllTransacoes: allTransacoes.length,
+        cartaoNoAll: allTransacoes.filter(t => t.cartao_id).length,
+        contaNoAll: allTransacoes.filter(t => !t.cartao_id).length,
+        meses: result.filter(m => m.receitas > 0 || m.despesas > 0)
+      })
+    }
+    
+    return result
   }
 
   const despesasDataAll = getCategoriesData('despesa')
@@ -549,11 +542,11 @@ export function DashboardCharts({ transacoes, recentTransacoes, contas = [], lem
           </CardHeader>
           <CardContent className="pt-0">
             <div className="space-y-3">
-              { (recentTransacoes ?? transacoes)
+              { transacoes
                 .slice()
                 .sort((a, b) => {
-                  const aTime = parseDateUniversal(a.data ?? a.created_at)?.getTime() || 0
-                  const bTime = parseDateUniversal(b.data ?? b.created_at)?.getTime() || 0
+                  const aTime = parseToDateUTC(a.data ?? a.created_at)?.getTime() || 0
+                  const bTime = parseToDateUTC(b.data ?? b.created_at)?.getTime() || 0
                   return bTime - aTime
                 })
                 .slice(0, 5)
@@ -572,13 +565,19 @@ export function DashboardCharts({ transacoes, recentTransacoes, contas = [], lem
                       </div>
                       <div className="text-xs text-muted-foreground">
                           {transacao.categorias?.nome || 'Sem categoria'}
-                          {transacao.account_id && accountsMap[transacao.account_id] && (
-                            <> • {transacao.metodo === 'cartao_credito' ? '💳' : '🏦'} {accountsMap[transacao.account_id].name}</>
+                          {transacao.cartao_id && cartoesMap[transacao.cartao_id] ? (
+                            <> • 💳 {cartoesMap[transacao.cartao_id].nome}</>
+                          ) : transacao.cartao_id ? (
+                            <> • 💳 Cartão</>
+                          ) : null}
+                          {transacao.conta_id && accountsMap[transacao.conta_id] && (
+                            <> • 🏦 {accountsMap[transacao.conta_id].name}</>
                           )}
+                          {!transacao.cartao_id && !transacao.conta_id && ' • 🏦 Conta'}
                           {' • '}{
                             (() => {
                               const raw = transacao.data ?? transacao.created_at
-                              const parsed = parseDateUniversal(raw)
+                              const parsed = parseToDateUTC(raw)
                               return parsed ? parsed.toLocaleDateString('pt-BR', { timeZone: 'UTC' }) : String(raw || '')
                             })()
                           }
@@ -593,7 +592,7 @@ export function DashboardCharts({ transacoes, recentTransacoes, contas = [], lem
                   </div>
                 ))
               }
-              {(recentTransacoes ?? transacoes).length === 0 && (
+              {transacoes.length === 0 && (
                 <div className="text-center py-8 text-muted-foreground">
                   Nenhuma transação encontrada
                 </div>
@@ -693,12 +692,18 @@ export function DashboardCharts({ transacoes, recentTransacoes, contas = [], lem
                           </span>
                         </div>
                         <div className="text-xs text-muted-foreground">
-                          {transacao.account_id && accountsMap[transacao.account_id] && (
-                            <span>{transacao.metodo === 'cartao_credito' ? '💳' : '🏦'} {accountsMap[transacao.account_id].name} • </span>
+                          {transacao.cartao_id && cartoesMap[transacao.cartao_id] ? (
+                            <span>💳 {cartoesMap[transacao.cartao_id].nome} • </span>
+                          ) : transacao.cartao_id ? (
+                            <span>💳 Cartão • </span>
+                          ) : transacao.conta_id && accountsMap[transacao.conta_id] ? (
+                            <span>🏦 {accountsMap[transacao.conta_id].name} • </span>
+                          ) : (
+                            <span>🏦 Conta • </span>
                           )}
                           {(() => {
                             const raw = transacao.data ?? transacao.created_at
-                            const parsed = parseDateUniversal(raw)
+                            const parsed = parseToDateUTC(raw)
                             return parsed ? parsed.toLocaleDateString('pt-BR', { timeZone: 'UTC' }) : String(raw || '')
                           })()}
                         </div>
