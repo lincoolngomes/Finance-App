@@ -524,6 +524,20 @@ export function GerenciarFaturasModal({
               Visualize e pague as faturas do seu cartão de crédito
             </DialogDescription>
             <div className="flex gap-2 flex-shrink-0">
+              {fatura && (
+                <Button
+                  disabled
+                  size="sm"
+                  className={`font-semibold gap-1.5 ${
+                    fatura.vencida 
+                      ? 'bg-red-600 hover:bg-red-700 text-white' 
+                      : 'bg-amber-600 hover:bg-amber-700 text-white'
+                  }`}
+                >
+                  <Clock className="h-4 w-4" />
+                  {fatura.vencida ? 'Vencida' : 'Em Aberto'}
+                </Button>
+              )}
               {selectedCard && onImportClick && (
                 <Button
                   onClick={() => onImportClick(selectedCard)}

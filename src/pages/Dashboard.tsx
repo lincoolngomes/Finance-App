@@ -16,6 +16,7 @@ interface Transacao {
   tipo: string | null
   categoria_id: string
   conta_id?: string | null
+  cartao_id?: string | null
   user_id: string | null
   categorias?: {
     id: string
@@ -39,6 +40,7 @@ export default function Dashboard() {
   const [lembretes, setLembretes] = useState<Lembrete[]>([])
   const [contas, setContas] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [showCardTransactions, setShowCardTransactions] = useState(false)
 
   // Inicialização temporária, será ajustada após carregar as transações
   const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth());
@@ -189,6 +191,15 @@ export default function Dashboard() {
 
       const transacaoMonth = transacaoDate.getUTCMonth()
       const transacaoYear = transacaoDate.getUTCFullYear()
+      
+      // Filtrar por cartão se showCardTransactions está desativado
+      if (!showCardTransactions && transacao.conta_id === null) {
+        // Se não tem conta_id mas tem cartão_id, é uma transação de cartão
+        // Mas esse campo não está no interface, então verificar com hasOwnProperty
+        if ('cartao_id' in transacao && transacao.cartao_id) {
+          return false
+        }
+      }
 
       return transacaoMonth === filterMonthIndex && transacaoYear === filterYearNum
     })

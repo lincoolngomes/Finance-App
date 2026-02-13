@@ -664,7 +664,7 @@ export default function Cartoes({ isModal = false }) {
               return d.includes('PAGAMENTO') || d.includes('PAG FATURA') || d.includes('PGTO');
             };
             
-            // Calcular TODAS as despesas em aberto (todas as faturas, não só mês atual)
+            // Calcular saldo em aberto do cartão
             // Despesas = todas as despesas do cartão
             const totalDespesas = transacoesCartao
               .filter(t => t.tipo === 'despesa')
@@ -673,13 +673,11 @@ export default function Cartoes({ isModal = false }) {
             const totalEstornos = transacoesCartao
               .filter(t => t.tipo === 'receita' && !isPagamentoFatura(t.descricao))
               .reduce((acc, t) => acc + Math.abs(t.valor || 0), 0);
-            // Pagamentos de fatura = receitas que SÃO pagamento
-            const totalPagamentos = transacoesCartao
-              .filter(t => t.tipo === 'receita' && isPagamentoFatura(t.descricao))
-              .reduce((acc, t) => acc + Math.abs(t.valor || 0), 0);
             
-            // Saldo em aberto = despesas - estornos - pagamentos já feitos
-            const faturaAberta = Math.max(0, totalDespesas - totalEstornos - totalPagamentos);
+            // Saldo em aberto = despesas - estornos
+            // NÃO subtrai pagamentos — pagamento quita a fatura anterior,
+            // o saldo em aberto reflete o que ainda precisa ser pago
+            const faturaAberta = Math.max(0, totalDespesas - totalEstornos);
             
             // Limite usado = saldo em aberto
             const limiteUsado = faturaAberta;
