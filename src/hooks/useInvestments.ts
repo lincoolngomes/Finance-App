@@ -105,6 +105,15 @@ export const useInvestments = () => {
   const lastFetchTimeRef = useRef<number>(0)
   
   // Tentar recuperar dados e timestamp do sessionStorage
+  const [lastUpdatedAt, setLastUpdatedAt] = useState<Date | null>(() => {
+    try {
+      const cachedTime = sessionStorage.getItem('investimentos_cache_time')
+      return cachedTime ? new Date(parseInt(cachedTime)) : null
+    } catch {
+      return null
+    }
+  })
+
   const [investimentos, setInvestimentos] = useState<Investimento[]>(() => {
     try {
       const cached = sessionStorage.getItem('investimentos_cache')
@@ -334,6 +343,7 @@ export const useInvestments = () => {
         sessionStorage.setItem('investimentos_cache', JSON.stringify(investimentosComCotacao))
         sessionStorage.setItem('investimentos_cache_time', timestamp.toString())
         lastFetchTimeRef.current = timestamp
+        setLastUpdatedAt(new Date(timestamp))
       } catch (error) {
         console.error('Erro ao salvar cache:', error)
       }
@@ -1211,6 +1221,7 @@ export const useInvestments = () => {
       sessionStorage.removeItem('investimentos_cache')
       sessionStorage.removeItem('investimentos_cache_time')
       lastFetchTimeRef.current = 0
+      setLastUpdatedAt(null)
     }
   }, [user])
 
@@ -1226,6 +1237,7 @@ export const useInvestments = () => {
     adicionarTransacao,
     atualizarInvestimento,
     deletarInvestimento,
-    getResumo
+    getResumo,
+    lastUpdatedAt
   }
 }

@@ -50,7 +50,7 @@ function obterCDIPadrao(dataInicio: Date, dataFim: Date): number {
 }
 
 /**
- * Busca CDI da API do Banco Central (sem CORS)
+ * Busca CDI da API do Banco Central (via proxy local para evitar CORS)
  * Tenta múltiplos endpoints
  */
 async function buscarCDIDoBancocentral(dataInicio: Date, dataFim: Date): Promise<number | null> {
@@ -62,14 +62,8 @@ async function buscarCDIDoBancocentral(dataInicio: Date, dataFim: Date): Promise
 
     // Endpoints para tentar (em ordem de preferência)
     const endpoints = [
-      // Endpoint 1: API oficial do BC (série 12 = CDI)
-      `https://www.bcb.gov.br/api/serie/bcdata.sgs.12/dados?dataInicial=${dataInicioStr}&dataFinal=${dataFimStr}&formato=json`,
-      
-      // Endpoint 2: API pública com dados históricos
-      `https://api.bcb.gov.br/dados/serie/bcdata.sgs.12/dados?dataInicial=${dataInicioStr}&dataFinal=${dataFimStr}&formato=json`,
-      
-      // Endpoint 3: Versão HTTP (pode funcionar melhor que HTTPS)
-      `http://www.bcb.gov.br/api/serie/bcdata.sgs.12/dados?dataInicial=${dataInicioStr}&dataFinal=${dataFimStr}&formato=json`,
+      // Proxy local (Vite/Nginx) para evitar CORS no browser
+      `/api/bcb?serie=12&dataInicial=${dataInicioStr}&dataFinal=${dataFimStr}&formato=json`,
     ]
 
     for (const url of endpoints) {
@@ -82,10 +76,8 @@ async function buscarCDIDoBancocentral(dataInicio: Date, dataFim: Date): Promise
           method: 'GET',
           headers: {
             'Accept': 'application/json',
-            'Content-Type': 'application/json',
           },
           credentials: 'omit',
-          mode: 'cors',
         })
 
         clearTimeout(timeoutId)

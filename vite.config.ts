@@ -47,6 +47,74 @@ export default defineConfig(({ mode }) => ({
             console.log('Received Response from TEST Target:', proxyRes.statusCode, req.url);
           });
         }
+      },
+      '/api/bcb': {
+        target: 'https://api.bcb.gov.br',
+        changeOrigin: true,
+        secure: true,
+        rewrite: (path) => {
+          try {
+            const url = new URL(`http://localhost${path}`)
+            const serie = url.searchParams.get('serie') || '12'
+            url.searchParams.delete('serie')
+            const query = url.searchParams.toString()
+            return `/dados/serie/bcdata.sgs.${serie}/dados${query ? `?${query}` : ''}`
+          } catch {
+            return path
+          }
+        },
+        configure: (proxy) => {
+          proxy.on('proxyRes', (proxyRes, req) => {
+            console.log('BCB proxy response:', proxyRes.statusCode, req.url);
+          })
+        }
+      },
+      '/api/ibov': {
+        target: 'https://query2.finance.yahoo.com',
+        changeOrigin: true,
+        secure: true,
+        rewrite: (path) => `/v8/finance/chart/%5EBVSP${path.replace(/^\/api\/ibov/, '')}`,
+        configure: (proxy) => {
+          proxy.on('proxyReq', (proxyReq) => {
+            proxyReq.setHeader('User-Agent', 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36')
+            proxyReq.setHeader('Accept', 'application/json')
+          })
+          proxy.on('proxyRes', (proxyRes, req) => {
+            console.log('IBOV proxy response:', proxyRes.statusCode, req.url);
+          })
+        }
+      },
+      '/api/ibov-csv': {
+        target: 'https://query1.finance.yahoo.com',
+        changeOrigin: true,
+        secure: true,
+        rewrite: (path) => {
+          const query = path.replace(/^\/api\/ibov-csv/, '')
+          return `/v7/finance/download/%5EBVSP${query}`
+        },
+        configure: (proxy) => {
+          proxy.on('proxyReq', (proxyReq) => {
+            proxyReq.setHeader('User-Agent', 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36')
+            proxyReq.setHeader('Accept', 'text/csv')
+          })
+          proxy.on('proxyRes', (proxyRes, req) => {
+            console.log('IBOV CSV proxy response:', proxyRes.statusCode, req.url);
+          })
+        }
+      },
+      '/api/ibov-stooq': {
+        target: 'https://stooq.com',
+        changeOrigin: true,
+        secure: true,
+        rewrite: (path) => {
+          const query = path.replace(/^\/api\/ibov-stooq/, '')
+          return `/q/d/l/${query || '?s=%5EBVSP&i=d'}`
+        },
+        configure: (proxy) => {
+          proxy.on('proxyRes', (proxyRes, req) => {
+            console.log('IBOV stooq proxy response:', proxyRes.statusCode, req.url);
+          })
+        }
       }
     }
   },

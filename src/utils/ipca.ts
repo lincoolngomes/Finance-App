@@ -22,7 +22,11 @@ export async function buscarIPCAAcumulado(dataInicio: Date, dataFim: Date): Prom
     })
 
     const response = await fetch(
-      `https://api.bcb.gov.br/dados/serie/bcdata.sgs.433/dados?formato=json&dataInicial=${dataInicioStr}&dataFinal=${dataFimStr}`
+      `/api/bcb?serie=433&dataInicial=${dataInicioStr}&dataFinal=${dataFimStr}&formato=json`,
+      {
+        headers: { 'Accept': 'application/json' },
+        credentials: 'omit',
+      }
     )
 
     if (!response.ok) {

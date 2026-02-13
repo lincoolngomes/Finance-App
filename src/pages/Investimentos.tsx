@@ -1,7 +1,8 @@
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
 import { useInvestments, Investimento } from '@/hooks/useInvestments'
 import { useSincronizacaoFundos } from '@/hooks/useSincronizacaoFundos'
 import { formatCurrency } from '@/utils/currency'
+import { buscarIndicesEconomicos, IndicesEconomicos } from '@/utils/indices-economicos'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -99,7 +100,7 @@ const LIQUIDEZ_LABELS: Record<string, string> = {
 }
 
 export default function Investimentos() {
-  const { investimentos, loading, fetchInvestimentos, deletarInvestimento, adicionarInvestimento, atualizarInvestimento, getResumo } = useInvestments()
+  const { investimentos, loading, fetchInvestimentos, deletarInvestimento, adicionarInvestimento, atualizarInvestimento, getResumo, lastUpdatedAt } = useInvestments()
   const { statusSincronizacoes, sincronizarFundo, sincronizarTodosFundos, iniciarSincronizacaoAutomatica } = useSincronizacaoFundos()
   
   // Estados de diálogos
@@ -117,11 +118,43 @@ export default function Investimentos() {
   const [filterLiquidez, setFilterLiquidez] = useState<string>('todas')
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [expandedLastros, setExpandedLastros] = useState<Set<string>>(new Set())
+  const [indices, setIndices] = useState<IndicesEconomicos | null>(null)
+  const [indicesLoading, setIndicesLoading] = useState(false)
+  const [indicesError, setIndicesError] = useState<string | null>(null)
+  const indicesFetchingRef = useRef(false)
   
   // Iniciar sincronização automática de fundos ao montar o componente
   useEffect(() => {
     iniciarSincronizacaoAutomatica(60) // Sincroniza a cada 60 minutos
   }, [iniciarSincronizacaoAutomatica])
+
+  const carregarIndices = async () => {
+    if (indicesFetchingRef.current) return
+    try {
+      indicesFetchingRef.current = true
+      setIndicesLoading(true)
+      setIndicesError(null)
+      const dados = await buscarIndicesEconomicos()
+      const temAlgumIndice = [dados.cdi12m, dados.ipca12m, dados.dolar12m].some(
+        (valor) => typeof valor === 'number'
+      )
+      if (!temAlgumIndice) {
+        setIndices(null)
+        setIndicesError('Não foi possível carregar os índices. Verifique o deploy da função bacen-proxy.')
+        return
+      }
+      setIndices(dados)
+    } catch (error: any) {
+      setIndicesError(error?.message || 'Não foi possível carregar os índices')
+    } finally {
+      indicesFetchingRef.current = false
+      setIndicesLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    carregarIndices()
+  }, [])
   
   // Resumo calculado
   const resumo = useMemo(() => getResumo(), [investimentos])
@@ -444,6 +477,18 @@ export default function Investimentos() {
     )
   }
   
+  const handleRefreshAll = async () => {
+    await Promise.all([
+      fetchInvestimentos(),
+      carregarIndices()
+    ])
+  }
+
+  const formatarAtualizacao = (data?: Date | null) => {
+    if (!data) return 'Sem atualização registrada'
+    return format(data, "dd 'de' MMMM 'de' yyyy 'às' HH:mm", { locale: ptBR })
+  }
+
   return (
     <TooltipProvider>
       <div className="container mx-auto p-6 space-y-6">
@@ -454,9 +499,12 @@ export default function Investimentos() {
             <p className="text-muted-foreground">
               Acompanhe sua carteira e rentabilidade
             </p>
+            <p className="text-xs text-muted-foreground mt-2">
+              Última atualização dos investimentos: <span className="font-medium text-foreground/80">{formatarAtualizacao(lastUpdatedAt)}</span>
+            </p>
           </div>
           <div className="flex gap-2 flex-wrap">
-            <Button variant="outline" size="sm" onClick={() => fetchInvestimentos()}>
+            <Button variant="outline" size="sm" onClick={handleRefreshAll}>
               <RefreshCcw className="h-4 w-4 mr-2" />
               Atualizar
             </Button>
@@ -470,6 +518,76 @@ export default function Investimentos() {
             </Button>
           </div>
         </div>
+
+        {/* Painel de Índices Econômicos */}
+        <Card className="border-0 shadow-md">
+          <CardHeader className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+            <div>
+              <CardTitle>Índices Econômicos (12 meses)</CardTitle>
+              <CardDescription>
+                CDI, IPCA e Dólar acumulados nos últimos 12 meses.
+              </CardDescription>
+            </div>
+            <div className="text-xs text-muted-foreground">
+              Última atualização dos índices: <span className="font-medium text-foreground/80">{formatarAtualizacao(indices?.atualizadoEm)}</span>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {indicesError ? (
+              <div className="flex items-center justify-between gap-4 rounded-md border border-red-200/60 bg-red-50/60 px-3 py-2 text-sm text-red-600 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-300">
+                <div className="flex items-center gap-2">
+                  <AlertCircle className="h-4 w-4" />
+                  {indicesError}
+                </div>
+                <Button variant="outline" size="sm" onClick={carregarIndices}>
+                  Tentar novamente
+                </Button>
+              </div>
+            ) : (
+              <div className="grid gap-4 md:grid-cols-3">
+                <Card className="border border-border/60">
+                  <CardContent className="pt-5">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">CDI 12m</p>
+                        <p className="text-2xl font-bold mt-2 text-blue-600">
+                          {indicesLoading || indices?.cdi12m == null ? '—' : `${indices.cdi12m.toFixed(2)}%`}
+                        </p>
+                      </div>
+                      <BarChart3 className="h-5 w-5 text-blue-500/70" />
+                    </div>
+                  </CardContent>
+                </Card>
+                <Card className="border border-border/60">
+                  <CardContent className="pt-5">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">IPCA 12m</p>
+                        <p className="text-2xl font-bold mt-2 text-amber-600">
+                          {indicesLoading || indices?.ipca12m == null ? '—' : `${indices.ipca12m.toFixed(2)}%`}
+                        </p>
+                      </div>
+                      <PieChart className="h-5 w-5 text-amber-500/70" />
+                    </div>
+                  </CardContent>
+                </Card>
+                <Card className="border border-border/60">
+                  <CardContent className="pt-5">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Dólar 12m</p>
+                        <p className="text-2xl font-bold mt-2 text-emerald-600">
+                          {indicesLoading || indices?.dolar12m == null ? '—' : `${indices.dolar12m.toFixed(2)}%`}
+                        </p>
+                      </div>
+                      <DollarSign className="h-5 w-5 text-emerald-500/70" />
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            )}
+          </CardContent>
+        </Card>
         
         {/* Cards de Resumo */}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">

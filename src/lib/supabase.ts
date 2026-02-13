@@ -8,6 +8,8 @@ const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyAgCiAgICAicm9sZS
 
 console.log('🔧 Supabase URL:', supabaseUrl)
 
+export const SUPABASE_URL = supabaseUrl
+
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
     persistSession: true,
