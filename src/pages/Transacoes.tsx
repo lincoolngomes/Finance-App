@@ -85,8 +85,12 @@ const Transacoes: React.FC = () => {
   const [accountFilter, setAccountFilter] = useState('all');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
-  // Ordenação padrão: data da transação mais recentes primeiro
-  const [sortOrder, setSortOrder] = useState('date_desc');
+  // Ordenação multi-coluna da tabela (prioridade da esquerda para a direita do array)
+  type SortField = 'data' | 'descricao' | 'categoria' | 'conta' | 'cartao' | 'valor'
+  type SortDirection = 'asc' | 'desc'
+  const [sortCriteria, setSortCriteria] = useState<Array<{ field: SortField; direction: SortDirection }>>([
+    { field: 'data', direction: 'desc' }
+  ])
   const [saldoInicial, setSaldoInicial] = useState(0);
   // Estados para modais
   const [advancedFiltersOpen, setAdvancedFiltersOpen] = useState(false);
@@ -229,7 +233,6 @@ const Transacoes: React.FC = () => {
       return dt.getUTCMonth() === monthIndex && dt.getUTCFullYear() === yearNum
     })
     
-    // Ordenação
     // Helper para parsear datas em vários formatos (dd/mm/yyyy, yyyy-mm-dd, ISO)
     const parseDateToTime = (dateStr) => {
       if (!dateStr) return 0
@@ -244,19 +247,47 @@ const Transacoes: React.FC = () => {
       return 0
     }
 
-    if (sortOrder === 'created_asc') {
-      filtered.sort((a, b) => parseDateToTime(a.created_at) - parseDateToTime(b.created_at))
-    } else if (sortOrder === 'created_desc') {
-      filtered.sort((a, b) => parseDateToTime(b.created_at) - parseDateToTime(a.created_at))
-    } else if (sortOrder === 'date_asc') {
-      filtered.sort((a, b) => parseDateToTime(a.data || a.created_at) - parseDateToTime(b.data || b.created_at))
-    } else if (sortOrder === 'date_desc') {
-      filtered.sort((a, b) => parseDateToTime(b.data || b.created_at) - parseDateToTime(a.data || a.created_at))
+    const getSortValue = (t: any, field: SortField) => {
+      switch (field) {
+        case 'data':
+          return parseDateToTime(t.data || t.created_at)
+        case 'descricao':
+          return (t.descricao || t.observacao || '').toString().toLowerCase()
+        case 'categoria':
+          return (t.categorias?.nome || '').toString().toLowerCase()
+        case 'conta':
+          return ((!t.cartao_id && t.contas?.nome) ? t.contas.nome : '').toString().toLowerCase()
+        case 'cartao':
+          return (t.cartao_nome || '').toString().toLowerCase()
+        case 'valor':
+          return Math.abs(Number(t.valor) || 0)
+        default:
+          return ''
+      }
     }
+
+    filtered.sort((a, b) => {
+      for (const criterion of sortCriteria) {
+        const aVal = getSortValue(a, criterion.field)
+        const bVal = getSortValue(b, criterion.field)
+        let compare = 0
+
+        if (typeof aVal === 'number' && typeof bVal === 'number') {
+          compare = aVal - bVal
+        } else {
+          compare = String(aVal).localeCompare(String(bVal), 'pt-BR')
+        }
+
+        if (compare !== 0) {
+          return criterion.direction === 'asc' ? compare : -compare
+        }
+      }
+      return 0
+    })
     
     console.log('✨ Transações filtradas:', filtered.length, 'de', transacoes.length);
     return filtered;
-  }, [transacoes, accountFilter, typeFilter, categoryFilter, dateFrom, dateTo, searchTerm, sortOrder, hideCardTransactions, filterMonth, filterYear, advFilters]);
+  }, [transacoes, accountFilter, typeFilter, categoryFilter, dateFrom, dateTo, searchTerm, sortCriteria, hideCardTransactions, filterMonth, filterYear, advFilters]);
 
   // Variáveis auxiliares para seleção em massa (após filteredTransacoes)
   const isAllSelected = filteredTransacoes.length > 0 && selectedIds.length === filteredTransacoes.length;
@@ -585,7 +616,44 @@ const Transacoes: React.FC = () => {
     setTypeFilter('all')
     setCategoryFilter('all')
     setAccountFilter('all')
-    setSortOrder('created_desc')
+    setSortCriteria([{ field: 'data', direction: 'desc' }])
+  }
+
+  const toggleSort = (field: SortField) => {
+    setSortCriteria(prev => {
+      const existingIndex = prev.findIndex(c => c.field === field)
+
+      if (existingIndex === -1) {
+        const defaultDirection: SortDirection = (field === 'data' || field === 'valor') ? 'desc' : 'asc'
+        // Novo critério entra no fim para preservar a sequência de clique
+        return [...prev, { field, direction: defaultDirection }]
+      }
+
+      const next = [...prev]
+      const current = next[existingIndex]
+
+      // Ciclo: desc -> asc -> remover ordenação da coluna
+      if (current.direction === 'desc') {
+        next[existingIndex] = { ...current, direction: 'asc' }
+        return next
+      }
+
+      // Se já estava asc, remove o critério dessa coluna
+      next.splice(existingIndex, 1)
+      return next
+    })
+  }
+
+  const getSortIndicator = (field: SortField) => {
+    const idx = sortCriteria.findIndex(c => c.field === field)
+    if (idx === -1) return <ArrowUpDown className="h-3.5 w-3.5 text-slate-500" />
+    const direction = sortCriteria[idx].direction
+    return (
+      <span className="inline-flex items-center gap-1">
+        <span className="text-primary text-[11px]">{direction === 'asc' ? '↑' : '↓'}</span>
+        <span className="text-[10px] text-primary/80">#{idx + 1}</span>
+      </span>
+    )
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -1418,7 +1486,7 @@ const Transacoes: React.FC = () => {
           <h1 className="text-3xl font-bold text-white">Transações</h1>
           <p className="text-slate-400 text-sm mt-1">Gerencie todas as suas transações financeiras</p>
         </div>
-        <Button className="bg-blue-600 hover:bg-blue-700 h-9 text-sm rounded-lg px-4 whitespace-nowrap font-semibold" onClick={() => { setEditingTransaction(null); setDialogOpen(true); }}>
+        <Button className="bg-primary hover:bg-primary/90 h-9 text-sm rounded-lg px-4 whitespace-nowrap font-semibold" onClick={() => { setEditingTransaction(null); setDialogOpen(true); }}>
           + Nova Transação
         </Button>
       </div>
@@ -1430,11 +1498,11 @@ const Transacoes: React.FC = () => {
           <CardHeader className="pb-2 pt-4">
             <div className="flex items-center justify-between">
               <CardTitle className="text-sm font-medium text-foreground">Saldo</CardTitle>
-              <Wallet className="h-5 w-5 text-blue-500" />
+              <Wallet className="h-5 w-5 text-primary" />
             </div>
           </CardHeader>
           <CardContent className="pb-4">
-            <div className="text-3xl font-bold text-blue-500">
+            <div className="text-3xl font-bold text-primary">
               {formatCurrency(saldoReal)}
             </div>
             <p className="text-xs text-muted-foreground mt-1">Saldo atualizado até hoje</p>
@@ -1478,11 +1546,11 @@ const Transacoes: React.FC = () => {
           <CardHeader className="pb-2 pt-4">
             <div className="flex items-center justify-between">
               <CardTitle className="text-sm font-medium text-foreground">Faturas em Aberto</CardTitle>
-              <Clock className="h-5 w-5 text-orange-500" />
+              <Clock className="h-5 w-5 text-muted-foreground" />
             </div>
           </CardHeader>
           <CardContent className="pb-4">
-            <div className="text-3xl font-bold text-orange-500">
+            <div className="text-3xl font-bold text-foreground">
               {formatCurrency(despesasPendentes)}
             </div>
             <p className="text-xs text-muted-foreground mt-1">A pagar</p>
@@ -1516,7 +1584,7 @@ const Transacoes: React.FC = () => {
                 variant={parseInt(filterMonth) === i ? 'default' : 'ghost'}
                 className={`h-8 w-10 text-xs rounded px-1 ${
                   parseInt(filterMonth) === i 
-                    ? 'bg-blue-600 hover:bg-blue-700 text-white' 
+                    ? 'bg-primary hover:bg-primary/90 text-primary-foreground' 
                     : 'bg-slate-800/50 hover:bg-slate-800 text-slate-400'
                 }`}
                 onClick={() => setFilterMonth(i.toString())}
@@ -1633,12 +1701,12 @@ const Transacoes: React.FC = () => {
       <div className="flex items-center gap-4 py-2">
         <Button variant="ghost" className={`h-8 text-xs rounded-lg px-3 ${(() => {
           const count = [advFilters.tipo && advFilters.tipo !== 'all', advFilters.period, advFilters.categories.length > 0, advFilters.accounts.length > 0, advFilters.cards.length > 0, advFilters.status && advFilters.status !== 'all', advFilters.minValue, advFilters.maxValue, advFilters.onlyRecorrentes, advFilters.onlyParceladas].filter(Boolean).length;
-          return count > 0 ? 'bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/30' : 'bg-slate-800/50 hover:bg-slate-800 text-slate-300';
+          return count > 0 ? 'bg-primary/10 hover:bg-primary/15 text-primary border border-primary/30' : 'bg-slate-800/50 hover:bg-slate-800 text-slate-300';
         })()}`} onClick={() => setAdvancedFiltersOpen(true)}>
           🔍 Filtros Avançados
           {(() => {
             const count = [advFilters.tipo && advFilters.tipo !== 'all', advFilters.period, advFilters.categories.length > 0, advFilters.accounts.length > 0, advFilters.cards.length > 0, advFilters.status && advFilters.status !== 'all', advFilters.minValue, advFilters.maxValue, advFilters.onlyRecorrentes, advFilters.onlyParceladas].filter(Boolean).length;
-            return count > 0 ? <span className="ml-1.5 inline-flex items-center justify-center w-4 h-4 text-[10px] font-bold bg-blue-500 text-white rounded-full">{count}</span> : null;
+            return count > 0 ? <span className="ml-1.5 inline-flex items-center justify-center w-4 h-4 text-[10px] font-bold bg-primary text-primary-foreground rounded-full">{count}</span> : null;
           })()}
         </Button>
         <div className="flex items-center gap-2 bg-slate-800/50 hover:bg-slate-800/75 transition-colors rounded-lg px-3 py-1.5 cursor-pointer">
@@ -1707,12 +1775,24 @@ const Transacoes: React.FC = () => {
         <div className="flex items-center justify-center">
           <input type="checkbox" className="w-4 h-4 cursor-pointer" onChange={(e) => handleSelectAll(e.target.checked)} checked={isAllSelected} />
         </div>
-        <div>DATA</div>
-        <div>DESCRIÇÃO</div>
-        <div>CATEGORIA</div>
-        <div>CONTA</div>
-        <div>CARTÃO</div>
-        <div className="text-right">VALOR</div>
+        <button type="button" onClick={() => toggleSort('data')} className="flex items-center gap-1.5 hover:text-slate-200 transition-colors">
+          DATA {getSortIndicator('data')}
+        </button>
+        <button type="button" onClick={() => toggleSort('descricao')} className="flex items-center gap-1.5 hover:text-slate-200 transition-colors">
+          DESCRIÇÃO {getSortIndicator('descricao')}
+        </button>
+        <button type="button" onClick={() => toggleSort('categoria')} className="flex items-center gap-1.5 hover:text-slate-200 transition-colors">
+          CATEGORIA {getSortIndicator('categoria')}
+        </button>
+        <button type="button" onClick={() => toggleSort('conta')} className="flex items-center gap-1.5 hover:text-slate-200 transition-colors">
+          CONTA {getSortIndicator('conta')}
+        </button>
+        <button type="button" onClick={() => toggleSort('cartao')} className="flex items-center gap-1.5 hover:text-slate-200 transition-colors">
+          CARTÃO {getSortIndicator('cartao')}
+        </button>
+        <button type="button" onClick={() => toggleSort('valor')} className="text-right flex items-center justify-end gap-1.5 hover:text-slate-200 transition-colors">
+          VALOR {getSortIndicator('valor')}
+        </button>
         <div>STATUS / AÇÕES</div>
       </div>
 
@@ -1768,7 +1848,7 @@ const Transacoes: React.FC = () => {
                   isReceita
                     ? 'from-green-500/5 border-l-green-500'
                     : isPendente
-                    ? 'from-orange-500/5 border-l-orange-500'
+                    ? 'from-slate-500/10 border-l-slate-500'
                     : 'from-slate-700/10 border-l-red-500'
                 }`}
               >
@@ -1821,7 +1901,7 @@ const Transacoes: React.FC = () => {
                       size="sm" 
                       variant="ghost" 
                       onClick={() => handleEdit(transacao)} 
-                      className="h-6 w-6 p-0 text-blue-400 hover:text-blue-300 hover:bg-blue-500/10"
+                      className="h-6 w-6 p-0 text-slate-400 hover:text-slate-200 hover:bg-slate-500/10"
                       title="Editar"
                     >
                       <Edit className="h-3.5 w-3.5" />
@@ -2316,8 +2396,8 @@ const Transacoes: React.FC = () => {
           <div className="px-6 pt-6 pb-4 border-b border-slate-700/50">
             <DialogHeader>
               <DialogTitle className="text-lg font-semibold flex items-center gap-2">
-                <span className="p-1.5 rounded-lg bg-blue-500/10 border border-blue-500/20">
-                  <svg className="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" /></svg>
+                <span className="p-1.5 rounded-lg bg-slate-500/10 border border-slate-500/20">
+                  <svg className="w-4 h-4 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" /></svg>
                 </span>
                 Filtros Avançados
               </DialogTitle>
@@ -2493,7 +2573,7 @@ const Transacoes: React.FC = () => {
                   type="checkbox"
                   checked={advFilters.onlyRecorrentes}
                   onChange={(e) => setAdvFilters({...advFilters, onlyRecorrentes: e.target.checked})}
-                  className="w-4 h-4 rounded border-slate-600 text-blue-500 focus:ring-blue-500/20"
+                  className="w-4 h-4 rounded border-slate-600 text-primary focus:ring-primary/20"
                 />
                 <span className="text-sm text-slate-300">🔄 Apenas recorrentes</span>
               </label>
@@ -2502,7 +2582,7 @@ const Transacoes: React.FC = () => {
                   type="checkbox"
                   checked={advFilters.onlyParceladas}
                   onChange={(e) => setAdvFilters({...advFilters, onlyParceladas: e.target.checked})}
-                  className="w-4 h-4 rounded border-slate-600 text-blue-500 focus:ring-blue-500/20"
+                  className="w-4 h-4 rounded border-slate-600 text-primary focus:ring-primary/20"
                 />
                 <span className="text-sm text-slate-300">💳 Apenas parceladas</span>
               </label>
@@ -2523,7 +2603,7 @@ const Transacoes: React.FC = () => {
                 advFilters.onlyParceladas,
               ].filter(Boolean).length;
               return activeCount > 0 ? (
-                <div className="flex items-center gap-2 text-xs text-blue-400 bg-blue-500/5 border border-blue-500/10 rounded-lg px-3 py-2">
+                <div className="flex items-center gap-2 text-xs text-primary bg-primary/5 border border-primary/20 rounded-lg px-3 py-2">
                   <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" /></svg>
                   <span>{activeCount} {activeCount === 1 ? 'filtro ativo' : 'filtros ativos'}</span>
                 </div>
@@ -2542,7 +2622,7 @@ const Transacoes: React.FC = () => {
             </Button>
             <Button
               onClick={handleApplyAdvancedFilters}
-              className="bg-blue-600 hover:bg-blue-700 text-white px-6"
+              className="bg-primary hover:bg-primary/90 text-primary-foreground px-6"
             >
               Aplicar Filtros
             </Button>
@@ -2592,7 +2672,7 @@ const Transacoes: React.FC = () => {
           <div className="space-y-3 py-4">
             <div className="p-3 bg-slate-100 dark:bg-slate-900 rounded-lg">
               <p className="text-xs text-slate-600 dark:text-slate-400">Total das Faturas em Aberto</p>
-              <p className="text-2xl font-bold text-orange-600 mt-1">{formatCurrency(despesasPendentes)}</p>
+              <p className="text-2xl font-bold text-foreground mt-1">{formatCurrency(despesasPendentes)}</p>
             </div>
             <div className="p-3 bg-slate-100 dark:bg-slate-900 rounded-lg">
               <p className="text-xs text-slate-600 dark:text-slate-400">Contas Pendentes</p>

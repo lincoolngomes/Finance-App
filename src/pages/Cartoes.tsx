@@ -500,11 +500,20 @@ export default function Cartoes({ isModal = false }) {
   }
 
   // Importar fatura do cartão
-  async function handleImportFatura(transacoes, cartaoId, regrasTexto, mesReferencia?: string, anoReferencia?: string) {
+  async function handleImportFatura(
+    transacoes,
+    cartaoId,
+    regrasTexto,
+    mesReferencia?: string,
+    anoReferencia?: string,
+    options?: { criarParcelasFuturas?: boolean }
+  ) {
     // Salvar regras no localStorage é feito no componente
     const refFatura = mesReferencia && anoReferencia ? `${mesReferencia}/${anoReferencia}` : null;
     const faturaMes = mesReferencia ? parseInt(mesReferencia) : null;
     const faturaAno = anoReferencia ? parseInt(anoReferencia) : null;
+    const criarParcelasFuturas = options?.criarParcelasFuturas ?? true;
+    let totalParcelasFuturasCriadas = 0;
 
     // Buscar/criar categorias para associar categoria_id
     const categoriaCache: Record<string, string> = {};
@@ -537,21 +546,87 @@ export default function Cartoes({ isModal = false }) {
     }
 
     const toInsert = [];
+
+    const parseParcela = (t: any) => {
+      if (t.parcela_atual && t.total_parcelas) {
+        return {
+          atual: Number(t.parcela_atual),
+          total: Number(t.total_parcelas),
+        };
+      }
+      const desc = (t.estabelecimento || '').trim();
+      const match = desc.match(/(\d{1,2})\s*\/\s*(\d{1,2})\s*$/);
+      if (!match) return null;
+      const atual = parseInt(match[1], 10);
+      const total = parseInt(match[2], 10);
+      if (Number.isNaN(atual) || Number.isNaN(total) || total <= 1 || atual < 1 || atual > total) return null;
+      return { atual, total };
+    };
+
+    const updateDescricaoParcela = (descricao: string, parcelaAtual: number, totalParcelas: number) => {
+      const base = (descricao || '').trim();
+      if (/(\d{1,2})\s*\/\s*(\d{1,2})\s*$/.test(base)) {
+        return base.replace(/(\d{1,2})\s*\/\s*(\d{1,2})\s*$/, `${parcelaAtual}/${totalParcelas}`);
+      }
+      return `${base} ${parcelaAtual}/${totalParcelas}`.trim();
+    };
     for (const t of transacoes) {
       const categoriaId = await getOrCreateCategoriaId(t.categoria || '');
+      const parcelaInfo = parseParcela(t);
+      const tipoTransacao = (t.tipo === 'pagamento' || t.tipo === 'estorno') ? 'receita' : 'despesa';
+      const baseData = t.quando && !Number.isNaN(new Date(t.quando).getTime())
+        ? new Date(t.quando)
+        : new Date();
+
       toInsert.push({
         data: t.quando,
         descricao: t.estabelecimento,
         valor: t.valor,
-        tipo: (t.tipo === 'pagamento' || t.tipo === 'estorno') ? 'receita' : 'despesa',
+        tipo: tipoTransacao,
         cartao_id: cartaoId,
         user_id: user?.id,
         pago: false,
         ...(categoriaId ? { categoria_id: categoriaId } : {}),
         ...(refFatura ? { observacao: `Fatura ${refFatura}` } : {}),
+        ...(parcelaInfo ? { parcela_atual: parcelaInfo.atual, total_parcelas: parcelaInfo.total } : {}),
         ...(faturaMes ? { fatura_mes: faturaMes } : {}),
         ...(faturaAno ? { fatura_ano: faturaAno } : {}),
       });
+
+      if (
+        criarParcelasFuturas &&
+        tipoTransacao === 'despesa' &&
+        parcelaInfo &&
+        parcelaInfo.total > parcelaInfo.atual
+      ) {
+        const baseMes = faturaMes ?? (baseData.getMonth() + 1);
+        const baseAno = faturaAno ?? baseData.getFullYear();
+        const parcelasRestantes = parcelaInfo.total - parcelaInfo.atual;
+
+        for (let offset = 1; offset <= parcelasRestantes; offset++) {
+          const proxParcela = parcelaInfo.atual + offset;
+          const dataFutura = new Date(baseAno, baseMes - 1 + offset, 1);
+          const faturaMesFutura = dataFutura.getMonth() + 1;
+          const faturaAnoFutura = dataFutura.getFullYear();
+
+          toInsert.push({
+            data: dataFutura.toISOString(),
+            descricao: updateDescricaoParcela(t.estabelecimento, proxParcela, parcelaInfo.total),
+            valor: t.valor,
+            tipo: 'despesa',
+            cartao_id: cartaoId,
+            user_id: user?.id,
+            pago: false,
+            ...(categoriaId ? { categoria_id: categoriaId } : {}),
+            observacao: `Parcela ${proxParcela}/${parcelaInfo.total}`,
+            parcela_atual: proxParcela,
+            total_parcelas: parcelaInfo.total,
+            fatura_mes: faturaMesFutura,
+            fatura_ano: faturaAnoFutura,
+          });
+          totalParcelasFuturasCriadas += 1;
+        }
+      }
     }
 
     console.log('📦 Inserindo transações:', JSON.stringify(toInsert[0], null, 2));
@@ -568,7 +643,7 @@ export default function Cartoes({ isModal = false }) {
       fetchCartoes();
       return {
         success: true,
-        message: `Importação realizada com sucesso! ${transacoes.length} transações importadas.`
+        message: `Importação realizada com sucesso! ${transacoes.length} transações importadas${totalParcelasFuturasCriadas > 0 ? ` e ${totalParcelasFuturasCriadas} parcelas futuras criadas` : ''}.`
       };
     }
   }

@@ -67,6 +67,8 @@ export function ImportarFaturaModal({ open, onClose, cardId }: ImportarFaturaMod
   const [importing, setImporting] = useState(false)
   const [progress, setProgress] = useState(0)
   const [categorias, setCategorias] = useState<any[]>([])
+  const [criarParcelasFuturas, setCriarParcelasFuturas] = useState(true)
+  const [modoImportacao, setModoImportacao] = useState<'ambas' | 'somente_parceladas' | 'somente_nao_parceladas'>('ambas')
 
   useEffect(() => {
     if (open && user) {
@@ -399,31 +401,59 @@ export function ImportarFaturaModal({ open, onClose, cardId }: ImportarFaturaMod
   }
 
   const handleImport = async () => {
-    if (!selectedCard || transacoes.length === 0) return
+    const isParcelada = (t: Transacao) => {
+      if (t.total_parcelas && Number(t.total_parcelas) > 1) return true
+      return /(\d{1,2})\s*\/\s*(\d{1,2})\s*$/.test((t.estabelecimento || '').trim())
+    }
+    const transacoesSelecionadas = transacoes.filter(t => {
+      if (modoImportacao === 'somente_parceladas') return isParcelada(t)
+      if (modoImportacao === 'somente_nao_parceladas') return !isParcelada(t)
+      return true
+    })
+
+    if (!selectedCard || transacoesSelecionadas.length === 0) {
+      if (selectedCard) {
+        toast({
+          title: 'Nenhuma transação para importar',
+          description: 'Nenhuma transação atende ao filtro de importação selecionado.',
+          variant: 'destructive'
+        })
+      }
+      return
+    }
 
     setImporting(true)
     setStep(3)
     
     try {
-      const total = transacoes.length
+      const total = transacoesSelecionadas.length
+      let processed = 0
       let imported = 0
+      let futurasCriadas = 0
 
       // Importar em lotes de 50
       const batchSize = 50
-      for (let i = 0; i < transacoes.length; i += batchSize) {
-        const batch = transacoes.slice(i, i + batchSize)
+      for (let i = 0; i < transacoesSelecionadas.length; i += batchSize) {
+        const batch = transacoesSelecionadas.slice(i, i + batchSize)
         
-        const toInsert = await Promise.all(batch.map(async (t) => {
+        const toInsertNested = await Promise.all(batch.map(async (t) => {
           const dataValida = t.quando && !isNaN(new Date(t.quando).getTime())
-          const dataISO = dataValida ? new Date(t.quando).toISOString() : new Date().toISOString()
+          const dataObjBase = dataValida ? new Date(t.quando) : new Date()
+          const dataISO = dataObjBase.toISOString()
           const categoryId = await getCategoryId(t.categoria)
           
           // Determinar mês/ano da fatura baseado na data da transação
-          const dataObj = new Date(dataISO)
-          const faturaMes = dataObj.getMonth() + 1
-          const faturaAno = dataObj.getFullYear()
+          const faturaMes = dataObjBase.getMonth() + 1
+          const faturaAno = dataObjBase.getFullYear()
 
-          return {
+          const descricaoParcela = (descricao: string, atual: number, totalParcelas: number) => {
+            if (/(\d{1,2})\s*\/\s*(\d{1,2})\s*$/.test(descricao)) {
+              return descricao.replace(/(\d{1,2})\s*\/\s*(\d{1,2})\s*$/, `${atual}/${totalParcelas}`)
+            }
+            return `${descricao} ${atual}/${totalParcelas}`.trim()
+          }
+
+          const baseRecord = {
             user_id: user?.id,
             data: dataISO,
             descricao: t.estabelecimento,
@@ -438,7 +468,42 @@ export function ImportarFaturaModal({ open, onClose, cardId }: ImportarFaturaMod
             fatura_mes: faturaMes,
             fatura_ano: faturaAno,
           }
+          
+          const records = [baseRecord]
+
+          if (
+            criarParcelasFuturas &&
+            t.tipo === 'despesa' &&
+            t.parcela_atual &&
+            t.total_parcelas &&
+            t.total_parcelas > t.parcela_atual
+          ) {
+            for (let prox = t.parcela_atual + 1; prox <= t.total_parcelas; prox++) {
+              const offset = prox - t.parcela_atual
+              const dataFutura = new Date(faturaAno, faturaMes - 1 + offset, 1)
+              const faturaMesFutura = dataFutura.getMonth() + 1
+              const faturaAnoFutura = dataFutura.getFullYear()
+
+              records.push({
+                user_id: user?.id,
+                data: dataFutura.toISOString(),
+                descricao: descricaoParcela(t.estabelecimento, prox, t.total_parcelas),
+                valor: t.valor,
+                tipo: 'despesa',
+                observacao: `Parcela ${prox}/${t.total_parcelas}`,
+                categoria_id: categoryId,
+                cartao_id: selectedCard,
+                pago: false,
+                fatura_mes: faturaMesFutura,
+                fatura_ano: faturaAnoFutura,
+              })
+              futurasCriadas += 1
+            }
+          }
+
+          return records
         }))
+        const toInsert = toInsertNested.flat()
 
         const { error } = await supabase
           .from('transacoes')
@@ -446,8 +511,9 @@ export function ImportarFaturaModal({ open, onClose, cardId }: ImportarFaturaMod
 
         if (error) throw error
 
-        imported += batch.length
-        setProgress((imported / total) * 100)
+        processed += batch.length
+        imported += toInsert.length
+        setProgress((processed / total) * 100)
       }
 
       // Registrar no histórico de importações
@@ -456,13 +522,13 @@ export function ImportarFaturaModal({ open, onClose, cardId }: ImportarFaturaMod
         cartao_id: selectedCard,
         file_name: file?.name,
         file_type: file?.name.endsWith('.csv') ? 'csv' : 'pdf',
-        transactions_count: transacoes.length,
+        transactions_count: transacoesSelecionadas.length,
         imported_at: new Date().toISOString()
       })
 
       toast({
         title: 'Importação concluída! ✅',
-        description: `${transacoes.length} transações importadas com sucesso`,
+        description: `${transacoesSelecionadas.length} transações importadas${futurasCriadas > 0 ? ` e ${futurasCriadas} parcelas futuras criadas` : ''}.`,
       })
 
       resetModal()
@@ -486,6 +552,8 @@ export function ImportarFaturaModal({ open, onClose, cardId }: ImportarFaturaMod
     setTransacoes([])
     setStep(1)
     setProgress(0)
+    setCriarParcelasFuturas(true)
+    setModoImportacao('ambas')
     if (!cardId) setSelectedCard('') // Só limpa se não foi passado cardId
     onClose()
   }
@@ -625,6 +693,40 @@ export function ImportarFaturaModal({ open, onClose, cardId }: ImportarFaturaMod
                   <p className="text-2xl font-bold text-amber-900 dark:text-amber-100">{duplicateCount}</p>
                 </Card>
               </div>
+
+              <div className="p-3 rounded-lg border bg-muted/30">
+                <Label className="text-sm font-medium mb-2 block">Filtro de importação</Label>
+                <Select value={modoImportacao} onValueChange={(v) => setModoImportacao(v as 'ambas' | 'somente_parceladas' | 'somente_nao_parceladas')}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ambas">Tudo (parceladas + não parceladas)</SelectItem>
+                    <SelectItem value="somente_parceladas">Somente compras parceladas (ex: 3/12)</SelectItem>
+                    <SelectItem value="somente_nao_parceladas">Somente compras não parceladas (à vista)</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground mt-1.5">
+                  Isso filtra o que será salvo no sistema.
+                </p>
+              </div>
+
+              {modoImportacao !== 'somente_nao_parceladas' && (
+                <div className="p-3 rounded-lg border bg-muted/30">
+                  <label className="flex items-center gap-2 text-sm cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={criarParcelasFuturas}
+                      onChange={(e) => setCriarParcelasFuturas(e.target.checked)}
+                      className="w-4 h-4 rounded border-border text-primary focus:ring-primary/20"
+                    />
+                    Gerar lançamentos das próximas parcelas automaticamente
+                  </label>
+                  <p className="text-xs text-muted-foreground mt-1.5">
+                    Marcado: uma compra 3/12 gera também 4/12 até 12/12. Desmarcado: importa só o que veio no arquivo.
+                  </p>
+                </div>
+              )}
 
               {duplicateCount > 0 && (
                 <div className="flex items-center justify-between p-3 bg-amber-50 dark:bg-amber-950/30 rounded-lg border border-amber-200 dark:border-amber-900">

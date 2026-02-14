@@ -29,6 +29,12 @@ interface Cartao {
   user_id?: string
 }
 
+interface Conta {
+  id: string
+  nome?: string | null
+  banco?: string | null
+}
+
 interface Transacao {
   id: number
   data?: string
@@ -79,6 +85,7 @@ export function GerenciarFaturasModal({
 }) {
   const { user } = useAuth()
   const [cartoes, setCartoes] = useState<Cartao[]>([])
+  const [contas, setContas] = useState<Conta[]>([])
   const [selectedCard, setSelectedCard] = useState<string>('')
   const [selectedMonth, setSelectedMonth] = useState<string>('')
   const [selectedYear, setSelectedYear] = useState<string>('')
@@ -122,6 +129,7 @@ export function GerenciarFaturasModal({
   useEffect(() => {
     if (open && user) {
       fetchCartoes()
+      fetchContas()
       fetchCategorias()
       // Carregar regras salvas
       const saved = localStorage.getItem('regrasFatura')
@@ -143,7 +151,7 @@ export function GerenciarFaturasModal({
   }, [selectedCard])
 
   useEffect(() => {
-    if (!open || !shouldForceCalcularFatura.current) return
+    if (!open) return
     if (!selectedCard || !selectedMonth || !selectedYear) return
 
     // Aguarda cartões carregarem para evitar cálculo com estado parcial na abertura
@@ -212,22 +220,43 @@ export function GerenciarFaturasModal({
     setCategorias(data || [])
   }
 
+  async function fetchContas() {
+    if (!user?.id) return
+    const { data, error } = await supabase
+      .from('accounts')
+      .select('id, nome, banco')
+      .eq('user_id', user.id)
+
+    if (error) {
+      console.error('Erro ao buscar contas vinculadas:', error)
+      return
+    }
+
+    setContas(data || [])
+  }
+
   function calcularDatasFatura(cartao: Cartao, mes: string, ano: string): { fechamento: Date; vencimento: Date; inicioPeriodo: Date; fimPeriodo: Date } {
     const mesNum = parseInt(mes)
     const anoNum = parseInt(ano)
     const diaFechamento = parseInt(cartao.dia_fechamento || '1')
     const diaVencimento = parseInt(cartao.dia_vencimento || '10')
 
-    // Data de fechamento do mês selecionado
-    const dataFechamento = new Date(anoNum, mesNum - 1, diaFechamento)
-    
-    // Se vencimento é menor que fechamento, vencimento é no mês seguinte
-    const dataVencimento = diaVencimento <= diaFechamento
-      ? new Date(anoNum, mesNum, diaVencimento) // Mês seguinte
-      : new Date(anoNum, mesNum - 1, diaVencimento) // Mesmo mês
+    // O mês/ano selecionado representa o mês de vencimento da fatura.
+    // Ex.: Fatura Mar/2026 com fechamento 25 e vencimento 1 => fecha 25/02/2026 e vence 01/03/2026.
+    const dataVencimento = new Date(anoNum, mesNum - 1, diaVencimento)
+
+    // Se o dia de fechamento for maior/igual ao dia de vencimento, o fechamento ocorre no mês anterior ao vencimento.
+    // Caso contrário, ocorre no mesmo mês do vencimento.
+    const dataFechamento = diaFechamento >= diaVencimento
+      ? new Date(anoNum, mesNum - 2, diaFechamento)
+      : new Date(anoNum, mesNum - 1, diaFechamento)
 
     // Período da fatura: do fechamento anterior até o fechamento atual
-    const dataFechamentoAnterior = new Date(anoNum, mesNum - 2, diaFechamento)
+    const dataFechamentoAnterior = new Date(
+      dataFechamento.getFullYear(),
+      dataFechamento.getMonth() - 1,
+      diaFechamento
+    )
     
     return {
       fechamento: dataFechamento,
@@ -478,6 +507,10 @@ export function GerenciarFaturasModal({
   }
 
   const cartaoSelecionado = cartoes.find(c => c.id === selectedCard)
+  const contaVinculada = cartaoSelecionado?.linked_account_id
+    ? contas.find(c => c.id === cartaoSelecionado.linked_account_id)
+    : null
+  const nomeBancoVinculado = contaVinculada?.banco || contaVinculada?.nome || null
 
   function toggleSelect(id: number) {
     setSelectedIds(prev => {
@@ -612,7 +645,7 @@ export function GerenciarFaturasModal({
                   <Button
                     disabled
                     size="sm"
-                    className="font-semibold gap-1.5 bg-green-600/20 text-green-500 border border-green-500/30"
+                    className="font-semibold gap-1.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
                   >
                     <CheckCircle2 className="h-4 w-4" />
                     Paga
@@ -623,8 +656,8 @@ export function GerenciarFaturasModal({
                     size="sm"
                     className={`font-semibold gap-1.5 ${
                       fatura.vencida 
-                        ? 'bg-red-600 hover:bg-red-700 text-white' 
-                        : 'bg-amber-600 hover:bg-amber-700 text-white'
+                        ? 'bg-red-600 text-white border border-red-500/40' 
+                        : 'bg-muted text-muted-foreground border border-border'
                     }`}
                   >
                     <Clock className="h-4 w-4" />
@@ -635,7 +668,8 @@ export function GerenciarFaturasModal({
               {selectedCard && onImportClick && (
                 <Button
                   onClick={() => onImportClick(selectedCard)}
-                  className="bg-blue-600 hover:bg-blue-700"
+                  variant="outline"
+                  className="text-muted-foreground hover:text-foreground"
                   size="sm"
                 >
                   <Upload className="h-4 w-4 mr-2" />
@@ -647,7 +681,7 @@ export function GerenciarFaturasModal({
                   <Button 
                     onClick={reverterPagamento} 
                     variant="outline"
-                    className="border-amber-500/50 text-amber-500 hover:bg-amber-500/10"
+                    className="text-muted-foreground hover:text-foreground"
                     size="sm"
                   >
                     <svg className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" /></svg>
@@ -659,7 +693,7 @@ export function GerenciarFaturasModal({
                       setDataPagamento(format(new Date(), 'yyyy-MM-dd'))
                       setShowPagarDialog(true)
                     }} 
-                    className="bg-green-600 hover:bg-green-700"
+                    className="bg-emerald-600 hover:bg-emerald-700"
                     size="sm"
                   >
                     <CheckCircle2 className="h-4 w-4 mr-2" />
@@ -688,7 +722,7 @@ export function GerenciarFaturasModal({
                           className="w-3 h-3 rounded-full"
                           style={{ backgroundColor: cartao.cor || '#3b82f6' }}
                         />
-                        {cartao.nome} - {cartao.banco || 'Sem banco'}
+                        {cartao.nome}
                       </div>
                     </SelectItem>
                   ))}
@@ -736,7 +770,21 @@ export function GerenciarFaturasModal({
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   <div>
                     <p className="text-xs text-muted-foreground mb-1">Banco</p>
-                    <p className="font-semibold">{cartaoSelecionado.banco || 'N/A'}</p>
+                    {nomeBancoVinculado ? (
+                      <p className="font-semibold">{nomeBancoVinculado}</p>
+                    ) : (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 text-xs"
+                        onClick={() => {
+                          onClose()
+                          window.location.href = '/cartoes'
+                        }}
+                      >
+                        Vincular banco
+                      </Button>
+                    )}
                   </div>
                   <div>
                     <p className="text-xs text-muted-foreground mb-1">Limite</p>
@@ -807,18 +855,18 @@ export function GerenciarFaturasModal({
                 </Card>
 
                 <Card 
-                  className={`cursor-pointer transition-all hover:border-amber-500/50 ${filtroParceladas ? 'border-amber-500 bg-amber-500/5' : ''}`}
+                  className={`cursor-pointer transition-all hover:border-border ${filtroParceladas ? 'border-primary/40 bg-primary/5' : ''}`}
                   onClick={() => setFiltroParceladas(!filtroParceladas)}
                 >
                   <CardContent className="p-3">
                     <div className="flex items-center gap-1.5 mb-1">
-                      <CreditCard className="h-3.5 w-3.5 text-amber-500" />
+                      <CreditCard className="h-3.5 w-3.5 text-primary" />
                       <p className="text-xs text-muted-foreground">Parceladas</p>
                       {filtroParceladas && (
-                        <Badge variant="outline" className="text-[9px] px-1 py-0 border-amber-500/40 text-amber-400 ml-auto">Filtro ativo</Badge>
+                        <Badge variant="outline" className="text-[9px] px-1 py-0 border-primary/30 text-primary ml-auto">Filtro ativo</Badge>
                       )}
                     </div>
-                    <p className="text-base font-bold text-amber-500">
+                    <p className="text-base font-bold text-primary">
                       {formatCurrency(fatura.totalParceladas)}
                     </p>
                     {fatura.qtdParceladas > 0 && (
@@ -850,17 +898,17 @@ export function GerenciarFaturasModal({
                       Transações ({fatura.transacoes.length})
                     </h3>
                     <Button
-                      variant={filtroParceladas ? 'default' : 'outline'}
+                      variant={filtroParceladas ? 'secondary' : 'outline'}
                       size="sm"
                       onClick={() => setFiltroParceladas(!filtroParceladas)}
                       className={`gap-1.5 text-xs h-7 px-2.5 ${
-                        filtroParceladas ? 'bg-amber-600 hover:bg-amber-700 text-white' : 'text-amber-500 border-amber-500/40 hover:bg-amber-500/10'
+                        filtroParceladas ? 'text-foreground' : 'text-muted-foreground hover:text-foreground'
                       }`}
                     >
                       <CreditCard className="h-3 w-3" />
                       Parceladas
                       {filtroParceladas && fatura.qtdParceladas > 0 && (
-                        <span className="bg-white/20 rounded-full px-1.5 text-[10px]">{fatura.qtdParceladas}</span>
+                        <span className="bg-foreground/10 rounded-full px-1.5 text-[10px]">{fatura.qtdParceladas}</span>
                       )}
                     </Button>
                   </div>

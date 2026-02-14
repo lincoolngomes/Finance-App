@@ -14,12 +14,21 @@ interface Transacao {
   tipo?: string;
   categoria: string;
   categoriaManual?: boolean;
+  parcela_atual?: number;
+  total_parcelas?: number;
 }
 
 interface ImportarFaturaModalNovoProps {
   open: boolean;
   onClose: () => void;
-  onImport: (transacoes: Transacao[], cartaoId: string, regrasTexto: string, mesReferencia?: string, anoReferencia?: string) => Promise<any>;
+  onImport: (
+    transacoes: Transacao[],
+    cartaoId: string,
+    regrasTexto: string,
+    mesReferencia?: string,
+    anoReferencia?: string,
+    options?: { criarParcelasFuturas?: boolean }
+  ) => Promise<any>;
   cartoes: any[];
   initialCardId?: string;
 }
@@ -36,8 +45,8 @@ export function ImportarFaturaModalNovo({ open, onClose, onImport, cartoes, init
   const [transacoes, setTransacoes] = useState<Transacao[]>([]);
   const [parseError, setParseError] = useState("");
   const [cartaoSelecionado, setCartaoSelecionado] = useState(initialCardId || cartoes?.[0]?.id || '');
-  const [mesReferencia, setMesReferencia] = useState(String(new Date().getMonth() + 1).padStart(2, '0'));
-  const [anoReferencia, setAnoReferencia] = useState(String(new Date().getFullYear()));
+  const [mesReferencia, setMesReferencia] = useState('');
+  const [anoReferencia, setAnoReferencia] = useState('');
   const [loading, setLoading] = useState(false);
   const [importFeedback, setImportFeedback] = useState<any>(null);
   const [scrollPosition, setScrollPosition] = useState(0);
@@ -45,6 +54,46 @@ export function ImportarFaturaModalNovo({ open, onClose, onImport, cartoes, init
   const [editandoValor, setEditandoValor] = useState<{ [key: string]: boolean }>({});
   const [sortBy, setSortBy] = useState<string>('');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
+  const [criarParcelasFuturas, setCriarParcelasFuturas] = useState(true);
+  const [modoImportacao, setModoImportacao] = useState<'ambas' | 'somente_parceladas' | 'somente_nao_parceladas'>('ambas');
+
+  const getDefaultFaturaVencimento = (cartao: any, referencia = new Date()) => {
+    const diaFechamento = Math.max(1, Number(cartao?.dia_fechamento || 1));
+    const diaVencimento = Math.max(1, Number(cartao?.dia_vencimento || 1));
+
+    // Procura o primeiro mês de vencimento cuja data de fechamento ainda não passou.
+    for (let offset = 0; offset <= 24; offset++) {
+      const dueDate = new Date(referencia.getFullYear(), referencia.getMonth() + offset, diaVencimento);
+      const fechamentoDate = diaFechamento >= diaVencimento
+        ? new Date(dueDate.getFullYear(), dueDate.getMonth() - 1, diaFechamento)
+        : new Date(dueDate.getFullYear(), dueDate.getMonth(), diaFechamento);
+
+      const hoje = new Date(referencia.getFullYear(), referencia.getMonth(), referencia.getDate());
+      const fechamentoSemHora = new Date(fechamentoDate.getFullYear(), fechamentoDate.getMonth(), fechamentoDate.getDate());
+      if (hoje <= fechamentoSemHora) {
+        return {
+          mes: String(dueDate.getMonth() + 1).padStart(2, '0'),
+          ano: String(dueDate.getFullYear()),
+        };
+      }
+    }
+
+    return {
+      mes: String(referencia.getMonth() + 1).padStart(2, '0'),
+      ano: String(referencia.getFullYear()),
+    };
+  };
+
+  const cartaoAtual = (cartoes || []).find((c: any) => c.id === cartaoSelecionado);
+  const diaVencimentoCartao = Number(cartaoAtual?.dia_vencimento || 1);
+  const mesNum = Number(mesReferencia || 1);
+  const anoNum = Number(anoReferencia || new Date().getFullYear());
+  const dataVencimentoPreview = new Date(anoNum, Math.max(0, mesNum - 1), Math.max(1, diaVencimentoCartao));
+  const dataVencimentoLabel = dataVencimentoPreview.toLocaleDateString('pt-BR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  });
 
   // Carregar regras do localStorage
   useEffect(() => {
@@ -60,6 +109,17 @@ export function ImportarFaturaModalNovo({ open, onClose, onImport, cartoes, init
       setCartaoSelecionado(cartoes[0].id);
     }
   }, [cartoes]);
+
+  // Definir mês/ano padrão com base na referência atual e fechamento do cartão selecionado
+  useEffect(() => {
+    if (!open || !cartoes?.length || !cartaoSelecionado) return;
+    const cartao = cartoes.find((c: any) => c.id === cartaoSelecionado);
+    if (!cartao) return;
+    const ref = getDefaultFaturaVencimento(cartao, new Date());
+    setMesReferencia(ref.mes);
+    setAnoReferencia(ref.ano);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, cartaoSelecionado, cartoes]);
 
   // Salvar regras no localStorage
   useEffect(() => {
@@ -143,13 +203,23 @@ export function ImportarFaturaModalNovo({ open, onClose, onImport, cartoes, init
             }
             const valor = Math.abs(valorRaw);
 
+            let parcela_atual: number | undefined;
+            let total_parcelas: number | undefined;
+            const parcelaMatch = estabelecimento.match(/(\d{1,2})\s*\/\s*(\d{1,2})\s*$/);
+            if (parcelaMatch) {
+              parcela_atual = parseInt(parcelaMatch[1], 10);
+              total_parcelas = parseInt(parcelaMatch[2], 10);
+            }
+
             return {
               uid: `${quando}-${estabelecimento}-${valor}-${index}`,
               quando,
               estabelecimento,
               valor,
               tipo,
-              categoria: categorizar(estabelecimento, regrasTexto)
+              categoria: categorizar(estabelecimento, regrasTexto),
+              parcela_atual,
+              total_parcelas,
             };
           })
           .filter(t => t.estabelecimento && t.valor > 0);
@@ -221,6 +291,16 @@ export function ImportarFaturaModalNovo({ open, onClose, onImport, cartoes, init
   };
 
   const handleImport = async () => {
+    const isParcelada = (t: Transacao) => {
+      if (t.total_parcelas && Number(t.total_parcelas) > 1) return true;
+      return /(\d{1,2})\s*\/\s*(\d{1,2})\s*$/.test((t.estabelecimento || '').trim());
+    };
+    const transacoesSelecionadas = transacoes.filter(t => {
+      if (modoImportacao === 'somente_parceladas') return isParcelada(t);
+      if (modoImportacao === 'somente_nao_parceladas') return !isParcelada(t);
+      return true;
+    });
+
     if (!cartaoSelecionado) {
       toast({
         title: 'Erro',
@@ -230,10 +310,10 @@ export function ImportarFaturaModalNovo({ open, onClose, onImport, cartoes, init
       return;
     }
 
-    if (transacoes.length === 0) {
+    if (transacoesSelecionadas.length === 0) {
       toast({
         title: 'Erro',
-        description: 'Nenhuma transação para importar',
+        description: 'Nenhuma transação atende ao filtro de importação selecionado',
         variant: 'destructive'
       });
       return;
@@ -241,10 +321,17 @@ export function ImportarFaturaModalNovo({ open, onClose, onImport, cartoes, init
 
     setLoading(true);
     try {
-      const result = await onImport(transacoes, cartaoSelecionado, regrasTexto, mesReferencia, anoReferencia);
+      const result = await onImport(
+        transacoesSelecionadas,
+        cartaoSelecionado,
+        regrasTexto,
+        mesReferencia,
+        anoReferencia,
+        { criarParcelasFuturas }
+      );
       setImportFeedback(result || {
         success: true,
-        message: `Importação realizada com sucesso! ${transacoes.length} transações importadas.`
+        message: `Importação realizada com sucesso! ${transacoesSelecionadas.length} transações importadas.`
       });
       
       setTimeout(() => {
@@ -268,8 +355,17 @@ export function ImportarFaturaModalNovo({ open, onClose, onImport, cartoes, init
     setImportFeedback(null);
     setSortBy('');
     setSortOrder('asc');
-    setMesReferencia(String(new Date().getMonth() + 1).padStart(2, '0'));
-    setAnoReferencia(String(new Date().getFullYear()));
+    setCriarParcelasFuturas(true);
+    setModoImportacao('ambas');
+    const cartao = (cartoes || []).find((c: any) => c.id === cartaoSelecionado) || (cartoes || [])[0];
+    if (cartao) {
+      const ref = getDefaultFaturaVencimento(cartao, new Date());
+      setMesReferencia(ref.mes);
+      setAnoReferencia(ref.ano);
+    } else {
+      setMesReferencia(String(new Date().getMonth() + 1).padStart(2, '0'));
+      setAnoReferencia(String(new Date().getFullYear()));
+    }
     onClose();
   };
 
@@ -368,6 +464,44 @@ export function ImportarFaturaModalNovo({ open, onClose, onImport, cartoes, init
                     </select>
                   </div>
                 </div>
+
+                <p className="text-xs text-slate-400 -mt-1">
+                  Mês = vencimento da fatura ({dataVencimentoLabel}, dia {Math.max(1, diaVencimentoCartao)}).
+                </p>
+
+                <div className="p-4 rounded-xl border border-slate-700 bg-slate-800/30">
+                  <p className="text-sm font-semibold text-slate-200 mb-2">Filtro de importação</p>
+                  <select
+                    className="w-full px-3 py-2 rounded-lg border border-slate-700 bg-slate-800/60 text-slate-100 hover:border-slate-600 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition"
+                    value={modoImportacao}
+                    onChange={(e) => setModoImportacao(e.target.value as 'ambas' | 'somente_parceladas' | 'somente_nao_parceladas')}
+                  >
+                    <option value="ambas">Tudo (parceladas + não parceladas)</option>
+                    <option value="somente_parceladas">Somente compras parceladas (ex: 3/12)</option>
+                    <option value="somente_nao_parceladas">Somente compras não parceladas (à vista)</option>
+                  </select>
+                  <p className="text-xs text-slate-400 mt-1.5">
+                    Isso filtra o que será salvo no sistema.
+                  </p>
+                </div>
+
+                {modoImportacao !== 'somente_nao_parceladas' && (
+                  <div className="p-4 rounded-xl border border-slate-700 bg-slate-800/30">
+                    <p className="text-sm font-semibold text-slate-200 mb-2">Compras parceladas</p>
+                    <label className="flex items-center gap-2 text-sm text-slate-300 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={criarParcelasFuturas}
+                        onChange={(e) => setCriarParcelasFuturas(e.target.checked)}
+                        className="w-4 h-4 rounded border-slate-600 text-primary focus:ring-primary/20"
+                      />
+                      Gerar lançamentos das próximas parcelas automaticamente
+                    </label>
+                    <p className="text-xs text-slate-400 mt-1.5">
+                      Marcado: uma compra 3/12 gera também 4/12 até 12/12. Desmarcado: importa só o que veio no arquivo.
+                    </p>
+                  </div>
+                )}
 
                 <div>
                   <label className="block text-sm font-semibold text-slate-200 mb-3">Arquivo CSV</label>
