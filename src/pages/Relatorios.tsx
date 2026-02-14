@@ -10,13 +10,13 @@ import { generatePDFReport } from '@/utils/pdfGenerator'
 import { formatCurrency } from '@/utils/currency'
 import { LineChart, Line, BarChart, Bar, PieChart as RechartsPie, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Area, AreaChart, ComposedChart, Scatter, RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis } from 'recharts'
 
-const COLORS = ['#6366f1', '#14b8a6', '#ec4899', '#06b6d4', '#10b981', '#f59e0b', '#ef4444', '#84cc16', '#06b6d4', '#f97316']
+const COLORS = ['#3b82f6', '#22d3ee', '#94a3b8', '#10b981', '#f59e0b', '#ef4444', '#0ea5e9', '#64748b', '#06b6d4', '#14b8a6']
 const GRADIENT_COLORS = [
-  { start: '#6366f1', end: '#14b8a6' },
-  { start: '#ec4899', end: '#f43f5e' },
-  { start: '#06b6d4', end: '#0891b2' },
-  { start: '#10b981', end: '#059669' },
+  { start: '#3b82f6', end: '#06b6d4' },
+  { start: '#64748b', end: '#334155' },
+  { start: '#22c55e', end: '#16a34a' },
   { start: '#f59e0b', end: '#d97706' },
+  { start: '#ef4444', end: '#dc2626' },
 ]
 
 export default function Relatorios() {
@@ -573,7 +573,7 @@ export default function Relatorios() {
       ) : (
         <>
           {/* Indicador de Saúde Financeira */}
-          <Card className="border-0 bg-gradient-to-br from-indigo-500/10 via-teal-500/5 to-cyan-500/10">
+          <Card className="border-0 bg-slate-900/30">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Activity className="h-5 w-5" />
@@ -583,7 +583,7 @@ export default function Relatorios() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex items-center justify-between">
-                <div className="text-6xl font-bold bg-gradient-to-r from-indigo-600 via-teal-600 to-cyan-600 bg-clip-text text-transparent">
+                <div className="text-6xl font-bold text-slate-100">
                   {analytics.saudeFinanceira.toFixed(0)}
                 </div>
                 <div className="text-right">
@@ -608,7 +608,7 @@ export default function Relatorios() {
                 </div>
                 <div className="h-3 bg-muted rounded-full overflow-hidden">
                   <div 
-                    className="h-full bg-gradient-to-r from-red-500 via-yellow-500 via-blue-500 to-green-500 transition-all duration-1000"
+                    className="h-full bg-gradient-to-r from-blue-600 to-cyan-500 transition-all duration-1000"
                     style={{ width: `${analytics.saudeFinanceira}%` }}
                   />
                 </div>
@@ -618,7 +618,7 @@ export default function Relatorios() {
 
           {/* Cards de Resumo Principal */}
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-            <Card className="border-0 bg-gradient-to-br from-green-500/10 to-emerald-500/5">
+            <Card className="border-0 bg-slate-900/30">
               <CardHeader className="flex flex-row items-center justify-between pb-2">
                 <CardTitle className="text-sm font-medium">Total Receitas</CardTitle>
                 <TrendingUp className="h-4 w-4 text-green-600" />
@@ -633,7 +633,7 @@ export default function Relatorios() {
               </CardContent>
             </Card>
 
-            <Card className="border-0 bg-gradient-to-br from-red-500/10 to-rose-500/5">
+            <Card className="border-0 bg-slate-900/30">
               <CardHeader className="flex flex-row items-center justify-between pb-2">
                 <CardTitle className="text-sm font-medium">Total Despesas</CardTitle>
                 <TrendingDown className="h-4 w-4 text-red-600" />
@@ -648,13 +648,13 @@ export default function Relatorios() {
               </CardContent>
             </Card>
 
-            <Card className="border-0 bg-gradient-to-br from-blue-500/10 to-cyan-500/5">
+            <Card className="border-0 bg-slate-900/30">
               <CardHeader className="flex flex-row items-center justify-between pb-2">
                 <CardTitle className="text-sm font-medium">Saldo</CardTitle>
                 <Wallet className="h-4 w-4 text-blue-600" />
               </CardHeader>
               <CardContent>
-                <div className={`text-2xl font-bold ${analytics.saldo >= 0 ? 'text-blue-600' : 'text-orange-600'}`}>
+                <div className={`text-2xl font-bold ${analytics.saldo >= 0 ? 'text-blue-600' : 'text-red-600'}`}>
                   {formatCurrency(analytics.saldo)}
                 </div>
                 <p className="text-xs text-muted-foreground mt-1">
@@ -663,7 +663,7 @@ export default function Relatorios() {
               </CardContent>
             </Card>
 
-            <Card className="border-0 bg-gradient-to-br from-teal-500/10 to-cyan-500/5">
+            <Card className="border-0 bg-slate-900/30">
               <CardHeader className="flex flex-row items-center justify-between pb-2">
                 <CardTitle className="text-sm font-medium">Ticket Médio</CardTitle>
                 <DollarSign className="h-4 w-4 text-teal-600" />
@@ -777,7 +777,7 @@ export default function Relatorios() {
           </Card>
 
           {/* Projeção */}
-          <Card className="border-yellow-500/20 bg-yellow-500/5">
+          <Card className="border-border/50 bg-slate-900/30">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <TrendingUp className="h-5 w-5 text-yellow-600" />
@@ -839,7 +839,7 @@ export default function Relatorios() {
 
           {/* Insights Inteligentes */}
           {analytics.insights.length > 0 && (
-            <Card className="border-blue-500/20 bg-gradient-to-br from-blue-500/5 to-cyan-500/5">
+            <Card className="border-border/50 bg-slate-900/30">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Brain className="h-5 w-5 text-blue-600" />
@@ -862,7 +862,7 @@ export default function Relatorios() {
 
           {/* Métricas Temporais Expandidas */}
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-            <Card className="border-0 bg-gradient-to-br from-cyan-500/10 to-blue-500/5">
+            <Card className="border-0 bg-slate-900/30">
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm font-medium flex items-center gap-2">
                   <Calendar className="h-4 w-4 text-cyan-600" />
@@ -875,7 +875,7 @@ export default function Relatorios() {
               </CardContent>
             </Card>
 
-            <Card className="border-0 bg-gradient-to-br from-teal-500/10 to-cyan-500/5">
+            <Card className="border-0 bg-slate-900/30">
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm font-medium flex items-center gap-2">
                   <Clock className="h-4 w-4 text-teal-600" />
@@ -888,7 +888,7 @@ export default function Relatorios() {
               </CardContent>
             </Card>
 
-            <Card className="border-0 bg-gradient-to-br from-amber-500/10 to-orange-500/5">
+            <Card className="border-0 bg-slate-900/30">
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm font-medium flex items-center gap-2">
                   <BarChart4 className="h-4 w-4 text-amber-600" />
@@ -901,7 +901,7 @@ export default function Relatorios() {
               </CardContent>
             </Card>
 
-            <Card className="border-0 bg-gradient-to-br from-rose-500/10 to-pink-500/5">
+            <Card className="border-0 bg-slate-900/30">
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm font-medium flex items-center gap-2">
                   <TrendingUpDown className="h-4 w-4 text-rose-600" />
@@ -979,7 +979,7 @@ export default function Relatorios() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className={`text-3xl font-bold ${analytics.taxaPoupanca >= 20 ? 'text-green-600' : analytics.taxaPoupanca >= 10 ? 'text-blue-600' : 'text-orange-600'}`}>
+                <div className={`text-3xl font-bold ${analytics.taxaPoupanca >= 20 ? 'text-green-600' : analytics.taxaPoupanca >= 10 ? 'text-blue-600' : 'text-red-600'}`}>
                   {analytics.taxaPoupanca.toFixed(1)}%
                 </div>
                 <p className="text-xs text-muted-foreground mt-2">
@@ -1253,7 +1253,7 @@ export default function Relatorios() {
 
           {/* Projeções e Economia */}
           <div className="grid gap-4 md:grid-cols-2">
-            <Card className="border-amber-500/20 bg-gradient-to-br from-amber-500/5 to-yellow-500/5">
+            <Card className="border-border/50 bg-slate-900/30">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <TrendingUp className="h-5 w-5 text-amber-600" />
@@ -1283,7 +1283,7 @@ export default function Relatorios() {
               </CardContent>
             </Card>
 
-            <Card className="border-emerald-500/20 bg-gradient-to-br from-emerald-500/5 to-green-500/5">
+            <Card className="border-border/50 bg-slate-900/30">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <Receipt className="h-5 w-5 text-emerald-600" />
@@ -1314,7 +1314,7 @@ export default function Relatorios() {
           </div>
 
           {/* Resumo Final com Call to Action */}
-          <Card className="border-2 border-primary/20 bg-gradient-to-br from-primary/5 to-primary/10">
+          <Card className="border-2 border-primary/20 bg-slate-900/30">
             <CardHeader>
               <CardTitle className="text-xl">💡 Resumo Executivo</CardTitle>
               <CardDescription>Principais métricas do período analisado</CardDescription>
@@ -1330,7 +1330,7 @@ export default function Relatorios() {
                   <div className="text-sm text-muted-foreground mt-1">Total em Despesas</div>
                 </div>
                 <div className="text-center p-4 rounded-lg bg-background/50">
-                  <div className={`text-2xl font-bold ${analytics.saldo >= 0 ? 'text-blue-600' : 'text-orange-600'}`}>
+                  <div className={`text-2xl font-bold ${analytics.saldo >= 0 ? 'text-blue-600' : 'text-red-600'}`}>
                     {formatCurrency(analytics.saldo)}
                   </div>
                   <div className="text-sm text-muted-foreground mt-1">Saldo Final</div>

@@ -1,5 +1,5 @@
 import { NavLink, useLocation } from 'react-router-dom'
-import { Home, Calendar, CalendarDays, User, LogOut, FileText, Shield, Bell, Wallet, TrendingUp, ArrowLeftRight, MessageCircle, Target, Scale, CreditCard, Landmark, Tags } from 'lucide-react'
+import { Home, CalendarDays, LogOut, FileText, Shield, Bell, TrendingUp, ArrowLeftRight, MessageCircle, Target, Scale, CreditCard, Landmark, Tags } from 'lucide-react'
 import {
   Sidebar,
   SidebarContent,
@@ -39,14 +39,16 @@ export function AppSidebar() {
     }
   }
 
-  // Items do menu normal (alfabético, exceto Início que fica em primeiro)
-  const normalItems = [
+  const rotinaItems = [
     { title: 'Início', url: '/dashboard', icon: Home },
     { title: 'Transações', url: '/transacoes', icon: ArrowLeftRight },
     { title: 'Calendário', url: '/calendario', icon: CalendarDays },
-    { title: 'Investimentos', url: '/investimentos', icon: TrendingUp },
-    { title: 'Lembretes', url: '/lembretes', icon: Bell },
     { title: 'Orçamentos', url: '/orcamentos', icon: Target },
+    { title: 'Lembretes', url: '/lembretes', icon: Bell },
+  ]
+
+  const analiseItems = [
+    { title: 'Investimentos', url: '/investimentos', icon: TrendingUp },
     { title: 'Bens e Dívidas', url: '/patrimonio', icon: Scale },
     { title: 'Relatórios', url: '/relatorios', icon: FileText },
     { title: 'WhatsApp', url: '/whatsapp', icon: MessageCircle },
@@ -64,8 +66,6 @@ export function AppSidebar() {
     { title: 'Administração', url: '/admin', icon: Shield },
   ]
 
-  // Items de desenvolvimento/teste - removidos após correção
-  const devItems: any[] = []
   const isCollapsed = state === "collapsed"
 
   // Determine which logo to use based on theme
@@ -108,11 +108,38 @@ export function AppSidebar() {
       <SidebarContent className="dark:bg-slate-950">
         <SidebarGroup className="dark:bg-slate-950">
           <SidebarGroupLabel className="text-xs uppercase tracking-wider text-muted-foreground dark:text-slate-400">
-            Menu
+            Rotina
           </SidebarGroupLabel>
           <SidebarGroupContent className="dark:bg-slate-950">
             <SidebarMenu className="dark:bg-slate-950">
-              {normalItems.map((item) => (
+              {rotinaItems.map((item) => (
+                <SidebarMenuItem key={item.title}>
+                  <SidebarMenuButton
+                    asChild
+                    className={`${
+                      isActive(item.url)
+                        ? 'bg-primary text-primary-foreground hover:bg-primary/90 dark:bg-blue-600 dark:text-white'
+                        : 'hover:bg-accent dark:hover:bg-slate-800'
+                    }`}
+                  >
+                    <NavLink to={item.url} end onClick={handleMobileItemClick}>
+                      <item.icon className="h-4 w-4" />
+                      <span>{item.title}</span>
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        <SidebarGroup className="dark:bg-slate-950">
+          <SidebarGroupLabel className="text-xs uppercase tracking-wider text-muted-foreground dark:text-slate-400">
+            Planejamento e Análise
+          </SidebarGroupLabel>
+          <SidebarGroupContent className="dark:bg-slate-950">
+            <SidebarMenu className="dark:bg-slate-950">
+              {analiseItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton
                     asChild
@@ -148,8 +175,6 @@ export function AppSidebar() {
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               ))}
-
-
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
