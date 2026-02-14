@@ -435,6 +435,7 @@ export default function Cartoes({ isModal = false }) {
   const [importarFaturaOpen, setImportarFaturaOpen] = useState(false);
   const [cartaoParaImportar, setCartaoParaImportar] = useState<string | undefined>(undefined);
   const [historicoOpen, setHistoricoOpen] = useState(false);
+  const [parcelamentosAbertos, setParcelamentosAbertos] = useState<Record<string, boolean>>({});
 
   async function fetchCartoes() {
     setLoading(true);
@@ -459,10 +460,13 @@ export default function Cartoes({ isModal = false }) {
     // Busca transações
     const { data: transData, error: transError } = await supabase
       .from('transacoes')
-      .select('id, valor, tipo, cartao_id, data, descricao, fatura_mes, fatura_ano');
+      .select('id, valor, tipo, cartao_id, data, descricao, fatura_mes, fatura_ano')
+      .eq('user_id', user?.id);
+    console.log('📊 Transações carregadas:', transData?.length, 'Erro:', transError)
     if (!transError && transData) {
       setTransacoes(transData);
     } else {
+      console.error('❌ Erro ao buscar transações:', transError)
       setTransacoes([]);
     }
   }
@@ -703,19 +707,16 @@ export default function Cartoes({ isModal = false }) {
               return d.includes('PAGAMENTO') || d.includes('PAG FATURA') || d.includes('PGTO');
             };
             
-            // Calcular saldo em aberto do cartão
-            // Despesas = todas as despesas do cartão
+            // Calcular saldo em aberto do cartão (apenas transações NÃO pagas)
             const totalDespesas = transacoesCartao
-              .filter(t => t.tipo === 'despesa')
+              .filter(t => t.tipo === 'despesa' && !t.pago)
               .reduce((acc, t) => acc + Math.abs(t.valor || 0), 0);
-            // Estornos = receitas que NÃO são pagamento de fatura
+            // Estornos = receitas que NÃO são pagamento de fatura e NÃO pagas
             const totalEstornos = transacoesCartao
-              .filter(t => t.tipo === 'receita' && !isPagamentoFatura(t.descricao))
+              .filter(t => t.tipo === 'receita' && !isPagamentoFatura(t.descricao) && !t.pago)
               .reduce((acc, t) => acc + Math.abs(t.valor || 0), 0);
             
-            // Saldo em aberto = despesas - estornos
-            // NÃO subtrai pagamentos — pagamento quita a fatura anterior,
-            // o saldo em aberto reflete o que ainda precisa ser pago
+            // Saldo em aberto = despesas não pagas - estornos não pagos
             const faturaAberta = Math.max(0, totalDespesas - totalEstornos);
             
             // Limite usado = saldo em aberto
@@ -808,24 +809,7 @@ export default function Cartoes({ isModal = false }) {
                       </svg>
                       Faturas
                     </Button>
-                    <Button 
-                      size="sm" 
-                      onClick={(e) => { 
-                        e.stopPropagation(); 
-                        setCartaoParaImportar(cartao.id); 
-                        setImportarFaturaOpen(true); 
-                      }}
-                      className={`font-semibold gap-1.5 shadow-lg text-xs h-8 px-2 text-white ${
-                        faturaAberta === 0 
-                          ? 'bg-green-600 hover:bg-green-700' 
-                          : 'bg-orange-600 hover:bg-orange-700'
-                      }`}
-                    >
-                      <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                      {faturaAberta === 0 ? '✓ Pago' : 'Em Aberto'}
-                    </Button>
+
                     <Button 
                       size="sm" 
                       onClick={(e) => { e.stopPropagation(); handleEditCartao(cartao); }}
@@ -879,6 +863,95 @@ export default function Cartoes({ isModal = false }) {
                       <p className="text-sm font-bold text-slate-300">{transacoesCartao.length}</p>
                     </div>
                   </div>
+
+                  {/* Botão Ver Parcelamentos */}
+                  {(() => {
+                    // Detecta parcelas pelo padrão XX/XX na descrição (ex: "Netflix 3/12")
+                    const parcelaRegex = /(\d{1,2})\/(\d{1,2})\s*$/;
+                    const transacoesParceladas = transacoesCartao.filter(t => {
+                      const desc = (t.descricao || '').trim();
+                      return parcelaRegex.test(desc);
+                    });
+                    
+                    if (transacoesParceladas.length === 0) return null;
+                    
+                    // Agrupar por compra parcelada (pela descrição sem o sufixo de parcela)
+                    const gruposParcelados = new Map<string, { descricao: string, totalParcelas: number, parcelaAtual: number, valorParcela: number, valorTotal: number, qtdNaFatura: number }>();
+                    transacoesParceladas.forEach(t => {
+                      const desc = (t.descricao || '').trim();
+                      const match = desc.match(parcelaRegex);
+                      const parcelaAtual = match ? parseInt(match[1]) : 1;
+                      const totalParcelas = match ? parseInt(match[2]) : 1;
+                      const descBase = desc.replace(/\s*\d{1,2}\/\d{1,2}\s*$/, '').trim();
+                      
+                      const existing = gruposParcelados.get(descBase);
+                      if (existing) {
+                        existing.qtdNaFatura += 1;
+                        existing.valorTotal += Math.abs(t.valor || 0);
+                        if (parcelaAtual > existing.parcelaAtual) {
+                          existing.parcelaAtual = parcelaAtual;
+                        }
+                      } else {
+                        gruposParcelados.set(descBase, {
+                          descricao: descBase,
+                          totalParcelas,
+                          parcelaAtual,
+                          valorParcela: Math.abs(t.valor || 0),
+                          valorTotal: Math.abs(t.valor || 0),
+                          qtdNaFatura: 1,
+                        });
+                      }
+                    });
+                    
+                    const totalParcelado = transacoesParceladas.reduce((acc, t) => acc + Math.abs(t.valor || 0), 0);
+                    const grupos = Array.from(gruposParcelados.values());
+                    const isOpen = parcelamentosAbertos[cartao.id] || false;
+                    
+                    return (
+                      <div>
+                        <button
+                          onClick={() => setParcelamentosAbertos(prev => ({ ...prev, [cartao.id]: !prev[cartao.id] }))}
+                          className="w-full p-2.5 rounded-md bg-blue-500/10 border border-blue-500/30 hover:bg-blue-500/20 transition-colors flex items-center justify-between cursor-pointer"
+                        >
+                          <div className="flex items-center gap-2">
+                            <svg className="w-3.5 h-3.5 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                            </svg>
+                            <span className="text-xs text-blue-400 font-semibold">Ver Parcelamentos</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-slate-400 font-semibold">{grupos.length} {grupos.length === 1 ? 'compra' : 'compras'}</span>
+                            <svg className={`w-3.5 h-3.5 text-blue-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                            </svg>
+                          </div>
+                        </button>
+                        
+                        {isOpen && (
+                          <div className="mt-2 p-3 rounded-lg bg-blue-500/5 border border-blue-500/20 animate-in slide-in-from-top-2 duration-200">
+                            <div className="flex items-center justify-between mb-2">
+                              <p className="text-xs text-slate-500">{transacoesParceladas.length} parcelas ativas</p>
+                              <p className="text-sm font-bold text-blue-400">{formatCurrency(totalParcelado)}</p>
+                            </div>
+                            <div className="space-y-1.5 max-h-40 overflow-y-auto">
+                              {grupos.map((g, i) => (
+                                <div key={i} className="flex items-center justify-between text-xs py-1 border-b border-slate-700/30 last:border-0">
+                                  <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                                    <span className="text-blue-400/70">•</span>
+                                    <span className="text-slate-400 truncate">{g.descricao || 'Compra parcelada'}</span>
+                                  </div>
+                                  <div className="flex items-center gap-2 flex-shrink-0 ml-2">
+                                    <span className="text-blue-300 font-mono text-[10px] bg-blue-500/15 px-1.5 py-0.5 rounded">{g.parcelaAtual}/{g.totalParcelas}</span>
+                                    <span className="text-slate-300 font-semibold">{formatCurrency(g.valorParcela)}</span>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>
             );
@@ -898,7 +971,7 @@ export default function Cartoes({ isModal = false }) {
       {/* Modal de Faturas */}
       <GerenciarFaturasModal 
         open={faturasOpen} 
-        onClose={() => { setFaturasOpen(false); setCartaoSelecionado(null); }} 
+        onClose={() => { setFaturasOpen(false); setCartaoSelecionado(null); fetchCartoes(); }} 
         initialCardId={cartaoSelecionado}
         onImportClick={(cardId) => {
           setCartaoParaImportar(cardId);

@@ -55,6 +55,7 @@ interface Fatura {
   dataVencimento: Date
   transacoes: Transacao[]
   total: number
+  totalEmAberto: number
   totalParceladas: number
   qtdParceladas: number
   paga: boolean
@@ -326,6 +327,19 @@ export function GerenciarFaturasModal({
     const agora = new Date()
     const vencida = vencimento < agora
 
+    // Calcular saldo em aberto (apenas transações NÃO pagas)
+    const totalEmAberto = (transacoes || [])
+      .reduce((acc, t) => {
+        if (isPagamentoFatura(t)) return acc
+        if (t.pago) return acc // Transações pagas não contam no saldo em aberto
+        if (t.tipo === 'receita') return acc - (t.valor || 0)
+        return acc + (t.valor || 0)
+      }, 0)
+
+    // Fatura está paga se todas as transações de despesa estão marcadas como pagas
+    const transacoesDespesa = (transacoes || []).filter(t => t.tipo === 'despesa')
+    const todasPagas = transacoesDespesa.length > 0 && transacoesDespesa.every(t => t.pago === true)
+
     setFatura({
       mes: selectedMonth,
       ano: selectedYear,
@@ -333,9 +347,10 @@ export function GerenciarFaturasModal({
       dataVencimento: vencimento,
       transacoes: transacoes || [],
       total,
+      totalEmAberto: Math.max(0, totalEmAberto),
       totalParceladas,
       qtdParceladas: transacoesParceladas.length,
-      paga: false, // TODO: implementar controle de pagamento
+      paga: todasPagas,
       vencida
     })
 
@@ -389,6 +404,35 @@ export function GerenciarFaturasModal({
       console.error('Erro ao pagar fatura:', error)
       toast({
         title: 'Erro ao pagar fatura',
+        description: error.message,
+        variant: 'destructive'
+      })
+    }
+  }
+
+  async function reverterPagamento() {
+    if (!fatura || !selectedCard) return
+
+    try {
+      // Reverter todas as transações da fatura para não pagas
+      const transactionIds = fatura.transacoes.map(t => t.id)
+      const { error: updateError } = await supabase
+        .from('transacoes')
+        .update({ pago: false })
+        .in('id', transactionIds)
+
+      if (updateError) throw updateError
+
+      toast({
+        title: 'Pagamento revertido ↩️',
+        description: 'As transações foram marcadas como pendentes novamente',
+      })
+
+      calcularFatura()
+    } catch (error: any) {
+      console.error('Erro ao reverter pagamento:', error)
+      toast({
+        title: 'Erro ao reverter',
         description: error.message,
         variant: 'destructive'
       })
@@ -525,18 +569,29 @@ export function GerenciarFaturasModal({
             </DialogDescription>
             <div className="flex gap-2 flex-shrink-0">
               {fatura && (
-                <Button
-                  disabled
-                  size="sm"
-                  className={`font-semibold gap-1.5 ${
-                    fatura.vencida 
-                      ? 'bg-red-600 hover:bg-red-700 text-white' 
-                      : 'bg-amber-600 hover:bg-amber-700 text-white'
-                  }`}
-                >
-                  <Clock className="h-4 w-4" />
-                  {fatura.vencida ? 'Vencida' : 'Em Aberto'}
-                </Button>
+                fatura.paga ? (
+                  <Button
+                    disabled
+                    size="sm"
+                    className="font-semibold gap-1.5 bg-green-600/20 text-green-500 border border-green-500/30"
+                  >
+                    <CheckCircle2 className="h-4 w-4" />
+                    Paga
+                  </Button>
+                ) : (
+                  <Button
+                    disabled
+                    size="sm"
+                    className={`font-semibold gap-1.5 ${
+                      fatura.vencida 
+                        ? 'bg-red-600 hover:bg-red-700 text-white' 
+                        : 'bg-amber-600 hover:bg-amber-700 text-white'
+                    }`}
+                  >
+                    <Clock className="h-4 w-4" />
+                    {fatura.vencida ? 'Vencida' : 'Em Aberto'}
+                  </Button>
+                )
               )}
               {selectedCard && onImportClick && (
                 <Button
@@ -549,14 +604,26 @@ export function GerenciarFaturasModal({
                 </Button>
               )}
               {fatura && fatura.transacoes.length > 0 && (
-                <Button 
-                  onClick={marcarComoPaga} 
-                  className="bg-green-600 hover:bg-green-700"
-                  size="sm"
-                >
-                  <CheckCircle2 className="h-4 w-4 mr-2" />
-                  Pagar Fatura
-                </Button>
+                fatura.paga ? (
+                  <Button 
+                    onClick={reverterPagamento} 
+                    variant="outline"
+                    className="border-amber-500/50 text-amber-500 hover:bg-amber-500/10"
+                    size="sm"
+                  >
+                    <svg className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" /></svg>
+                    Reverter Pagamento
+                  </Button>
+                ) : (
+                  <Button 
+                    onClick={marcarComoPaga} 
+                    className="bg-green-600 hover:bg-green-700"
+                    size="sm"
+                  >
+                    <CheckCircle2 className="h-4 w-4 mr-2" />
+                    Pagar Fatura
+                  </Button>
+                )
               )}
             </div>
           </div>
@@ -682,15 +749,18 @@ export function GerenciarFaturasModal({
                   </CardContent>
                 </Card>
 
-                <Card className="border-red-500/30">
+                <Card className={fatura.paga ? 'border-green-500/30' : 'border-red-500/30'}>
                   <CardContent className="p-3">
                     <div className="flex items-center gap-1.5 mb-1">
-                      <DollarSign className="h-3.5 w-3.5 text-red-500" />
-                      <p className="text-xs text-muted-foreground">Saldo em Aberto</p>
+                      <DollarSign className={`h-3.5 w-3.5 ${fatura.paga ? 'text-green-500' : 'text-red-500'}`} />
+                      <p className="text-xs text-muted-foreground">{fatura.paga ? 'Total da Fatura' : 'Saldo em Aberto'}</p>
                     </div>
-                    <p className="text-xl font-bold text-red-500">
-                      {formatCurrency(fatura.total)}
+                    <p className={`text-xl font-bold ${fatura.paga ? 'text-green-500' : 'text-red-500'}`}>
+                      {formatCurrency(fatura.paga ? fatura.total : (fatura.totalEmAberto ?? fatura.total))}
                     </p>
+                    {fatura.paga && (
+                      <Badge className="mt-1 text-[10px] bg-green-500/10 text-green-500 border-green-500/30">✅ Paga</Badge>
+                    )}
                   </CardContent>
                 </Card>
 
@@ -724,7 +794,7 @@ export function GerenciarFaturasModal({
                       <p className="text-xs text-muted-foreground">Limite Disponível</p>
                     </div>
                     <p className="text-base font-bold text-green-500">
-                      {formatCurrency(Math.max(0, (cartaoSelecionado?.limite || 0) - fatura.total))}
+                      {formatCurrency(Math.max(0, (cartaoSelecionado?.limite || 0) - (fatura.totalEmAberto ?? fatura.total)))}
                     </p>
                   </CardContent>
                 </Card>

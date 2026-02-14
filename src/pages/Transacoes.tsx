@@ -222,11 +222,8 @@ const Transacoes: React.FC = () => {
     const monthIndex = (() => { const m = parseInt(filterMonth); return isNaN(m) ? new Date().getMonth() : (m > 11 ? m - 1 : m) })()
     const yearNum = parseInt(filterYear) || new Date().getFullYear()
     filtered = filtered.filter(t => {
-      // Transações de cartão: usar fatura_mes/fatura_ano (mês de vencimento)
-      if (t.cartao_id && t.fatura_mes && t.fatura_ano) {
-        return (t.fatura_mes - 1) === monthIndex && t.fatura_ano === yearNum
-      }
-      // Transações normais: usar data da transação
+      // Na tela de transações, sempre usar a data da transação (data real da compra)
+      // A lógica de fatura_mes (mês de vencimento) é usada apenas no Dashboard
       const dt = parseToDate(t.data || t.created_at)
       if (!dt) return false
       return dt.getUTCMonth() === monthIndex && dt.getUTCFullYear() === yearNum
@@ -549,8 +546,8 @@ const Transacoes: React.FC = () => {
     // Despesas do mês: apenas de CONTAS (sem cartão)
     const despesasMes = contaDoMes.filter(t => t.tipo === 'despesa').reduce((acc, t) => acc + Math.abs(Number(t.valor) || 0), 0)
     const countDespesasMes = contaDoMes.filter(t => t.tipo === 'despesa').length
-    // Despesas pendentes: transações de cartão (fatura) + pendentes de conta — usa TODAS do mês
-    const despesasPendentes = todasDoMes.filter(t => t.tipo === 'despesa' && (t.cartao_id || t.status === 'pendente' || t.status === 'pendente_fatura')).reduce((acc, t) => acc + Math.abs(Number(t.valor) || 0), 0)
+    // Despesas pendentes: transações de cartão NÃO pagas + pendentes de conta — usa TODAS do mês
+    const despesasPendentes = todasDoMes.filter(t => t.tipo === 'despesa' && !t.pago && (t.cartao_id || t.status === 'pendente' || t.status === 'pendente_fatura')).reduce((acc, t) => acc + Math.abs(Number(t.valor) || 0), 0)
     return { receitasMes, despesasMes, despesasPendentes, transacoesCountMes: todasDoMes.length, countReceitasMes, countDespesasMes }
   }, [transacoes, filterMonth, filterYear])
 
@@ -1476,11 +1473,11 @@ const Transacoes: React.FC = () => {
           </CardContent>
         </Card>
 
-        {/* Card Despesas Pendentes */}
+        {/* Card Faturas em Aberto */}
         <Card className="border-border/40 bg-card/50 backdrop-blur cursor-pointer hover:bg-card/70 transition-colors" onClick={() => setPendingExpensesDetailOpen(true)}>
           <CardHeader className="pb-2 pt-4">
             <div className="flex items-center justify-between">
-              <CardTitle className="text-sm font-medium text-foreground">Despesas Pendentes</CardTitle>
+              <CardTitle className="text-sm font-medium text-foreground">Faturas em Aberto</CardTitle>
               <Clock className="h-5 w-5 text-orange-500" />
             </div>
           </CardHeader>
@@ -2585,16 +2582,16 @@ const Transacoes: React.FC = () => {
         contas={contas}
       />
 
-      {/* Modal Despesas Pendentes Details */}
+      {/* Modal Faturas em Aberto Details */}
       <Dialog open={pendingExpensesDetailOpen} onOpenChange={setPendingExpensesDetailOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Despesas Pendentes</DialogTitle>
-            <DialogDescription>Detalhes das despesas pendentes de pagamento</DialogDescription>
+            <DialogTitle>Faturas em Aberto</DialogTitle>
+            <DialogDescription>Detalhes das despesas de faturas em aberto</DialogDescription>
           </DialogHeader>
           <div className="space-y-3 py-4">
             <div className="p-3 bg-slate-100 dark:bg-slate-900 rounded-lg">
-              <p className="text-xs text-slate-600 dark:text-slate-400">Total de Despesas Pendentes</p>
+              <p className="text-xs text-slate-600 dark:text-slate-400">Total das Faturas em Aberto</p>
               <p className="text-2xl font-bold text-orange-600 mt-1">{formatCurrency(despesasPendentes)}</p>
             </div>
             <div className="p-3 bg-slate-100 dark:bg-slate-900 rounded-lg">
