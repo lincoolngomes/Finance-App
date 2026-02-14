@@ -507,12 +507,13 @@ export default function Patrimonio() {
   }, [bens, filtroBem, statusBemFiltro])
 
   const resumoDividas = useMemo(() => {
-    const total = dividas.reduce((sum, d) => sum + (d.valor_total || 0), 0)
-    const saldo = dividas.reduce((sum, d) => sum + (d.saldo_atual || 0), 0)
-    const pagas = dividas.filter(d => d.status === 'pago').length
-    const ativas = dividas.filter(d => d.status === 'ativo').length
+    const todasDividas = [...dividas, ...dividasCartao]
+    const total = todasDividas.reduce((sum, d) => sum + (d.valor_total || 0), 0)
+    const saldo = todasDividas.reduce((sum, d) => sum + (d.saldo_atual || 0), 0)
+    const pagas = todasDividas.filter(d => d.status === 'pago').length
+    const ativas = todasDividas.filter(d => d.status === 'ativo').length
     return { total, saldo, pagas, ativas }
-  }, [dividas])
+  }, [dividas, dividasCartao])
 
   const resumoBens = useMemo(() => {
     const totalCompra = bens.reduce((sum, b) => sum + (b.valor_compra || 0), 0)
