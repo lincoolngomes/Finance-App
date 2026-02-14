@@ -88,6 +88,8 @@ export function GerenciarFaturasModal({
   const [deleting, setDeleting] = useState(false)
   const [categorias, setCategorias] = useState<{id: string, nome: string, tipo?: string}[]>([])
   const [filtroParceladas, setFiltroParceladas] = useState(false)
+  const [showPagarDialog, setShowPagarDialog] = useState(false)
+  const [dataPagamento, setDataPagamento] = useState(format(new Date(), 'yyyy-MM-dd'))
 
   const meses = [
     { value: '01', label: 'Janeiro' },
@@ -378,7 +380,7 @@ export function GerenciarFaturasModal({
           .from('transacoes')
           .insert({
             user_id: user?.id,
-            data: new Date().toISOString(),
+            data: dataPagamento || new Date().toISOString().split('T')[0],
             descricao: `Pagamento Fatura ${cartao.nome} - ${fatura.mes}/${fatura.ano}`,
             valor: fatura.total,
             tipo: 'despesa',
@@ -399,6 +401,7 @@ export function GerenciarFaturasModal({
         })
       }
 
+      setShowPagarDialog(false)
       calcularFatura() // Recarrega a fatura
     } catch (error: any) {
       console.error('Erro ao pagar fatura:', error)
@@ -414,6 +417,8 @@ export function GerenciarFaturasModal({
     if (!fatura || !selectedCard) return
 
     try {
+      const cartao = cartoes.find(c => c.id === selectedCard)
+
       // Reverter todas as transações da fatura para não pagas
       const transactionIds = fatura.transacoes.map(t => t.id)
       const { error: updateError } = await supabase
@@ -423,9 +428,25 @@ export function GerenciarFaturasModal({
 
       if (updateError) throw updateError
 
+      // Excluir a transação de pagamento da fatura (débito na conta vinculada)
+      if (cartao) {
+        const descricaoPagamento = `Pagamento Fatura ${cartao.nome} - ${fatura.mes}/${fatura.ano}`
+        const { error: deleteError } = await supabase
+          .from('transacoes')
+          .delete()
+          .eq('user_id', user?.id)
+          .eq('descricao', descricaoPagamento)
+          .eq('tipo', 'despesa')
+          .eq('pago', true)
+
+        if (deleteError) {
+          console.error('Erro ao excluir transação de pagamento:', deleteError)
+        }
+      }
+
       toast({
         title: 'Pagamento revertido ↩️',
-        description: 'As transações foram marcadas como pendentes novamente',
+        description: 'As transações foram marcadas como pendentes e o débito foi removido',
       })
 
       calcularFatura()
@@ -556,6 +577,7 @@ export function GerenciarFaturasModal({
   }
 
   return (
+    <>
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
@@ -616,7 +638,10 @@ export function GerenciarFaturasModal({
                   </Button>
                 ) : (
                   <Button 
-                    onClick={marcarComoPaga} 
+                    onClick={() => {
+                      setDataPagamento(format(new Date(), 'yyyy-MM-dd'))
+                      setShowPagarDialog(true)
+                    }} 
                     className="bg-green-600 hover:bg-green-700"
                     size="sm"
                   >
@@ -1121,5 +1146,50 @@ export function GerenciarFaturasModal({
         </div>
       </DialogContent>
     </Dialog>
+
+    {/* Dialog de Confirmação de Pagamento com Data */}
+    <Dialog open={showPagarDialog} onOpenChange={setShowPagarDialog}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <CheckCircle2 className="h-5 w-5 text-green-500" />
+            Pagar Fatura
+          </DialogTitle>
+          <DialogDescription>
+            {fatura && `Valor: ${formatCurrency(fatura.total)}`}
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4 py-2">
+          <div>
+            <Label className="text-sm font-medium mb-2 block">Data do pagamento</Label>
+            <Input
+              type="date"
+              value={dataPagamento}
+              onChange={(e) => setDataPagamento(e.target.value)}
+              className="w-full"
+            />
+          </div>
+          {cartoes.find(c => c.id === selectedCard)?.linked_account_id && (
+            <p className="text-xs text-muted-foreground">
+              💡 O valor será debitado da conta vinculada ao cartão
+            </p>
+          )}
+        </div>
+        <div className="flex gap-2 justify-end">
+          <Button variant="outline" size="sm" onClick={() => setShowPagarDialog(false)}>
+            Cancelar
+          </Button>
+          <Button 
+            className="bg-green-600 hover:bg-green-700" 
+            size="sm"
+            onClick={marcarComoPaga}
+          >
+            <CheckCircle2 className="h-4 w-4 mr-1" />
+            Confirmar Pagamento
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+    </>
   )
 }
