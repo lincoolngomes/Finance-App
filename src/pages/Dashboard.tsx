@@ -5,6 +5,7 @@ import { toast } from '@/hooks/use-toast'
 import { DashboardStats } from '@/components/dashboard/DashboardStats'
 import { DashboardFilters } from '@/components/dashboard/DashboardFilters'
 import { DashboardCharts } from '@/components/dashboard/DashboardCharts'
+import { GerenciarFaturasModal } from '@/components/faturas/GerenciarFaturasModal'
 import { getTransactionMonth, enrichCardTransactions } from '@/utils/dateParser'
 
 interface Transacao {
@@ -46,6 +47,10 @@ export default function Dashboard() {
   const [cartoes, setCartoes] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [showCardTransactions, setShowCardTransactions] = useState(true)
+  const [faturasOpen, setFaturasOpen] = useState(false)
+  const [faturaInitialCardId, setFaturaInitialCardId] = useState<string | null>(null)
+  const [faturaInitialMonth, setFaturaInitialMonth] = useState<string>('')
+  const [faturaInitialYear, setFaturaInitialYear] = useState<string>('')
 
   // Inicialização temporária, será ajustada após carregar as transações
   const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth());
@@ -176,7 +181,7 @@ export default function Dashboard() {
         // Buscar cartões do usuário (precisamos do dia_fechamento + nome para exibição)
         const { data: cartoesData } = await supabase
           .from('cartoes')
-          .select('id, nome, dia_fechamento, bandeira, cor')
+          .select('id, nome, dia_fechamento, bandeira, cor, limite')
           .eq('user_id', user?.id)
 
         if (cartoesData) setCartoes(cartoesData)
@@ -358,6 +363,36 @@ export default function Dashboard() {
         selectedYear={filterYear}
         allTransactions={transacoes}
         showCardTransactions={showCardTransactions}
+        onOpenFatura={(mes, ano) => {
+          const mesNum = parseInt(mes)
+          const anoNum = parseInt(ano)
+
+          const transacaoDoPeriodo = transacoes.find(t =>
+            t.cartao_id &&
+            t.fatura_mes === mesNum &&
+            t.fatura_ano === anoNum
+          )
+
+          setFaturaInitialCardId(transacaoDoPeriodo?.cartao_id || cartoes[0]?.id || null)
+          setFaturaInitialMonth(mes)
+          setFaturaInitialYear(ano)
+          setFaturasOpen(true)
+        }}
+      />
+
+      {/* Modal de Faturas */}
+      <GerenciarFaturasModal
+        key={faturasOpen ? `${faturaInitialMonth}-${faturaInitialYear}` : 'closed'}
+        open={faturasOpen}
+        onClose={() => {
+          setFaturasOpen(false)
+          setFaturaInitialCardId(null)
+          setFaturaInitialMonth('')
+          setFaturaInitialYear('')
+        }}
+        initialCardId={faturaInitialCardId || (cartoes.length > 0 ? cartoes[0].id : null)}
+        initialMonth={faturaInitialMonth}
+        initialYear={faturaInitialYear}
       />
     </div>
   )

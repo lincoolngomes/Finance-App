@@ -4,7 +4,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { formatCurrency } from '@/utils/currency'
 import { getTransactionMonth, parseToDateUTC } from '@/utils/dateParser'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line, Legend, ReferenceLine } from 'recharts'
-import { Calendar, TrendingDown, TrendingUp } from 'lucide-react'
+import { Calendar, CreditCard, TrendingDown, TrendingUp } from 'lucide-react'
 import { useEffect, useState, useMemo } from 'react'
 
 // (Removido bloco duplicado da função DashboardCharts)
@@ -74,11 +74,12 @@ interface DashboardChartsProps {
   selectedYear?: string
   allTransactions?: Transacao[]
   showCardTransactions?: boolean
+  onOpenFatura?: (mes: string, ano: string) => void
 }
 
 const COLORS = ['#6366f1', '#8b5cf6', '#ec4899', '#06b6d4', '#10b981', '#f59e0b', '#ef4444', '#84cc16']
 
-export function DashboardCharts({ transacoes, recentTransacoes, contas = [], cartoes = [], lembretes = [], selectedMonth, selectedYear, allTransactions, showCardTransactions = false }: DashboardChartsProps) {
+export function DashboardCharts({ transacoes, recentTransacoes, contas = [], cartoes = [], lembretes = [], selectedMonth, selectedYear, allTransactions, showCardTransactions = false, onOpenFatura }: DashboardChartsProps) {
   // Criar mapa de contas para exibir nome da conta
   const accountsMap = contas.reduce((acc, conta) => {
     acc[conta.id] = conta
@@ -246,9 +247,66 @@ export function DashboardCharts({ transacoes, recentTransacoes, contas = [], car
 
   const totalSelectedCategory = selectedTransactions.reduce((sum, t) => sum + Math.abs(t.valor || 0), 0)
 
+  // Dados de faturas do cartão mês a mês (próximos 6 meses)
+  const getCartaoFaturasMensais = () => {
+    if (!cartoes || cartoes.length === 0) return []
+    
+    const hoje = new Date()
+    const mesAtual = hoje.getMonth() + 1 // 1-12
+    const anoAtual = hoje.getFullYear()
+    
+    // Transações de cartão (despesas)
+    const transacoesCartao = allTransacoesRaw.filter(t => t.cartao_id && t.tipo === 'despesa')
+    
+    // Detectar se é parcelada
+    const parcelaRegex = /\d{1,2}\/\d{1,2}\s*$/
+    const isParcelada = (t: Transacao) => {
+      const desc = (t.descricao || '').trim()
+      return parcelaRegex.test(desc)
+    }
+    
+    // Gerar os próximos 6 meses
+    const meses: { mes: number, ano: number, label: string, total: number, parcelado: number, avulso: number, pago: number, aberto: number }[] = []
+    
+    for (let i = 0; i < 6; i++) {
+      let mes = mesAtual + i
+      let ano = anoAtual
+      if (mes > 12) {
+        mes = mes - 12
+        ano = anoAtual + 1
+      }
+      
+      const nomeMes = new Date(ano, mes - 1, 1).toLocaleDateString('pt-BR', { month: 'short' })
+      const label = `${nomeMes.charAt(0).toUpperCase() + nomeMes.slice(1).replace('.', '')}/${String(ano).slice(2)}`
+      
+      // Filtrar transações dessa fatura
+      const transMes = transacoesCartao.filter(t => {
+        if (t.fatura_mes && t.fatura_ano) {
+          return t.fatura_mes === mes && t.fatura_ano === ano
+        }
+        const d = parseToDateUTC(t.data)
+        if (!d) return false
+        return (d.getMonth() + 1) === mes && d.getFullYear() === ano
+      })
+      
+      const total = transMes.reduce((acc, t) => acc + Math.abs(t.valor || 0), 0)
+      const parcelado = transMes.filter(t => isParcelada(t)).reduce((acc, t) => acc + Math.abs(t.valor || 0), 0)
+      const avulso = Math.max(0, total - parcelado)
+      const pago = transMes.filter(t => t.pago === true).reduce((acc, t) => acc + Math.abs(t.valor || 0), 0)
+      const aberto = Math.max(0, total - pago)
+      
+      meses.push({ mes, ano, label, total, parcelado, avulso, pago, aberto })
+    }
+    
+    return meses
+  }
+
+  const cartaoFaturas = useMemo(() => getCartaoFaturasMensais(), [cartoes, allTransacoesRaw])
+  const maiorFatura = Math.max(...cartaoFaturas.map(f => f.total), 1)
   return (
     <div className="space-y-6">
-      {/* Linha 1: Evolução Mensal (2/3) + Gastos por Categoria (1/3) */}
+
+      {/* Linha 1: Evolução Mensal (2/3) + Gastos no Cartão (1/3) */}
       <div className="grid gap-6 grid-cols-1 lg:grid-cols-3">
         {/* Evolução Mensal - 2/3 */}
         <Card className="lg:col-span-2 overflow-hidden border-0">
@@ -309,101 +367,69 @@ export function DashboardCharts({ transacoes, recentTransacoes, contas = [], car
           </CardContent>
         </Card>
 
-        {/* Gastos por Categoria - 1/3 */}
+        {/* Faturas do Cartão por Mês - 1/3 */}
         <Card className="overflow-hidden border-0">
           <CardHeader className="pb-3">
             <div className="flex items-center gap-3">
-              <div className="p-2.5 rounded-lg bg-red-500/10">
-                <span className="text-xl">💰</span>
+              <div className="p-2.5 rounded-lg bg-blue-500/10">
+                <CreditCard className="h-5 w-5 text-blue-600 dark:text-blue-400" />
               </div>
               <div>
-                <CardTitle className="text-lg font-semibold">Gastos por Categoria</CardTitle>
-                <CardDescription className="text-xs">Distribuição dos gastos</CardDescription>
+                <CardTitle className="text-lg font-semibold">Faturas do Cartão</CardTitle>
+                <CardDescription className="text-xs">Previsão dos próximos meses</CardDescription>
               </div>
             </div>
           </CardHeader>
           <CardContent className="pt-0">
-            <div className="space-y-3">
-              {/* Legenda com checkboxes */}
-              <div className="flex flex-wrap gap-2">
-                {despesasDataAll.map((category, index) => {
-                  const isHidden = hiddenCategories.has(category.name)
+            {cartaoFaturas.length > 0 ? (
+              <div className="space-y-3">
+                {cartaoFaturas.map((fatura, index) => {
+                  const isMesAtual = index === 0
+                  const percParcelado = fatura.total > 0 ? Math.round((fatura.parcelado / fatura.total) * 100) : 0
                   return (
-                    <button
+                    <div
                       key={index}
-                      onClick={() => toggleCategoryVisibility(category.name)}
-                      className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-all ${
-                        isHidden 
-                          ? 'bg-muted text-muted-foreground opacity-50' 
-                          : 'bg-card border hover:shadow-md'
-                      }`}
+                      className="space-y-1.5 cursor-pointer hover:bg-accent/50 p-2 rounded-lg transition-colors"
+                      onClick={() => onOpenFatura?.(String(fatura.mes).padStart(2, '0'), String(fatura.ano))}
                     >
-                      <div 
-                        className="w-3 h-3 rounded-sm flex-shrink-0"
-                        style={{ backgroundColor: isHidden ? '#666' : COLORS[index % COLORS.length] }}
-                      />
-                      <span className="truncate max-w-[80px]">{category.name}</span>
-                    </button>
+                      <div className="flex items-center justify-between">
+                        <span className={`text-xs font-medium ${isMesAtual ? 'text-blue-600 dark:text-blue-400' : 'text-muted-foreground'}`}>{fatura.label}</span>
+                        <div className="flex items-center gap-2">
+                          {fatura.parcelado > 0 && fatura.avulso > 0 && (
+                            <span className="text-[10px] text-cyan-500 font-medium">{percParcelado}% parcelas</span>
+                          )}
+                          {fatura.total > 0 ? (
+                            <span className={`text-base font-bold ${isMesAtual ? 'text-blue-600 dark:text-blue-400' : 'text-foreground'}`}>{formatCurrency(fatura.total)}</span>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">—</span>
+                          )}
+                        </div>
+                      </div>
+                      {/* Barra degradê contínua */}
+                      <div className="relative h-2 bg-muted rounded-full overflow-hidden">
+                        {fatura.total > 0 && (
+                          <div
+                            className="absolute h-full rounded-full transition-all duration-500 ease-out"
+                            style={{
+                              width: `${(fatura.total / maiorFatura) * 100}%`,
+                              background: fatura.parcelado > 0 && fatura.avulso > 0
+                                ? `linear-gradient(90deg, #3b82f6 0%, #6366f1 ${(fatura.avulso / fatura.total) * 100}%, #06b6d4 ${(fatura.avulso / fatura.total) * 100}%, #14b8a6 100%)`
+                                : fatura.parcelado > 0
+                                  ? 'linear-gradient(90deg, #06b6d4 0%, #14b8a6 100%)'
+                                  : 'linear-gradient(90deg, #3b82f6 0%, #6366f1 100%)'
+                            }}
+                          />
+                        )}
+                      </div>
+                    </div>
                   )
                 })}
               </div>
-
-              {/* Gráfico de Pizza */}
-              <div className="h-[220px] relative">
-                {despesasData.length > 0 ? (
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie
-                        data={despesasData}
-                        cx="50%"
-                        cy="50%"
-                        labelLine={false}
-                        label={false}
-                        outerRadius="80%"
-                        innerRadius="50%"
-                        paddingAngle={2}
-                        fill="#8884d8"
-                        dataKey="value"
-                      >
-                        {despesasData.map((entry, index) => {
-                          const originalIndex = despesasDataAll.findIndex(c => c.name === entry.name)
-                          return (
-                            <Cell 
-                              key={`cell-${index}`} 
-                              fill={COLORS[originalIndex % COLORS.length]}
-                              stroke="rgba(255,255,255,0.2)"
-                              strokeWidth={2}
-                            />
-                          )
-                        })}
-                      </Pie>
-                      <Tooltip 
-                        content={({ active, payload }) => {
-                          if (!active || !payload || !payload.length) return null
-                          const data = payload[0]
-                          const totalValue = despesasData.reduce((sum, item) => sum + item.value, 0)
-                          const percentage = totalValue > 0 ? ((Number(data.value) / totalValue) * 100).toFixed(1) : 0
-                          
-                          return (
-                            <div className="bg-popover text-popover-foreground border border-border rounded-lg shadow-lg p-3">
-                              <p className="font-semibold text-sm mb-1">{data.name}</p>
-                              <p className="text-xs">
-                                <span className="font-bold">{formatCurrency(Number(data.value))}</span>
-                                <span className="text-muted-foreground ml-1">({percentage}%)</span>
-                              </p>
-                            </div>
-                          )
-                        }}
-                      />
-                    </PieChart>
-                  </ResponsiveContainer>
-                ) : (
-                  <div className="flex items-center justify-center h-full">
-                    <p className="text-xs text-muted-foreground">Selecione ao menos uma categoria</p>
-                  </div>
-                )}
+            ) : (
+              <div className="flex items-center justify-center h-32">
+                <p className="text-xs text-muted-foreground">Nenhum cartão cadastrado</p>
               </div>
-            </div>
+            )}
           </CardContent>
         </Card>
       </div>

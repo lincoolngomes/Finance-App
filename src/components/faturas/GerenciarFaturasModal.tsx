@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
@@ -66,12 +66,16 @@ export function GerenciarFaturasModal({
   open, 
   onClose, 
   initialCardId,
-  onImportClick
+  onImportClick,
+  initialMonth,
+  initialYear
 }: { 
   open: boolean
   onClose: () => void
   initialCardId?: string | null
   onImportClick?: (cardId: string) => void
+  initialMonth?: string
+  initialYear?: string
 }) {
   const { user } = useAuth()
   const [cartoes, setCartoes] = useState<Cartao[]>([])
@@ -90,6 +94,9 @@ export function GerenciarFaturasModal({
   const [filtroParceladas, setFiltroParceladas] = useState(false)
   const [showPagarDialog, setShowPagarDialog] = useState(false)
   const [dataPagamento, setDataPagamento] = useState(format(new Date(), 'yyyy-MM-dd'))
+
+  // Flag para forçar cálculo da fatura após setar estados
+  const shouldForceCalcularFatura = useRef(false)
 
   const meses = [
     { value: '01', label: 'Janeiro' },
@@ -116,30 +123,38 @@ export function GerenciarFaturasModal({
     if (open && user) {
       fetchCartoes()
       fetchCategorias()
-      
       // Carregar regras salvas
       const saved = localStorage.getItem('regrasFatura')
       if (saved) setRegrasTexto(saved)
-      
-      // Se há um cartão pré-selecionado, definir
-      if (initialCardId) {
-        setSelectedCard(initialCardId)
-      }
+      // Sempre setar cartão/mês/ano ao abrir
+      if (initialCardId) setSelectedCard(initialCardId)
+      if (initialMonth) setSelectedMonth(initialMonth)
+      if (initialYear) setSelectedYear(initialYear)
+      shouldForceCalcularFatura.current = true
     }
-  }, [open, user, initialCardId])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, user, initialCardId, initialMonth, initialYear])
 
-  // Quando o cartão é selecionado, buscar o mês mais recente com transações
+  // Quando o cartão é selecionado (sem mês/ano inicial), buscar o mês mais recente
   useEffect(() => {
-    if (selectedCard && user) {
+    if (selectedCard && user && !initialMonth && !initialYear) {
       buscarMesMaisRecente(selectedCard)
     }
   }, [selectedCard])
 
   useEffect(() => {
-    if (selectedCard && selectedMonth && selectedYear) {
-      calcularFatura()
-    }
-  }, [selectedCard, selectedMonth, selectedYear])
+    if (!open || !shouldForceCalcularFatura.current) return
+    if (!selectedCard || !selectedMonth || !selectedYear) return
+
+    // Aguarda cartões carregarem para evitar cálculo com estado parcial na abertura
+    if (!cartoes.some(c => c.id === selectedCard)) return
+
+    ;(async () => {
+      const ok = await calcularFatura()
+      if (ok) shouldForceCalcularFatura.current = false
+    })()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, selectedCard, selectedMonth, selectedYear, cartoes])
 
   async function buscarMesMaisRecente(cartaoId: string) {
     // Buscar fatura_mes/fatura_ano mais recente com transações
@@ -169,7 +184,6 @@ export function GerenciarFaturasModal({
       console.log('⚠️ User não carregado ainda em GerenciarFaturasModal')
       return
     }
-    
     const { data, error } = await supabase
       .from('cartoes')
       .select('*')
@@ -180,13 +194,12 @@ export function GerenciarFaturasModal({
       return
     }
 
-    console.log('📋 Cartões carregados:', data)
     setCartoes(data || [])
-    
-    // Auto-selecionar primeiro cartão se nenhum selecionado
+    // Não sobrescreve selectedCard se já foi setado pelo initialCardId
     if (!selectedCard && data && data.length > 0 && !initialCardId) {
       setSelectedCard(data[0].id)
     }
+
   }
 
   async function fetchCategorias() {
@@ -225,14 +238,17 @@ export function GerenciarFaturasModal({
   }
 
   async function calcularFatura() {
-    if (!selectedCard || !selectedMonth || !selectedYear) return
+    if (!selectedCard || !selectedMonth || !selectedYear) return false
 
     setLoading(true)
     const cartao = cartoes.find(c => c.id === selectedCard)
     if (!cartao) {
       setLoading(false)
-      return
+      return false
     }
+
+    // DEBUG: logar parâmetros de cálculo
+    console.debug('[Faturas] calcularFatura start', { selectedCard, selectedMonth, selectedYear })
 
     const { fechamento, vencimento, inicioPeriodo, fimPeriodo } = calcularDatasFatura(
       cartao,
@@ -270,6 +286,7 @@ export function GerenciarFaturasModal({
       .order('data', { ascending: false })
 
     const error = errorFatura || errorPeriodo
+    console.debug('[Faturas] query results', { transacoesFaturaCount: (transacoesFatura||[]).length, transacoesPeriodoCount: (transacoesPeriodo||[]).length, errorFatura, errorPeriodo })
     // Combinar e deduplicar
     const allTransacoes = [...(transacoesFatura || []), ...(transacoesPeriodo || [])]
     const seen = new Set<number>()
@@ -355,8 +372,8 @@ export function GerenciarFaturasModal({
       paga: todasPagas,
       vencida
     })
-
     setLoading(false)
+    return true
   }
 
   async function marcarComoPaga() {
