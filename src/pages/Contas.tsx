@@ -887,10 +887,15 @@ export default function ContasPage() {
     // Busca transações do usuário
     const { data: transData, error: transError } = await supabase
       .from('transacoes')
-      .select('id, valor, tipo, conta_id, status, cartao_id')
+      .select('*')
       .eq('user_id', user.id);
+
     if (!transError && transData) {
-      setTransacoes(transData);
+      const transComStatusDerivado = (transData || []).map((t: any) => ({
+        ...t,
+        status_derivado: t.status || (t.pago ? 'pago' : (t.cartao_id ? 'pendente_fatura' : 'pendente')),
+      }));
+      setTransacoes(transComStatusDerivado);
     } else {
       setTransacoes([]);
     }
@@ -898,12 +903,14 @@ export default function ContasPage() {
   }
 
   useEffect(() => {
-    fetchContas();
-  }, []);
+    if (user?.id) {
+      fetchContas();
+    }
+  }, [user?.id]);
 
   // Excluir conta
   async function handleDeleteConta(conta) {
-    const qtdTransacoesVinculadas = transacoes.filter(t => t.conta_id === conta.id).length;
+    const qtdTransacoesVinculadas = transacoes.filter(t => t.conta_id === conta.id || t.account_id === conta.id).length;
     setDeleteContaTarget(conta);
     setDeleteContaTransacoesCount(qtdTransacoesVinculadas);
     setDeleteContaOpen(true);
@@ -921,9 +928,18 @@ export default function ContasPage() {
         .eq('conta_id', deleteContaTarget.id);
 
       if (deleteTransacoesError) {
-        alert('Erro ao excluir transações vinculadas: ' + deleteTransacoesError.message);
-        setDeleteContaLoading(false);
-        return;
+        // Fallback para schemas legados com account_id
+        const { error: deleteTransacoesLegadoError } = await supabase
+          .from('transacoes')
+          .delete()
+          .eq('user_id', user?.id)
+          .eq('account_id', deleteContaTarget.id);
+
+        if (deleteTransacoesLegadoError) {
+          alert('Erro ao excluir transações vinculadas: ' + deleteTransacoesLegadoError.message);
+          setDeleteContaLoading(false);
+          return;
+        }
       }
     }
 
@@ -1086,6 +1102,7 @@ export default function ContasPage() {
         lancamentosComCategoriaId.push({
           user_id: user.id,
           conta_id: contaId,
+          account_id: contaId,
           categoria_id: categoriaId,
           descricao: l.estabelecimento || l.descricao || '',
           valor: valorNum,
@@ -1122,111 +1139,131 @@ export default function ContasPage() {
   }
 
   return (
-    <div className="space-y-4 p-4">
-      <div className="flex items-center justify-between mb-2">
-        <h2 className="text-2xl font-bold">Contas Bancárias</h2>
-        <Button variant="secondary" size="sm" onClick={() => setImportOpen(true)}>Importar Extrato</Button>
+    <div className="space-y-6 p-6 md:p-8">
+      <div className="rounded-2xl border border-slate-800/80 bg-gradient-to-r from-slate-900/70 via-slate-900/50 to-slate-900/30 p-5 md:p-6">
+        <div className="flex items-center justify-between gap-4 flex-wrap">
+          <div>
+            <h2 className="text-3xl font-bold text-slate-100">Contas Bancárias</h2>
+            <p className="text-sm text-slate-400 mt-1">Acompanhe o saldo consolidado das suas contas</p>
+          </div>
+          <div className="flex gap-2 flex-wrap">
+            <Button
+              variant="outline"
+              className="h-9 text-sm rounded-lg px-4 font-semibold border-slate-700/70 bg-slate-900/50 hover:bg-slate-800/70"
+              onClick={() => setImportOpen(true)}
+            >
+              Importar Extrato
+            </Button>
+            <Button
+              className="h-9 text-sm rounded-lg px-4 font-semibold bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-900/30"
+              onClick={() => { setEditConta({ nome: '', tipo: '', saldo_inicial: 0 }); setEditOpen(true); }}
+            >
+              Adicionar Conta
+            </Button>
+          </div>
+        </div>
       </div>
+
       {error && (
-        <div className="text-red-500 mb-2">Erro: {error.message || String(error)}</div>
+        <div className="rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-3 text-red-300 text-sm">
+          Erro: {error.message || String(error)}
+        </div>
       )}
+
       {loading ? (
-          <p>Carregando contas...</p>
+        <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-8 text-center text-slate-400">Carregando contas...</div>
       ) : contas.length === 0 ? (
-        <p>Nenhuma conta cadastrada.</p>
+        <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-8 text-center text-slate-400">Nenhuma conta cadastrada.</div>
       ) : (
-        contas
-          .filter(conta => {
-            // Mostra apenas contas bancárias (tipo 'bank')
-            return (conta.tipo || '').toLowerCase() === 'bank';
-          })
-          .map((conta) => {
-            // Saldo inicial (compatível com saldo_inicial e saldoInicial)
-            // Tenta: saldo_inicial → saldoInicial → saldo (campo original da tabela)
-            const saldoInicial = Number(conta.saldo_inicial ?? conta.saldoInicial ?? conta.saldo ?? 0) || 0;
+        <div className="space-y-4">
+          {contas
+            .filter(conta => (conta.tipo || '').toLowerCase() === 'bank')
+            .map((conta) => {
+              const parseValorSeguro = (raw: any) => {
+                if (typeof raw === 'number') return raw;
+                if (raw === null || raw === undefined) return 0;
+                const s = String(raw).trim();
+                if (!s) return 0;
+                // Aceita formatos: 1234.56, 1.234,56, -R$ 130,00
+                if (s.includes(',')) {
+                  const normalized = s.replace(/[^\d,.-]/g, '').replace(/\./g, '').replace(',', '.');
+                  const n = parseFloat(normalized);
+                  return isNaN(n) ? 0 : n;
+                }
+                const n = parseFloat(s.replace(/[^\d.-]/g, ''));
+                return isNaN(n) ? 0 : n;
+              };
 
-            // Filtra apenas transações da conta exibida (excluindo cartão)
-            const transacoesConta = transacoes.filter(t => t.conta_id === conta.id && !t.cartao_id);
-            // Soma receitas e despesas APENAS dessas transações
-            // Receitas: soma apenas valores positivos
-            const receitas = transacoesConta.filter(t => t.tipo === 'receita').reduce((acc, t) => acc + Math.abs(Number(t.valor) || 0), 0);
-            // Despesas: soma valores absolutos EXCLUINDO as pendentes (cartão de crédito)
-            const despesas = transacoesConta.filter(t => t.tipo === 'despesa' && t.status !== 'pendente' && t.status !== 'pendente_fatura').reduce((acc, t) => acc + Math.abs(Number(t.valor) || 0), 0);
-            // Saldo: saldo inicial + receitas - despesas (pendentes não afetam)
-            const saldoTotal = saldoInicial + receitas - despesas;
-            return (
-              <Card key={conta.id} className="mb-4 overflow-hidden border-l-4 border-l-primary hover:shadow-lg transition-shadow">
-                <CardContent className="p-0">
-                  {/* Header da Conta */}
-                  <div className="bg-gradient-to-r from-primary/10 to-transparent p-4 border-b border-border/50">
-                    <div className="flex justify-between items-start mb-2">
-                      <div className="flex items-center gap-3">
-                        <div className="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center">
-                          <svg className="w-6 h-6 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
-                          </svg>
+              const saldoInicial = Number(conta.saldo_inicial ?? conta.saldoInicial ?? conta.saldo ?? 0) || 0;
+              const transacoesConta = transacoes.filter(
+                t =>
+                  (t.conta_id === conta.id ||
+                    t.account_id === conta.id ||
+                    t.accountId === conta.id) &&
+                  !t.cartao_id
+              );
+              const movimentacaoAplicada = transacoesConta.reduce((acc, t) => {
+                const valorNum = parseValorSeguro(t.valor);
+                const tipo = (t.tipo || '').toLowerCase();
+
+                // Mesmo critério da tela de Transações: saldo inicial + receitas - despesas.
+                if (valorNum < 0) return acc + valorNum;
+                if (tipo === 'despesa') return acc - Math.abs(valorNum);
+                if (tipo === 'receita') return acc + Math.abs(valorNum);
+                return acc + valorNum;
+              }, 0);
+              const saldoTotal = saldoInicial + movimentacaoAplicada;
+
+              return (
+                <Card key={conta.id} className="overflow-hidden border border-slate-800/80 bg-gradient-to-b from-slate-900/70 to-slate-900/40 hover:border-slate-700/80 transition-colors">
+                  <CardContent className="p-0">
+                    <div className="px-5 py-4 border-b border-slate-800/80 bg-gradient-to-r from-blue-500/10 to-transparent">
+                      <div className="flex items-start justify-between gap-4 flex-wrap">
+                        <div className="flex items-center gap-3">
+                          <div className="w-11 h-11 rounded-xl bg-blue-500/15 border border-blue-500/30 flex items-center justify-center">
+                            <svg className="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                            </svg>
+                          </div>
+                          <div>
+                            <h3 className="font-bold text-xl text-slate-100">{conta.nome}</h3>
+                            <p className="text-xs text-slate-400 mt-1">
+                              Saldo inicial: <span className="text-slate-300">{formatCurrency(saldoInicial)}</span>
+                            </p>
+                          </div>
                         </div>
-                        <div>
-                          <h3 className="font-bold text-lg">{conta.nome}</h3>
-                          <span className="text-xs text-muted-foreground px-2 py-0.5 rounded-full bg-secondary/50">{conta.type}</span>
+                        <div className="text-right">
+                          <p className="text-xs text-slate-400 mb-1 uppercase tracking-wider">Saldo Atual</p>
+                          <p className={`text-3xl font-bold ${saldoTotal >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                            {formatCurrency(saldoTotal)}
+                          </p>
                         </div>
                       </div>
-                      <div className="text-right">
-                        <p className="text-xs text-muted-foreground mb-1">Saldo Atual</p>
-                        <p className={`text-2xl font-bold ${saldoTotal >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                          {formatCurrency(saldoTotal)}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Detalhes da Conta */}
-                  <div className="p-4">
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
-                      <div className="space-y-1">
-                        <p className="text-xs text-muted-foreground">Saldo Inicial</p>
-                        <p className="font-semibold">{formatCurrency(saldoInicial)}</p>
-                      </div>
-                      <div className="space-y-1">
-                        <p className="text-xs text-muted-foreground">Receitas</p>
-                        <p className="font-semibold text-green-500">+{formatCurrency(receitas)}</p>
-                      </div>
-                      <div className="space-y-1">
-                        <p className="text-xs text-muted-foreground">Despesas</p>
-                        <p className="font-semibold text-red-500">-{formatCurrency(despesas)}</p>
-                      </div>
-                      <div className="space-y-1">
-                        <p className="text-xs text-muted-foreground">Transações</p>
-                        <p className="font-semibold">{transacoesConta.length}</p>
-                      </div>
                     </div>
 
-                    {/* Botões de Ação */}
-                    <div className="flex gap-2 justify-end">
-                      <button 
-                        className="px-4 py-2 rounded-lg border border-border hover:bg-secondary/50 transition text-sm font-medium flex items-center gap-2" 
-                        onClick={() => handleEditConta(conta)}
-                      >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                        </svg>
-                        Editar
-                      </button>
-                      <button 
-                        className="px-4 py-2 rounded-lg border border-red-500/50 text-red-500 hover:bg-red-500/10 transition text-sm font-medium flex items-center gap-2" 
-                        onClick={() => handleDeleteConta(conta)}
-                      >
-                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                        </svg>
-                        Excluir
-                      </button>
+                    <div className="p-4">
+                      <div className="flex gap-2 justify-end flex-wrap">
+                        <Button
+                          variant="outline"
+                          className="h-9 border-slate-700/70 bg-slate-900/40 hover:bg-slate-800/70"
+                          onClick={() => handleEditConta(conta)}
+                        >
+                          Editar
+                        </Button>
+                        <Button
+                          variant="outline"
+                          className="h-9 border-red-500/40 text-red-300 hover:bg-red-500/10"
+                          onClick={() => handleDeleteConta(conta)}
+                        >
+                          Excluir
+                        </Button>
+                      </div>
                     </div>
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })
+                  </CardContent>
+                </Card>
+              );
+            })}
+        </div>
       )}
       {/* Modal só aparece se editConta estiver definido */}
       {/* Modal de edição de conta: abre direto para a conta clicada */}
@@ -1290,9 +1327,6 @@ export default function ContasPage() {
           </div>
         </DialogContent>
       </Dialog>
-      <Button className="mt-4" onClick={() => { setEditConta({ nome: '', tipo: '', saldo_inicial: 0 }); setEditOpen(true); }}>
-        Adicionar Conta
-      </Button>
     </div>
   );
 }
