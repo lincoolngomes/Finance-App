@@ -703,7 +703,7 @@ export default function Orcamentos() {
           .eq('user_id', user?.id),
         supabase
           .from('transacoes')
-          .select('id, data, created_at, descricao, observacao, valor, status, categoria_id, conta_id, cartao_id, fatura_mes, fatura_ano, tipo')
+          .select('id, data, created_at, descricao, observacao, valor, pago, categoria_id, conta_id, cartao_id, fatura_mes, fatura_ano, tipo')
           .eq('user_id', user?.id)
           .eq('categoria_id', categoriaId)
           .order('data', { ascending: false })
@@ -732,6 +732,7 @@ export default function Orcamentos() {
       const cartoesMap = new Map((cartoesData || []).map((c: any) => [c.id, c.nome || 'Cartão']))
       const transacoesComOrigem = transacoesFiltradas.map((t: any) => ({
         ...t,
+        status: t.status || (t.pago === true ? 'pago' : (t.cartao_id ? 'pendente_fatura' : 'pendente')),
         origemTipo: t.cartao_id ? 'cartao' : 'conta',
         origemNome: t.cartao_id ? (cartoesMap.get(t.cartao_id) || 'Cartão') : (contasMap.get(t.conta_id) || 'Conta')
       }))
@@ -1091,6 +1092,8 @@ export default function Orcamentos() {
                   const realizadoAbs = Math.abs(realizado)
                   const diferenca = linha.valor - realizadoAbs
                   const percentual = linha.valor > 0 ? (realizadoAbs / linha.valor) * 100 : 0
+                  const isReceita = linha.tipo === 'receita'
+                  const isDespesa = linha.tipo === 'despesa'
 
                   return (
                     <TableRow key={linha.categoria_id}>
@@ -1177,13 +1180,27 @@ export default function Orcamentos() {
                         />
                       </TableCell>
                       <TableCell className="text-right">
-                        <span className={`font-semibold ${realizado > 0 ? 'text-emerald-400' : realizado < 0 ? 'text-red-400' : 'text-muted-foreground'}`}>
+                        <span className={`font-semibold ${
+                          realizadoAbs === 0
+                            ? 'text-muted-foreground'
+                            : isReceita
+                              ? 'text-emerald-400'
+                              : isDespesa
+                                ? 'text-red-400'
+                                : 'text-foreground'
+                        }`}>
                           {formatCurrency(Math.abs(realizado))}
                         </span>
                       </TableCell>
                       <TableCell className="text-right">
                         {linha.valor > 0 ? (
-                          <span className={`font-semibold ${diferenca >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                          <span className={`font-semibold ${
+                            isReceita
+                              ? (diferenca >= 0 ? 'text-emerald-400' : 'text-red-400')
+                              : isDespesa
+                                ? '!text-red-400'
+                                : 'text-muted-foreground'
+                          }`}>
                             {formatCurrency(Math.abs(diferenca))}
                           </span>
                         ) : (

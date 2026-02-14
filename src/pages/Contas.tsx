@@ -363,7 +363,7 @@ function ImportarExtratoModal({ open, onClose, onImport, contas }) {
               </svg>
             </div>
             <div>
-              <h2 className="text-2xl font-bold text-white">Importar Extrato/CSV</h2>
+              <h2 className="text-2xl font-bold text-white">Importar Extrato</h2>
               <p className="text-sm text-slate-400 mt-1">Carregue seus lançamentos com inteligência de categorização</p>
             </div>
           </div>
@@ -398,7 +398,7 @@ function ImportarExtratoModal({ open, onClose, onImport, contas }) {
                   {(contas && Array.isArray(contas) && contas.length > 0) ? (
                     contas.filter(conta => (conta.tipo || '').toLowerCase() === 'bank')
                       .map((conta) => (
-                        <option key={conta.id} value={conta.id}>{conta.nome} ({conta.tipo})</option>
+                        <option key={conta.id} value={conta.id}>{conta.nome}</option>
                       ))
                   ) : (
                     <option value="">Nenhuma conta cadastrada</option>
