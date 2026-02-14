@@ -102,6 +102,7 @@ export function GerenciarFaturasModal({
   const [filtroParceladas, setFiltroParceladas] = useState(false)
   const [showPagarDialog, setShowPagarDialog] = useState(false)
   const [dataPagamento, setDataPagamento] = useState(format(new Date(), 'yyyy-MM-dd'))
+  const [contaPagamentoId, setContaPagamentoId] = useState<string>('')
 
   // Flag para forçar cálculo da fatura após setar estados
   const shouldForceCalcularFatura = useRef(false)
@@ -459,6 +460,7 @@ export function GerenciarFaturasModal({
 
     try {
       const cartao = cartoes.find(c => c.id === selectedCard)
+      const contaDebitoId = contaPagamentoId || cartao?.linked_account_id || null
       
       // Marcar todas as transações da fatura como pagas
       const transactionIds = fatura.transacoes.map(t => t.id)
@@ -469,8 +471,8 @@ export function GerenciarFaturasModal({
 
       if (updateError) throw updateError
 
-      // Se houver conta vinculada, criar débito automático
-      if (cartao?.linked_account_id) {
+      // Se houver conta selecionada/vinculada, criar débito automático
+      if (contaDebitoId) {
         const { error: debitoError } = await supabase
           .from('transacoes')
           .insert({
@@ -479,7 +481,7 @@ export function GerenciarFaturasModal({
             descricao: `Pagamento Fatura ${cartao.nome} - ${fatura.mes}/${fatura.ano}`,
             valor: fatura.total,
             tipo: 'despesa',
-            conta_id: cartao.linked_account_id,
+            conta_id: contaDebitoId,
             pago: true,
           })
 
@@ -487,16 +489,17 @@ export function GerenciarFaturasModal({
 
         toast({
           title: 'Fatura paga! ✅',
-          description: `${formatCurrency(fatura.total)} debitado da conta vinculada`,
+          description: `${formatCurrency(fatura.total)} debitado da conta selecionada`,
         })
       } else {
         toast({
           title: 'Fatura marcada como paga! ✅',
-          description: 'As transações foram atualizadas',
+          description: 'As transações foram atualizadas (sem débito em conta)',
         })
       }
 
       setShowPagarDialog(false)
+      setContaPagamentoId('')
       calcularFatura() // Recarrega a fatura
     } catch (error: any) {
       console.error('Erro ao pagar fatura:', error)
@@ -790,6 +793,8 @@ export function GerenciarFaturasModal({
                 ) : (
                   <Button 
                     onClick={() => {
+                      const cartaoSelecionado = cartoes.find(c => c.id === selectedCard)
+                      setContaPagamentoId(cartaoSelecionado?.linked_account_id || contas[0]?.id || '')
                       setDataPagamento(format(new Date(), 'yyyy-MM-dd'))
                       setShowPagarDialog(true)
                     }} 
@@ -1320,11 +1325,25 @@ export function GerenciarFaturasModal({
               className="w-full"
             />
           </div>
-          {cartoes.find(c => c.id === selectedCard)?.linked_account_id && (
-            <p className="text-xs text-muted-foreground">
-              💡 O valor será debitado da conta vinculada ao cartão
+          <div>
+            <Label className="text-sm font-medium mb-2 block">Conta de débito</Label>
+            <Select value={contaPagamentoId || '__none__'} onValueChange={(value) => setContaPagamentoId(value === '__none__' ? '' : value)}>
+              <SelectTrigger>
+                <SelectValue placeholder="Selecione a conta para débito" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">Não debitar em conta</SelectItem>
+                {contas.map((conta) => (
+                  <SelectItem key={conta.id} value={conta.id}>
+                    {conta.nome || conta.banco || 'Conta'}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground mt-2">
+              O pagamento da fatura será lançado como despesa na conta escolhida.
             </p>
-          )}
+          </div>
         </div>
         <div className="flex gap-2 justify-end">
           <Button variant="outline" size="sm" onClick={() => setShowPagarDialog(false)}>

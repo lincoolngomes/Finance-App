@@ -109,6 +109,7 @@ export default function Patrimonio() {
   const [loading, setLoading] = useState(true)
   const [dividas, setDividas] = useState<Divida[]>([])
   const [bens, setBens] = useState<Bem[]>([])
+  const [dividasCartao, setDividasCartao] = useState<Divida[]>([])
 
   const [modalDividaOpen, setModalDividaOpen] = useState(false)
   const [modalBemOpen, setModalBemOpen] = useState(false)
@@ -158,10 +159,80 @@ export default function Patrimonio() {
   const carregarDados = async () => {
     setLoading(true)
     try {
-      await Promise.all([carregarDividas(), carregarBens()])
+      await Promise.all([carregarDividas(), carregarBens(), carregarSaldoCartoesComoDivida()])
     } finally {
       setLoading(false)
     }
+  }
+
+  const carregarSaldoCartoesComoDivida = async () => {
+    const { data: cartoes, error: erroCartoes } = await supabase
+      .from('cartoes')
+      .select('*')
+      .eq('user_id', user?.id)
+
+    if (erroCartoes) {
+      setDividasCartao([])
+      return
+    }
+
+    if (!cartoes || cartoes.length === 0) {
+      setDividasCartao([])
+      return
+    }
+
+    const { data: transacoesCartao, error: erroTransacoes } = await supabase
+      .from('transacoes')
+      .select('id, valor, tipo, cartao_id, data, descricao, fatura_mes, fatura_ano')
+      .eq('user_id', user?.id)
+      .not('cartao_id', 'is', null)
+
+    if (erroTransacoes) {
+      setDividasCartao([])
+      return
+    }
+
+    const isPagamentoFatura = (descricao?: string | null) => {
+      const d = (descricao || '').toUpperCase()
+      return d.includes('PAGAMENTO') || d.includes('PAG FATURA') || d.includes('PGTO')
+    }
+
+    const isEmAberto = (t: any) => {
+      // Regra intencionalmente igual à tela de cartões atual
+      return !t?.pago
+    }
+
+    const valorAbs = (value: any) => Math.abs(Number(value) || 0)
+
+    const linhasCartao: Divida[] = []
+
+    for (const cartao of cartoes) {
+      const doCartao = (transacoesCartao || []).filter((t: any) => t.cartao_id === cartao.id)
+      const despesasAbertas = doCartao
+        .filter((t: any) => t.tipo === 'despesa' && isEmAberto(t))
+        .reduce((acc: number, t: any) => acc + valorAbs(t.valor), 0)
+      const estornosAbertos = doCartao
+        .filter((t: any) => t.tipo === 'receita' && !isPagamentoFatura(t.descricao) && isEmAberto(t))
+        .reduce((acc: number, t: any) => acc + valorAbs(t.valor), 0)
+
+      const limiteUsado = Math.max(0, despesasAbertas - estornosAbertos)
+
+      if (limiteUsado > 0) {
+        const limiteTotal = Number((cartao as any).limite) || limiteUsado
+        linhasCartao.push({
+          id: `cartao-${cartao.id}`,
+          user_id: String(user?.id || ''),
+          nome: (cartao as any).nome || (cartao as any).name || 'Cartão',
+          tipo: 'cartao',
+          credor: (cartao as any).banco || 'Cartão de Crédito',
+          valor_total: limiteTotal,
+          saldo_atual: limiteUsado,
+          status: 'ativo'
+        })
+      }
+    }
+
+    setDividasCartao(linhasCartao)
   }
 
   const carregarDividas = async () => {
@@ -417,13 +488,14 @@ export default function Patrimonio() {
   }
 
   const dividasFiltradas = useMemo(() => {
-    return dividas.filter(d => {
+    const todasDividas = [...dividasCartao, ...dividas]
+    return todasDividas.filter(d => {
       const matchStatus = statusDividaFiltro === 'todos' ? true : d.status === statusDividaFiltro
       const termo = filtroDivida.toLowerCase()
       const matchTexto = d.nome.toLowerCase().includes(termo) || (d.credor || '').toLowerCase().includes(termo)
       return matchStatus && matchTexto
     })
-  }, [dividas, filtroDivida, statusDividaFiltro])
+  }, [dividas, dividasCartao, filtroDivida, statusDividaFiltro])
 
   const bensFiltrados = useMemo(() => {
     return bens.filter(b => {
@@ -606,6 +678,7 @@ export default function Patrimonio() {
                     </TableRow>
                   ) : (
                     dividasFiltradas.map((divida) => {
+                      const isDividaAutomaticaCartao = divida.id.startsWith('cartao-')
                       const pago = Math.max(divida.valor_total - divida.saldo_atual, 0)
                       const progresso = divida.valor_total > 0 ? (pago / divida.valor_total) * 100 : 0
                       return (
@@ -626,12 +699,18 @@ export default function Patrimonio() {
                           <TableCell className="text-center">{renderStatusDivida(divida.status)}</TableCell>
                           <TableCell className="text-center">
                             <div className="flex items-center justify-center gap-1">
-                              <Button variant="ghost" size="icon" onClick={() => editarDivida(divida)}>
-                                <Pencil className="h-4 w-4 text-blue-600" />
-                              </Button>
-                              <Button variant="ghost" size="icon" onClick={() => removerDivida(divida.id)}>
-                                <Trash2 className="h-4 w-4 text-red-600" />
-                              </Button>
+                              {isDividaAutomaticaCartao ? (
+                                <span className="text-xs text-muted-foreground">Automática</span>
+                              ) : (
+                                <>
+                                  <Button variant="ghost" size="icon" onClick={() => editarDivida(divida)}>
+                                    <Pencil className="h-4 w-4 text-blue-600" />
+                                  </Button>
+                                  <Button variant="ghost" size="icon" onClick={() => removerDivida(divida.id)}>
+                                    <Trash2 className="h-4 w-4 text-red-600" />
+                                  </Button>
+                                </>
+                              )}
                             </div>
                           </TableCell>
                         </TableRow>
