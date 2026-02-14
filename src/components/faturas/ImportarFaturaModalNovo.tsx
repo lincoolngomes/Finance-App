@@ -34,6 +34,7 @@ interface ImportarFaturaModalNovoProps {
 }
 
 export function ImportarFaturaModalNovo({ open, onClose, onImport, cartoes, initialCardId }: ImportarFaturaModalNovoProps) {
+  const DRAFT_KEY = 'importar-fatura-modal-novo:draft:v1';
   const { user } = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const scrollableRef = useRef<HTMLDivElement>(null);
@@ -56,6 +57,7 @@ export function ImportarFaturaModalNovo({ open, onClose, onImport, cartoes, init
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
   const [criarParcelasFuturas, setCriarParcelasFuturas] = useState(true);
   const [modoImportacao, setModoImportacao] = useState<'ambas' | 'somente_parceladas' | 'somente_nao_parceladas'>('ambas');
+  const [draftRestored, setDraftRestored] = useState(false);
 
   const getDefaultFaturaVencimento = (cartao: any, referencia = new Date()) => {
     const diaFechamento = Math.max(1, Number(cartao?.dia_fechamento || 1));
@@ -101,30 +103,98 @@ export function ImportarFaturaModalNovo({ open, onClose, onImport, cartoes, init
     if (saved) setRegrasTexto(saved);
   }, []);
 
+  useEffect(() => {
+    if (!open) return;
+    try {
+      const raw = localStorage.getItem(DRAFT_KEY);
+      if (!raw) {
+        setDraftRestored(true);
+        return;
+      }
+      const draft = JSON.parse(raw);
+      if (!draft || (draft.userId && draft.userId !== user?.id)) {
+        setDraftRestored(true);
+        return;
+      }
+
+      if (draft.cartaoSelecionado) setCartaoSelecionado(draft.cartaoSelecionado);
+      if (draft.mesReferencia) setMesReferencia(draft.mesReferencia);
+      if (draft.anoReferencia) setAnoReferencia(draft.anoReferencia);
+      if (typeof draft.step === 'number') setStep(draft.step);
+      if (typeof draft.regrasTexto === 'string') setRegrasTexto(draft.regrasTexto);
+      if (Array.isArray(draft.transacoes)) setTransacoes(draft.transacoes);
+      if (typeof draft.criarParcelasFuturas === 'boolean') setCriarParcelasFuturas(draft.criarParcelasFuturas);
+      if (draft.modoImportacao === 'ambas' || draft.modoImportacao === 'somente_parceladas' || draft.modoImportacao === 'somente_nao_parceladas') {
+        setModoImportacao(draft.modoImportacao);
+      }
+      if (typeof draft.sortBy === 'string') setSortBy(draft.sortBy);
+      if (draft.sortOrder === 'asc' || draft.sortOrder === 'desc') setSortOrder(draft.sortOrder);
+    } catch {
+      // ignora draft inválido
+    } finally {
+      setDraftRestored(true);
+    }
+  }, [open, user?.id]);
+
   // Atualizar cartão selecionado quando os cartões carregam
   useEffect(() => {
+    if (!open) return;
     if (initialCardId) {
       setCartaoSelecionado(initialCardId);
     } else if (cartoes && cartoes.length > 0 && !cartaoSelecionado) {
       setCartaoSelecionado(cartoes[0].id);
     }
-  }, [cartoes]);
+  }, [open, cartoes, initialCardId, cartaoSelecionado]);
 
   // Definir mês/ano padrão com base na referência atual e fechamento do cartão selecionado
   useEffect(() => {
     if (!open || !cartoes?.length || !cartaoSelecionado) return;
+    if (!draftRestored) return;
+    if (mesReferencia && anoReferencia) return;
     const cartao = cartoes.find((c: any) => c.id === cartaoSelecionado);
     if (!cartao) return;
     const ref = getDefaultFaturaVencimento(cartao, new Date());
     setMesReferencia(ref.mes);
     setAnoReferencia(ref.ano);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, cartaoSelecionado, cartoes]);
+  }, [open, cartaoSelecionado, cartoes, draftRestored, mesReferencia, anoReferencia]);
 
   // Salvar regras no localStorage
   useEffect(() => {
     localStorage.setItem('regrasFatura', regrasTexto);
   }, [regrasTexto]);
+
+  useEffect(() => {
+    if (!open || !draftRestored) return;
+    const draft = {
+      userId: user?.id || null,
+      step,
+      regrasTexto,
+      transacoes,
+      cartaoSelecionado,
+      mesReferencia,
+      anoReferencia,
+      sortBy,
+      sortOrder,
+      criarParcelasFuturas,
+      modoImportacao,
+    };
+    localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+  }, [
+    open,
+    draftRestored,
+    user?.id,
+    step,
+    regrasTexto,
+    transacoes,
+    cartaoSelecionado,
+    mesReferencia,
+    anoReferencia,
+    sortBy,
+    sortOrder,
+    criarParcelasFuturas,
+    modoImportacao,
+  ]);
 
   // Atualizar categorias ao editar regras
   useEffect(() => {
@@ -335,7 +405,8 @@ export function ImportarFaturaModalNovo({ open, onClose, onImport, cartoes, init
       });
       
       setTimeout(() => {
-        resetModal();
+        clearDraft();
+        hardResetAndClose();
       }, 1500);
     } catch (e: any) {
       setImportFeedback({
@@ -347,7 +418,11 @@ export function ImportarFaturaModalNovo({ open, onClose, onImport, cartoes, init
     }
   };
 
-  const resetModal = () => {
+  const clearDraft = () => {
+    localStorage.removeItem(DRAFT_KEY);
+  };
+
+  const hardResetAndClose = () => {
     setStep(1);
     setTransacoes([]);
     setCsvFile(null);
@@ -369,6 +444,10 @@ export function ImportarFaturaModalNovo({ open, onClose, onImport, cartoes, init
     onClose();
   };
 
+  const closeModalKeepingDraft = () => {
+    onClose();
+  };
+
   if (!open) return null;
 
   const categoriasList = [
@@ -378,7 +457,7 @@ export function ImportarFaturaModalNovo({ open, onClose, onImport, cartoes, init
   ];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md" onClick={(e) => e.currentTarget === e.target && resetModal()}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md" onClick={(e) => e.currentTarget === e.target && closeModalKeepingDraft()}>
       <div className="bg-gradient-to-br from-slate-900 to-slate-950 border border-slate-800 rounded-2xl shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col relative z-50">
         <div className="overflow-y-auto flex-1 p-8">
           <div className="flex items-start justify-between mb-8">
@@ -394,7 +473,7 @@ export function ImportarFaturaModalNovo({ open, onClose, onImport, cartoes, init
               </div>
             </div>
             <button
-              onClick={resetModal}
+              onClick={closeModalKeepingDraft}
               className="p-2 rounded-lg hover:bg-slate-800 transition-colors text-slate-400 hover:text-slate-200"
             >
               <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -532,7 +611,7 @@ export function ImportarFaturaModalNovo({ open, onClose, onImport, cartoes, init
               <div className="flex gap-3 justify-end mt-8 pt-6 border-t border-slate-800">
                 <button
                   className="px-6 py-2.5 rounded-lg border border-slate-700 text-slate-300 hover:bg-slate-800/50 transition font-medium"
-                  onClick={resetModal}
+                  onClick={closeModalKeepingDraft}
                   disabled={loading}
                 >
                   Cancelar

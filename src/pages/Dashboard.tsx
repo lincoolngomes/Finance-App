@@ -40,21 +40,45 @@ interface Lembrete {
 }
 
 export default function Dashboard() {
+  const DASHBOARD_FILTERS_KEY = 'dashboard:filters:v1'
+  const getInitialDashboardFilters = () => {
+    const now = new Date()
+    const fallback = {
+      month: now.getMonth().toString(),
+      year: now.getFullYear().toString(),
+      showCardTransactions: true,
+      hideValues: false,
+    }
+    try {
+      const raw = localStorage.getItem(DASHBOARD_FILTERS_KEY)
+      if (!raw) return fallback
+      const parsed = JSON.parse(raw)
+      const monthNum = Number(parsed?.month)
+      const yearNum = Number(parsed?.year)
+      return {
+        month: Number.isInteger(monthNum) && monthNum >= 0 && monthNum <= 11 ? String(monthNum) : fallback.month,
+        year: Number.isInteger(yearNum) && yearNum >= 2000 && yearNum <= 2100 ? String(yearNum) : fallback.year,
+        showCardTransactions: typeof parsed?.showCardTransactions === 'boolean' ? parsed.showCardTransactions : fallback.showCardTransactions,
+        hideValues: typeof parsed?.hideValues === 'boolean' ? parsed.hideValues : fallback.hideValues,
+      }
+    } catch {
+      return fallback
+    }
+  }
+
+  const initialFilters = getInitialDashboardFilters()
   const { user } = useAuth()
   const [transacoes, setTransacoes] = useState<Transacao[]>([])
   const [lembretes, setLembretes] = useState<Lembrete[]>([])
   const [contas, setContas] = useState<any[]>([])
   const [cartoes, setCartoes] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
-  const [showCardTransactions, setShowCardTransactions] = useState(true)
+  const [showCardTransactions, setShowCardTransactions] = useState(initialFilters.showCardTransactions)
   const [faturasOpen, setFaturasOpen] = useState(false)
   const [faturaInitialCardId, setFaturaInitialCardId] = useState<string | null>(null)
   const [faturaInitialMonth, setFaturaInitialMonth] = useState<string>('')
   const [faturaInitialYear, setFaturaInitialYear] = useState<string>('')
 
-  // Inicialização temporária, será ajustada após carregar as transações
-  const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth());
-  const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
   // DEBUG: Logar transacoes carregadas
   useEffect(() => {
     if (import.meta.env.DEV) {
@@ -72,22 +96,18 @@ export default function Dashboard() {
   }, [transacoes])
   
   // Estados dos filtros
-  const [filterMonth, setFilterMonth] = useState(new Date().getMonth().toString())
-  const [filterYear, setFilterYear] = useState(new Date().getFullYear().toString())
-  const [hideValues, setHideValues] = useState(false)
+  const [filterMonth, setFilterMonth] = useState(initialFilters.month)
+  const [filterYear, setFilterYear] = useState(initialFilters.year)
+  const [hideValues, setHideValues] = useState(initialFilters.hideValues)
 
-  // Ao carregar as transações, ajusta o filtro para o mês/ano mais recente disponível
   useEffect(() => {
-    if (transacoes.length > 0) {
-      // Encontrar a data mais recente
-      const mostRecent = transacoes.reduce((max, t) => {
-        const d = new Date(t.data || t.created_at);
-        return d > max ? d : max;
-      }, new Date(transacoes[0].data || transacoes[0].created_at));
-      setFilterMonth(mostRecent.getMonth().toString());
-      setFilterYear(mostRecent.getFullYear().toString());
-    }
-  }, [transacoes]);
+    localStorage.setItem(DASHBOARD_FILTERS_KEY, JSON.stringify({
+      month: filterMonth,
+      year: filterYear,
+      showCardTransactions,
+      hideValues,
+    }))
+  }, [filterMonth, filterYear, showCardTransactions, hideValues])
 
   useEffect(() => {
     if (!user) return

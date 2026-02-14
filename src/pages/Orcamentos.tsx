@@ -12,6 +12,7 @@ import { formatCurrency } from '@/utils/currency'
 import { Plus, Trash2, TrendingUp, TrendingDown, Target, DollarSign, Copy, Eye, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import { Progress } from '@/components/ui/progress'
+import { calcularMesFatura, parseToDateUTC } from '@/utils/dateParser'
 
 type OrdenacaoColuna = 'categoria' | 'tipo' | 'planejado' | 'realizado' | 'diferenca' | 'progresso' | 'status'
 type OrdenacaoDirecao = 'asc' | 'desc'
@@ -42,6 +43,11 @@ interface TransacaoRealizada {
   total: number
 }
 
+interface MesAnoRef {
+  month: number
+  year: number
+}
+
 export default function Orcamentos() {
   const { user } = useAuth()
   const { toast } = useToast()
@@ -65,6 +71,40 @@ export default function Orcamentos() {
   const [despesasCategoria, setDespesasCategoria] = useState<any[]>([])
   const [ordenacoes, setOrdenacoes] = useState<OrdenacaoItem[]>([])
   const [valoresEditandoTabela, setValoresEditandoTabela] = useState<{ [key: string]: string }>({})
+
+  const getMesAnoReferenciaOrcamento = (t: any, cartaoFechamentoMap: Map<string, number>): MesAnoRef | null => {
+    // Transações de cartão: priorizar mês/ano da fatura (vencimento)
+    if (t.cartao_id) {
+      const faturaMes = Number(t.fatura_mes)
+      const faturaAno = Number(t.fatura_ano)
+      if (!Number.isNaN(faturaMes) && !Number.isNaN(faturaAno) && faturaMes >= 1 && faturaMes <= 12) {
+        return { month: faturaMes - 1, year: faturaAno }
+      }
+
+      // Fallback legado: observação "Fatura MM/YYYY"
+      const obs = String(t.observacao || '')
+      const obsMatch = obs.match(/Fatura\s+(\d{1,2})\/(\d{4})/i)
+      if (obsMatch) {
+        const m = Number(obsMatch[1])
+        const y = Number(obsMatch[2])
+        if (!Number.isNaN(m) && !Number.isNaN(y) && m >= 1 && m <= 12) {
+          return { month: m - 1, year: y }
+        }
+      }
+
+      // Último fallback: calcular por data da compra + dia de fechamento
+      const dt = parseToDateUTC(t.data || t.created_at)
+      if (!dt) return null
+      const diaFechamento = cartaoFechamentoMap.get(t.cartao_id) ?? 1
+      const { fatura_mes, fatura_ano } = calcularMesFatura(dt, diaFechamento)
+      return { month: fatura_mes - 1, year: fatura_ano }
+    }
+
+    // Transações de conta: mês/ano da data da transação
+    const dt = parseToDateUTC(t.data || t.created_at)
+    if (!dt) return null
+    return { month: dt.getUTCMonth(), year: dt.getUTCFullYear() }
+  }
 
   const handleOrdenar = (coluna: OrdenacaoColuna) => {
     setOrdenacoes(prev => {
@@ -150,9 +190,15 @@ export default function Orcamentos() {
   }
 
   const carregarTransacoesRealizadas = async () => {
+    // Buscar cartões para enriquecer transações sem fatura_mes/fatura_ano
+    const { data: cartoesData } = await supabase
+      .from('cartoes')
+      .select('id, dia_fechamento')
+      .eq('user_id', user?.id)
+
     const { data, error } = await supabase
       .from('transacoes')
-      .select('categoria_id, valor, data, created_at, tipo')
+      .select('categoria_id, valor, data, created_at, tipo, cartao_id, fatura_mes, fatura_ano, observacao')
       .eq('user_id', user?.id)
 
     console.log('🔍 DEBUG Orcamentos:', {
@@ -164,30 +210,18 @@ export default function Orcamentos() {
     })
 
     if (!error && data) {
-      // Filtrar transações do mês/ano selecionado (INCLUINDO PENDENTES)
+      const cartaoFechamentoMap = new Map<string, number>()
+      ;(cartoesData || []).forEach((c: any) => {
+        const dia = Number(c.dia_fechamento || 1)
+        cartaoFechamentoMap.set(c.id, Number.isNaN(dia) ? 1 : dia)
+      })
+
+      // Filtrar transações do mês/ano selecionado.
+      // Para cartão de crédito, sempre usa o mês/ano de vencimento da fatura.
       const transacoesFiltradas = data.filter(t => {
-        const dataTransacao = t.data || t.created_at
-        if (!dataTransacao) return false
-        
-        // Parse da data
-        let date: Date
-        if (typeof dataTransacao === 'string') {
-          // Se for string dd/MM/yyyy
-          if (dataTransacao.includes('/')) {
-            const [dia, mes, ano] = dataTransacao.split('/')
-            date = new Date(parseInt(ano), parseInt(mes) - 1, parseInt(dia))
-          } else {
-            // Se for ISO
-            date = new Date(dataTransacao)
-          }
-        } else {
-          date = new Date(dataTransacao)
-        }
-        
-        const mesTransacao = date.getMonth()
-        const anoTransacao = date.getFullYear()
-        
-        const dentroDoMes = mesTransacao === mesSelecionado && anoTransacao === anoSelecionado
+        const tm = getMesAnoReferenciaOrcamento(t as any, cartaoFechamentoMap)
+        if (!tm) return false
+        const dentroDoMes = tm.month === mesSelecionado && tm.year === anoSelecionado
         
         if (dentroDoMes) {
           console.log('✅ Transação dentro do mês:', {
@@ -195,10 +229,12 @@ export default function Orcamentos() {
             valor: t.valor,
             tipo: t.tipo,
             valorNumber: Number(t.valor),
-            data: dataTransacao,
-            parsed: date,
-            mes: mesTransacao,
-            ano: anoTransacao
+            data: t.data || t.created_at,
+            cartao_id: (t as any).cartao_id,
+            fatura_mes: (t as any).fatura_mes,
+            fatura_ano: (t as any).fatura_ano,
+            mes: tm.month,
+            ano: tm.year
           })
         }
         
@@ -656,12 +692,22 @@ export default function Orcamentos() {
   const visualizarTransacoesCategoria = async (categoriaId: string, categoriaNome: string) => {
     console.log('👁️ Visualizar transações - Categoria:', categoriaNome, 'ID:', categoriaId)
     try {
-      const { data, error } = await supabase
-        .from('transacoes')
-        .select('*')
-        .eq('user_id', user?.id)
-        .eq('categoria_id', categoriaId)
-        .order('data', { ascending: false })
+      const [{ data: cartoesData }, { data: contasData }, { data, error }] = await Promise.all([
+        supabase
+          .from('cartoes')
+          .select('id, nome, dia_fechamento')
+          .eq('user_id', user?.id),
+        supabase
+          .from('accounts')
+          .select('id, nome')
+          .eq('user_id', user?.id),
+        supabase
+          .from('transacoes')
+          .select('id, data, created_at, descricao, observacao, valor, status, categoria_id, conta_id, cartao_id, fatura_mes, fatura_ano, tipo')
+          .eq('user_id', user?.id)
+          .eq('categoria_id', categoriaId)
+          .order('data', { ascending: false })
+      ])
 
       console.log('📦 Dados recebidos:', data?.length, 'transações')
       if (error) {
@@ -669,33 +715,36 @@ export default function Orcamentos() {
         throw error
       }
 
-      // Filtrar pelo mês e ano selecionados
-      const transacoesFiltradas = (data || []).filter(t => {
-        const dataTransacao = t.data || t.created_at
-        let mesTransacao, anoTransacao
-
-        if (dataTransacao.includes('/')) {
-          const [dia, mes, ano] = dataTransacao.split('/')
-          mesTransacao = parseInt(mes) - 1
-          anoTransacao = parseInt(ano)
-        } else {
-          const date = new Date(dataTransacao)
-          mesTransacao = date.getMonth()
-          anoTransacao = date.getFullYear()
-        }
-
-        return mesTransacao === mesSelecionado && anoTransacao === anoSelecionado
+      const cartaoFechamentoMap = new Map<string, number>()
+      ;(cartoesData || []).forEach((c: any) => {
+        const dia = Number(c.dia_fechamento || 1)
+        cartaoFechamentoMap.set(c.id, Number.isNaN(dia) ? 1 : dia)
       })
 
-      // Separar receitas (valor > 0) e despesas (valor < 0)
-      const receitas = transacoesFiltradas.filter(t => t.valor > 0)
-      const despesas = transacoesFiltradas.filter(t => t.valor < 0)
+      // Filtrar pelo mês e ano selecionados
+      const transacoesFiltradas = (data || []).filter(t => {
+        const tm = getMesAnoReferenciaOrcamento(t as any, cartaoFechamentoMap)
+        if (!tm) return false
+        return tm.month === mesSelecionado && tm.year === anoSelecionado
+      })
 
-      console.log('🔍 Total transações:', transacoesFiltradas.length)
+      const contasMap = new Map((contasData || []).map((c: any) => [c.id, c.nome || 'Conta']))
+      const cartoesMap = new Map((cartoesData || []).map((c: any) => [c.id, c.nome || 'Cartão']))
+      const transacoesComOrigem = transacoesFiltradas.map((t: any) => ({
+        ...t,
+        origemTipo: t.cartao_id ? 'cartao' : 'conta',
+        origemNome: t.cartao_id ? (cartoesMap.get(t.cartao_id) || 'Cartão') : (contasMap.get(t.conta_id) || 'Conta')
+      }))
+
+      // Separar receitas (valor > 0) e despesas (valor < 0)
+      const receitas = transacoesComOrigem.filter(t => t.valor > 0)
+      const despesas = transacoesComOrigem.filter(t => t.valor < 0)
+
+      console.log('🔍 Total transações:', transacoesComOrigem.length)
       console.log('💰 Receitas:', receitas.length, receitas)
       console.log('💸 Despesas:', despesas.length, despesas)
 
-      setTransacoesCategoria(transacoesFiltradas)
+      setTransacoesCategoria(transacoesComOrigem)
       setReceitasCategoria(receitas)
       setDespesasCategoria(despesas)
       setCategoriaNomeModal(categoriaNome)
@@ -733,7 +782,7 @@ export default function Orcamentos() {
         <span className="flex items-center gap-1">
           {label}
           {temOrdenacao && (
-            <span className="inline-flex items-center justify-center w-5 h-5 text-xs font-bold bg-blue-500 text-white rounded-full">
+            <span className="inline-flex items-center justify-center w-5 h-5 text-xs font-bold bg-primary text-primary-foreground rounded-full">
               {indexOrdenacao + 1}
             </span>
           )}
@@ -915,9 +964,9 @@ export default function Orcamentos() {
             <div className="flex justify-between items-start">
               <div>
                 <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Despesa Planejada</p>
-                <p className="text-2xl font-bold text-red-600 mt-2">{formatCurrency(calculos.despesasOrçadas)}</p>
+                <p className="text-2xl font-bold text-red-500 mt-2">{formatCurrency(calculos.despesasOrçadas)}</p>
               </div>
-              <TrendingDown className="h-5 w-5 text-red-500/50" />
+              <TrendingDown className="h-5 w-5 text-red-500/40" />
             </div>
           </CardContent>
         </Card>
@@ -928,7 +977,7 @@ export default function Orcamentos() {
             <div className="flex justify-between items-start">
               <div>
                 <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Despesa Realizada</p>
-                <p className="text-2xl font-bold text-orange-600 mt-2">{formatCurrency(calculos.despesasRealizadas)}</p>
+                <p className="text-2xl font-bold text-red-400 mt-2">{formatCurrency(calculos.despesasRealizadas)}</p>
                 <div className="mt-3">
                   <div className="flex justify-between items-center mb-1">
                     <span className="text-xs text-muted-foreground">{calculos.percentualDespesas.toFixed(0)}%</span>
@@ -936,7 +985,7 @@ export default function Orcamentos() {
                   <Progress value={Math.min(calculos.percentualDespesas, 100)} className="h-1.5" />
                 </div>
               </div>
-              <DollarSign className="h-5 w-5 text-orange-500/50" />
+              <DollarSign className="h-5 w-5 text-red-400/40" />
             </div>
           </CardContent>
         </Card>
@@ -947,9 +996,9 @@ export default function Orcamentos() {
             <div className="flex justify-between items-start">
               <div>
                 <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Receita Planejada</p>
-                <p className="text-2xl font-bold text-green-600 mt-2">{formatCurrency(calculos.receitasOrçadas)}</p>
+                <p className="text-2xl font-bold text-emerald-500 mt-2">{formatCurrency(calculos.receitasOrçadas)}</p>
               </div>
-              <TrendingUp className="h-5 w-5 text-green-500/50" />
+              <TrendingUp className="h-5 w-5 text-emerald-500/40" />
             </div>
           </CardContent>
         </Card>
@@ -960,7 +1009,7 @@ export default function Orcamentos() {
             <div className="flex justify-between items-start">
               <div>
                 <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Receita Realizada</p>
-                <p className="text-2xl font-bold text-emerald-600 mt-2">{formatCurrency(calculos.receitasRealizadas)}</p>
+                <p className="text-2xl font-bold text-emerald-400 mt-2">{formatCurrency(calculos.receitasRealizadas)}</p>
                 <div className="mt-3">
                   <div className="flex justify-between items-center mb-1">
                     <span className="text-xs text-muted-foreground">{calculos.percentualReceitas.toFixed(0)}%</span>
@@ -968,7 +1017,7 @@ export default function Orcamentos() {
                   <Progress value={Math.min(calculos.percentualReceitas, 100)} className="h-1.5" />
                 </div>
               </div>
-              <DollarSign className="h-5 w-5 text-emerald-500/50" />
+              <DollarSign className="h-5 w-5 text-emerald-400/40" />
             </div>
           </CardContent>
         </Card>
@@ -1053,17 +1102,17 @@ export default function Orcamentos() {
                       </TableCell>
                       <TableCell className="text-center">
                         {linha.tipo === 'receita' ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
+                          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
                             <TrendingUp className="h-3 w-3" />
                             Receita
                           </span>
                         ) : linha.tipo === 'despesa' ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400">
+                          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-red-500/10 text-red-400 border border-red-500/20">
                             <TrendingDown className="h-3 w-3" />
                             Despesa
                           </span>
                         ) : (
-                          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400">
+                          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-muted/40 text-muted-foreground border border-border">
                             -
                           </span>
                         )}
@@ -1128,13 +1177,13 @@ export default function Orcamentos() {
                         />
                       </TableCell>
                       <TableCell className="text-right">
-                        <span className={`font-semibold ${realizado > 0 ? 'text-green-600' : realizado < 0 ? 'text-red-600' : 'text-gray-600'}`}>
+                        <span className={`font-semibold ${realizado > 0 ? 'text-emerald-400' : realizado < 0 ? 'text-red-400' : 'text-muted-foreground'}`}>
                           {formatCurrency(Math.abs(realizado))}
                         </span>
                       </TableCell>
                       <TableCell className="text-right">
                         {linha.valor > 0 ? (
-                          <span className={`font-semibold ${diferenca >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          <span className={`font-semibold ${diferenca >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                             {formatCurrency(Math.abs(diferenca))}
                           </span>
                         ) : (
@@ -1161,20 +1210,20 @@ export default function Orcamentos() {
                       <TableCell className="text-center">
                         {linha.valor > 0 ? (
                           percentual <= 80 ? (
-                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
                               Dentro
                             </span>
                           ) : percentual <= 100 ? (
-                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400">
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-500/10 text-amber-400 border border-amber-500/20">
                               Atenção
                             </span>
                           ) : (
-                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400">
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-500/10 text-red-400 border border-red-500/20">
                               Excedido
                             </span>
                           )
                         ) : (
-                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600 dark:bg-gray-900/30 dark:text-gray-400">
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-muted/40 text-muted-foreground border border-border">
                             Sem meta
                           </span>
                         )}
@@ -1188,7 +1237,7 @@ export default function Orcamentos() {
                             className="h-8 w-8"
                             title="Ver lançamentos"
                           >
-                            <Eye className="h-4 w-4 text-blue-600" />
+                            <Eye className="h-4 w-4 text-muted-foreground" />
                           </Button>
                           {linha.tem_orcamento && linha.id && (
                             <Button
@@ -1232,9 +1281,9 @@ export default function Orcamentos() {
               {receitasCategoria.length > 0 && (
                 <div className="space-y-3">
                   <div className="flex items-center gap-2">
-                    <TrendingUp className="h-5 w-5 text-green-600" />
+                    <TrendingUp className="h-5 w-5 text-emerald-500" />
                     <h3 className="text-lg font-semibold">Receitas ({receitasCategoria.length})</h3>
-                    <span className="ml-auto text-sm font-medium text-green-600">
+                    <span className="ml-auto text-sm font-medium text-emerald-400">
                       {formatCurrency(receitasCategoria.reduce((acc, t) => acc + t.valor, 0))}
                     </span>
                   </div>
@@ -1244,7 +1293,7 @@ export default function Orcamentos() {
                         <TableRow>
                           <TableHead>Data</TableHead>
                           <TableHead>Estabelecimento</TableHead>
-                          {/* <TableHead>Detalhes</TableHead> */}
+                          <TableHead>Origem</TableHead>
                           <TableHead className="text-right">Valor</TableHead>
                           <TableHead>Status</TableHead>
                         </TableRow>
@@ -1258,19 +1307,28 @@ export default function Orcamentos() {
                             <TableCell className="font-medium">
                               {transacao.descricao || '-'}
                             </TableCell>
-                            <TableCell className="text-muted-foreground text-sm">
-                              {/* {transacao.observacao || '-'} */}
+                            <TableCell>
+                              <div className="inline-flex items-center gap-2">
+                                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium border ${
+                                  transacao.origemTipo === 'cartao'
+                                    ? 'bg-primary/10 text-primary border-primary/20'
+                                    : 'bg-muted/40 text-muted-foreground border-border'
+                                }`}>
+                                  {transacao.origemTipo === 'cartao' ? 'Cartão' : 'Conta'}
+                                </span>
+                                <span className="text-xs text-muted-foreground">{transacao.origemNome}</span>
+                              </div>
                             </TableCell>
-                            <TableCell className="text-right font-semibold text-green-600">
+                            <TableCell className="text-right font-semibold text-emerald-400">
                               {formatCurrency(transacao.valor)}
                             </TableCell>
                             <TableCell>
                               <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
                                 transacao.status === 'pago' 
-                                  ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
+                                  ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
                                   : transacao.status === 'pendente' || transacao.status === 'pendente_fatura'
-                                  ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400'
-                                  : 'bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400'
+                                  ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                                  : 'bg-muted/40 text-muted-foreground border border-border'
                               }`}>
                                 {transacao.status === 'pago' ? 'Pago' : 
                                  transacao.status === 'pendente_fatura' ? 'Pendente (Fatura)' :
@@ -1289,9 +1347,9 @@ export default function Orcamentos() {
               {despesasCategoria.length > 0 && (
                 <div className="space-y-3">
                   <div className="flex items-center gap-2">
-                    <TrendingDown className="h-5 w-5 text-red-600" />
+                    <TrendingDown className="h-5 w-5 text-red-500" />
                     <h3 className="text-lg font-semibold">Despesas ({despesasCategoria.length})</h3>
-                    <span className="ml-auto text-sm font-medium text-red-600">
+                    <span className="ml-auto text-sm font-medium text-red-400">
                       {formatCurrency(Math.abs(despesasCategoria.reduce((acc, t) => acc + t.valor, 0)))}
                     </span>
                   </div>
@@ -1301,7 +1359,7 @@ export default function Orcamentos() {
                         <TableRow>
                           <TableHead>Data</TableHead>
                           <TableHead>Estabelecimento</TableHead>
-                          {/* <TableHead>Detalhes</TableHead> */}
+                          <TableHead>Origem</TableHead>
                           <TableHead className="text-right">Valor</TableHead>
                           <TableHead>Status</TableHead>
                         </TableRow>
@@ -1315,19 +1373,28 @@ export default function Orcamentos() {
                             <TableCell className="font-medium">
                               {transacao.descricao || '-'}
                             </TableCell>
-                            <TableCell className="text-muted-foreground text-sm">
-                              {/* {transacao.observacao || '-'} */}
+                            <TableCell>
+                              <div className="inline-flex items-center gap-2">
+                                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium border ${
+                                  transacao.origemTipo === 'cartao'
+                                    ? 'bg-primary/10 text-primary border-primary/20'
+                                    : 'bg-muted/40 text-muted-foreground border-border'
+                                }`}>
+                                  {transacao.origemTipo === 'cartao' ? 'Cartão' : 'Conta'}
+                                </span>
+                                <span className="text-xs text-muted-foreground">{transacao.origemNome}</span>
+                              </div>
                             </TableCell>
-                            <TableCell className="text-right font-semibold text-red-600">
+                            <TableCell className="text-right font-semibold text-red-400">
                               {formatCurrency(Math.abs(transacao.valor))}
                             </TableCell>
                             <TableCell>
                               <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
                                 transacao.status === 'pago' 
-                                  ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
+                                  ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
                                   : transacao.status === 'pendente' || transacao.status === 'pendente_fatura'
-                                  ? 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400'
-                                  : 'bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400'
+                                  ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                                  : 'bg-muted/40 text-muted-foreground border border-border'
                               }`}>
                                 {transacao.status === 'pago' ? 'Pago' : 
                                  transacao.status === 'pendente_fatura' ? 'Pendente (Fatura)' :

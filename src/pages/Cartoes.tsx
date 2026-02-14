@@ -515,6 +515,19 @@ export default function Cartoes({ isModal = false }) {
     const criarParcelasFuturas = options?.criarParcelasFuturas ?? true;
     let totalParcelasFuturasCriadas = 0;
 
+    // Compatibilidade de schema:
+    // alguns ambientes não têm as colunas parcela_atual/total_parcelas em transacoes.
+    let suportaCamposParcela = true;
+    {
+      const { error: probeError } = await supabase
+        .from('transacoes')
+        .select('parcela_atual,total_parcelas')
+        .limit(1);
+      if (probeError) {
+        suportaCamposParcela = false;
+      }
+    }
+
     // Buscar/criar categorias para associar categoria_id
     const categoriaCache: Record<string, string> = {};
     async function getOrCreateCategoriaId(nomeCategoria: string): Promise<string | null> {
@@ -588,7 +601,7 @@ export default function Cartoes({ isModal = false }) {
         pago: false,
         ...(categoriaId ? { categoria_id: categoriaId } : {}),
         ...(refFatura ? { observacao: `Fatura ${refFatura}` } : {}),
-        ...(parcelaInfo ? { parcela_atual: parcelaInfo.atual, total_parcelas: parcelaInfo.total } : {}),
+        ...(suportaCamposParcela && parcelaInfo ? { parcela_atual: parcelaInfo.atual, total_parcelas: parcelaInfo.total } : {}),
         ...(faturaMes ? { fatura_mes: faturaMes } : {}),
         ...(faturaAno ? { fatura_ano: faturaAno } : {}),
       });
@@ -619,8 +632,7 @@ export default function Cartoes({ isModal = false }) {
             pago: false,
             ...(categoriaId ? { categoria_id: categoriaId } : {}),
             observacao: `Parcela ${proxParcela}/${parcelaInfo.total}`,
-            parcela_atual: proxParcela,
-            total_parcelas: parcelaInfo.total,
+            ...(suportaCamposParcela ? { parcela_atual: proxParcela, total_parcelas: parcelaInfo.total } : {}),
             fatura_mes: faturaMesFutura,
             fatura_ano: faturaAnoFutura,
           });
@@ -629,9 +641,29 @@ export default function Cartoes({ isModal = false }) {
       }
     }
 
-    console.log('📦 Inserindo transações:', JSON.stringify(toInsert[0], null, 2));
-    console.log('📦 Total a inserir:', toInsert.length);
-    const { error } = await supabase.from('transacoes').insert(toInsert);
+    const payloadSemCamposParcela = toInsert.map((item) => {
+      const { parcela_atual, total_parcelas, ...rest } = item as any;
+      return rest;
+    });
+
+    const payloadFinal = suportaCamposParcela ? toInsert : payloadSemCamposParcela;
+
+    console.log('📦 Inserindo transações:', JSON.stringify(payloadFinal[0], null, 2));
+    console.log('📦 Total a inserir:', payloadFinal.length);
+
+    let { error } = await supabase.from('transacoes').insert(payloadFinal);
+
+    // Fallback de compatibilidade:
+    // se ambiente não suportar colunas de parcela, reenvia sem os campos.
+    if (error?.code === 'PGRST204' && suportaCamposParcela) {
+      console.warn('⚠️ Schema sem colunas de parcela. Reenviando importação sem parcela_atual/total_parcelas.');
+      const retry = await supabase.from('transacoes').insert(payloadSemCamposParcela);
+      error = retry.error;
+      if (!error) {
+        suportaCamposParcela = false;
+      }
+    }
+
     if (error) {
       console.error('❌ Erro ao inserir transações:', error);
       console.error('❌ Detalhes:', JSON.stringify(error, null, 2));
@@ -639,13 +671,13 @@ export default function Cartoes({ isModal = false }) {
         success: false,
         message: `Erro ao importar: ${error.message} (code: ${error.code}, details: ${error.details})`
       };
-    } else {
-      fetchCartoes();
-      return {
-        success: true,
-        message: `Importação realizada com sucesso! ${transacoes.length} transações importadas${totalParcelasFuturasCriadas > 0 ? ` e ${totalParcelasFuturasCriadas} parcelas futuras criadas` : ''}.`
-      };
     }
+
+    fetchCartoes();
+    return {
+      success: true,
+      message: `Importação realizada com sucesso! ${transacoes.length} transações importadas${totalParcelasFuturasCriadas > 0 ? ` e ${totalParcelasFuturasCriadas} parcelas futuras criadas` : ''}.`
+    };
   }
 
   // Excluir cartão

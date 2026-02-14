@@ -36,7 +36,7 @@ interface Conta {
 }
 
 interface Transacao {
-  id: number
+  id: number | string
   data?: string
   quando?: string
   estabelecimento?: string
@@ -83,6 +83,7 @@ export function GerenciarFaturasModal({
   initialMonth?: string
   initialYear?: string
 }) {
+  const DRAFT_KEY = 'gerenciar-faturas-modal:draft:v1'
   const { user } = useAuth()
   const [cartoes, setCartoes] = useState<Cartao[]>([])
   const [contas, setContas] = useState<Conta[]>([])
@@ -93,7 +94,7 @@ export function GerenciarFaturasModal({
   const [loading, setLoading] = useState(false)
   const [regrasTexto, setRegrasTexto] = useState(REGRAS_PADRAO)
   const [showRegras, setShowRegras] = useState(false)
-  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
+  const [selectedIds, setSelectedIds] = useState<Set<number | string>>(new Set())
   const [editingId, setEditingId] = useState<number | null>(null)
   const [editForm, setEditForm] = useState({ descricao: '', valor: '', data: '', categoria_id: '' })
   const [deleting, setDeleting] = useState(false)
@@ -126,6 +127,33 @@ export function GerenciarFaturasModal({
     label: String(currentYear - 2 + i),
   }))
 
+  function getDefaultFaturaVencimento(cartao: Cartao, referencia = new Date()) {
+    const diaFechamento = Math.max(1, Number(cartao?.dia_fechamento || 1))
+    const diaVencimento = Math.max(1, Number(cartao?.dia_vencimento || 1))
+
+    for (let offset = 0; offset <= 24; offset++) {
+      const dueDate = new Date(referencia.getFullYear(), referencia.getMonth() + offset, diaVencimento)
+      const fechamentoDate = diaFechamento >= diaVencimento
+        ? new Date(dueDate.getFullYear(), dueDate.getMonth() - 1, diaFechamento)
+        : new Date(dueDate.getFullYear(), dueDate.getMonth(), diaFechamento)
+
+      const hoje = new Date(referencia.getFullYear(), referencia.getMonth(), referencia.getDate())
+      const fechamentoSemHora = new Date(fechamentoDate.getFullYear(), fechamentoDate.getMonth(), fechamentoDate.getDate())
+
+      if (hoje <= fechamentoSemHora) {
+        return {
+          mes: String(dueDate.getMonth() + 1).padStart(2, '0'),
+          ano: String(dueDate.getFullYear()),
+        }
+      }
+    }
+
+    return {
+      mes: String(referencia.getMonth() + 1).padStart(2, '0'),
+      ano: String(referencia.getFullYear()),
+    }
+  }
+
   useEffect(() => {
     if (open && user) {
       fetchCartoes()
@@ -134,21 +162,61 @@ export function GerenciarFaturasModal({
       // Carregar regras salvas
       const saved = localStorage.getItem('regrasFatura')
       if (saved) setRegrasTexto(saved)
-      // Sempre setar cartão/mês/ano ao abrir
+
+      // Restaurar rascunho para não perder contexto ao navegar
+      let draft: any = null
+      try {
+        const raw = localStorage.getItem(DRAFT_KEY)
+        draft = raw ? JSON.parse(raw) : null
+      } catch {
+        draft = null
+      }
+
+      // Prioridade: inicial explícito -> rascunho -> estado atual
       if (initialCardId) setSelectedCard(initialCardId)
+      else if (draft?.selectedCard) setSelectedCard(draft.selectedCard)
+
       if (initialMonth) setSelectedMonth(initialMonth)
+      else setSelectedMonth('')
+
       if (initialYear) setSelectedYear(initialYear)
+      else setSelectedYear('')
+
+      if (!initialMonth && !initialYear) {
+        if (typeof draft?.showRegras === 'boolean') setShowRegras(draft.showRegras)
+        if (typeof draft?.filtroParceladas === 'boolean') setFiltroParceladas(draft.filtroParceladas)
+      }
       shouldForceCalcularFatura.current = true
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, user, initialCardId, initialMonth, initialYear])
 
-  // Quando o cartão é selecionado (sem mês/ano inicial), buscar o mês mais recente
   useEffect(() => {
-    if (selectedCard && user && !initialMonth && !initialYear) {
-      buscarMesMaisRecente(selectedCard)
-    }
-  }, [selectedCard])
+    if (!open) return
+    localStorage.setItem(
+      DRAFT_KEY,
+      JSON.stringify({
+        selectedCard,
+        selectedMonth,
+        selectedYear,
+        showRegras,
+        filtroParceladas,
+      })
+    )
+  }, [open, selectedCard, selectedMonth, selectedYear, showRegras, filtroParceladas])
+
+  // Definir período padrão correto da fatura ao selecionar cartão (quando não vier mês/ano inicial explícito)
+  useEffect(() => {
+    if (!open || initialMonth || initialYear) return
+    if (!selectedCard || !cartoes.length) return
+    const cartao = cartoes.find(c => c.id === selectedCard)
+    if (!cartao) return
+
+    const ref = getDefaultFaturaVencimento(cartao, new Date())
+    setSelectedMonth(ref.mes)
+    setSelectedYear(ref.ano)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, selectedCard, cartoes, initialMonth, initialYear])
 
   useEffect(() => {
     if (!open) return
@@ -164,28 +232,9 @@ export function GerenciarFaturasModal({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, selectedCard, selectedMonth, selectedYear, cartoes])
 
-  async function buscarMesMaisRecente(cartaoId: string) {
-    // Buscar fatura_mes/fatura_ano mais recente com transações
-    const { data } = await supabase
-      .from('transacoes')
-      .select('fatura_mes, fatura_ano')
-      .eq('cartao_id', cartaoId)
-      .not('fatura_mes', 'is', null)
-      .not('fatura_ano', 'is', null)
-      .order('fatura_ano', { ascending: false })
-      .order('fatura_mes', { ascending: false })
-      .limit(1)
-
-    if (data && data.length > 0 && data[0].fatura_mes && data[0].fatura_ano) {
-      setSelectedMonth(String(data[0].fatura_mes).padStart(2, '0'))
-      setSelectedYear(String(data[0].fatura_ano))
-    } else {
-      // Fallback: mês atual
-      const now = new Date()
-      setSelectedMonth(String(now.getMonth() + 1).padStart(2, '0'))
-      setSelectedYear(String(now.getFullYear()))
-    }
-  }
+  useEffect(() => {
+    setSelectedIds(new Set())
+  }, [selectedCard, selectedMonth, selectedYear, filtroParceladas, open])
 
   async function fetchCartoes() {
     if (!user?.id) {
@@ -512,7 +561,23 @@ export function GerenciarFaturasModal({
     : null
   const nomeBancoVinculado = contaVinculada?.banco || contaVinculada?.nome || null
 
-  function toggleSelect(id: number) {
+  const isTransacaoParcelada = (transacao: Transacao) => {
+    if (transacao.total_parcelas && transacao.total_parcelas > 1) return true
+    const desc = transacao.descricao || transacao.estabelecimento || ''
+    const match = desc.match(/(\d{2})\/(\d{2})\s*$/)
+    if (match) {
+      const atual = parseInt(match[1])
+      const total = parseInt(match[2])
+      if (total > 1 && atual >= 1 && atual <= total) return true
+    }
+    return false
+  }
+
+  const transacoesExibidas = fatura
+    ? fatura.transacoes.filter(transacao => (filtroParceladas ? isTransacaoParcelada(transacao) : true))
+    : []
+
+  function toggleSelect(id: number | string) {
     setSelectedIds(prev => {
       const next = new Set(prev)
       if (next.has(id)) next.delete(id)
@@ -522,11 +587,11 @@ export function GerenciarFaturasModal({
   }
 
   function toggleSelectAll() {
-    if (!fatura) return
-    if (selectedIds.size === fatura.transacoes.length) {
+    if (!transacoesExibidas.length) return
+    if (selectedIds.size === transacoesExibidas.length) {
       setSelectedIds(new Set())
     } else {
-      setSelectedIds(new Set(fatura.transacoes.map(t => t.id)))
+      setSelectedIds(new Set(transacoesExibidas.map(t => t.id)))
     }
   }
 
@@ -569,14 +634,49 @@ export function GerenciarFaturasModal({
 
     setDeleting(true)
     try {
-      const { error } = await supabase
-        .from('transacoes')
-        .delete()
-        .in('id', Array.from(selectedIds))
+      const ids = Array.from(selectedIds).filter(Boolean)
+      let deleted = 0
+      const failed: Array<number | string> = []
 
-      if (error) throw error
+      const chunkSize = 100
+      for (let i = 0; i < ids.length; i += chunkSize) {
+        const chunk = ids.slice(i, i + chunkSize)
+        const { error } = await supabase
+          .from('transacoes')
+          .delete()
+          .in('id', chunk as any[])
 
-      toast({ title: `${selectedIds.size} transação(ões) excluída(s) ✅` })
+        if (!error) {
+          deleted += chunk.length
+          continue
+        }
+
+        // Fallback robusto: exclui item a item para evitar falha total do lote
+        for (const id of chunk) {
+          const { error: singleError } = await supabase
+            .from('transacoes')
+            .delete()
+            .eq('id', id)
+
+          if (singleError) failed.push(id)
+          else deleted += 1
+        }
+      }
+
+      if (deleted === 0) {
+        throw new Error('Não foi possível excluir as transações selecionadas')
+      }
+
+      if (failed.length > 0) {
+        toast({
+          title: `Exclusão parcial`,
+          description: `${deleted} excluída(s) e ${failed.length} com falha.`,
+          variant: 'destructive'
+        })
+      } else {
+        toast({ title: `${deleted} transação(ões) excluída(s) ✅` })
+      }
+
       setSelectedIds(new Set())
       calcularFatura()
     } catch (err: any) {
@@ -895,7 +995,7 @@ export function GerenciarFaturasModal({
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-2">
                     <h3 className="font-semibold">
-                      Transações ({fatura.transacoes.length})
+                      Transações ({transacoesExibidas.length})
                     </h3>
                     <Button
                       variant={filtroParceladas ? 'secondary' : 'outline'}
@@ -962,7 +1062,7 @@ export function GerenciarFaturasModal({
                           onClick={toggleSelectAll}
                           className="gap-1.5 text-xs h-8 px-2"
                         >
-                          {selectedIds.size === fatura.transacoes.length && fatura.transacoes.length > 0
+                          {selectedIds.size === transacoesExibidas.length && transacoesExibidas.length > 0
                             ? <CheckSquare className="h-4 w-4 text-blue-500" />
                             : <Square className="h-4 w-4" />
                           }
@@ -1005,21 +1105,7 @@ export function GerenciarFaturasModal({
                     </div>
 
                     <div className="space-y-2 max-h-[400px] overflow-y-auto">
-                      {fatura.transacoes
-                        .filter(transacao => {
-                          if (!filtroParceladas) return true
-                          // Filtrar só parceladas
-                          if (transacao.total_parcelas && transacao.total_parcelas > 1) return true
-                          const desc = transacao.descricao || transacao.estabelecimento || ''
-                          const match = desc.match(/(\d{2})\/(\d{2})\s*$/)
-                          if (match) {
-                            const atual = parseInt(match[1])
-                            const total = parseInt(match[2])
-                            if (total > 1 && atual >= 1 && atual <= total) return true
-                          }
-                          return false
-                        })
-                        .map((transacao) => {
+                      {transacoesExibidas.map((transacao) => {
                         const categoriaRegra = categorizar(transacao.descricao || transacao.estabelecimento || '', regrasTexto)
                         const categoriaFinal = transacao.categorias?.nome || categoriaRegra || transacao.categoria
                         const isSelected = selectedIds.has(transacao.id)
