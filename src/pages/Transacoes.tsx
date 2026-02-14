@@ -226,8 +226,13 @@ const Transacoes: React.FC = () => {
     const monthIndex = (() => { const m = parseInt(filterMonth); return isNaN(m) ? new Date().getMonth() : (m > 11 ? m - 1 : m) })()
     const yearNum = parseInt(filterYear) || new Date().getFullYear()
     filtered = filtered.filter(t => {
-      // Na tela de transações, sempre usar a data da transação (data real da compra)
-      // A lógica de fatura_mes (mês de vencimento) é usada apenas no Dashboard
+      // Transações de cartão importadas por fatura:
+      // quando houver fatura_mes/fatura_ano, o mês de referência é o vencimento da fatura.
+      if (t.cartao_id && t.fatura_mes && t.fatura_ano) {
+        return (Number(t.fatura_mes) - 1) === monthIndex && Number(t.fatura_ano) === yearNum
+      }
+
+      // Transações de conta (ou cartão sem referência de fatura): usar data da transação
       const dt = parseToDate(t.data || t.created_at)
       if (!dt) return false
       return dt.getUTCMonth() === monthIndex && dt.getUTCFullYear() === yearNum
@@ -570,17 +575,24 @@ const Transacoes: React.FC = () => {
       return dt.getUTCMonth() === monthIndex && dt.getUTCFullYear() === yearNum
     })
     
-    // Receitas do mês: apenas de CONTAS (sem cartão)
-    const contaDoMes = todasDoMes.filter(t => !t.cartao_id)
+    const baseDoMes = hideCardTransactions ? todasDoMes.filter(t => !t.cartao_id) : todasDoMes
+    const contaDoMes = baseDoMes.filter(t => !t.cartao_id)
+
+    // Receitas do mês: mantém apenas contas (receitas de cartão são estornos/pgto fatura)
     const receitasMes = contaDoMes.filter(t => t.tipo === 'receita').reduce((acc, t) => acc + Math.abs(Number(t.valor) || 0), 0)
     const countReceitasMes = contaDoMes.filter(t => t.tipo === 'receita').length
-    // Despesas do mês: apenas de CONTAS (sem cartão)
-    const despesasMes = contaDoMes.filter(t => t.tipo === 'despesa').reduce((acc, t) => acc + Math.abs(Number(t.valor) || 0), 0)
-    const countDespesasMes = contaDoMes.filter(t => t.tipo === 'despesa').length
-    // Despesas pendentes: transações de cartão NÃO pagas + pendentes de conta — usa TODAS do mês
-    const despesasPendentes = todasDoMes.filter(t => t.tipo === 'despesa' && !t.pago && (t.cartao_id || t.status === 'pendente' || t.status === 'pendente_fatura')).reduce((acc, t) => acc + Math.abs(Number(t.valor) || 0), 0)
-    return { receitasMes, despesasMes, despesasPendentes, transacoesCountMes: todasDoMes.length, countReceitasMes, countDespesasMes }
-  }, [transacoes, filterMonth, filterYear])
+
+    // Despesas do mês: incluir cartão + conta (respeitando toggle de ocultar cartão)
+    const despesasMes = baseDoMes.filter(t => t.tipo === 'despesa').reduce((acc, t) => acc + Math.abs(Number(t.valor) || 0), 0)
+    const countDespesasMes = baseDoMes.filter(t => t.tipo === 'despesa').length
+
+    // Despesas pendentes: transações de cartão NÃO pagas + pendentes de conta (na base atual)
+    const despesasPendentes = baseDoMes
+      .filter(t => t.tipo === 'despesa' && !t.pago && (t.cartao_id || t.status === 'pendente' || t.status === 'pendente_fatura'))
+      .reduce((acc, t) => acc + Math.abs(Number(t.valor) || 0), 0)
+
+    return { receitasMes, despesasMes, despesasPendentes, transacoesCountMes: baseDoMes.length, countReceitasMes, countDespesasMes }
+  }, [transacoes, filterMonth, filterYear, hideCardTransactions])
 
   // Cálculo do saldo do mês: saldo inicial + receitas do mês - despesas pagas do mês (APENAS CONTAS, sem cartão)
   const saldoMes = useMemo(() => {

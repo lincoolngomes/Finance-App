@@ -378,11 +378,9 @@ function EditCartaoModal({ cartao, open, onClose, onSave, onDelete }) {
           {cartao && onDelete && (
             <Button 
               variant="ghost" 
-              onClick={() => {
-                if (window.confirm('Tem certeza que deseja excluir este cartão? Todas as transações vinculadas serão desvinculadas.')) {
-                  onDelete(cartao);
-                  onClose();
-                }
+              onClick={async () => {
+                const ok = await onDelete(cartao);
+                if (ok) onClose();
               }} 
               className="h-9 text-red-500 hover:text-red-600 hover:bg-red-500/10 gap-1.5 text-xs"
             >
@@ -436,6 +434,10 @@ export default function Cartoes({ isModal = false }) {
   const [cartaoParaImportar, setCartaoParaImportar] = useState<string | undefined>(undefined);
   const [historicoOpen, setHistoricoOpen] = useState(false);
   const [parcelamentosAbertos, setParcelamentosAbertos] = useState<Record<string, boolean>>({});
+  const [deleteCartaoOpen, setDeleteCartaoOpen] = useState(false);
+  const [deleteCartaoLoading, setDeleteCartaoLoading] = useState(false);
+  const [deleteCartaoTarget, setDeleteCartaoTarget] = useState<any | null>(null);
+  const [deleteCartaoTransacoesCount, setDeleteCartaoTransacoesCount] = useState(0);
 
   async function fetchCartoes() {
     setLoading(true);
@@ -682,13 +684,43 @@ export default function Cartoes({ isModal = false }) {
 
   // Excluir cartão
   async function handleDeleteCartao(cartao) {
-    if (!window.confirm('Tem certeza que deseja excluir este cartão?')) return;
-    const { error } = await supabase.from('cartoes').delete().eq('id', cartao.id);
+    const qtdTransacoesVinculadas = transacoes.filter(t => t.cartao_id === cartao.id).length;
+    setDeleteCartaoTarget(cartao);
+    setDeleteCartaoTransacoesCount(qtdTransacoesVinculadas);
+    setDeleteCartaoOpen(true);
+    return true;
+  }
+
+  async function confirmDeleteCartao(excluirTransacoesVinculadas: boolean) {
+    if (!deleteCartaoTarget) return;
+    setDeleteCartaoLoading(true);
+
+    if (excluirTransacoesVinculadas) {
+      const { error: deleteTransacoesError } = await supabase
+        .from('transacoes')
+        .delete()
+        .eq('user_id', user?.id)
+        .eq('cartao_id', deleteCartaoTarget.id);
+
+      if (deleteTransacoesError) {
+        alert('Erro ao excluir transações vinculadas: ' + deleteTransacoesError.message);
+        setDeleteCartaoLoading(false);
+        return;
+      }
+    }
+
+    const { error } = await supabase.from('cartoes').delete().eq('id', deleteCartaoTarget.id);
     if (error) {
       alert('Erro ao excluir: ' + error.message);
+      setDeleteCartaoLoading(false);
+      return;
     } else {
+      setDeleteCartaoOpen(false);
+      setDeleteCartaoTarget(null);
+      setDeleteCartaoTransacoesCount(0);
       fetchCartoes();
     }
+    setDeleteCartaoLoading(false);
   }
 
   // Editar cartão (abrir modal)
@@ -1074,6 +1106,59 @@ export default function Cartoes({ isModal = false }) {
         onSave={handleSaveCartao}
         onDelete={handleDeleteCartao}
       />
+
+      <Dialog open={deleteCartaoOpen} onOpenChange={(open) => {
+        if (deleteCartaoLoading) return;
+        setDeleteCartaoOpen(open);
+        if (!open) {
+          setDeleteCartaoTarget(null);
+          setDeleteCartaoTransacoesCount(0);
+        }
+      }}>
+        <DialogContent className="max-w-md border-slate-700/50 bg-slate-900/95">
+          <div className="space-y-4">
+            <div>
+              <h3 className="text-lg font-semibold text-slate-100">Excluir cartão</h3>
+              <p className="text-sm text-slate-400 mt-1">
+                Cartão: <span className="text-slate-200 font-medium">{deleteCartaoTarget?.nome || deleteCartaoTarget?.name || 'Sem nome'}</span>
+              </p>
+              <p className="text-sm text-slate-400">
+                Transações vinculadas: <span className="text-slate-200 font-medium">{deleteCartaoTransacoesCount}</span>
+              </p>
+            </div>
+
+            <div className="p-3 rounded-lg border border-slate-700 bg-slate-800/40 text-xs text-slate-400">
+              Escolha como deseja prosseguir:
+            </div>
+
+            <div className="space-y-2">
+              <Button
+                className="w-full bg-red-600 hover:bg-red-700 text-white"
+                disabled={deleteCartaoLoading}
+                onClick={() => confirmDeleteCartao(true)}
+              >
+                Excluir cartão + transações vinculadas
+              </Button>
+              <Button
+                variant="outline"
+                className="w-full"
+                disabled={deleteCartaoLoading}
+                onClick={() => confirmDeleteCartao(false)}
+              >
+                Excluir somente o cartão
+              </Button>
+              <Button
+                variant="ghost"
+                className="w-full text-slate-300"
+                disabled={deleteCartaoLoading}
+                onClick={() => setDeleteCartaoOpen(false)}
+              >
+                Cancelar
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Modal de Faturas */}
       <GerenciarFaturasModal 

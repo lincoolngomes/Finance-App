@@ -743,6 +743,7 @@ function ImportarExtratoModal({ open, onClose, onImport, contas }) {
 
 import { Button } from "../components/ui/button";
 import { Card, CardContent } from "../components/ui/card";
+import { Dialog, DialogContent } from "../components/ui/dialog";
 import { formatCurrency, parseValorBR, formatarValorBR } from "../utils/currency";
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../hooks/useAuth";
@@ -865,6 +866,10 @@ export default function ContasPage() {
   const [editConta, setEditConta] = useState(null);
   const [editOpen, setEditOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
+  const [deleteContaOpen, setDeleteContaOpen] = useState(false);
+  const [deleteContaLoading, setDeleteContaLoading] = useState(false);
+  const [deleteContaTarget, setDeleteContaTarget] = useState<any | null>(null);
+  const [deleteContaTransacoesCount, setDeleteContaTransacoesCount] = useState(0);
   const { user } = useAuth();
 
   async function fetchContas() {
@@ -898,12 +903,40 @@ export default function ContasPage() {
 
   // Excluir conta
   async function handleDeleteConta(conta) {
-    if (!window.confirm('Tem certeza que deseja excluir esta conta?')) return;
-    const { error } = await supabase.from('accounts').delete().eq('id', conta.id);
+    const qtdTransacoesVinculadas = transacoes.filter(t => t.conta_id === conta.id).length;
+    setDeleteContaTarget(conta);
+    setDeleteContaTransacoesCount(qtdTransacoesVinculadas);
+    setDeleteContaOpen(true);
+  }
+
+  async function confirmDeleteConta(excluirTransacoesVinculadas: boolean) {
+    if (!deleteContaTarget) return;
+    setDeleteContaLoading(true);
+
+    if (excluirTransacoesVinculadas) {
+      const { error: deleteTransacoesError } = await supabase
+        .from('transacoes')
+        .delete()
+        .eq('user_id', user?.id)
+        .eq('conta_id', deleteContaTarget.id);
+
+      if (deleteTransacoesError) {
+        alert('Erro ao excluir transações vinculadas: ' + deleteTransacoesError.message);
+        setDeleteContaLoading(false);
+        return;
+      }
+    }
+
+    const { error } = await supabase.from('accounts').delete().eq('id', deleteContaTarget.id);
     if (error) {
       alert('Erro ao excluir: ' + error.message);
+      setDeleteContaLoading(false);
     } else {
+      setDeleteContaOpen(false);
+      setDeleteContaTarget(null);
+      setDeleteContaTransacoesCount(0);
       fetchContas();
+      setDeleteContaLoading(false);
     }
   }
 
@@ -1209,6 +1242,54 @@ export default function ContasPage() {
         onImport={handleImportLancamentos}
         contas={contas}
       />
+      <Dialog open={deleteContaOpen} onOpenChange={(open) => {
+        if (deleteContaLoading) return;
+        setDeleteContaOpen(open);
+        if (!open) {
+          setDeleteContaTarget(null);
+          setDeleteContaTransacoesCount(0);
+        }
+      }}>
+        <DialogContent className="max-w-md border-slate-700/50 bg-slate-900/95">
+          <div className="space-y-4">
+            <div>
+              <h3 className="text-lg font-semibold text-slate-100">Excluir conta</h3>
+              <p className="text-sm text-slate-400 mt-1">
+                Conta: <span className="text-slate-200 font-medium">{deleteContaTarget?.nome || 'Sem nome'}</span>
+              </p>
+              <p className="text-sm text-slate-400">
+                Transações vinculadas: <span className="text-slate-200 font-medium">{deleteContaTransacoesCount}</span>
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Button
+                className="w-full bg-red-600 hover:bg-red-700 text-white"
+                disabled={deleteContaLoading}
+                onClick={() => confirmDeleteConta(true)}
+              >
+                Excluir conta + transações vinculadas
+              </Button>
+              <Button
+                variant="outline"
+                className="w-full"
+                disabled={deleteContaLoading}
+                onClick={() => confirmDeleteConta(false)}
+              >
+                Excluir somente a conta
+              </Button>
+              <Button
+                variant="ghost"
+                className="w-full text-slate-300"
+                disabled={deleteContaLoading}
+                onClick={() => setDeleteContaOpen(false)}
+              >
+                Cancelar
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
       <Button className="mt-4" onClick={() => { setEditConta({ nome: '', tipo: '', saldo_inicial: 0 }); setEditOpen(true); }}>
         Adicionar Conta
       </Button>
