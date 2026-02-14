@@ -532,29 +532,31 @@ export default function Cartoes({ isModal = false }) {
 
     // Buscar/criar categorias para associar categoria_id
     const categoriaCache: Record<string, string> = {};
-    async function getOrCreateCategoriaId(nomeCategoria: string): Promise<string | null> {
+    async function getOrCreateCategoriaId(nomeCategoria: string, tipoCategoria: 'despesa' | 'receita'): Promise<string | null> {
       if (!nomeCategoria || nomeCategoria.trim() === '') return null;
       const nome = nomeCategoria.trim();
-      if (categoriaCache[nome]) return categoriaCache[nome];
+      const cacheKey = `${tipoCategoria}:${nome.toLowerCase()}`;
+      if (categoriaCache[cacheKey]) return categoriaCache[cacheKey];
       // Buscar existente
       const { data: existing } = await supabase
         .from('categorias')
         .select('id')
         .eq('user_id', user?.id)
+        .eq('tipo', tipoCategoria)
         .ilike('nome', nome)
         .maybeSingle();
       if (existing?.id) {
-        categoriaCache[nome] = existing.id;
+        categoriaCache[cacheKey] = existing.id;
         return existing.id;
       }
       // Criar nova
       const { data: created } = await supabase
         .from('categorias')
-        .insert({ user_id: user?.id, nome })
+        .insert({ user_id: user?.id, nome, tipo: tipoCategoria })
         .select('id')
         .maybeSingle();
       if (created?.id) {
-        categoriaCache[nome] = created.id;
+        categoriaCache[cacheKey] = created.id;
         return created.id;
       }
       return null;
@@ -586,9 +588,10 @@ export default function Cartoes({ isModal = false }) {
       return `${base} ${parcelaAtual}/${totalParcelas}`.trim();
     };
     for (const t of transacoes) {
-      const categoriaId = await getOrCreateCategoriaId(t.categoria || '');
       const parcelaInfo = parseParcela(t);
       const tipoTransacao = (t.tipo === 'pagamento' || t.tipo === 'estorno') ? 'receita' : 'despesa';
+      const tipoCategoria = tipoTransacao === 'despesa' ? 'despesa' : 'receita';
+      const categoriaId = await getOrCreateCategoriaId(t.categoria || '', tipoCategoria);
       const baseData = t.quando && !Number.isNaN(new Date(t.quando).getTime())
         ? new Date(t.quando)
         : new Date();

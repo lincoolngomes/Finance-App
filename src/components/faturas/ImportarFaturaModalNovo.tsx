@@ -35,6 +35,7 @@ interface ImportarFaturaModalNovoProps {
 
 export function ImportarFaturaModalNovo({ open, onClose, onImport, cartoes, initialCardId }: ImportarFaturaModalNovoProps) {
   const DRAFT_KEY = 'importar-fatura-modal-novo:draft:v1';
+  const CATEGORIA_PAGAMENTO_FATURA = 'Pagamento de Fatura';
   const { user } = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const scrollableRef = useRef<HTMLDivElement>(null);
@@ -58,6 +59,11 @@ export function ImportarFaturaModalNovo({ open, onClose, onImport, cartoes, init
   const [criarParcelasFuturas, setCriarParcelasFuturas] = useState(true);
   const [modoImportacao, setModoImportacao] = useState<'ambas' | 'somente_parceladas' | 'somente_nao_parceladas'>('ambas');
   const [draftRestored, setDraftRestored] = useState(false);
+  const [categoriasDespesa, setCategoriasDespesa] = useState<string[]>([
+    'Alimentação', 'Transporte', 'Compras', 'Assinaturas', 'Saúde', 'Combustível', 'Lazer', 'Academia', 'Vestuário',
+    'Educação', 'Serviços', 'Utilidades'
+  ]);
+  const [categoriasReceita, setCategoriasReceita] = useState<string[]>([CATEGORIA_PAGAMENTO_FATURA]);
 
   const getDefaultFaturaVencimento = (cartao: any, referencia = new Date()) => {
     const diaFechamento = Math.max(1, Number(cartao?.dia_fechamento || 1));
@@ -165,6 +171,31 @@ export function ImportarFaturaModalNovo({ open, onClose, onImport, cartoes, init
   }, [regrasTexto]);
 
   useEffect(() => {
+    if (!open || !user?.id) return;
+    (async () => {
+      const { data } = await supabase
+        .from('categorias')
+        .select('nome, tipo')
+        .eq('user_id', user.id);
+
+      if (!data || data.length === 0) return;
+
+      const despesas = data
+        .filter((c: any) => !c?.tipo || c.tipo === 'despesa')
+        .map((c: any) => (c.nome || '').trim())
+        .filter(Boolean);
+
+      const receitas = data
+        .filter((c: any) => c?.tipo === 'receita')
+        .map((c: any) => (c.nome || '').trim())
+        .filter(Boolean);
+
+      if (despesas.length > 0) setCategoriasDespesa(Array.from(new Set(despesas)));
+      setCategoriasReceita(Array.from(new Set([CATEGORIA_PAGAMENTO_FATURA, ...receitas])));
+    })();
+  }, [open, user?.id]);
+
+  useEffect(() => {
     if (!open || !draftRestored) return;
     const draft = {
       userId: user?.id || null,
@@ -201,13 +232,19 @@ export function ImportarFaturaModalNovo({ open, onClose, onImport, cartoes, init
     if (step === 2 && transacoes.length > 0) {
       setTransacoes(trans => trans.map(t => {
         if (t.categoriaManual) return t;
+        if (t.tipo === 'pagamento' || t.tipo === 'estorno') {
+          return {
+            ...t,
+            categoria: CATEGORIA_PAGAMENTO_FATURA,
+          };
+        }
         return {
           ...t,
-          categoria: categorizar(t.estabelecimento, regrasTexto)
+          categoria: categorizar(t.estabelecimento, regrasTexto) || categoriasDespesa[0] || 'Compras'
         };
       }));
     }
-  }, [regrasTexto, step]);
+  }, [regrasTexto, step, categoriasDespesa]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setParseError("");
@@ -287,7 +324,9 @@ export function ImportarFaturaModalNovo({ open, onClose, onImport, cartoes, init
               estabelecimento,
               valor,
               tipo,
-              categoria: categorizar(estabelecimento, regrasTexto),
+              categoria: (tipo === 'pagamento' || tipo === 'estorno')
+                ? CATEGORIA_PAGAMENTO_FATURA
+                : (categorizar(estabelecimento, regrasTexto) || categoriasDespesa[0] || 'Compras'),
               parcela_atual,
               total_parcelas,
             };
@@ -327,6 +366,24 @@ export function ImportarFaturaModalNovo({ open, onClose, onImport, cartoes, init
       }
       return l;
     }));
+  };
+
+  const handleCategoriaChange = (t: Transacao, value: string) => {
+    if (value !== '__nova__') {
+      handleEditLancamento(t, 'categoria', value);
+      return;
+    }
+
+    const nome = window.prompt('Digite o nome da nova categoria:');
+    if (!nome || !nome.trim()) return;
+    const nomeLimpo = nome.trim();
+
+    if (t.tipo === 'pagamento' || t.tipo === 'estorno') {
+      setCategoriasReceita(prev => Array.from(new Set([nomeLimpo, ...prev])));
+    } else {
+      setCategoriasDespesa(prev => Array.from(new Set([nomeLimpo, ...prev])));
+    }
+    handleEditLancamento(t, 'categoria', nomeLimpo);
   };
 
   const handleSort = (field: string) => {
@@ -449,12 +506,6 @@ export function ImportarFaturaModalNovo({ open, onClose, onImport, cartoes, init
   };
 
   if (!open) return null;
-
-  const categoriasList = [
-    'Alimentação', 'Transporte', 'Compras', 'Assinaturas',
-    'Saúde', 'Combustível', 'Lazer', 'Academia', 'Vestuário',
-    'Educação', 'Serviços', 'Utilidades'
-  ];
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-md" onClick={(e) => e.currentTarget === e.target && closeModalKeepingDraft()}>
@@ -743,15 +794,29 @@ export function ImportarFaturaModalNovo({ open, onClose, onImport, cartoes, init
                             </div>
                           </td>
                           <td className="px-1 py-2">
+                            {(() => {
+                              const categoriasDaLinha = (t.tipo === 'pagamento' || t.tipo === 'estorno')
+                                ? categoriasReceita
+                                : categoriasDespesa;
+                              const valueAtual = categoriasDaLinha.includes(t.categoria)
+                                ? t.categoria
+                                : (t.categoria || categoriasDaLinha[0] || '');
+                              return (
                             <select
                               className="w-full px-1 py-1 rounded-lg bg-slate-700/30 border border-slate-600/50 text-slate-100 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition"
-                              value={t.categoria}
-                              onChange={e => handleEditLancamento(t, 'categoria', e.target.value)}
+                              value={valueAtual}
+                              onChange={e => handleCategoriaChange(t, e.target.value)}
                             >
-                              {categoriasList.map(cat => (
+                              {!categoriasDaLinha.includes(valueAtual) && valueAtual && (
+                                <option value={valueAtual}>{valueAtual}</option>
+                              )}
+                              {categoriasDaLinha.map(cat => (
                                 <option key={cat} value={cat}>{cat}</option>
                               ))}
+                              <option value="__nova__">+ Nova categoria...</option>
                             </select>
+                              );
+                            })()}
                           </td>
                         </tr>
                       ))}
