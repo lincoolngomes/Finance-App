@@ -160,10 +160,10 @@ function EditCartaoModal({ cartao, open, onClose, onSave, onDelete }) {
   useEffect(() => {
     if (cartao) {
       setFormData({
-        name: cartao.name || '',
+        name: cartao.name || cartao.nome || '',
         limite: cartao.limite || 0,
-        dia_fechamento: cartao.dia_fechamento || '',
-        dia_vencimento: cartao.dia_vencimento || '',
+        dia_fechamento: cartao.dia_fechamento ? String(cartao.dia_fechamento) : '',
+        dia_vencimento: cartao.dia_vencimento ? String(cartao.dia_vencimento) : '',
         cor: cartao.cor || '#3b82f6',
         linked_account_id: cartao.linked_account_id || null,
       });
@@ -193,7 +193,7 @@ function EditCartaoModal({ cartao, open, onClose, onSave, onDelete }) {
       .eq('user_id', user?.id)
       .order('nome');
     
-    if (data) setContas(data.map(c => ({ ...c, name: c.nome || c.name })));
+    if (data) setContas(data.map(c => ({ ...c, name: c.nome || c.name || '', type: c.tipo || c.type || '' })));
   };
 
   const handleChange = (field: string, value: any) => {
@@ -213,35 +213,36 @@ function EditCartaoModal({ cartao, open, onClose, onSave, onDelete }) {
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl">
-        <div className="space-y-6">
-          {/* Header */}
-          <div>
-            <h2 className="text-2xl font-bold">{cartao ? 'Editar Cartão' : 'Novo Cartão'}</h2>
-            <p className="text-sm text-muted-foreground mt-1">Configure os detalhes do seu cartão de crédito</p>
-          </div>
+      <DialogContent className="max-w-lg p-0 gap-0 border-slate-700/50 bg-slate-900/95 backdrop-blur-xl overflow-hidden max-h-[90vh] flex flex-col">
+        {/* Header fixo */}
+        <div className="px-6 pt-5 pb-3 border-b border-slate-700/50 shrink-0">
+          <h2 className="text-lg font-semibold">{cartao ? 'Editar Cartão' : 'Novo Cartão'}</h2>
+          <p className="text-xs text-muted-foreground mt-0.5">Configure os detalhes do seu cartão de crédito</p>
+        </div>
 
-          {/* Preview do Cartão */}
-          <div className="p-6 rounded-xl text-white relative overflow-hidden shadow-xl"
+        {/* Conteúdo com scroll */}
+        <div className="overflow-y-auto flex-1 px-6 py-4 space-y-4">
+          {/* Preview do Cartão - compacto */}
+          <div className="p-4 rounded-xl text-white relative overflow-hidden shadow-lg"
             style={{ background: `linear-gradient(135deg, ${formData.cor} 0%, ${adjustColor(formData.cor, 30)} 100%)` }}>
-            <div className="absolute -right-12 -top-12 w-40 h-40 bg-white/10 rounded-full blur-2xl"></div>
-            <div className="absolute -left-12 -bottom-12 w-40 h-40 bg-white/10 rounded-full blur-2xl"></div>
+            <div className="absolute -right-10 -top-10 w-32 h-32 bg-white/10 rounded-full blur-2xl"></div>
+            <div className="absolute -left-10 -bottom-10 w-32 h-32 bg-white/10 rounded-full blur-2xl"></div>
             
             <div className="relative z-10">
-              <div className="flex items-start justify-between mb-8">
+              <div className="flex items-start justify-between mb-4">
                 <div>
-                  <p className="text-xs font-semibold opacity-80 uppercase tracking-wider">Cartão de Crédito</p>
-                  <h3 className="text-xl font-bold mt-2">{formData.name || 'Seu Cartão'}</h3>
+                  <p className="text-[10px] font-semibold opacity-80 uppercase tracking-wider">Cartão de Crédito</p>
+                  <h3 className="text-base font-bold mt-1">{formData.name || 'Seu Cartão'}</h3>
                 </div>
-                <div className="text-3xl font-bold opacity-60">◆</div>
+                <div className="text-2xl font-bold opacity-60">◆</div>
               </div>
               
-              <div className="mb-8">
-                <p className="text-xs opacity-80 mb-1">Limite Disponível</p>
-                <p className="text-2xl font-bold">{formatCurrency(formData.limite)}</p>
+              <div className="mb-4">
+                <p className="text-[10px] opacity-80 mb-0.5">Limite Disponível</p>
+                <p className="text-lg font-bold">{formatCurrency(formData.limite)}</p>
               </div>
               
-              <div className="flex items-center justify-between text-xs">
+              <div className="flex items-center justify-between text-[11px]">
                 <div>
                   <p className="opacity-80">Fechamento</p>
                   <p className="font-semibold">{formData.dia_fechamento || '-'}</p>
@@ -252,7 +253,7 @@ function EditCartaoModal({ cartao, open, onClose, onSave, onDelete }) {
                 </div>
                 <div className="text-right">
                   <p className="opacity-80">Conta</p>
-                  <p className="font-semibold text-xs">
+                  <p className="font-semibold">
                     {formData.linked_account_id 
                       ? (contas.find(c => c.id === formData.linked_account_id)?.name || 'Vinculada')
                       : 'Sem vínculo'
@@ -264,143 +265,141 @@ function EditCartaoModal({ cartao, open, onClose, onSave, onDelete }) {
           </div>
 
           {/* Formulário */}
-          <div className="space-y-4 max-h-[400px] overflow-y-auto">
-            {/* Nome do Cartão */}
-            <div className="space-y-2">
-              <label className="text-sm font-semibold">Nome do Cartão</label>
-              <Input
-                placeholder="Ex: Black IP, Platinum, etc"
-                value={formData.name}
-                onChange={(e) => handleChange('name', e.target.value)}
-                className="bg-slate-800/50 border-border/40 h-9"
-              />
-            </div>
+          {/* Nome do Cartão */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold uppercase tracking-wider text-slate-400">Nome do Cartão</label>
+            <Input
+              placeholder="Ex: Black Itaú, Platinum, etc"
+              value={formData.name}
+              onChange={(e) => handleChange('name', e.target.value)}
+              className="bg-slate-800/50 border-slate-700/50 h-9"
+            />
+          </div>
 
-            {/* Conta Vinculada */}
-            <div className="space-y-2">
-              <label className="text-sm font-semibold">🔗 Conta Vinculada</label>
-              <Select 
-                value={formData.linked_account_id || 'none'} 
-                onValueChange={(value) => handleChange('linked_account_id', value === 'none' ? null : value)}
-              >
-                <SelectTrigger className="bg-slate-800/50 border-border/40 h-9">
-                  <SelectValue placeholder="Sem vinculação" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">
-                    <span className="text-muted-foreground">Sem vinculação</span>
+          {/* Conta Vinculada */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold uppercase tracking-wider text-slate-400">🔗 Conta Vinculada</label>
+            <Select 
+              value={formData.linked_account_id || 'none'} 
+              onValueChange={(value) => handleChange('linked_account_id', value === 'none' ? null : value)}
+            >
+              <SelectTrigger className="bg-slate-800/50 border-slate-700/50 h-9">
+                <SelectValue placeholder="Sem vinculação" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">
+                  <span className="text-muted-foreground">Sem vinculação</span>
+                </SelectItem>
+                {contas.map(conta => (
+                  <SelectItem key={conta.id} value={conta.id}>
+                    {conta.name}
                   </SelectItem>
-                  {contas.map(conta => (
-                    <SelectItem key={conta.id} value={conta.id}>
-                      {conta.name} ({conta.type})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-muted-foreground">
-                Ao pagar a fatura, o valor será debitado automaticamente desta conta
-              </p>
-            </div>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-[11px] text-muted-foreground">
+              Ao pagar a fatura, o valor será debitado automaticamente desta conta
+            </p>
+          </div>
 
-            {/* Limite */}
-            <div className="space-y-2">
-              <label className="text-sm font-semibold">Limite (R$)</label>
-              <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">R$</span>
-                <Input
-                  type="text"
-                  placeholder="15000,00"
-                  value={formData.limite ? formData.limite.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : ''}
-                  onChange={(e) => {
-                    const value = e.target.value.replace(/\D/g, '');
-                    const numValue = value ? parseFloat(value) / 100 : 0;
-                    handleChange('limite', numValue);
-                  }}
-                  className="bg-slate-800/50 border-border/40 h-9 pl-8"
-                />
-              </div>
-            </div>
-
-            {/* Dia de Fechamento */}
-            <div className="space-y-2">
-              <label className="text-sm font-semibold">Dia de Fechamento</label>
-              <Select value={formData.dia_fechamento} onValueChange={(value) => handleChange('dia_fechamento', value)}>
-                <SelectTrigger className="bg-slate-800/50 border-border/40 h-9">
-                  <SelectValue placeholder="Selecione o dia" />
-                </SelectTrigger>
-                <SelectContent>
-                  {Array.from({ length: 31 }, (_, i) => i + 1).map(day => (
-                    <SelectItem key={day} value={day.toString()}>{day}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Dia de Vencimento */}
-            <div className="space-y-2">
-              <label className="text-sm font-semibold">Dia de Vencimento</label>
-              <Select value={formData.dia_vencimento} onValueChange={(value) => handleChange('dia_vencimento', value)}>
-                <SelectTrigger className="bg-slate-800/50 border-border/40 h-9">
-                  <SelectValue placeholder="Selecione o dia" />
-                </SelectTrigger>
-                <SelectContent>
-                  {Array.from({ length: 31 }, (_, i) => i + 1).map(day => (
-                    <SelectItem key={day} value={day.toString()}>{day}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Cor do Cartão */}
-            <div className="space-y-2">
-              <label className="text-sm font-semibold">Cor do Cartão</label>
-              <div className="flex items-center gap-3">
-                <input
-                  type="color"
-                  value={formData.cor}
-                  onChange={(e) => handleChange('cor', e.target.value)}
-                  className="w-12 h-10 rounded cursor-pointer border border-border/40"
-                />
-                <div className="flex-1">
-                  <Input
-                    placeholder="#3b82f6"
-                    value={formData.cor}
-                    onChange={(e) => handleChange('cor', e.target.value)}
-                    className="bg-slate-800/50 border-border/40 h-9 font-mono text-sm"
-                  />
-                </div>
-              </div>
+          {/* Limite */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold uppercase tracking-wider text-slate-400">Limite (R$)</label>
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">R$</span>
+              <Input
+                type="text"
+                placeholder="15000,00"
+                value={formData.limite ? formData.limite.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : ''}
+                onChange={(e) => {
+                  const value = e.target.value.replace(/\D/g, '');
+                  const numValue = value ? parseFloat(value) / 100 : 0;
+                  handleChange('limite', numValue);
+                }}
+                className="bg-slate-800/50 border-slate-700/50 h-9 pl-9"
+              />
             </div>
           </div>
 
-          {/* Botões */}
-          <div className="flex items-center pt-4 border-t border-border/40">
-            {cartao && onDelete && (
-              <Button 
-                variant="ghost" 
-                onClick={() => {
-                  if (window.confirm('Tem certeza que deseja excluir este cartão? Todas as transações vinculadas serão desvinculadas.')) {
-                    onDelete(cartao);
-                    onClose();
-                  }
-                }} 
-                className="h-9 text-red-500 hover:text-red-600 hover:bg-red-500/10 gap-1.5"
-              >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                </svg>
-                Excluir Cartão
-              </Button>
-            )}
-            <div className="flex-1" />
-            <div className="flex gap-2">
-              <Button variant="outline" onClick={onClose} className="h-9">
-                Cancelar
-              </Button>
-              <Button onClick={handleSave} className="bg-blue-600 hover:bg-blue-700 h-9">
-                Salvar Cartão
-              </Button>
+          {/* Fechamento + Vencimento lado a lado */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold uppercase tracking-wider text-slate-400">Dia Fechamento</label>
+              <Select value={formData.dia_fechamento} onValueChange={(value) => handleChange('dia_fechamento', value)}>
+                <SelectTrigger className="bg-slate-800/50 border-slate-700/50 h-9">
+                  <SelectValue placeholder="Dia" />
+                </SelectTrigger>
+                <SelectContent>
+                  {Array.from({ length: 31 }, (_, i) => i + 1).map(day => (
+                    <SelectItem key={day} value={day.toString()}>{day}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
+            <div className="space-y-1.5">
+              <label className="text-xs font-semibold uppercase tracking-wider text-slate-400">Dia Vencimento</label>
+              <Select value={formData.dia_vencimento} onValueChange={(value) => handleChange('dia_vencimento', value)}>
+                <SelectTrigger className="bg-slate-800/50 border-slate-700/50 h-9">
+                  <SelectValue placeholder="Dia" />
+                </SelectTrigger>
+                <SelectContent>
+                  {Array.from({ length: 31 }, (_, i) => i + 1).map(day => (
+                    <SelectItem key={day} value={day.toString()}>{day}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          {/* Cor do Cartão */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-semibold uppercase tracking-wider text-slate-400">Cor do Cartão</label>
+            <div className="flex items-center gap-3">
+              <input
+                type="color"
+                value={formData.cor}
+                onChange={(e) => handleChange('cor', e.target.value)}
+                className="w-10 h-9 rounded cursor-pointer border border-slate-700/50"
+              />
+              <div className="flex-1">
+                <Input
+                  placeholder="#3b82f6"
+                  value={formData.cor}
+                  onChange={(e) => handleChange('cor', e.target.value)}
+                  className="bg-slate-800/50 border-slate-700/50 h-9 font-mono text-sm"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Footer fixo */}
+        <div className="flex items-center px-6 py-3 border-t border-slate-700/50 shrink-0 bg-slate-900/50">
+          {cartao && onDelete && (
+            <Button 
+              variant="ghost" 
+              onClick={() => {
+                if (window.confirm('Tem certeza que deseja excluir este cartão? Todas as transações vinculadas serão desvinculadas.')) {
+                  onDelete(cartao);
+                  onClose();
+                }
+              }} 
+              className="h-9 text-red-500 hover:text-red-600 hover:bg-red-500/10 gap-1.5 text-xs"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+              Excluir Cartão
+            </Button>
+          )}
+          <div className="flex-1" />
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={onClose} className="h-9 text-sm">
+              Cancelar
+            </Button>
+            <Button onClick={handleSave} className="bg-blue-600 hover:bg-blue-700 h-9 text-sm">
+              Salvar Cartão
+            </Button>
           </div>
         </div>
       </DialogContent>

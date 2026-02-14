@@ -1,5 +1,5 @@
 import { NavLink, useLocation } from 'react-router-dom'
-import { Home, Calendar, CalendarDays, User, LogOut, FileText, Shield, Bell, Wallet, TrendingUp, ArrowLeftRight, MessageCircle, Target, Scale } from 'lucide-react'
+import { Home, Calendar, CalendarDays, User, LogOut, FileText, Shield, Bell, Wallet, TrendingUp, ArrowLeftRight, MessageCircle, Target, Scale, CreditCard, Landmark, Tags } from 'lucide-react'
 import {
   Sidebar,
   SidebarContent,
@@ -50,6 +50,13 @@ export function AppSidebar() {
     { title: 'Bens e Dívidas', url: '/patrimonio', icon: Scale },
     { title: 'Relatórios', url: '/relatorios', icon: FileText },
     { title: 'WhatsApp', url: '/whatsapp', icon: MessageCircle },
+  ]
+
+  // Items de configuração (Cartões, Contas, Categorias)
+  const configItems = [
+    { title: 'Cartões', url: '/cartoes', icon: CreditCard },
+    { title: 'Contas', url: '/contas', icon: Landmark },
+    { title: 'Categorias', url: '/categorias', icon: Tags },
   ]
 
   // Items apenas para admin
@@ -143,6 +150,33 @@ export function AppSidebar() {
               ))}
 
 
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+
+        <SidebarGroup className="dark:bg-slate-950">
+          <SidebarGroupLabel className="text-xs uppercase tracking-wider text-muted-foreground dark:text-slate-400">
+            Configurações
+          </SidebarGroupLabel>
+          <SidebarGroupContent className="dark:bg-slate-950">
+            <SidebarMenu className="dark:bg-slate-950">
+              {configItems.map((item) => (
+                <SidebarMenuItem key={item.title}>
+                  <SidebarMenuButton
+                    asChild
+                    className={`${
+                      isActive(item.url)
+                        ? 'bg-primary text-primary-foreground hover:bg-primary/90 dark:bg-blue-600 dark:text-white'
+                        : 'hover:bg-accent dark:hover:bg-slate-800'
+                    }`}
+                  >
+                    <NavLink to={item.url} end onClick={handleMobileItemClick}>
+                      <item.icon className="h-4 w-4" />
+                      <span>{item.title}</span>
+                    </NavLink>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>

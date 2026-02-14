@@ -99,12 +99,15 @@ const Transacoes: React.FC = () => {
   // Filtros avançados
   const [advFilters, setAdvFilters] = useState({
     period: '',
+    tipo: '',
     categories: [] as string[],
     accounts: [] as string[],
     cards: [] as string[],
     status: '',
     minValue: '',
     maxValue: '',
+    onlyRecorrentes: false,
+    onlyParceladas: false,
   });
   // Estado para controle do diálogo de transação
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -177,6 +180,43 @@ const Transacoes: React.FC = () => {
     if (hideCardTransactions) {
       filtered = filtered.filter(t => !t.cartao_id);
     }
+    // Filtros avançados: cartão
+    if (advFilters.cards.length > 0) {
+      filtered = filtered.filter(t => t.cartao_id && advFilters.cards.includes(t.cartao_id));
+    }
+    // Filtros avançados: status
+    if (advFilters.status) {
+      filtered = filtered.filter(t => {
+        if (advFilters.status === 'pago') return t.pago === true;
+        if (advFilters.status === 'pendente') return t.pago === false || t.pago === null;
+        if (advFilters.status === 'atrasado') {
+          const dataT = t.data ? new Date(t.data) : null;
+          return (!t.pago) && dataT && dataT < new Date();
+        }
+        return true;
+      });
+    }
+    // Filtros avançados: faixa de valor
+    if (advFilters.minValue) {
+      const min = parseFloat(advFilters.minValue);
+      if (!isNaN(min)) filtered = filtered.filter(t => Math.abs(t.valor) >= min);
+    }
+    if (advFilters.maxValue) {
+      const max = parseFloat(advFilters.maxValue);
+      if (!isNaN(max)) filtered = filtered.filter(t => Math.abs(t.valor) <= max);
+    }
+    // Filtros avançados: apenas recorrentes
+    if (advFilters.onlyRecorrentes) {
+      filtered = filtered.filter(t => t.recorrente === true);
+    }
+    // Filtros avançados: apenas parceladas
+    if (advFilters.onlyParceladas) {
+      const parcelaRegex = /\d{1,2}\/\d{1,2}\s*$/;
+      filtered = filtered.filter(t => {
+        const desc = t.descricao || t.estabelecimento || '';
+        return parcelaRegex.test(desc) || (t.total_parcelas && t.total_parcelas > 1);
+      });
+    }
 
     // Filtro por mês/ano selecionado
     const monthIndex = (() => { const m = parseInt(filterMonth); return isNaN(m) ? new Date().getMonth() : (m > 11 ? m - 1 : m) })()
@@ -219,7 +259,7 @@ const Transacoes: React.FC = () => {
     
     console.log('✨ Transações filtradas:', filtered.length, 'de', transacoes.length);
     return filtered;
-  }, [transacoes, accountFilter, typeFilter, categoryFilter, dateFrom, dateTo, searchTerm, sortOrder, hideCardTransactions, filterMonth, filterYear]);
+  }, [transacoes, accountFilter, typeFilter, categoryFilter, dateFrom, dateTo, searchTerm, sortOrder, hideCardTransactions, filterMonth, filterYear, advFilters]);
 
   // Variáveis auxiliares para seleção em massa (após filteredTransacoes)
   const isAllSelected = filteredTransacoes.length > 0 && selectedIds.length === filteredTransacoes.length;
@@ -1184,20 +1224,63 @@ const Transacoes: React.FC = () => {
 
   // Modal Filtros Avançados
   const handleApplyAdvancedFilters = () => {
-    // Aplicar os filtros ao estado principal
+    // Aplicar filtros ao estado principal
+    if (advFilters.tipo) {
+      setTypeFilter(advFilters.tipo);
+    }
     if (advFilters.categories.length > 0) {
       setCategoryFilter(advFilters.categories[0]);
     }
     if (advFilters.accounts.length > 0) {
       setAccountFilter(advFilters.accounts[0]);
     }
-    if (advFilters.cards.length > 0) {
-      setAccountFilter(advFilters.cards[0]);
-    }
-    if (advFilters.status) {
-      // Implementar filtro de status se necessário
+    // Período: ajustar dateFrom/dateTo
+    if (advFilters.period) {
+      const now = new Date();
+      let from = '';
+      if (advFilters.period === 'ultima_semana') {
+        const d = new Date(now); d.setDate(d.getDate() - 7);
+        from = d.toISOString().split('T')[0];
+      } else if (advFilters.period === 'ultimo_mes') {
+        const d = new Date(now); d.setMonth(d.getMonth() - 1);
+        from = d.toISOString().split('T')[0];
+      } else if (advFilters.period === 'ultimos_3_meses') {
+        const d = new Date(now); d.setMonth(d.getMonth() - 3);
+        from = d.toISOString().split('T')[0];
+      } else if (advFilters.period === 'ultimo_ano') {
+        const d = new Date(now); d.setFullYear(d.getFullYear() - 1);
+        from = d.toISOString().split('T')[0];
+      }
+      if (from) {
+        setDateFrom(from);
+        setDateTo(now.toISOString().split('T')[0]);
+      }
     }
     setAdvancedFiltersOpen(false);
+    toast({ title: 'Filtros aplicados', description: 'Os filtros avançados foram aplicados com sucesso.' });
+  };
+
+  const handleClearAdvancedFilters = () => {
+    setAdvFilters({
+      period: '',
+      tipo: '',
+      categories: [],
+      accounts: [],
+      cards: [],
+      status: '',
+      minValue: '',
+      maxValue: '',
+      onlyRecorrentes: false,
+      onlyParceladas: false,
+    });
+    setTypeFilter('all');
+    setCategoryFilter('all');
+    setAccountFilter('all');
+    setDateFrom('');
+    setDateTo('');
+    setSearchTerm('');
+    setHideCardTransactions(false);
+    toast({ title: 'Filtros limpos', description: 'Todos os filtros foram removidos.' });
   };
 
   // Função para recalcular e corrigir o saldo
@@ -1551,8 +1634,15 @@ const Transacoes: React.FC = () => {
 
       {/* Filtros Secundários */}
       <div className="flex items-center gap-4 py-2">
-        <Button variant="ghost" className="h-8 text-xs rounded-lg px-3 bg-slate-800/50 hover:bg-slate-800 text-slate-300" onClick={() => setAdvancedFiltersOpen(true)}>
+        <Button variant="ghost" className={`h-8 text-xs rounded-lg px-3 ${(() => {
+          const count = [advFilters.tipo && advFilters.tipo !== 'all', advFilters.period, advFilters.categories.length > 0, advFilters.accounts.length > 0, advFilters.cards.length > 0, advFilters.status && advFilters.status !== 'all', advFilters.minValue, advFilters.maxValue, advFilters.onlyRecorrentes, advFilters.onlyParceladas].filter(Boolean).length;
+          return count > 0 ? 'bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/30' : 'bg-slate-800/50 hover:bg-slate-800 text-slate-300';
+        })()}`} onClick={() => setAdvancedFiltersOpen(true)}>
           🔍 Filtros Avançados
+          {(() => {
+            const count = [advFilters.tipo && advFilters.tipo !== 'all', advFilters.period, advFilters.categories.length > 0, advFilters.accounts.length > 0, advFilters.cards.length > 0, advFilters.status && advFilters.status !== 'all', advFilters.minValue, advFilters.maxValue, advFilters.onlyRecorrentes, advFilters.onlyParceladas].filter(Boolean).length;
+            return count > 0 ? <span className="ml-1.5 inline-flex items-center justify-center w-4 h-4 text-[10px] font-bold bg-blue-500 text-white rounded-full">{count}</span> : null;
+          })()}
         </Button>
         <div className="flex items-center gap-2 bg-slate-800/50 hover:bg-slate-800/75 transition-colors rounded-lg px-3 py-1.5 cursor-pointer">
           <input type="checkbox" className="w-4 h-4" checked={hideCardTransactions} onChange={(e) => setHideCardTransactions(e.target.checked)} />
@@ -2224,123 +2314,241 @@ const Transacoes: React.FC = () => {
 
       {/* Modal Filtros Avançados */}
       <Dialog open={advancedFiltersOpen} onOpenChange={setAdvancedFiltersOpen}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>Filtros Avançados</DialogTitle>
-            <DialogDescription>Customize seus filtros para encontrar transações específicas</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            {/* Período */}
-            <div>
-              <Label className="text-sm font-medium">Período</Label>
-              <Select value={advFilters.period} onValueChange={(v) => setAdvFilters({...advFilters, period: v})}>
-                <SelectTrigger className="mt-1">
-                  <SelectValue placeholder="Selecione o período" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ultima_semana">Última semana</SelectItem>
-                  <SelectItem value="ultimo_mes">Último mês</SelectItem>
-                  <SelectItem value="ultimos_3_meses">Últimos 3 meses</SelectItem>
-                  <SelectItem value="ultimo_ano">Último ano</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+        <DialogContent className="max-w-xl p-0 gap-0 border-slate-700/50 bg-slate-900/95 backdrop-blur-xl overflow-hidden">
+          {/* Header */}
+          <div className="px-6 pt-6 pb-4 border-b border-slate-700/50">
+            <DialogHeader>
+              <DialogTitle className="text-lg font-semibold flex items-center gap-2">
+                <span className="p-1.5 rounded-lg bg-blue-500/10 border border-blue-500/20">
+                  <svg className="w-4 h-4 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" /></svg>
+                </span>
+                Filtros Avançados
+              </DialogTitle>
+              <DialogDescription className="text-slate-400 text-sm">Refine sua busca com filtros detalhados</DialogDescription>
+            </DialogHeader>
+          </div>
 
-            {/* Categoria */}
-            <div>
-              <Label className="text-sm font-medium">Categoria</Label>
-              <CategorySelector
-                value={advFilters.categories[0] || ''}
-                onValueChange={(v) => setAdvFilters({...advFilters, categories: v ? [v] : []})}
-                placeholder="Selecione categorias"
-                allValue=""
-                className="mt-1"
-              />
-            </div>
-
-            {/* Conta */}
-            <div>
-              <Label className="text-sm font-medium">Conta</Label>
-              <Select value={advFilters.accounts[0] || ''} onValueChange={(v) => setAdvFilters({...advFilters, accounts: v ? [v] : []})}>
-                <SelectTrigger className="mt-1">
-                  <SelectValue placeholder="Selecione contas" />
-                </SelectTrigger>
-                <SelectContent>
-                  {contas.filter(c => {
-                    if (!c.type) return true; // Se não tem tipo, assume que é conta
-                    const normaliza = (str) => str.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
-                    const tipo = normaliza(c.type);
-                    return !(tipo.includes('cartao') || tipo.includes('credito') || tipo.includes('debito'));
-                  }).map(c => (
-                    <SelectItem key={c.id} value={c.id}>{c.nome || c.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Cartão */}
-            <div>
-              <Label className="text-sm font-medium">Cartão</Label>
-              <Select value={advFilters.cards[0] || ''} onValueChange={(v) => setAdvFilters({...advFilters, cards: v ? [v] : []})}>
-                <SelectTrigger className="mt-1">
-                  <SelectValue placeholder="Selecione cartões" />
-                </SelectTrigger>
-                <SelectContent>
-                  {contas.filter(c => {
-                    if (!c.type) return false;
-                    const normaliza = (str) => str.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
-                    const tipo = normaliza(c.type);
-                    return tipo.includes('cartao') || tipo.includes('credito') || tipo.includes('debito');
-                  }).map(c => (
-                    <SelectItem key={c.id} value={c.id}>{c.nome || c.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Status */}
-            <div>
-              <Label className="text-sm font-medium">Status</Label>
-              <Select value={advFilters.status} onValueChange={(v) => setAdvFilters({...advFilters, status: v})}>
-                <SelectTrigger className="mt-1">
-                  <SelectValue placeholder="Selecione o status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="pendente">Pendente</SelectItem>
-                  <SelectItem value="pago">Pago</SelectItem>
-                  <SelectItem value="atrasado">Atrasado</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Faixa de Valor */}
+          <div className="px-6 py-5 space-y-5 max-h-[65vh] overflow-y-auto">
+            {/* Linha 1: Tipo + Período */}
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <Label className="text-sm font-medium">Valor Mínimo</Label>
-                <Input type="number" placeholder="0,00" className="mt-1" />
+                <Label className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5 block">Tipo</Label>
+                <Select value={advFilters.tipo} onValueChange={(v) => setAdvFilters({...advFilters, tipo: v})}>
+                  <SelectTrigger className="bg-slate-800/50 border-slate-700/50 hover:border-slate-600 transition-colors">
+                    <SelectValue placeholder="Todos os tipos" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos os tipos</SelectItem>
+                    <SelectItem value="receita">
+                      <span className="flex items-center gap-2">🟢 Receitas</span>
+                    </SelectItem>
+                    <SelectItem value="despesa">
+                      <span className="flex items-center gap-2">🔴 Despesas</span>
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
               <div>
-                <Label className="text-sm font-medium">Valor Máximo</Label>
-                <Input type="number" placeholder="0,00" className="mt-1" />
+                <Label className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5 block">Período</Label>
+                <Select value={advFilters.period} onValueChange={(v) => setAdvFilters({...advFilters, period: v})}>
+                  <SelectTrigger className="bg-slate-800/50 border-slate-700/50 hover:border-slate-600 transition-colors">
+                    <SelectValue placeholder="Selecione o período" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ultima_semana">Última semana</SelectItem>
+                    <SelectItem value="ultimo_mes">Último mês</SelectItem>
+                    <SelectItem value="ultimos_3_meses">Últimos 3 meses</SelectItem>
+                    <SelectItem value="ultimo_ano">Último ano</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {/* Categoria com indicação de tipo */}
+            <div>
+              <Label className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5 block">Categoria</Label>
+              <Select value={advFilters.categories[0] || ''} onValueChange={(v) => setAdvFilters({...advFilters, categories: v ? [v] : []})}>
+                <SelectTrigger className="bg-slate-800/50 border-slate-700/50 hover:border-slate-600 transition-colors">
+                  <SelectValue placeholder="Todas as categorias" />
+                </SelectTrigger>
+                <SelectContent className="max-h-[300px]">
+                  <SelectItem value="all">Todas as categorias</SelectItem>
+                  {/* Receitas */}
+                  {categories.filter(c => c.tipo === 'receita').length > 0 && (
+                    <>
+                      <div className="px-2 py-1.5 text-[11px] font-bold uppercase tracking-widest text-emerald-400 bg-emerald-500/5 border-t border-b border-emerald-500/10 mt-1">
+                        ● Receitas
+                      </div>
+                      {categories.filter(c => c.tipo === 'receita').sort((a,b) => a.nome.localeCompare(b.nome)).map(cat => (
+                        <SelectItem key={cat.id} value={cat.id}>
+                          <span className="flex items-center gap-2">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
+                            {cat.nome}
+                          </span>
+                        </SelectItem>
+                      ))}
+                    </>
+                  )}
+                  {/* Despesas */}
+                  {categories.filter(c => c.tipo === 'despesa').length > 0 && (
+                    <>
+                      <div className="px-2 py-1.5 text-[11px] font-bold uppercase tracking-widest text-red-400 bg-red-500/5 border-t border-b border-red-500/10 mt-1">
+                        ● Despesas
+                      </div>
+                      {categories.filter(c => c.tipo === 'despesa').sort((a,b) => a.nome.localeCompare(b.nome)).map(cat => (
+                        <SelectItem key={cat.id} value={cat.id}>
+                          <span className="flex items-center gap-2">
+                            <span className="w-1.5 h-1.5 rounded-full bg-red-400 shrink-0" />
+                            {cat.nome}
+                          </span>
+                        </SelectItem>
+                      ))}
+                    </>
+                  )}
+                  {/* Sem tipo definido */}
+                  {categories.filter(c => !c.tipo).length > 0 && (
+                    <>
+                      <div className="px-2 py-1.5 text-[11px] font-bold uppercase tracking-widest text-slate-400 bg-slate-500/5 border-t border-b border-slate-500/10 mt-1">
+                        ● Sem tipo
+                      </div>
+                      {categories.filter(c => !c.tipo).sort((a,b) => a.nome.localeCompare(b.nome)).map(cat => (
+                        <SelectItem key={cat.id} value={cat.id}>
+                          <span className="flex items-center gap-2">
+                            <span className="w-1.5 h-1.5 rounded-full bg-slate-400 shrink-0" />
+                            {cat.nome}
+                          </span>
+                        </SelectItem>
+                      ))}
+                    </>
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Linha 3: Conta + Cartão */}
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5 block">Conta</Label>
+                <BankSelector
+                  value={advFilters.accounts[0] || ''}
+                  onValueChange={(v) => setAdvFilters({...advFilters, accounts: v ? [v] : []})}
+                  placeholder="Todas as contas"
+                />
+              </div>
+              <div>
+                <Label className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5 block">Cartão</Label>
+                <CardSelector
+                  value={advFilters.cards[0] || ''}
+                  onValueChange={(v) => setAdvFilters({...advFilters, cards: v ? [v] : []})}
+                  placeholder="Todos os cartões"
+                />
+              </div>
+            </div>
+
+            {/* Linha 4: Status + Faixa de Valor */}
+            <div className="grid grid-cols-3 gap-4">
+              <div>
+                <Label className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5 block">Status</Label>
+                <Select value={advFilters.status} onValueChange={(v) => setAdvFilters({...advFilters, status: v})}>
+                  <SelectTrigger className="bg-slate-800/50 border-slate-700/50 hover:border-slate-600 transition-colors">
+                    <SelectValue placeholder="Todos" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos</SelectItem>
+                    <SelectItem value="pago">
+                      <span className="flex items-center gap-2">✅ Pago</span>
+                    </SelectItem>
+                    <SelectItem value="pendente">
+                      <span className="flex items-center gap-2">⏳ Pendente</span>
+                    </SelectItem>
+                    <SelectItem value="atrasado">
+                      <span className="flex items-center gap-2">⚠️ Atrasado</span>
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5 block">Valor Mín.</Label>
+                <Input
+                  type="number"
+                  placeholder="0,00"
+                  value={advFilters.minValue}
+                  onChange={(e) => setAdvFilters({...advFilters, minValue: e.target.value})}
+                  className="bg-slate-800/50 border-slate-700/50 hover:border-slate-600 transition-colors"
+                />
+              </div>
+              <div>
+                <Label className="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1.5 block">Valor Máx.</Label>
+                <Input
+                  type="number"
+                  placeholder="0,00"
+                  value={advFilters.maxValue}
+                  onChange={(e) => setAdvFilters({...advFilters, maxValue: e.target.value})}
+                  className="bg-slate-800/50 border-slate-700/50 hover:border-slate-600 transition-colors"
+                />
               </div>
             </div>
 
             {/* Checkboxes */}
-            <div className="space-y-2">
-              <div className="flex items-center gap-2">
-                <input type="checkbox" id="transacoes-recorrentes" className="w-4 h-4" />
-                <label htmlFor="transacoes-recorrentes" className="text-sm">Apenas transações recorrentes</label>
-              </div>
-              <div className="flex items-center gap-2">
-                <input type="checkbox" id="compras-parceladas" className="w-4 h-4" />
-                <label htmlFor="compras-parceladas" className="text-sm">Apenas compras parceladas</label>
-              </div>
+            <div className="flex gap-4 pt-1">
+              <label className="flex items-center gap-2.5 px-3 py-2 rounded-lg bg-slate-800/30 border border-slate-700/30 hover:border-slate-600/50 transition-colors cursor-pointer flex-1">
+                <input
+                  type="checkbox"
+                  checked={advFilters.onlyRecorrentes}
+                  onChange={(e) => setAdvFilters({...advFilters, onlyRecorrentes: e.target.checked})}
+                  className="w-4 h-4 rounded border-slate-600 text-blue-500 focus:ring-blue-500/20"
+                />
+                <span className="text-sm text-slate-300">🔄 Apenas recorrentes</span>
+              </label>
+              <label className="flex items-center gap-2.5 px-3 py-2 rounded-lg bg-slate-800/30 border border-slate-700/30 hover:border-slate-600/50 transition-colors cursor-pointer flex-1">
+                <input
+                  type="checkbox"
+                  checked={advFilters.onlyParceladas}
+                  onChange={(e) => setAdvFilters({...advFilters, onlyParceladas: e.target.checked})}
+                  className="w-4 h-4 rounded border-slate-600 text-blue-500 focus:ring-blue-500/20"
+                />
+                <span className="text-sm text-slate-300">💳 Apenas parceladas</span>
+              </label>
             </div>
+
+            {/* Filtros ativos */}
+            {(() => {
+              const activeCount = [
+                advFilters.tipo && advFilters.tipo !== 'all',
+                advFilters.period,
+                advFilters.categories.length > 0,
+                advFilters.accounts.length > 0,
+                advFilters.cards.length > 0,
+                advFilters.status && advFilters.status !== 'all',
+                advFilters.minValue,
+                advFilters.maxValue,
+                advFilters.onlyRecorrentes,
+                advFilters.onlyParceladas,
+              ].filter(Boolean).length;
+              return activeCount > 0 ? (
+                <div className="flex items-center gap-2 text-xs text-blue-400 bg-blue-500/5 border border-blue-500/10 rounded-lg px-3 py-2">
+                  <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" /></svg>
+                  <span>{activeCount} {activeCount === 1 ? 'filtro ativo' : 'filtros ativos'}</span>
+                </div>
+              ) : null;
+            })()}
           </div>
 
-          <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={() => setAdvancedFiltersOpen(false)}>Limpar Filtros</Button>
-            <Button onClick={handleApplyAdvancedFilters}>Aplicar Filtros</Button>
+          {/* Footer */}
+          <div className="px-6 py-4 border-t border-slate-700/50 flex justify-between items-center bg-slate-900/50">
+            <Button
+              variant="ghost"
+              onClick={handleClearAdvancedFilters}
+              className="text-slate-400 hover:text-white hover:bg-slate-800"
+            >
+              ✕ Limpar Filtros
+            </Button>
+            <Button
+              onClick={handleApplyAdvancedFilters}
+              className="bg-blue-600 hover:bg-blue-700 text-white px-6"
+            >
+              Aplicar Filtros
+            </Button>
           </div>
         </DialogContent>
       </Dialog>
