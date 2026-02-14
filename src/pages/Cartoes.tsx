@@ -780,16 +780,17 @@ export default function Cartoes({ isModal = false }) {
   }
 
   return (
-    <div className="space-y-6 p-6">
-      <div className="flex items-center justify-between">
+    <div className="space-y-8 p-6 md:p-8">
+      <div className="rounded-2xl border border-slate-800/80 bg-gradient-to-r from-slate-900/70 via-slate-900/50 to-slate-900/30 p-5 md:p-6">
+        <div className="flex items-center justify-between gap-4 flex-wrap">
         <div>
           <h2 className="text-3xl font-bold text-foreground">Cartões de Crédito</h2>
-          <p className="text-sm text-muted-foreground mt-1">Gerencie seus cartões de crédito</p>
+          <p className="text-sm text-muted-foreground mt-1">Gerencie seus cartões, faturas e limite em tempo real</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           <Button 
             variant="outline"
-            className="h-9 text-sm rounded-lg px-4 font-semibold gap-2" 
+            className="h-9 text-sm rounded-lg px-4 font-semibold gap-2 border-slate-700/70 bg-slate-900/50 hover:bg-slate-800/70" 
             onClick={() => setHistoricoOpen(true)}
           >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -799,7 +800,7 @@ export default function Cartoes({ isModal = false }) {
           </Button>
           <Button 
             variant="outline"
-            className="h-9 text-sm rounded-lg px-4 font-semibold gap-2" 
+            className="h-9 text-sm rounded-lg px-4 font-semibold gap-2 border-slate-700/70 bg-slate-900/50 hover:bg-slate-800/70" 
             onClick={() => setImportarFaturaOpen(true)}
           >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -808,7 +809,7 @@ export default function Cartoes({ isModal = false }) {
             Importar Fatura
           </Button>
           <Button 
-            className="bg-blue-600 hover:bg-blue-700 h-9 text-sm rounded-lg px-4 font-semibold gap-2" 
+            className="bg-blue-600 hover:bg-blue-700 h-9 text-sm rounded-lg px-4 font-semibold gap-2 shadow-lg shadow-blue-900/30" 
             onClick={() => {
               setEditCartao(null);
               setEditOpen(true);
@@ -820,6 +821,7 @@ export default function Cartoes({ isModal = false }) {
             Adicionar Cartão
           </Button>
         </div>
+      </div>
       </div>
 
       {loading ? (
@@ -838,7 +840,7 @@ export default function Cartoes({ isModal = false }) {
           </Button>
         </div>
       ) : (
-        <div className={isModal ? "space-y-6" : "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8"}>
+        <div className={isModal ? "space-y-6" : "grid grid-cols-1 2xl:grid-cols-2 gap-6"}>
           {cartoes.map((cartao) => {
             const transacoesCartao = transacoes.filter(t => t.cartao_id === cartao.id);
             
@@ -887,135 +889,101 @@ export default function Cartoes({ isModal = false }) {
             const percentualUsado = limite > 0 ? Math.min(100, (limiteUsado / limite) * 100) : 0;
             
             return (
-              <div key={cartao.id} className="group">
-                {/* Cartão Visual - Proporção Real (Compacto) */}
-                <div 
-                  className="relative w-full aspect-video rounded-2xl text-white shadow-2xl overflow-hidden transition-all duration-300 hover:shadow-2xl hover:-translate-y-2 hover:scale-105 mb-4"
-                  style={{
-                    background: `linear-gradient(135deg, ${cartao.cor || '#3b82f6'} 0%, ${adjustColor(cartao.cor || '#3b82f6', -15)} 100%)`,
-                  }}
-                  onClick={() => handleEditCartao(cartao)}
-                >
-                  {/* Textura de fundo - efeito de cartão real */}
-                  <div className="absolute inset-0 opacity-20">
-                    <div className="absolute top-0 left-0 right-0 h-1/3 bg-gradient-to-b from-white/30 to-transparent"></div>
+              <div key={cartao.id} className="relative overflow-hidden rounded-3xl border border-slate-700/60 bg-gradient-to-b from-slate-900/90 via-[#07122d] to-[#050b1c] p-5 md:p-6 shadow-xl shadow-black/25">
+                <div className="pointer-events-none absolute -top-20 right-0 h-56 w-56 rounded-full bg-cyan-500/10 blur-3xl" />
+                <div className="pointer-events-none absolute -bottom-24 left-8 h-60 w-60 rounded-full bg-blue-500/10 blur-3xl" />
+
+                <div className="relative z-10 mb-5 flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Cartão de crédito</p>
+                    <h3 className="mt-1 text-xl font-semibold text-slate-100">{cartao.name || 'Sem nome'}</h3>
+                    <p className="mt-1 text-sm text-slate-400">
+                      Fecha dia {cartao.dia_fechamento || '--'} • Vence dia {cartao.dia_vencimento || '--'}
+                    </p>
                   </div>
-
-                  {/* Efeitos decorativos */}
-                  <div className="absolute -right-40 -top-40 w-80 h-80 bg-white/5 rounded-full blur-3xl"></div>
-                  <div className="absolute -left-40 -bottom-40 w-80 h-80 bg-black/10 rounded-full blur-3xl"></div>
-
-                  <div className="relative z-10 h-full flex flex-col justify-between p-6">
-                    {/* ===== TOPO DO CARTÃO ===== */}
-                    <div className="flex items-start justify-between">
-                      {/* Chip EMV */}
-                      <div className="w-10 h-8 rounded-lg bg-gradient-to-br from-yellow-300 via-yellow-400 to-yellow-600 shadow-lg border border-yellow-200 flex items-center justify-center p-1">
-                        <div className="grid grid-cols-4 gap-0.5 w-full h-full">
-                          {[...Array(8)].map((_, i) => (
-                            <div key={i} className="bg-yellow-800 rounded-sm opacity-90"></div>
-                          ))}
-                        </div>
-                      </div>
-                      
-                      {/* Contactless no topo direito */}
-                      <div className="w-6 h-6 flex items-center justify-center">
-                        <svg className="w-6 h-6 opacity-60" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8.111 16.404a5.5 5.5 0 017.778 0M12 20h.01m-7.08-7.071c3.904-3.905 10.236-3.905 14.141 0M1.394 9.393c5.857-5.857 15.355-5.857 21.213 0" />
-                        </svg>
-                      </div>
-                    </div>
-
-                    {/* ===== MEIO DO CARTÃO ===== */}
-                    <div className="space-y-3">
-                      {/* Número do cartão */}
-                      <p className="text-lg font-mono tracking-widest font-bold opacity-90">
-                        •••• •••• •••• ••••
-                      </p>
-
-                      {/* Nome do Cartão e vencimento */}
-                      <div className="flex justify-between items-end pt-2 border-t border-white/30">
-                        <div>
-                          <p className="text-sm font-bold uppercase tracking-wide truncate">{cartao.name || 'SEU NOME'}</p>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-xs opacity-60 font-semibold uppercase tracking-wider mb-0.5">Vencimento</p>
-                          <p className="text-sm font-bold">{cartao.dia_vencimento ? `Dia ${cartao.dia_vencimento}` : '--'}</p>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* ===== RODAPÉ DO CARTÃO ===== */}
-                    <div className="flex justify-between items-end text-xs pt-2 border-t border-white/30">
-                      <div>
-                        <p className="opacity-60 font-semibold mb-0.5">Fechamento</p>
-                        <p className="font-mono text-sm font-bold">{cartao.dia_fechamento ? `Dia ${cartao.dia_fechamento}` : '--'}</p>
-                      </div>
-                      <div className="text-right">
-                        <p className="opacity-60 font-semibold mb-0.5">Disponível</p>
-                        <p className="text-sm font-bold">{formatCurrency(limiteDisponivel)}</p>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* ===== OVERLAY COM BOTÕES ===== */}
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/50 to-black/30 opacity-0 group-hover:opacity-100 transition-all flex items-center justify-center gap-2 z-20 backdrop-blur-sm">
-                    <Button 
-                      size="sm" 
-                      onClick={(e) => { e.stopPropagation(); setCartaoSelecionado(cartao.id); setFaturasOpen(true); }}
-                      className="bg-green-600 text-white hover:bg-green-700 font-semibold gap-1.5 shadow-lg text-xs h-8 px-2"
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => { setCartaoSelecionado(cartao.id); setFaturasOpen(true); }}
+                      className="h-8 border-slate-600/70 bg-slate-800/60 hover:bg-slate-700/70 text-slate-100"
                     >
-                      <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                      </svg>
                       Faturas
                     </Button>
-
-                    <Button 
-                      size="sm" 
-                      onClick={(e) => { e.stopPropagation(); handleEditCartao(cartao); }}
-                      className="bg-white text-black hover:bg-gray-100 font-semibold gap-1.5 shadow-lg text-xs h-8 px-2"
+                    <Button
+                      size="sm"
+                      onClick={() => handleEditCartao(cartao)}
+                      className="h-8 bg-blue-600 hover:bg-blue-700 text-white"
                     >
-                      <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                      </svg>
                       Editar
                     </Button>
                   </div>
                 </div>
 
-                {/* Informações em Grid - Compacto */}
-                <div className="space-y-2">
-                  {/* Saldo em Aberto com destaque */}
-                  <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/30">
-                    <div className="flex items-center justify-between">
-                      <p className="text-xs text-red-400 font-semibold uppercase tracking-wider">Saldo em Aberto</p>
-                      <p className="text-xs text-slate-500">{qtdDespesasProximaFatura} despesas</p>
+                <div className="relative z-10 grid grid-cols-1 lg:grid-cols-2 gap-4">
+                  <div
+                    className="relative overflow-hidden rounded-2xl border border-white/15 p-5 text-white cursor-pointer min-h-[220px]"
+                    style={{
+                      background: `linear-gradient(135deg, ${cartao.cor || '#2563eb'} 0%, ${adjustColor(cartao.cor || '#2563eb', -20)} 100%)`,
+                    }}
+                    onClick={() => handleEditCartao(cartao)}
+                  >
+                    <div className="absolute -right-20 -top-20 h-48 w-48 rounded-full bg-white/10 blur-2xl" />
+                    <div className="relative z-10 flex h-full flex-col justify-between">
+                      <div className="flex items-center justify-between">
+                        <div className="h-8 w-10 rounded-md bg-gradient-to-br from-yellow-300 via-yellow-400 to-yellow-600 shadow-lg" />
+                        <span className="text-xs uppercase tracking-widest text-white/80">crédito</span>
+                      </div>
+                      <p className="text-base font-mono tracking-[0.28em] text-white/90">•••• •••• •••• ••••</p>
+                      <div className="grid grid-cols-2 gap-3 text-sm">
+                        <div>
+                          <p className="text-[11px] uppercase tracking-wider text-white/70">Disponível</p>
+                          <p className="font-semibold">{formatCurrency(limiteDisponivel)}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-[11px] uppercase tracking-wider text-white/70">Limite</p>
+                          <p className="font-semibold">{formatCurrency(limite)}</p>
+                        </div>
+                      </div>
                     </div>
-                    <p className="text-lg font-bold text-red-400 mt-0.5">{formatCurrency(faturaAberta)}</p>
                   </div>
 
-                  {/* Limite Usado com barra de progresso */}
-                  <div className="p-2.5 rounded-md bg-slate-800/30 border border-slate-700/40">
-                    <div className="flex items-center justify-between mb-1">
-                      <p className="text-xs text-slate-500 font-semibold uppercase tracking-wider">Limite Usado</p>
-                      <p className="text-xs font-bold text-slate-400">{percentualUsado.toFixed(0)}%</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="rounded-xl border border-red-500/35 bg-red-500/10 p-3.5">
+                      <div className="flex items-center justify-between">
+                        <p className="text-xs font-semibold uppercase tracking-wider text-red-300">Saldo em aberto</p>
+                        <p className="text-xs text-slate-400">{qtdDespesasProximaFatura} despesas</p>
+                      </div>
+                      <p className="mt-1 text-2xl font-bold text-red-400">{formatCurrency(faturaAberta)}</p>
+                      <p className="text-[11px] text-slate-400">Próxima fatura</p>
                     </div>
-                    <div className="w-full bg-slate-700/50 rounded-full h-1.5 mb-1">
-                      <div 
-                        className={`h-1.5 rounded-full transition-all ${percentualUsado > 80 ? 'bg-red-500' : percentualUsado > 50 ? 'bg-yellow-500' : 'bg-blue-500'}`}
-                        style={{ width: `${percentualUsado}%` }}
-                      />
+
+                    <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3.5">
+                      <p className="text-xs font-semibold uppercase tracking-wider text-emerald-300">Disponível</p>
+                      <p className="mt-1 text-2xl font-bold text-emerald-300">{formatCurrency(limiteDisponivel)}</p>
+                      <p className="text-[11px] text-slate-400">Limite total - limite usado</p>
                     </div>
-                    <p className="text-sm font-bold text-slate-300">{formatCurrency(limiteUsado)} <span className="text-xs text-slate-500 font-normal">de {formatCurrency(limite)}</span></p>
-                  </div>
 
-                  {/* Total Transações */}
-                  <div className="p-2 rounded-md bg-slate-800/30 border border-slate-700/40">
-                    <p className="text-xs text-slate-500 font-semibold uppercase tracking-wider mb-0.5">Total Transações</p>
-                    <p className="text-sm font-bold text-slate-300">{transacoesCartao.length}</p>
-                  </div>
+                    <div className="rounded-xl border border-slate-700/70 bg-slate-900/70 p-3.5 sm:col-span-2">
+                      <div className="mb-2 flex items-center justify-between">
+                        <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Limite usado</p>
+                        <p className="text-xs font-bold text-slate-300">{percentualUsado.toFixed(0)}%</p>
+                      </div>
+                      <div className="mb-2 h-2.5 w-full rounded-full bg-slate-700/60">
+                        <div
+                          className={`h-2.5 rounded-full transition-all ${percentualUsado > 80 ? 'bg-red-500' : percentualUsado > 50 ? 'bg-yellow-500' : 'bg-blue-500'}`}
+                          style={{ width: `${percentualUsado}%` }}
+                        />
+                      </div>
+                      <p className="text-sm font-semibold text-slate-200">
+                        {formatCurrency(limiteUsado)} <span className="text-xs font-normal text-slate-500">de {formatCurrency(limite)}</span>
+                      </p>
+                    </div>
 
-                  {/* Botão Ver Parcelamentos */}
+                  </div>
+                </div>
+
+                <div className="relative z-10 mt-3">
                   {(() => {
                     // Detecta parcelas pelo padrão XX/XX na descrição (ex: "Netflix 3/12")
                     const parcelaRegex = /(\d{1,2})\/(\d{1,2})\s*$/;
@@ -1026,52 +994,43 @@ export default function Cartoes({ isModal = false }) {
                     
                     if (transacoesParceladas.length === 0) return null;
                     
-                    // Agrupar por compra parcelada (pela descrição sem o sufixo de parcela)
-                    const gruposParcelados = new Map<string, { descricao: string, totalParcelas: number, parcelaAtual: number, valorParcela: number, valorTotal: number, qtdNaFatura: number }>();
+                    const nomesMeses = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+                    const gruposPorFatura = new Map<string, { label: string; ordem: number; transacoes: any[] }>();
+                    
                     transacoesParceladas.forEach(t => {
-                      const desc = (t.descricao || '').trim();
-                      const match = desc.match(parcelaRegex);
-                      const parcelaAtual = match ? parseInt(match[1]) : 1;
-                      const totalParcelas = match ? parseInt(match[2]) : 1;
-                      const descBase = desc.replace(/\s*\d{1,2}\/\d{1,2}\s*$/, '').trim();
+                      const mes = Number(t.fatura_mes || 0);
+                      const ano = Number(t.fatura_ano || 0);
+                      const temFatura = mes >= 1 && mes <= 12 && ano > 0;
+                      const key = temFatura ? `${ano}-${mes}` : 'sem-fatura';
+                      const label = temFatura ? `${nomesMeses[mes - 1]}/${String(ano).slice(-2)}` : 'Sem referência de fatura';
+                      const ordem = temFatura ? (ano * 100 + mes) : 999999;
                       
-                      const existing = gruposParcelados.get(descBase);
+                      const existing = gruposPorFatura.get(key);
                       if (existing) {
-                        existing.qtdNaFatura += 1;
-                        existing.valorTotal += Math.abs(t.valor || 0);
-                        if (parcelaAtual > existing.parcelaAtual) {
-                          existing.parcelaAtual = parcelaAtual;
-                        }
+                        existing.transacoes.push(t);
                       } else {
-                        gruposParcelados.set(descBase, {
-                          descricao: descBase,
-                          totalParcelas,
-                          parcelaAtual,
-                          valorParcela: Math.abs(t.valor || 0),
-                          valorTotal: Math.abs(t.valor || 0),
-                          qtdNaFatura: 1,
-                        });
+                        gruposPorFatura.set(key, { label, ordem, transacoes: [t] });
                       }
                     });
                     
+                    const faturasOrdenadas = Array.from(gruposPorFatura.values()).sort((a, b) => a.ordem - b.ordem);
                     const totalParcelado = transacoesParceladas.reduce((acc, t) => acc + Math.abs(t.valor || 0), 0);
-                    const grupos = Array.from(gruposParcelados.values());
                     const isOpen = parcelamentosAbertos[cartao.id] || false;
                     
                     return (
-                      <div>
+                      <div className="mt-1">
                         <button
                           onClick={() => setParcelamentosAbertos(prev => ({ ...prev, [cartao.id]: !prev[cartao.id] }))}
-                          className="w-full p-2.5 rounded-md bg-blue-500/10 border border-blue-500/30 hover:bg-blue-500/20 transition-colors flex items-center justify-between cursor-pointer"
+                          className="w-full p-3 rounded-xl bg-blue-500/10 border border-blue-500/30 hover:bg-blue-500/20 transition-colors flex items-center justify-between cursor-pointer"
                         >
                           <div className="flex items-center gap-2">
                             <svg className="w-3.5 h-3.5 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
                             </svg>
-                            <span className="text-xs text-blue-400 font-semibold">Ver Parcelamentos</span>
+                            <span className="text-sm text-blue-300 font-semibold">Ver Parcelamentos</span>
                           </div>
                           <div className="flex items-center gap-2">
-                            <span className="text-xs text-slate-400 font-semibold">{grupos.length} {grupos.length === 1 ? 'compra' : 'compras'}</span>
+                            <span className="text-xs text-slate-400 font-semibold">{faturasOrdenadas.length} {faturasOrdenadas.length === 1 ? 'fatura' : 'faturas'}</span>
                             <svg className={`w-3.5 h-3.5 text-blue-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                             </svg>
@@ -1084,19 +1043,53 @@ export default function Cartoes({ isModal = false }) {
                               <p className="text-xs text-slate-500">{transacoesParceladas.length} parcelas ativas</p>
                               <p className="text-sm font-bold text-blue-400">{formatCurrency(totalParcelado)}</p>
                             </div>
-                            <div className="space-y-1.5 max-h-40 overflow-y-auto">
-                              {grupos.map((g, i) => (
-                                <div key={i} className="flex items-center justify-between text-xs py-1 border-b border-slate-700/30 last:border-0">
-                                  <div className="flex items-center gap-1.5 min-w-0 flex-1">
-                                    <span className="text-blue-400/70">•</span>
-                                    <span className="text-slate-400 truncate">{g.descricao || 'Compra parcelada'}</span>
+                            <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+                              {faturasOrdenadas.map((fatura, i) => {
+                                const gruposParcelados = new Map<string, { descricao: string, totalParcelas: number, parcelaAtual: number, valorParcela: number }>();
+                                fatura.transacoes.forEach((t) => {
+                                  const desc = (t.descricao || '').trim();
+                                  const match = desc.match(parcelaRegex);
+                                  const parcelaAtual = match ? parseInt(match[1]) : 1;
+                                  const totalParcelas = match ? parseInt(match[2]) : 1;
+                                  const descBase = desc.replace(/\s*\d{1,2}\/\d{1,2}\s*$/, '').trim();
+                                  const existing = gruposParcelados.get(descBase);
+                                  if (existing) {
+                                    if (parcelaAtual > existing.parcelaAtual) existing.parcelaAtual = parcelaAtual;
+                                  } else {
+                                    gruposParcelados.set(descBase, {
+                                      descricao: descBase,
+                                      totalParcelas,
+                                      parcelaAtual,
+                                      valorParcela: Math.abs(t.valor || 0),
+                                    });
+                                  }
+                                });
+                                const comprasFatura = Array.from(gruposParcelados.values());
+                                const subtotalFatura = fatura.transacoes.reduce((acc, t) => acc + Math.abs(t.valor || 0), 0);
+
+                                return (
+                                  <div key={`${fatura.label}-${i}`} className="rounded-md border border-slate-700/40 bg-slate-900/30 p-2">
+                                    <div className="mb-1.5 flex items-center justify-between">
+                                      <p className="text-xs font-semibold text-blue-300">{fatura.label}</p>
+                                      <p className="text-xs font-semibold text-slate-300">{formatCurrency(subtotalFatura)}</p>
+                                    </div>
+                                    <div className="space-y-1">
+                                      {comprasFatura.map((g, idx) => (
+                                        <div key={`${g.descricao}-${idx}`} className="flex items-center justify-between text-xs py-1 border-b border-slate-700/30 last:border-0">
+                                          <div className="flex items-center gap-1.5 min-w-0 flex-1">
+                                            <span className="text-blue-400/70">•</span>
+                                            <span className="text-slate-400 truncate">{g.descricao || 'Compra parcelada'}</span>
+                                          </div>
+                                          <div className="flex items-center gap-2 flex-shrink-0 ml-2">
+                                            <span className="text-blue-300 font-mono text-[10px] bg-blue-500/15 px-1.5 py-0.5 rounded">{g.parcelaAtual}/{g.totalParcelas}</span>
+                                            <span className="text-slate-300 font-semibold">{formatCurrency(g.valorParcela)}</span>
+                                          </div>
+                                        </div>
+                                      ))}
+                                    </div>
                                   </div>
-                                  <div className="flex items-center gap-2 flex-shrink-0 ml-2">
-                                    <span className="text-blue-300 font-mono text-[10px] bg-blue-500/15 px-1.5 py-0.5 rounded">{g.parcelaAtual}/{g.totalParcelas}</span>
-                                    <span className="text-slate-300 font-semibold">{formatCurrency(g.valorParcela)}</span>
-                                  </div>
-                                </div>
-                              ))}
+                                );
+                              })}
                             </div>
                           </div>
                         )}
