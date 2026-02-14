@@ -848,21 +848,40 @@ export default function Cartoes({ isModal = false }) {
               const d = descricao.toUpperCase();
               return d.includes('PAGAMENTO') || d.includes('PAG FATURA') || d.includes('PGTO');
             };
+
+            // Próxima fatura com base no vencimento do cartão e na data atual
+            const agora = new Date();
+            const diaHoje = agora.getDate();
+            const diaVencimento = Number(cartao.dia_vencimento || 1);
+            const baseMes = agora.getMonth() + 1;
+            const baseAno = agora.getFullYear();
+            const proximaFaturaMes = diaHoje <= diaVencimento ? baseMes : (baseMes === 12 ? 1 : baseMes + 1);
+            const proximaFaturaAno = diaHoje <= diaVencimento ? baseAno : (baseMes === 12 ? baseAno + 1 : baseAno);
+            const isDaProximaFatura = (t: any) => t.fatura_mes === proximaFaturaMes && t.fatura_ano === proximaFaturaAno;
             
-            // Calcular saldo em aberto do cartão (apenas transações NÃO pagas)
-            const totalDespesas = transacoesCartao
+            // Calcular saldo em aberto da PRÓXIMA fatura (apenas transações NÃO pagas)
+            const totalDespesasProximaFatura = transacoesCartao
+              .filter(t => t.tipo === 'despesa' && !t.pago && isDaProximaFatura(t))
+              .reduce((acc, t) => acc + Math.abs(t.valor || 0), 0);
+            // Estornos = receitas que NÃO são pagamento de fatura e NÃO pagas (na próxima fatura)
+            const totalEstornosProximaFatura = transacoesCartao
+              .filter(t => t.tipo === 'receita' && !isPagamentoFatura(t.descricao) && !t.pago && isDaProximaFatura(t))
+              .reduce((acc, t) => acc + Math.abs(t.valor || 0), 0);
+            
+            // Saldo em aberto = despesas não pagas - estornos não pagos (somente próxima fatura)
+            const faturaAberta = Math.max(0, totalDespesasProximaFatura - totalEstornosProximaFatura);
+            const qtdDespesasProximaFatura = transacoesCartao.filter(t => t.tipo === 'despesa' && isDaProximaFatura(t)).length;
+
+            // Limite usado deve considerar TODO o saldo em aberto do cartão (não só próxima fatura)
+            const totalDespesasAbertas = transacoesCartao
               .filter(t => t.tipo === 'despesa' && !t.pago)
               .reduce((acc, t) => acc + Math.abs(t.valor || 0), 0);
-            // Estornos = receitas que NÃO são pagamento de fatura e NÃO pagas
-            const totalEstornos = transacoesCartao
+            const totalEstornosAbertos = transacoesCartao
               .filter(t => t.tipo === 'receita' && !isPagamentoFatura(t.descricao) && !t.pago)
               .reduce((acc, t) => acc + Math.abs(t.valor || 0), 0);
+            const limiteUsado = Math.max(0, totalDespesasAbertas - totalEstornosAbertos);
             
-            // Saldo em aberto = despesas não pagas - estornos não pagos
-            const faturaAberta = Math.max(0, totalDespesas - totalEstornos);
-            
-            // Limite usado = saldo em aberto
-            const limiteUsado = faturaAberta;
+            // Disponível = limite total - limite usado
             const limite = cartao.limite || 0;
             const limiteDisponivel = Math.max(0, limite - limiteUsado);
             const percentualUsado = limite > 0 ? Math.min(100, (limiteUsado / limite) * 100) : 0;
@@ -913,10 +932,9 @@ export default function Cartoes({ isModal = false }) {
                         •••• •••• •••• ••••
                       </p>
 
-                      {/* Nome do Titular e Data */}
+                      {/* Nome do Cartão e vencimento */}
                       <div className="flex justify-between items-end pt-2 border-t border-white/30">
                         <div>
-                          <p className="text-xs opacity-60 font-semibold uppercase tracking-wider mb-0.5">Titular</p>
                           <p className="text-sm font-bold uppercase tracking-wide truncate">{cartao.name || 'SEU NOME'}</p>
                         </div>
                         <div className="text-right">
@@ -971,7 +989,7 @@ export default function Cartoes({ isModal = false }) {
                   <div className="p-3 rounded-lg bg-red-500/10 border border-red-500/30">
                     <div className="flex items-center justify-between">
                       <p className="text-xs text-red-400 font-semibold uppercase tracking-wider">Saldo em Aberto</p>
-                      <p className="text-xs text-slate-500">{transacoesCartao.filter(t => t.tipo === 'despesa').length} despesas</p>
+                      <p className="text-xs text-slate-500">{qtdDespesasProximaFatura} despesas</p>
                     </div>
                     <p className="text-lg font-bold text-red-400 mt-0.5">{formatCurrency(faturaAberta)}</p>
                   </div>
@@ -991,19 +1009,10 @@ export default function Cartoes({ isModal = false }) {
                     <p className="text-sm font-bold text-slate-300">{formatCurrency(limiteUsado)} <span className="text-xs text-slate-500 font-normal">de {formatCurrency(limite)}</span></p>
                   </div>
 
-                  {/* Grid 2 colunas */}
-                  <div className="grid grid-cols-2 gap-2">
-                    {/* Limite Disponível */}
-                    <div className="p-2 rounded-md bg-slate-800/30 border border-slate-700/40">
-                      <p className="text-xs text-slate-500 font-semibold uppercase tracking-wider mb-0.5">Disponível</p>
-                      <p className="text-sm font-bold text-green-400">{formatCurrency(limiteDisponivel)}</p>
-                    </div>
-
-                    {/* Total Transações */}
-                    <div className="p-2 rounded-md bg-slate-800/30 border border-slate-700/40">
-                      <p className="text-xs text-slate-500 font-semibold uppercase tracking-wider mb-0.5">Total Transações</p>
-                      <p className="text-sm font-bold text-slate-300">{transacoesCartao.length}</p>
-                    </div>
+                  {/* Total Transações */}
+                  <div className="p-2 rounded-md bg-slate-800/30 border border-slate-700/40">
+                    <p className="text-xs text-slate-500 font-semibold uppercase tracking-wider mb-0.5">Total Transações</p>
+                    <p className="text-sm font-bold text-slate-300">{transacoesCartao.length}</p>
                   </div>
 
                   {/* Botão Ver Parcelamentos */}
