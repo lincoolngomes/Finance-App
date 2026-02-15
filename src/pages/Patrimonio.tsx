@@ -102,6 +102,9 @@ const formatMoneyValue = (value?: number | null) => {
   return value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
+const isDividaAutomatica = (id: string) => id.startsWith('cartao-')
+const isBemAutomatico = (id: string) => id.startsWith('investimento-')
+
 export default function Patrimonio() {
   const { user } = useAuth()
   const { toast } = useToast()
@@ -701,6 +704,10 @@ export default function Patrimonio() {
                     <SelectItem value="renegociado">Renegociado</SelectItem>
                   </SelectContent>
                 </Select>
+                <div className="flex items-center gap-2 text-xs">
+                  <Badge variant="outline" className="border-blue-500/40 text-blue-300">Automática</Badge>
+                  <Badge variant="secondary">Manual</Badge>
+                </div>
               </div>
 
               <Table>
@@ -708,6 +715,7 @@ export default function Patrimonio() {
                   <TableRow>
                     <TableHead>Dívida</TableHead>
                     <TableHead>Credor</TableHead>
+                    <TableHead className="text-center">Origem</TableHead>
                     <TableHead className="text-right">Total</TableHead>
                     <TableHead className="text-right">Saldo</TableHead>
                     <TableHead className="text-center">Progresso</TableHead>
@@ -718,22 +726,32 @@ export default function Patrimonio() {
                 <TableBody>
                   {dividasFiltradas.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
+                      <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
                         Nenhuma dívida encontrada.
                       </TableCell>
                     </TableRow>
                   ) : (
                     dividasFiltradas.map((divida) => {
-                      const isDividaAutomaticaCartao = divida.id.startsWith('cartao-')
+                      const isDividaAutomaticaCartao = isDividaAutomatica(divida.id)
                       const pago = Math.max(divida.valor_total - divida.saldo_atual, 0)
                       const progresso = divida.valor_total > 0 ? (pago / divida.valor_total) * 100 : 0
                       return (
-                        <TableRow key={divida.id}>
+                        <TableRow
+                          key={divida.id}
+                          className={isDividaAutomaticaCartao ? 'bg-blue-500/5 border-l-2 border-blue-500/50' : ''}
+                        >
                           <TableCell className="font-medium">
                             {divida.nome}
                             <div className="text-xs text-muted-foreground">{divida.tipo}</div>
                           </TableCell>
                           <TableCell>{divida.credor || '-'}</TableCell>
+                          <TableCell className="text-center">
+                            {isDividaAutomaticaCartao ? (
+                              <Badge variant="outline" className="border-blue-500/40 text-blue-300">Automática</Badge>
+                            ) : (
+                              <Badge variant="secondary">Manual</Badge>
+                            )}
+                          </TableCell>
                           <TableCell className="text-right">{formatCurrency(divida.valor_total)}</TableCell>
                           <TableCell className="text-right text-red-600">{formatCurrency(divida.saldo_atual)}</TableCell>
                           <TableCell className="text-center">
@@ -795,6 +813,10 @@ export default function Patrimonio() {
                     <SelectItem value="doado">Doado</SelectItem>
                   </SelectContent>
                 </Select>
+                <div className="flex items-center gap-2 text-xs">
+                  <Badge variant="outline" className="border-blue-500/40 text-blue-300">Automática</Badge>
+                  <Badge variant="secondary">Manual</Badge>
+                </div>
               </div>
 
               <Table>
@@ -802,6 +824,7 @@ export default function Patrimonio() {
                   <TableRow>
                     <TableHead>Bem</TableHead>
                     <TableHead>Detalhes</TableHead>
+                    <TableHead className="text-center">Origem</TableHead>
                     <TableHead className="text-right">Valor de Compra</TableHead>
                     <TableHead className="text-right">Valor Atual</TableHead>
                     <TableHead className="text-center">Status</TableHead>
@@ -811,16 +834,19 @@ export default function Patrimonio() {
                 <TableBody>
                   {bensFiltrados.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
+                      <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
                         Nenhum bem encontrado.
                       </TableCell>
                     </TableRow>
                   ) : (
                     bensFiltrados.map((bem) => {
-                      const isBemAutomaticoInvestimento = bem.id.startsWith('investimento-')
+                      const isBemAutomaticoInvestimento = isBemAutomatico(bem.id)
                       const variacao = bem.valor_atual - bem.valor_compra
                       return (
-                        <TableRow key={bem.id}>
+                        <TableRow
+                          key={bem.id}
+                          className={isBemAutomaticoInvestimento ? 'bg-blue-500/5 border-l-2 border-blue-500/50' : ''}
+                        >
                           <TableCell className="font-medium">
                             {bem.nome}
                             <div className="text-xs text-muted-foreground">{bem.tipo}</div>
@@ -829,6 +855,13 @@ export default function Patrimonio() {
                             <div className="text-sm">{bem.localizacao || '-'}</div>
                             {bem.garantia_ate && (
                               <div className="text-xs text-muted-foreground">Garantia até {new Date(bem.garantia_ate).toLocaleDateString('pt-BR')}</div>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-center">
+                            {isBemAutomaticoInvestimento ? (
+                              <Badge variant="outline" className="border-blue-500/40 text-blue-300">Automática</Badge>
+                            ) : (
+                              <Badge variant="secondary">Manual</Badge>
                             )}
                           </TableCell>
                           <TableCell className="text-right">{formatCurrency(bem.valor_compra)}</TableCell>
