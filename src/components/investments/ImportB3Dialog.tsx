@@ -1,11 +1,12 @@
-import React, { useState } from 'react'
+import { useMemo, useState } from 'react'
+import Papa from 'papaparse'
+import * as XLSX from 'xlsx'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Alert, AlertDescription } from '@/components/ui/alert'
-import { Download, AlertCircle, CheckCircle, Loader2, Eye, EyeOff } from 'lucide-react'
-import { importarPosicoes, validarCPF, formatarCPF, type B3ImportResult } from '@/utils/b3-cei'
+import { Download, AlertCircle, CheckCircle, Loader2, FileSpreadsheet } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
 
@@ -15,174 +16,344 @@ interface ImportB3DialogProps {
   onSuccess?: () => void
 }
 
+type CsvRow = Record<string, unknown>
+
+const NORMALIZE_RE = /[^a-z0-9]/g
+
+function normalizeKey(value: string): string {
+  return (value || '')
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .toLowerCase()
+    .replace(NORMALIZE_RE, '')
+}
+
+function parseNumberBR(value: unknown): number {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : 0
+  if (!value) return 0
+
+  let str = String(value).trim()
+  if (!str) return 0
+
+  str = str.replace(/[R$\s]/gi, '')
+
+  if (str.includes('.') && str.includes(',')) {
+    str = str.replace(/\./g, '').replace(',', '.')
+  } else if (str.includes(',')) {
+    str = str.replace(',', '.')
+  }
+
+  str = str.replace(/[^\d.-]/g, '')
+  const parsed = Number.parseFloat(str)
+  return Number.isFinite(parsed) ? parsed : 0
+}
+
+function parseDateToISO(value: unknown): string | undefined {
+  const raw = String(value || '').trim()
+  if (!raw) return undefined
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw
+
+  const br = raw.match(/^(\d{2})\/(\d{2})\/(\d{4})$/)
+  if (br) return `${br[3]}-${br[2]}-${br[1]}`
+
+  const dt = new Date(raw)
+  if (Number.isNaN(dt.getTime())) return undefined
+  return dt.toISOString().slice(0, 10)
+}
+
+function getValue(row: CsvRow, aliases: string[]): unknown {
+  const entries = Object.entries(row)
+  const wanted = aliases.map(normalizeKey)
+
+  for (const [key, value] of entries) {
+    if (wanted.includes(normalizeKey(key))) return value
+  }
+
+  return undefined
+}
+
+function inferTipo(nome: string, codigo: string, tipoTexto: string): 'acao' | 'fii' | 'etf' | 'renda_fixa' {
+  const base = `${nome} ${codigo} ${tipoTexto}`.toLowerCase()
+
+  if (base.includes('fii') || base.includes('fundo imobiliario')) return 'fii'
+  if (base.includes('etf')) return 'etf'
+  if (
+    base.includes('cdb') ||
+    base.includes('lci') ||
+    base.includes('lca') ||
+    base.includes('debenture') ||
+    base.includes('tesouro') ||
+    base.includes('renda fixa') ||
+    base.includes('cri') ||
+    base.includes('cra')
+  ) {
+    return 'renda_fixa'
+  }
+
+  return 'acao'
+}
+
+function inferRentabilidade(texto: string): 'pos' | 'pre' | 'ipca' | undefined {
+  const base = texto.toLowerCase()
+  if (base.includes('ipca')) return 'ipca'
+  if (base.includes('pre')) return 'pre'
+  if (base.includes('cdi') || base.includes('pos')) return 'pos'
+  return undefined
+}
+
+function inferIndexador(texto: string): 'cdi' | 'ipca' | 'selic' | 'prefixado' | undefined {
+  const base = texto.toLowerCase()
+  if (base.includes('ipca')) return 'ipca'
+  if (base.includes('selic')) return 'selic'
+  if (base.includes('cdi')) return 'cdi'
+  if (base.includes('pre') || base.includes('prefix')) return 'prefixado'
+  return undefined
+}
+
 export function ImportB3Dialog({ open, onOpenChange, onSuccess }: ImportB3DialogProps) {
   const { user } = useAuth()
-  const [cpf, setCpf] = useState('')
-  const [senha, setSenha] = useState('')
-  const [showSenha, setShowSenha] = useState(false)
+  const [csvFile, setCsvFile] = useState<File | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
-  const [resultado, setResultado] = useState<B3ImportResult | null>(null)
-  const [showManualInput, setShowManualInput] = useState(false)
+  const [importedCount, setImportedCount] = useState(0)
 
-  const handleCPFChange = (value: string) => {
-    // Remove tudo que não é número
-    const numeros = value.replace(/\D/g, '')
-    // Limita a 11 dígitos
-    const limitado = numeros.slice(0, 11)
-    setCpf(limitado)
-  }
+  const fileLabel = useMemo(() => {
+    if (!csvFile) return 'Nenhum arquivo selecionado'
+    return `${csvFile.name} (${Math.round(csvFile.size / 1024)} KB)`
+  }, [csvFile])
 
-  const handleImportar = async () => {
+  const handleImportCsv = async () => {
     setError(null)
     setSuccess(null)
-    setResultado(null)
+    setImportedCount(0)
 
-    // Validações
-    if (!cpf || !senha) {
-      setError('Por favor, preencha CPF e senha')
+    if (!user?.id) {
+      setError('Usuário não autenticado.')
       return
     }
 
-    if (!validarCPF(cpf)) {
-      setError('CPF inválido')
+    if (!csvFile) {
+      setError('Selecione um arquivo CSV para importar.')
       return
     }
 
     setLoading(true)
-
     try {
-      // Importar posições do B3
-      const result = await importarPosicoes({ cpf, senha })
+      const fileName = csvFile.name.toLowerCase()
+      let rawRows: CsvRow[] = []
 
-      if (!result.success) {
-        throw new Error(result.message)
+      if (fileName.endsWith('.xlsx') || fileName.endsWith('.xls')) {
+        const buffer = await csvFile.arrayBuffer()
+        const workbook = XLSX.read(buffer, { type: 'array' })
+        rawRows = workbook.SheetNames.flatMap((sheetName) => {
+          const ws = workbook.Sheets[sheetName]
+          return XLSX.utils.sheet_to_json<CsvRow>(ws, {
+            defval: '',
+          })
+        })
+      } else {
+        const parsed = await new Promise<Papa.ParseResult<CsvRow>>((resolve, reject) => {
+          Papa.parse<CsvRow>(csvFile, {
+            header: true,
+            skipEmptyLines: true,
+            transformHeader: (h) => h.trim(),
+            complete: resolve,
+            error: reject,
+          })
+        })
+        rawRows = parsed.data || []
       }
 
-      setResultado(result)
+      if (!rawRows.length) {
+        throw new Error('Arquivo vazio ou inválido.')
+      }
 
-      // Processar e salvar investimentos
-      let totalImportados = 0
+      const payload = rawRows
+        .map((row) => {
+          const codigoRaw = String(
+            getValue(row, ['codigo', 'codigo isin', 'codigo negociacao', 'ticker', 'ativo', 'papel']) || ''
+          ).trim()
+          const nomeRaw = String(
+            getValue(row, ['nome', 'produto', 'descricao', 'titulo']) || ''
+          ).trim()
+          const tipoRaw = String(
+            getValue(row, ['tipo', 'segmento', 'classe', 'tipodeativo']) || ''
+          ).trim()
+          const instituicaoRaw = String(
+            getValue(row, ['instituicao', 'corretora', 'escriturador', 'custodiante']) || ''
+          ).trim()
 
-      // Processar ações
-      for (const acao of result.acoes) {
-        const { error } = await supabase.from('investimentos').upsert({
-          usuario_id: user?.id,
-          tipo: acao.tipo,
-          codigo: acao.codigo,
-          nome: acao.nome,
-          quantidade: acao.quantidade,
-          preco_medio: acao.precoMedio,
-          valor_atual: acao.valorAtual,
-          instituicao: acao.instituicao,
-          data_referencia: acao.dataReferencia,
-        }, {
-          onConflict: 'usuario_id,codigo',
+          const quantidade = Math.abs(
+            parseNumberBR(getValue(row, ['quantidade', 'qtd', 'saldo', 'posicao']))
+          )
+          const precoMedio = Math.abs(
+            parseNumberBR(getValue(row, ['preco medio', 'precomedio', 'preco', 'preco unitario']))
+          )
+          const valorAtual = Math.abs(
+            parseNumberBR(
+              getValue(row, [
+                'valor atualizado',
+                'valor atualizado curva',
+                'valor atualizado fechamento',
+                'valor atual',
+                'valor mercado',
+                'valor liquido',
+                'financeiro',
+                'valor',
+              ])
+            )
+          )
+          const valorInvestido = Math.abs(
+            parseNumberBR(getValue(row, ['valor investido', 'valor aplicado', 'principal']))
+          )
+
+          const vencimento = parseDateToISO(
+            getValue(row, ['vencimento', 'data vencimento'])
+          )
+          const dataRef = parseDateToISO(
+            getValue(row, ['data referencia', 'data', 'data posicao', 'data base'])
+          )
+          const taxaTexto = String(
+            getValue(row, ['taxa', 'rentabilidade', 'taxa contratada', 'taxa a a']) || ''
+          ).trim()
+          const taxaPercentual = Math.abs(parseNumberBR(taxaTexto))
+
+          const codigo = codigoRaw || nomeRaw
+          const nome = nomeRaw || codigoRaw
+          if (!codigo || !nome) return null
+
+          const tipo = inferTipo(nome, codigo, tipoRaw)
+
+          let quantidadeFinal = quantidade
+          let precoMedioFinal = precoMedio
+
+          if (!precoMedioFinal && quantidadeFinal > 0 && valorInvestido > 0) {
+            precoMedioFinal = valorInvestido / quantidadeFinal
+          }
+
+          if ((!quantidadeFinal || !precoMedioFinal) && valorInvestido > 0) {
+            quantidadeFinal = 1
+            precoMedioFinal = valorInvestido
+          }
+
+          if ((!quantidadeFinal || !precoMedioFinal) && valorAtual > 0) {
+            quantidadeFinal = 1
+            precoMedioFinal = valorAtual
+          }
+
+          if (!quantidadeFinal || !precoMedioFinal) return null
+
+          return {
+            user_id: user.id,
+            tipo,
+            codigo: codigo.toUpperCase().slice(0, 50),
+            nome: nome.slice(0, 200),
+            instituicao: instituicaoRaw || null,
+            quantidade: quantidadeFinal,
+            preco_medio: precoMedioFinal,
+            valor_total: Number((quantidadeFinal * precoMedioFinal).toFixed(2)),
+            data_primeira_compra:
+              dataRef || parseDateToISO(getValue(row, ['data de emissao', 'data emissao'])) || null,
+            data_aplicacao:
+              dataRef || parseDateToISO(getValue(row, ['data de emissao', 'data emissao'])) || null,
+            data_vencimento: vencimento || null,
+            tipo_rentabilidade: inferRentabilidade(taxaTexto) || null,
+            taxa_percentual: taxaPercentual || null,
+            indexador: inferIndexador(taxaTexto) || null,
+            valor_atual_manual: valorAtual > 0 ? valorAtual : null,
+            ativo: true,
+          }
+        })
+        .filter(Boolean)
+        .filter((item: any) => {
+          const nome = String(item?.nome || '').toLowerCase()
+          return nome && nome !== 'total'
         })
 
-        if (!error) totalImportados++
+      if (!payload.length) {
+        throw new Error('Não encontrei linhas válidas para importar nesse CSV.')
       }
 
-      // Processar FIIs
-      for (const fii of result.fiis) {
-        const { error } = await supabase.from('investimentos').upsert({
-          usuario_id: user?.id,
-          tipo: fii.tipo,
-          codigo: fii.codigo,
-          nome: fii.nome,
-          quantidade: fii.quantidade,
-          preco_medio: fii.precoMedio,
-          valor_atual: fii.valorAtual,
-          instituicao: fii.instituicao,
-          data_referencia: fii.dataReferencia,
-        }, {
-          onConflict: 'usuario_id,codigo',
-        })
+      const typedPayload = payload as any[]
+      const chaves = typedPayload
+        .map((item) => ({
+          codigo: String(item.codigo || ''),
+          tipo: String(item.tipo || ''),
+        }))
+        .filter((item) => item.codigo && item.tipo)
 
-        if (!error) totalImportados++
+      const codigosUnicos = Array.from(new Set(chaves.map((k) => k.codigo)))
+
+      const { data: existentes, error: existentesError } = await supabase
+        .from('investimentos')
+        .select('id,codigo,tipo,user_id')
+        .eq('user_id', user.id)
+        .in('codigo', codigosUnicos)
+
+      if (existentesError) throw existentesError
+
+      const existentesMap = new Map<string, { id: string }>()
+      ;(existentes || []).forEach((item: any) => {
+        const key = `${String(item.codigo)}__${String(item.tipo)}`
+        existentesMap.set(key, { id: item.id })
+      })
+
+      let processados = 0
+      const erros: string[] = []
+
+      for (const item of typedPayload) {
+        const key = `${String(item.codigo)}__${String(item.tipo)}`
+        const existente = existentesMap.get(key)
+
+        if (existente) {
+          const { error: updateError } = await supabase
+            .from('investimentos')
+            .update({
+              nome: item.nome,
+              instituicao: item.instituicao,
+              quantidade: item.quantidade,
+              preco_medio: item.preco_medio,
+              valor_total: Number((Number(item.quantidade || 0) * Number(item.preco_medio || 0)).toFixed(2)),
+              data_primeira_compra: item.data_primeira_compra,
+              data_aplicacao: item.data_aplicacao,
+              data_vencimento: item.data_vencimento,
+              tipo_rentabilidade: item.tipo_rentabilidade,
+              taxa_percentual: item.taxa_percentual,
+              indexador: item.indexador,
+              valor_atual_manual: item.valor_atual_manual,
+              ativo: true,
+            })
+            .eq('id', existente.id)
+            .eq('user_id', user.id)
+
+          if (updateError) {
+            erros.push(updateError.message)
+            continue
+          }
+        } else {
+          const { error: insertError } = await supabase.from('investimentos').insert(item)
+          if (insertError) {
+            erros.push(insertError.message)
+            continue
+          }
+        }
+
+        processados++
       }
 
-      // Processar ETFs
-      for (const etf of result.etfs) {
-        const { error } = await supabase.from('investimentos').upsert({
-          usuario_id: user?.id,
-          tipo: etf.tipo,
-          codigo: etf.codigo,
-          nome: etf.nome,
-          quantidade: etf.quantidade,
-          preco_medio: etf.precoMedio,
-          valor_atual: etf.valorAtual,
-          instituicao: etf.instituicao,
-          data_referencia: etf.dataReferencia,
-        }, {
-          onConflict: 'usuario_id,codigo',
-        })
-
-        if (!error) totalImportados++
+      if (processados === 0 && erros.length > 0) {
+        throw new Error(erros[0])
       }
 
-      // Processar Renda Fixa
-      for (const rf of result.rendaFixa) {
-        const { error } = await supabase.from('investimentos').upsert({
-          usuario_id: user?.id,
-          tipo: rf.tipo,
-          codigo: rf.codigo,
-          nome: rf.nome,
-          valor_investido: rf.valorInvestido,
-          valor_atual: rf.valorAtual,
-          data_vencimento: rf.vencimento,
-          taxa_percentual: parseFloat(rf.taxa.replace(/[^\d.,]/g, '').replace(',', '.')),
-          tipo_rentabilidade: rf.tipoRentabilidade,
-          instituicao: rf.instituicao,
-          isento_ir: rf.isento_ir,
-          data_referencia: result.dataImportacao.split('T')[0],
-        }, {
-          onConflict: 'usuario_id,codigo',
-        })
+      setImportedCount(processados)
+      setSuccess(`Importação concluída com sucesso. ${processados} investimento(s) processado(s).`)
 
-        if (!error) totalImportados++
-      }
-
-      // Processar Tesouro Direto
-      for (const td of result.tesouroDireto) {
-        const { error } = await supabase.from('investimentos').upsert({
-          usuario_id: user?.id,
-          tipo: td.tipo,
-          codigo: td.codigo,
-          nome: td.nome,
-          valor_investido: td.valorInvestido,
-          valor_atual: td.valorAtual,
-          data_vencimento: td.vencimento,
-          taxa_percentual: parseFloat(td.taxa.replace(/[^\d.,]/g, '').replace(',', '.')),
-          tipo_rentabilidade: td.tipoRentabilidade,
-          instituicao: td.instituicao,
-          isento_ir: td.isento_ir,
-          data_referencia: result.dataImportacao.split('T')[0],
-        }, {
-          onConflict: 'usuario_id,codigo',
-        })
-
-        if (!error) totalImportados++
-      }
-
-      setSuccess(`✅ Importação concluída! ${totalImportados} investimento(s) importado(s).`)
-      
-      // Limpar campos
-      setCpf('')
-      setSenha('')
-
-      // Chamar callback de sucesso
-      if (onSuccess) {
-        setTimeout(() => {
-          onSuccess()
-          onOpenChange(false)
-        }, 2000)
-      }
-
-    } catch (err) {
-      console.error('Erro ao importar:', err)
-      setError(err instanceof Error ? err.message : 'Erro ao importar posições do B3')
+      if (onSuccess) await onSuccess()
+    } catch (err: any) {
+      console.error('Erro ao importar CSV da B3:', err)
+      setError(err?.message || 'Erro ao importar arquivo CSV da B3.')
     } finally {
       setLoading(false)
     }
@@ -190,93 +361,55 @@ export function ImportB3Dialog({ open, onOpenChange, onSuccess }: ImportB3Dialog
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[500px]">
+      <DialogContent className="sm:max-w-[560px]">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Download className="w-5 h-5 text-teal-600" />
-            Importar do B3 Investidor
+            Importar B3
           </DialogTitle>
           <DialogDescription>
-            Importe automaticamente suas posições ou importe manualmente via CSV
+            Importe suas posições via arquivo CSV/Excel exportado na Área do Investidor B3.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4 py-4">
-          {/* Alerta importante */}
+        <div className="space-y-4 py-2">
           <Alert className="border-amber-200 bg-amber-50 dark:bg-amber-950">
             <AlertCircle className="w-4 h-4 text-amber-600" />
             <AlertDescription className="text-amber-800 dark:text-amber-200 text-sm">
-              <strong>⚠️ Importador automático indisponível</strong><br/>
-              O acesso direto ao CEI da B3 requer configurações adicionais de segurança. Use a opção de importação manual exportando seus dados do CEI.
+              Exporte o arquivo (CSV ou Excel) na <strong>Área do Investidor B3</strong> e importe aqui.
             </AlertDescription>
           </Alert>
 
-          {!showManualInput ? (
-            <>
-              {/* Credenciais (desabilitadas) */}
-              <div className="space-y-2 opacity-50 pointer-events-none">
-                <Label htmlFor="cpf">CPF</Label>
-                <Input
-                  id="cpf"
-                  type="text"
-                  placeholder="000.000.000-00"
-                  value={formatarCPF(cpf)}
-                  disabled={true}
-                  maxLength={14}
-                />
-              </div>
+          <div className="space-y-2">
+            <Label htmlFor="b3-csv-file">Arquivo da B3 (CSV/XLSX)</Label>
+            <Input
+              id="b3-csv-file"
+              type="file"
+              accept=".csv,.xlsx,.xls,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
+              disabled={loading}
+              onChange={(e) => {
+                setError(null)
+                setSuccess(null)
+                const file = e.target.files?.[0] || null
+                setCsvFile(file)
+              }}
+            />
+            <p className="text-xs text-muted-foreground flex items-center gap-2">
+              <FileSpreadsheet className="w-3.5 h-3.5" />
+              {fileLabel}
+            </p>
+          </div>
 
-              <div className="space-y-2 opacity-50 pointer-events-none">
-                <Label htmlFor="senha">Senha do B3 CEI</Label>
-                <div className="relative">
-                  <Input
-                    id="senha"
-                    type="password"
-                    placeholder="Sua senha do CEI"
-                    disabled={true}
-                    className="pr-10"
-                  />
-                </div>
-              </div>
+          <div className="bg-slate-50 dark:bg-slate-900 p-4 rounded-lg space-y-2 text-sm">
+            <p className="font-semibold">Passo a passo:</p>
+            <ol className="list-decimal list-inside space-y-1 text-muted-foreground">
+              <li>Acesse <a href="https://investidor.b3.com.br" target="_blank" rel="noopener noreferrer" className="text-teal-600 hover:underline">investidor.b3.com.br</a></li>
+              <li>Minha carteira {'>'} Investimentos {'>'} Baixar</li>
+              <li>Exporte o arquivo em CSV ou Excel (.xlsx)</li>
+              <li>Selecione o arquivo neste modal e clique em Importar</li>
+            </ol>
+          </div>
 
-              {/* Instruções */}
-              <div className="bg-slate-50 dark:bg-slate-900 p-4 rounded-lg space-y-3 text-sm">
-                <p className="font-semibold">Como importar seus investimentos:</p>
-                <ol className="list-decimal list-inside space-y-2 text-muted-foreground">
-                  <li>Acesse <a href="https://cei.b3.com.br" target="_blank" rel="noopener noreferrer" className="text-teal-600 hover:underline">cei.b3.com.br</a></li>
-                  <li>Faça login com suas credenciais</li>
-                  <li>Vá para "Consultas" → "Posição da Carteira"</li>
-                  <li>Clique em "Exportar" e escolha "CSV"</li>
-                  <li>Volte aqui e clique em "Importar CSV"</li>
-                </ol>
-              </div>
-            </>
-          ) : (
-            <div className="space-y-3">
-              <p className="text-sm text-muted-foreground">
-                Cole os dados do seu arquivo CSV do CEI abaixo. Você pode copiar e colar o conteúdo do arquivo exportado.
-              </p>
-              <Input
-                type="file"
-                accept=".csv"
-                disabled={loading}
-                onChange={(e) => {
-                  const file = e.target.files?.[0]
-                  if (file) {
-                    const reader = new FileReader()
-                    reader.onload = (event) => {
-                      const content = event.target?.result as string
-                      // Aqui você poderia processar o CSV
-                      console.log('CSV carregado:', content)
-                    }
-                    reader.readAsText(file)
-                  }
-                }}
-              />
-            </div>
-          )}
-
-          {/* Erro */}
           {error && (
             <Alert variant="destructive">
               <AlertCircle className="w-4 h-4" />
@@ -284,37 +417,30 @@ export function ImportB3Dialog({ open, onOpenChange, onSuccess }: ImportB3Dialog
             </Alert>
           )}
 
-          {/* Sucesso */}
           {success && (
             <Alert className="border-green-200 bg-green-50 dark:bg-green-950">
               <CheckCircle className="w-4 h-4 text-green-600" />
               <AlertDescription className="text-green-800 dark:text-green-200 text-sm">
                 {success}
+                {importedCount > 0 ? ` (${importedCount})` : ''}
               </AlertDescription>
             </Alert>
           )}
         </div>
 
-        <div className="flex justify-between gap-3">
-          <Button
-            variant="outline"
-            onClick={() => {
-              if (showManualInput) {
-                setShowManualInput(false)
-              } else {
-                onOpenChange(false)
-              }
-            }}
-            disabled={loading}
-          >
-            {showManualInput ? '← Voltar' : 'Cancelar'}
+        <div className="flex justify-end gap-3">
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={loading}>
+            Cancelar
           </Button>
-          <Button
-            onClick={() => setShowManualInput(!showManualInput)}
-            variant={showManualInput ? 'default' : 'outline'}
-            disabled={loading}
-          >
-            {showManualInput ? '✓ Usar outro método' : 'Importar CSV'}
+          <Button onClick={handleImportCsv} disabled={loading || !csvFile}>
+            {loading ? (
+              <>
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                Importando...
+              </>
+            ) : (
+              'Importar'
+            )}
           </Button>
         </div>
       </DialogContent>

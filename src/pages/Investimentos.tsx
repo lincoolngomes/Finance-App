@@ -38,11 +38,13 @@ import {
   Banknote,
   Receipt,
   CheckSquare,
-  Circle
+  Circle,
+  Download
 } from 'lucide-react'
 import { AddTransactionDialog } from '@/components/investments/AddTransactionDialog'
 import { EditInvestmentDialog } from '@/components/investments/EditInvestmentDialog'
 import { ResgateDialog } from '@/components/investments/ResgateDialog'
+import { ImportB3Dialog } from '@/components/investments/ImportB3Dialog'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -107,6 +109,7 @@ export default function Investimentos() {
   const [addDialogOpen, setAddDialogOpen] = useState(false)
   const [editDialogOpen, setEditDialogOpen] = useState(false)
   const [resgateDialogOpen, setResgateDialogOpen] = useState(false)
+  const [importB3DialogOpen, setImportB3DialogOpen] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [investimentoSelecionado, setInvestimentoSelecionado] = useState<Investimento | null>(null)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
@@ -504,6 +507,10 @@ export default function Investimentos() {
             </p>
           </div>
           <div className="flex gap-2 flex-wrap">
+            <Button variant="outline" size="sm" onClick={() => setImportB3DialogOpen(true)}>
+              <Download className="h-4 w-4 mr-2" />
+              Importar B3
+            </Button>
             <Button variant="outline" size="sm" onClick={handleRefreshAll}>
               <RefreshCcw className="h-4 w-4 mr-2" />
               Atualizar
@@ -1526,6 +1533,14 @@ export default function Investimentos() {
             setSelectedIds(new Set())
           }}
           selectedIds={selectedIds}
+        />
+
+        <ImportB3Dialog
+          open={importB3DialogOpen}
+          onOpenChange={setImportB3DialogOpen}
+          onSuccess={async () => {
+            await fetchInvestimentos()
+          }}
         />
         
         {/* Diálogo de confirmação de exclusão */}
