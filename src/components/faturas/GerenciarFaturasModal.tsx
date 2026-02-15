@@ -252,10 +252,45 @@ export function GerenciarFaturasModal({
       return
     }
 
-    setCartoes(data || [])
+    // Tentar popular o campo `banco` a partir das contas vinculadas, se possível
+    let enriched = data || []
+    try {
+      const { data: accounts } = await supabase
+        .from('accounts')
+        .select('id, nome, banco')
+        .eq('user_id', user.id)
+
+      if (accounts && accounts.length > 0) {
+        const accMap = new Map((accounts || []).map((a: any) => [a.id, a]))
+        enriched = (data || []).map((c: any) => ({
+          ...c,
+          banco: c.banco || accMap.get(c.linked_account_id)?.nome || accMap.get(c.linked_account_id)?.banco || c.banco
+        }))
+      }
+    } catch (e) {
+      // não crítico
+      console.debug('[Faturas] erro ao enriquecer cartões com accounts', e)
+    }
+
+    setCartoes(enriched)
     // Não sobrescreve selectedCard se já foi setado pelo initialCardId
-    if (!selectedCard && data && data.length > 0 && !initialCardId) {
-      setSelectedCard(data[0].id)
+    if (!selectedCard && enriched && enriched.length > 0 && !initialCardId) {
+      setSelectedCard(enriched[0].id)
+    }
+
+    // Se a abertura veio do dashboard (flag setada), forçar cálculo imediatamente usando os valores disponíveis
+    if (shouldForceCalcularFatura.current) {
+      const cardToUse = selectedCard || initialCardId || (enriched && enriched[0]?.id)
+      const monthToUse = selectedMonth || initialMonth
+      const yearToUse = selectedYear || initialYear
+      if (cardToUse && monthToUse && yearToUse) {
+        try {
+          const ok = await calcularFatura(cardToUse, monthToUse, yearToUse)
+          if (ok) shouldForceCalcularFatura.current = false
+        } catch (e) {
+          console.debug('[Faturas] tentativa forçada de calcular fatura falhou', e)
+        }
+      }
     }
 
   }
@@ -316,27 +351,33 @@ export function GerenciarFaturasModal({
     }
   }
 
-  async function calcularFatura() {
-    if (!selectedCard || !selectedMonth || !selectedYear) return false
+  async function calcularFatura(overrideCardId?: string, overrideMonth?: string, overrideYear?: string) {
+    const cardId = overrideCardId || selectedCard
+    const month = overrideMonth || selectedMonth
+    const year = overrideYear || selectedYear
+    if (!cardId || !month || !year) return false
 
     setLoading(true)
-    const cartao = cartoes.find(c => c.id === selectedCard)
+    const cartao = cartoes.find(c => c.id === cardId) || (await (async () => {
+      const { data } = await supabase.from('cartoes').select('*').eq('id', cardId).maybeSingle()
+      return data
+    })())
     if (!cartao) {
       setLoading(false)
       return false
     }
 
     // DEBUG: logar parâmetros de cálculo
-    console.debug('[Faturas] calcularFatura start', { selectedCard, selectedMonth, selectedYear })
+    console.debug('[Faturas] calcularFatura start', { cardId, month, year, selectedCard, selectedMonth, selectedYear })
 
     const { fechamento, vencimento, inicioPeriodo, fimPeriodo } = calcularDatasFatura(
       cartao,
-      selectedMonth,
-      selectedYear
+      month,
+      year
     )
 
-    const mesNum = parseInt(selectedMonth)
-    const anoNum = parseInt(selectedYear)
+    const mesNum = parseInt(month)
+    const anoNum = parseInt(year)
 
     // Buscar transações por fatura_mes/fatura_ano (prioridade)
     // OU por período de data (fallback para transações antigas sem fatura_mes/fatura_ano)
@@ -346,10 +387,14 @@ export function GerenciarFaturasModal({
         *,
         categorias(id, nome)
       `)
-      .eq('cartao_id', selectedCard)
+      .eq('cartao_id', cardId)
       .eq('fatura_mes', mesNum)
       .eq('fatura_ano', anoNum)
       .order('data', { ascending: false })
+
+    // Prepare intervalo robusto (incluir dia inteiro para evitar issues de timezone)
+    const inicioISO = new Date(new Date(inicioPeriodo).setHours(0,0,0,0)).toISOString()
+    const fimISO = new Date(new Date(fimPeriodo).setHours(23,59,59,999)).toISOString()
 
     // Fallback: buscar por data para transações que não têm fatura_mes/fatura_ano
     const { data: transacoesPeriodo, error: errorPeriodo } = await supabase
@@ -358,14 +403,13 @@ export function GerenciarFaturasModal({
         *,
         categorias(id, nome)
       `)
-      .eq('cartao_id', selectedCard)
-      .is('fatura_mes', null)
-      .gte('data', inicioPeriodo.toISOString())
-      .lte('data', fimPeriodo.toISOString())
+      .eq('cartao_id', cardId)
+      .gte('data', inicioISO)
+      .lte('data', fimISO)
       .order('data', { ascending: false })
 
     const error = errorFatura || errorPeriodo
-    console.debug('[Faturas] query results', { transacoesFaturaCount: (transacoesFatura||[]).length, transacoesPeriodoCount: (transacoesPeriodo||[]).length, errorFatura, errorPeriodo })
+    console.debug('[Faturas] query results', { transacoesFaturaCount: (transacoesFatura||[]).length, transacoesPeriodoCount: (transacoesPeriodo||[]).length, errorFatura, errorPeriodo, inicioISO, fimISO })
     // Combinar e deduplicar
     const allTransacoes = [...(transacoesFatura || []), ...(transacoesPeriodo || [])]
     const seen = new Set<number>()
