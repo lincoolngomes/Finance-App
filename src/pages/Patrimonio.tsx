@@ -110,6 +110,7 @@ export default function Patrimonio() {
   const [dividas, setDividas] = useState<Divida[]>([])
   const [bens, setBens] = useState<Bem[]>([])
   const [dividasCartao, setDividasCartao] = useState<Divida[]>([])
+  const [bensInvestimentos, setBensInvestimentos] = useState<Bem[]>([])
 
   const [modalDividaOpen, setModalDividaOpen] = useState(false)
   const [modalBemOpen, setModalBemOpen] = useState(false)
@@ -159,10 +160,52 @@ export default function Patrimonio() {
   const carregarDados = async () => {
     setLoading(true)
     try {
-      await Promise.all([carregarDividas(), carregarBens(), carregarSaldoCartoesComoDivida()])
+      await Promise.all([
+        carregarDividas(),
+        carregarBens(),
+        carregarSaldoCartoesComoDivida(),
+        carregarInvestimentosComoBens()
+      ])
     } finally {
       setLoading(false)
     }
+  }
+
+  const carregarInvestimentosComoBens = async () => {
+    const { data: investimentos, error } = await supabase
+      .from('investimentos')
+      .select('id, codigo, nome, instituicao, tipo, valor_total, valor_atual_manual, valor_bruto_resgate, ativo')
+      .eq('user_id', user?.id)
+      .eq('ativo', true)
+
+    if (error) {
+      setBensInvestimentos([])
+      return
+    }
+
+    const linhasInvestimentos: Bem[] = (investimentos || [])
+      .map((inv: any) => {
+        const valorCompra = Number(inv.valor_total) || 0
+        const valorAtual =
+          Number(inv.valor_atual_manual ?? inv.valor_bruto_resgate ?? inv.valor_total) || valorCompra
+
+        if (valorCompra <= 0 && valorAtual <= 0) return null
+
+        return {
+          id: `investimento-${inv.id}`,
+          user_id: String(user?.id || ''),
+          nome: inv.nome || inv.codigo || 'Investimento',
+          tipo: 'investimento',
+          localizacao: inv.instituicao || 'Carteira de investimentos',
+          numero_serie: inv.codigo || null,
+          valor_compra: valorCompra,
+          valor_atual: valorAtual,
+          status: 'ativo'
+        } as Bem
+      })
+      .filter(Boolean) as Bem[]
+
+    setBensInvestimentos(linhasInvestimentos)
   }
 
   const carregarSaldoCartoesComoDivida = async () => {
@@ -498,13 +541,14 @@ export default function Patrimonio() {
   }, [dividas, dividasCartao, filtroDivida, statusDividaFiltro])
 
   const bensFiltrados = useMemo(() => {
-    return bens.filter(b => {
+    const todosBens = [...bensInvestimentos, ...bens]
+    return todosBens.filter(b => {
       const matchStatus = statusBemFiltro === 'todos' ? true : b.status === statusBemFiltro
       const termo = filtroBem.toLowerCase()
       const matchTexto = b.nome.toLowerCase().includes(termo) || (b.localizacao || '').toLowerCase().includes(termo)
       return matchStatus && matchTexto
     })
-  }, [bens, filtroBem, statusBemFiltro])
+  }, [bens, bensInvestimentos, filtroBem, statusBemFiltro])
 
   const resumoDividas = useMemo(() => {
     const todasDividas = [...dividas, ...dividasCartao]
@@ -516,11 +560,12 @@ export default function Patrimonio() {
   }, [dividas, dividasCartao])
 
   const resumoBens = useMemo(() => {
-    const totalCompra = bens.reduce((sum, b) => sum + (b.valor_compra || 0), 0)
-    const totalAtual = bens.reduce((sum, b) => sum + (b.valor_atual || 0), 0)
-    const ativos = bens.filter(b => b.status === 'ativo').length
+    const todosBens = [...bensInvestimentos, ...bens]
+    const totalCompra = todosBens.reduce((sum, b) => sum + (b.valor_compra || 0), 0)
+    const totalAtual = todosBens.reduce((sum, b) => sum + (b.valor_atual || 0), 0)
+    const ativos = todosBens.filter(b => b.status === 'ativo').length
     return { totalCompra, totalAtual, ativos }
-  }, [bens])
+  }, [bens, bensInvestimentos])
 
   const patrimonioLiquido = resumoBens.totalAtual - resumoDividas.saldo
 
@@ -772,6 +817,7 @@ export default function Patrimonio() {
                     </TableRow>
                   ) : (
                     bensFiltrados.map((bem) => {
+                      const isBemAutomaticoInvestimento = bem.id.startsWith('investimento-')
                       const variacao = bem.valor_atual - bem.valor_compra
                       return (
                         <TableRow key={bem.id}>
@@ -792,12 +838,18 @@ export default function Patrimonio() {
                           <TableCell className="text-center">{renderStatusBem(bem.status)}</TableCell>
                           <TableCell className="text-center">
                             <div className="flex items-center justify-center gap-1">
-                              <Button variant="ghost" size="icon" onClick={() => editarBem(bem)}>
-                                <Pencil className="h-4 w-4 text-blue-600" />
-                              </Button>
-                              <Button variant="ghost" size="icon" onClick={() => removerBem(bem.id)}>
-                                <Trash2 className="h-4 w-4 text-red-600" />
-                              </Button>
+                              {isBemAutomaticoInvestimento ? (
+                                <span className="text-xs text-muted-foreground">Automática</span>
+                              ) : (
+                                <>
+                                  <Button variant="ghost" size="icon" onClick={() => editarBem(bem)}>
+                                    <Pencil className="h-4 w-4 text-blue-600" />
+                                  </Button>
+                                  <Button variant="ghost" size="icon" onClick={() => removerBem(bem.id)}>
+                                    <Trash2 className="h-4 w-4 text-red-600" />
+                                  </Button>
+                                </>
+                              )}
                             </div>
                           </TableCell>
                         </TableRow>
