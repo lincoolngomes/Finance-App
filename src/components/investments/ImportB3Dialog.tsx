@@ -97,6 +97,23 @@ function getTipoLabel(tipo: TipoInvestimento): string {
   return INVESTMENT_TYPE_OPTIONS.find((option) => option.value === tipo)?.label || tipo
 }
 
+function getRowIssues(row: PreviewRow): string[] {
+  const issues: string[] = []
+
+  if (!row.codigo?.trim()) issues.push('Código vazio')
+  if (!row.nome?.trim()) issues.push('Nome vazio')
+  if (!row.quantidade || row.quantidade <= 0) issues.push('Quantidade inválida')
+  if (!row.preco_medio || row.preco_medio <= 0) issues.push('Preço médio inválido')
+
+  const isRendaFixa = ['renda_fixa', 'tesouro_direto', 'cri', 'cra', 'debenture'].includes(row.tipo)
+  if (isRendaFixa) {
+    if (!row.tipo_rentabilidade) issues.push('Rentabilidade não definida')
+    if (row.tipo_rentabilidade && !row.indexador) issues.push('Indexador não definido')
+  }
+
+  return issues
+}
+
 function normalizeKey(value: string): string {
   return (value || '')
     .normalize('NFD')
@@ -272,22 +289,35 @@ function mapRowsToPreviewRows(rawRows: CsvRow[], userId: string): ParseResult {
       }
 
       const tipo = inferTipo(nome, codigo, tipoRaw)
+      const isFixedIncomeLike = ['renda_fixa', 'tesouro_direto', 'cri', 'cra', 'debenture'].includes(tipo)
 
       let quantidadeFinal = quantidade
       let precoMedioFinal = precoMedio
 
-      if (!precoMedioFinal && quantidadeFinal > 0 && valorInvestido > 0) {
-        precoMedioFinal = valorInvestido / quantidadeFinal
-      }
+      if (isFixedIncomeLike) {
+        // Na B3 (renda fixa), a "quantidade" costuma representar o principal aplicado em R$.
+        // O app já calcula curva/rentabilidade internamente, então não devemos usar "valor a curva"
+        // como preço médio.
+        if (!quantidadeFinal && valorInvestido > 0) {
+          quantidadeFinal = valorInvestido
+        }
+        if (quantidadeFinal > 0 && !precoMedioFinal) {
+          precoMedioFinal = 1
+        }
+      } else {
+        if (!precoMedioFinal && quantidadeFinal > 0 && valorInvestido > 0) {
+          precoMedioFinal = valorInvestido / quantidadeFinal
+        }
 
-      if ((!quantidadeFinal || !precoMedioFinal) && valorInvestido > 0) {
-        quantidadeFinal = 1
-        precoMedioFinal = valorInvestido
-      }
+        if ((!quantidadeFinal || !precoMedioFinal) && valorInvestido > 0) {
+          quantidadeFinal = 1
+          precoMedioFinal = valorInvestido
+        }
 
-      if ((!quantidadeFinal || !precoMedioFinal) && valorAtual > 0) {
-        quantidadeFinal = 1
-        precoMedioFinal = valorAtual
+        if ((!quantidadeFinal || !precoMedioFinal) && valorAtual > 0) {
+          quantidadeFinal = 1
+          precoMedioFinal = valorAtual
+        }
       }
 
       if (!quantidadeFinal || !precoMedioFinal) {
@@ -313,11 +343,9 @@ function mapRowsToPreviewRows(rawRows: CsvRow[], userId: string): ParseResult {
             tipo_rentabilidade: inferRentabilidade(taxaTexto) || null,
             taxa_percentual: taxaPercentual || null,
             indexador: inferIndexador(taxaTexto) || null,
-            liquidez: ['renda_fixa', 'tesouro_direto', 'cri', 'cra', 'debenture'].includes(tipo)
-              ? 'no_vencimento'
-              : null,
+            liquidez: isFixedIncomeLike ? 'no_vencimento' : null,
             isento_ir: false,
-            valor_atual_manual: valorAtual > 0 ? Number(valorAtual.toFixed(2)) : null,
+            valor_atual_manual: isFixedIncomeLike ? null : valorAtual > 0 ? Number(valorAtual.toFixed(2)) : null,
             ativo: true,
           }
     })
@@ -334,8 +362,10 @@ export function ImportB3Dialog({ open, onOpenChange, onSuccess }: ImportB3Dialog
   const [loading, setLoading] = useState(false)
   const [step, setStep] = useState<'upload' | 'preview'>('upload')
   const [previewRows, setPreviewRows] = useState<PreviewRow[]>([])
+  const [selectedRowIds, setSelectedRowIds] = useState<Set<string>>(new Set())
   const [selectedPreviewId, setSelectedPreviewId] = useState<string | null>(null)
   const [selectedTipoFilter, setSelectedTipoFilter] = useState<TipoInvestimento | 'all'>('all')
+  const [searchPreview, setSearchPreview] = useState('')
 
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
@@ -356,15 +386,44 @@ export function ImportB3Dialog({ open, onOpenChange, onSuccess }: ImportB3Dialog
   }, [previewRows])
 
   const filteredPreviewRows = useMemo(() => {
-    if (selectedTipoFilter === 'all') return previewRows
-    return previewRows.filter((row) => row.tipo === selectedTipoFilter)
-  }, [previewRows, selectedTipoFilter])
+    const baseRows =
+      selectedTipoFilter === 'all' ? previewRows : previewRows.filter((row) => row.tipo === selectedTipoFilter)
+
+    const q = searchPreview.trim().toLowerCase()
+    if (!q) return baseRows
+
+    return baseRows.filter((row) => {
+      return row.nome.toLowerCase().includes(q) || row.codigo.toLowerCase().includes(q)
+    })
+  }, [previewRows, selectedTipoFilter, searchPreview])
 
   const selectedPreviewRow = useMemo(() => {
     if (!filteredPreviewRows.length) return null
     const byId = filteredPreviewRows.find((row) => row.id === selectedPreviewId)
     return byId || filteredPreviewRows[0]
   }, [filteredPreviewRows, selectedPreviewId])
+
+  const selectedRowIssues = useMemo(() => {
+    return selectedPreviewRow ? getRowIssues(selectedPreviewRow) : []
+  }, [selectedPreviewRow])
+
+  const selectedRowsCount = useMemo(() => {
+    return previewRows.filter((row) => selectedRowIds.has(row.id)).length
+  }, [previewRows, selectedRowIds])
+
+  const areAllFilteredSelected = useMemo(() => {
+    if (!filteredPreviewRows.length) return false
+    return filteredPreviewRows.every((row) => selectedRowIds.has(row.id))
+  }, [filteredPreviewRows, selectedRowIds])
+
+  const reviewStats = useMemo(() => {
+    const withIssues = previewRows.filter((row) => getRowIssues(row).length > 0).length
+    return {
+      total: previewRows.length,
+      withIssues,
+      ready: Math.max(0, previewRows.length - withIssues),
+    }
+  }, [previewRows])
 
   const resetMessages = () => {
     setError(null)
@@ -407,7 +466,9 @@ export function ImportB3Dialog({ open, onOpenChange, onSuccess }: ImportB3Dialog
       }
 
       setPreviewRows(result.rows)
+      setSelectedRowIds(new Set(result.rows.map((row) => row.id)))
       setSelectedTipoFilter('all')
+      setSearchPreview('')
       setSelectedPreviewId(result.rows[0]?.id || null)
       setIgnoredCount(result.ignored)
       setStep('preview')
@@ -531,6 +592,11 @@ export function ImportB3Dialog({ open, onOpenChange, onSuccess }: ImportB3Dialog
       }
       return updated
     })
+    setSelectedRowIds((prev) => {
+      const next = new Set(prev)
+      next.delete(rowId)
+      return next
+    })
   }
 
   const handleImportPreview = async () => {
@@ -553,6 +619,7 @@ export function ImportB3Dialog({ open, onOpenChange, onSuccess }: ImportB3Dialog
     }
 
     const typedPayload = previewRows
+      .filter((item) => selectedRowIds.has(item.id))
       .filter((item) => item.codigo && item.nome && item.quantidade > 0 && item.preco_medio > 0)
       .map((item) => ({
         user_id: user.id,
@@ -576,7 +643,10 @@ export function ImportB3Dialog({ open, onOpenChange, onSuccess }: ImportB3Dialog
       }))
 
     if (!typedPayload.length) {
-      const msg = 'As linhas atuais estão inválidas. Revise código, nome, quantidade e preço médio.'
+      const msg =
+        selectedRowsCount === 0
+          ? 'Selecione ao menos um investimento para importar.'
+          : 'As linhas selecionadas estão inválidas. Revise código, nome, quantidade e preço médio.'
       setError(msg)
       setStatusMessage({ type: 'error', text: msg })
       toast({ title: 'Dados inválidos', description: msg, variant: 'destructive', duration: 7000 })
@@ -681,7 +751,7 @@ export function ImportB3Dialog({ open, onOpenChange, onSuccess }: ImportB3Dialog
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[980px] p-0 overflow-hidden border-slate-800 bg-slate-950">
+      <DialogContent className="sm:max-w-[980px] p-0 overflow-hidden border-slate-800 bg-slate-950 max-h-[92vh] flex flex-col">
         <DialogHeader className="px-6 pt-6 pb-4 border-b border-slate-800">
           <div className="flex items-start gap-3">
             <div className="h-10 w-10 rounded-lg bg-slate-900 border border-slate-700 flex items-center justify-center shrink-0">
@@ -696,7 +766,7 @@ export function ImportB3Dialog({ open, onOpenChange, onSuccess }: ImportB3Dialog
           </div>
         </DialogHeader>
 
-        <div className="px-6 py-5 space-y-4">
+        <div className="px-6 py-5 space-y-4 overflow-y-auto flex-1 min-h-0">
           {step === 'upload' && (
             <>
               <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-4">
@@ -748,8 +818,10 @@ export function ImportB3Dialog({ open, onOpenChange, onSuccess }: ImportB3Dialog
                     resetMessages()
                     setStep('upload')
                     setPreviewRows([])
+                    setSelectedRowIds(new Set())
                     setSelectedPreviewId(null)
                     setSelectedTipoFilter('all')
+                    setSearchPreview('')
                     setIgnoredCount(0)
                     const file = e.target.files?.[0] || null
                     setCsvFile(file)
@@ -791,8 +863,10 @@ export function ImportB3Dialog({ open, onOpenChange, onSuccess }: ImportB3Dialog
                   onClick={() => {
                     setStep('upload')
                     setPreviewRows([])
+                    setSelectedRowIds(new Set())
                     setSelectedPreviewId(null)
                     setSelectedTipoFilter('all')
+                    setSearchPreview('')
                     setIgnoredCount(0)
                     resetMessages()
                   }}
@@ -801,7 +875,47 @@ export function ImportB3Dialog({ open, onOpenChange, onSuccess }: ImportB3Dialog
                 </Button>
               </div>
 
+              <div className="grid grid-cols-3 gap-2">
+                <div className="rounded-md border border-slate-800 bg-slate-950/60 p-3">
+                  <div className="text-[11px] uppercase tracking-wide text-slate-500">Total</div>
+                  <div className="text-xl font-semibold text-slate-100">{reviewStats.total}</div>
+                </div>
+                <div className="rounded-md border border-emerald-800/60 bg-emerald-950/20 p-3">
+                  <div className="text-[11px] uppercase tracking-wide text-emerald-400/80">Prontos</div>
+                  <div className="text-xl font-semibold text-emerald-300">{reviewStats.ready}</div>
+                </div>
+                <div className="rounded-md border border-amber-800/60 bg-amber-950/20 p-3">
+                  <div className="text-[11px] uppercase tracking-wide text-amber-400/80">Com pendências</div>
+                  <div className="text-xl font-semibold text-amber-300">{reviewStats.withIssues}</div>
+                </div>
+              </div>
+
               <div className="rounded-lg border border-slate-800 p-3 space-y-3">
+                <div className="flex items-center justify-between rounded-md border border-slate-800 bg-slate-950/40 px-3 py-2">
+                  <label className="flex items-center gap-2 text-sm text-slate-200 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={areAllFilteredSelected}
+                      onChange={(e) => {
+                        const checked = e.target.checked
+                        setSelectedRowIds((prev) => {
+                          const next = new Set(prev)
+                          if (checked) {
+                            filteredPreviewRows.forEach((row) => next.add(row.id))
+                          } else {
+                            filteredPreviewRows.forEach((row) => next.delete(row.id))
+                          }
+                          return next
+                        })
+                      }}
+                    />
+                    Selecionar todos do filtro
+                  </label>
+                  <div className="text-xs text-slate-400">
+                    Selecionados: <span className="text-slate-200 font-medium">{selectedRowsCount}</span> de {previewRows.length}
+                  </div>
+                </div>
+
                 <div className="flex flex-wrap gap-2">
                   <Button
                     size="sm"
@@ -824,39 +938,79 @@ export function ImportB3Dialog({ open, onOpenChange, onSuccess }: ImportB3Dialog
                   ))}
                 </div>
 
+                <Input
+                  value={searchPreview}
+                  onChange={(e) => setSearchPreview(e.target.value)}
+                  placeholder="Buscar por nome ou código..."
+                  className="h-9 bg-slate-950 border-slate-700 text-slate-100"
+                />
+
                 <div className="grid grid-cols-12 gap-3 min-h-[360px]">
-                  <div className="col-span-5 rounded-md border border-slate-800 bg-slate-950/40 p-2 max-h-[380px] overflow-auto space-y-2">
-                    {filteredPreviewRows.map((row) => (
-                      <button
-                        key={row.id}
-                        className={`w-full text-left rounded-md border p-3 transition ${
-                          selectedPreviewRow?.id === row.id
-                            ? 'border-blue-500 bg-blue-950/30'
-                            : 'border-slate-800 bg-slate-950/60 hover:border-slate-700'
-                        }`}
-                        onClick={() => setSelectedPreviewId(row.id)}
-                      >
-                        <div className="text-sm text-slate-100 truncate">{row.nome}</div>
-                        <div className="text-xs text-slate-400 mt-1">{row.codigo}</div>
-                        <div className="mt-2 flex items-center justify-between text-xs">
-                          <span className="text-slate-400">Qtd: {row.quantidade}</span>
-                          <span className="text-slate-200 font-medium">R$ {row.valor_total.toFixed(2)}</span>
-                        </div>
-                      </button>
-                    ))}
+                  <div className="col-span-4 rounded-md border border-slate-800 bg-slate-950/40 p-2 max-h-[420px] overflow-auto space-y-2">
+                    {filteredPreviewRows.map((row) => {
+                      const issues = getRowIssues(row)
+                      return (
+                        <button
+                          key={row.id}
+                          className={`w-full text-left rounded-md border p-3 transition ${
+                            selectedPreviewRow?.id === row.id
+                              ? 'border-blue-500 bg-blue-950/30'
+                              : issues.length > 0
+                                ? 'border-amber-800/50 bg-amber-950/10 hover:border-amber-700/60'
+                                : 'border-slate-800 bg-slate-950/60 hover:border-slate-700'
+                          }`}
+                          onClick={() => setSelectedPreviewId(row.id)}
+                        >
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="checkbox"
+                              checked={selectedRowIds.has(row.id)}
+                              onChange={(e) => {
+                                const checked = e.target.checked
+                                setSelectedRowIds((prev) => {
+                                  const next = new Set(prev)
+                                  if (checked) next.add(row.id)
+                                  else next.delete(row.id)
+                                  return next
+                                })
+                              }}
+                              onClick={(e) => e.stopPropagation()}
+                            />
+                            <div className="text-sm text-slate-100 truncate">{row.nome}</div>
+                          </div>
+                          <div className="text-xs text-slate-400 mt-1">{row.codigo}</div>
+                          <div className="mt-2 flex items-center justify-between text-xs">
+                            <span className="text-slate-400">{getTipoLabel(row.tipo)}</span>
+                            <span className="text-slate-200 font-medium">R$ {row.valor_total.toFixed(2)}</span>
+                          </div>
+                          {issues.length > 0 && (
+                            <div className="mt-2 text-[11px] text-amber-300 truncate">
+                              Pendência: {issues[0]}
+                            </div>
+                          )}
+                        </button>
+                      )
+                    })}
+                    {filteredPreviewRows.length === 0 && (
+                      <div className="h-full min-h-[120px] flex items-center justify-center text-sm text-slate-500">
+                        Nenhum item encontrado.
+                      </div>
+                    )}
                   </div>
 
-                  <div className="col-span-7 rounded-md border border-slate-800 bg-slate-950/40 p-3">
+                  <div className="col-span-8 rounded-md border border-slate-800 bg-slate-950/40 p-3 max-h-[420px] overflow-auto">
                     {!selectedPreviewRow ? (
                       <div className="h-full flex items-center justify-center text-sm text-slate-500">
                         Nenhum item no filtro atual.
                       </div>
                     ) : (
-                      <div className="space-y-3">
+                      <div className="space-y-4">
                         <div className="flex items-center justify-between">
-                          <div>
+                          <div className="space-y-1">
                             <div className="text-sm font-semibold text-slate-100">{selectedPreviewRow.nome}</div>
-                            <div className="text-xs text-slate-400">{selectedPreviewRow.codigo}</div>
+                            <div className="text-xs text-slate-400">
+                              {selectedPreviewRow.codigo} • {getTipoLabel(selectedPreviewRow.tipo)}
+                            </div>
                           </div>
                           <Button
                             variant="ghost"
@@ -869,86 +1023,106 @@ export function ImportB3Dialog({ open, onOpenChange, onSuccess }: ImportB3Dialog
                           </Button>
                         </div>
 
-                        <div className="grid grid-cols-2 gap-2">
-                          <div>
-                            <Label className="text-[11px] text-slate-400">Ativo</Label>
-                            <Input value={selectedPreviewRow.nome} onChange={(e) => handleChangePreviewField(selectedPreviewRow.id, 'nome', e.target.value)} className="h-8 bg-slate-950 border-slate-700 text-slate-100" />
+                        {selectedRowIssues.length > 0 && (
+                          <Alert className="border-amber-600/40 bg-amber-950/20">
+                            <AlertCircle className="w-4 h-4 text-amber-300" />
+                            <AlertDescription className="text-amber-200 text-sm">
+                              {selectedRowIssues.join(' • ')}
+                            </AlertDescription>
+                          </Alert>
+                        )}
+
+                        <div className="rounded-md border border-slate-800 p-3 space-y-2">
+                          <div className="text-xs uppercase tracking-wide text-slate-400">Campos essenciais</div>
+                          <div className="grid grid-cols-2 gap-2">
+                            <div>
+                              <Label className="text-[11px] text-slate-400">Ativo</Label>
+                              <Input value={selectedPreviewRow.nome} onChange={(e) => handleChangePreviewField(selectedPreviewRow.id, 'nome', e.target.value)} className="h-8 bg-slate-950 border-slate-700 text-slate-100" />
+                            </div>
+                            <div>
+                              <Label className="text-[11px] text-slate-400">Instituição</Label>
+                              <Input value={selectedPreviewRow.instituicao || ''} onChange={(e) => handleChangePreviewField(selectedPreviewRow.id, 'instituicao', e.target.value)} className="h-8 bg-slate-950 border-slate-700 text-slate-100" />
+                            </div>
                           </div>
-                          <div>
-                            <Label className="text-[11px] text-slate-400">Instituição</Label>
-                            <Input value={selectedPreviewRow.instituicao || ''} onChange={(e) => handleChangePreviewField(selectedPreviewRow.id, 'instituicao', e.target.value)} className="h-8 bg-slate-950 border-slate-700 text-slate-100" />
+
+                          <div className="grid grid-cols-5 gap-2">
+                            <div>
+                              <Label className="text-[11px] text-slate-400">Código</Label>
+                              <Input value={selectedPreviewRow.codigo} onChange={(e) => handleChangePreviewField(selectedPreviewRow.id, 'codigo', e.target.value)} className="h-8 bg-slate-950 border-slate-700 text-slate-100" />
+                            </div>
+                            <div>
+                              <Label className="text-[11px] text-slate-400">Qtd</Label>
+                              <Input value={String(selectedPreviewRow.quantidade)} onChange={(e) => handleChangePreviewField(selectedPreviewRow.id, 'quantidade', e.target.value)} className="h-8 bg-slate-950 border-slate-700 text-slate-100" />
+                            </div>
+                            <div>
+                              <Label className="text-[11px] text-slate-400">Preço Médio</Label>
+                              <Input value={String(selectedPreviewRow.preco_medio)} onChange={(e) => handleChangePreviewField(selectedPreviewRow.id, 'preco_medio', e.target.value)} className="h-8 bg-slate-950 border-slate-700 text-slate-100" />
+                            </div>
+                            <div>
+                              <Label className="text-[11px] text-slate-400">Valor Total</Label>
+                              <div className="h-8 px-2 flex items-center rounded-md border border-slate-700 bg-slate-950 text-slate-100 text-sm">R$ {selectedPreviewRow.valor_total.toFixed(2)}</div>
+                            </div>
+                            <div>
+                              <Label className="text-[11px] text-slate-400">Tipo</Label>
+                              <select value={selectedPreviewRow.tipo} onChange={(e) => handleChangePreviewField(selectedPreviewRow.id, 'tipo', e.target.value)} className="h-8 w-full rounded-md border border-slate-700 bg-slate-950 px-2 text-slate-100">
+                                {INVESTMENT_TYPE_OPTIONS.map((option) => (
+                                  <option key={option.value} value={option.value}>{option.label}</option>
+                                ))}
+                              </select>
+                            </div>
                           </div>
                         </div>
 
-                        <div className="grid grid-cols-4 gap-2">
-                          <div>
-                            <Label className="text-[11px] text-slate-400">Código</Label>
-                            <Input value={selectedPreviewRow.codigo} onChange={(e) => handleChangePreviewField(selectedPreviewRow.id, 'codigo', e.target.value)} className="h-8 bg-slate-950 border-slate-700 text-slate-100" />
+                        {['renda_fixa', 'tesouro_direto', 'cri', 'cra', 'debenture'].includes(selectedPreviewRow.tipo) && (
+                          <div className="rounded-md border border-slate-800 p-3 space-y-2">
+                            <div className="text-xs uppercase tracking-wide text-slate-400">Campos de renda fixa</div>
+                            <div className="grid grid-cols-4 gap-2">
+                              <div>
+                                <Label className="text-[11px] text-slate-400">Rentabilidade</Label>
+                                <select value={selectedPreviewRow.tipo_rentabilidade || ''} onChange={(e) => handleChangePreviewField(selectedPreviewRow.id, 'tipo_rentabilidade', e.target.value)} className="h-8 w-full rounded-md border border-slate-700 bg-slate-950 px-2 text-slate-100">
+                                  <option value="">-</option>
+                                  {RENTABILIDADE_OPTIONS.map((option) => (
+                                    <option key={option.value} value={option.value}>{option.label}</option>
+                                  ))}
+                                </select>
+                              </div>
+                              <div>
+                                <Label className="text-[11px] text-slate-400">Taxa %</Label>
+                                <Input value={selectedPreviewRow.taxa_percentual == null ? '' : String(selectedPreviewRow.taxa_percentual)} onChange={(e) => handleChangePreviewField(selectedPreviewRow.id, 'taxa_percentual', e.target.value)} className="h-8 bg-slate-950 border-slate-700 text-slate-100" />
+                              </div>
+                              <div>
+                                <Label className="text-[11px] text-slate-400">Indexador</Label>
+                                <select value={selectedPreviewRow.indexador || ''} onChange={(e) => handleChangePreviewField(selectedPreviewRow.id, 'indexador', e.target.value)} className="h-8 w-full rounded-md border border-slate-700 bg-slate-950 px-2 text-slate-100">
+                                  <option value="">-</option>
+                                  {INDEXADOR_OPTIONS.map((option) => (
+                                    <option key={option.value} value={option.value}>{option.label}</option>
+                                  ))}
+                                </select>
+                              </div>
+                              <div>
+                                <Label className="text-[11px] text-slate-400">Liquidez</Label>
+                                <select value={selectedPreviewRow.liquidez || ''} onChange={(e) => handleChangePreviewField(selectedPreviewRow.id, 'liquidez', e.target.value)} className="h-8 w-full rounded-md border border-slate-700 bg-slate-950 px-2 text-slate-100">
+                                  <option value="">-</option>
+                                  {LIQUIDEZ_OPTIONS.map((option) => (
+                                    <option key={option.value} value={option.value}>{option.label}</option>
+                                  ))}
+                                </select>
+                              </div>
+                            </div>
                           </div>
-                          <div>
-                            <Label className="text-[11px] text-slate-400">Qtd</Label>
-                            <Input value={String(selectedPreviewRow.quantidade)} onChange={(e) => handleChangePreviewField(selectedPreviewRow.id, 'quantidade', e.target.value)} className="h-8 bg-slate-950 border-slate-700 text-slate-100" />
-                          </div>
-                          <div>
-                            <Label className="text-[11px] text-slate-400">Preço Médio</Label>
-                            <Input value={String(selectedPreviewRow.preco_medio)} onChange={(e) => handleChangePreviewField(selectedPreviewRow.id, 'preco_medio', e.target.value)} className="h-8 bg-slate-950 border-slate-700 text-slate-100" />
-                          </div>
-                          <div>
-                            <Label className="text-[11px] text-slate-400">Valor Total</Label>
-                            <div className="h-8 px-2 flex items-center rounded-md border border-slate-700 bg-slate-950 text-slate-100 text-sm">R$ {selectedPreviewRow.valor_total.toFixed(2)}</div>
-                          </div>
-                        </div>
+                        )}
 
-                        <div className="grid grid-cols-3 gap-2">
-                          <div>
-                            <Label className="text-[11px] text-slate-400">Tipo</Label>
-                            <select value={selectedPreviewRow.tipo} onChange={(e) => handleChangePreviewField(selectedPreviewRow.id, 'tipo', e.target.value)} className="h-8 w-full rounded-md border border-slate-700 bg-slate-950 px-2 text-slate-100">
-                              {INVESTMENT_TYPE_OPTIONS.map((option) => (
-                                <option key={option.value} value={option.value}>{option.label}</option>
-                              ))}
-                            </select>
-                          </div>
-                          <div>
-                            <Label className="text-[11px] text-slate-400">Rentabilidade</Label>
-                            <select value={selectedPreviewRow.tipo_rentabilidade || ''} onChange={(e) => handleChangePreviewField(selectedPreviewRow.id, 'tipo_rentabilidade', e.target.value)} className="h-8 w-full rounded-md border border-slate-700 bg-slate-950 px-2 text-slate-100">
-                              <option value="">-</option>
-                              {RENTABILIDADE_OPTIONS.map((option) => (
-                                <option key={option.value} value={option.value}>{option.label}</option>
-                              ))}
-                            </select>
-                          </div>
-                          <div>
-                            <Label className="text-[11px] text-slate-400">Taxa %</Label>
-                            <Input value={selectedPreviewRow.taxa_percentual == null ? '' : String(selectedPreviewRow.taxa_percentual)} onChange={(e) => handleChangePreviewField(selectedPreviewRow.id, 'taxa_percentual', e.target.value)} className="h-8 bg-slate-950 border-slate-700 text-slate-100" />
-                          </div>
-                        </div>
-
-                        <div className="grid grid-cols-4 gap-2">
-                          <div>
-                            <Label className="text-[11px] text-slate-400">Indexador</Label>
-                            <select value={selectedPreviewRow.indexador || ''} onChange={(e) => handleChangePreviewField(selectedPreviewRow.id, 'indexador', e.target.value)} className="h-8 w-full rounded-md border border-slate-700 bg-slate-950 px-2 text-slate-100">
-                              <option value="">-</option>
-                              {INDEXADOR_OPTIONS.map((option) => (
-                                <option key={option.value} value={option.value}>{option.label}</option>
-                              ))}
-                            </select>
-                          </div>
-                          <div>
-                            <Label className="text-[11px] text-slate-400">Vencimento</Label>
-                            <Input type="date" value={selectedPreviewRow.data_vencimento || ''} onChange={(e) => handleChangePreviewField(selectedPreviewRow.id, 'data_vencimento', e.target.value)} className="h-8 bg-slate-950 border-slate-700 text-slate-100" />
-                          </div>
-                          <div>
-                            <Label className="text-[11px] text-slate-400">Aplicação</Label>
-                            <Input type="date" value={selectedPreviewRow.data_aplicacao || ''} onChange={(e) => handleChangePreviewField(selectedPreviewRow.id, 'data_aplicacao', e.target.value)} className="h-8 bg-slate-950 border-slate-700 text-slate-100" />
-                          </div>
-                          <div>
-                            <Label className="text-[11px] text-slate-400">Liquidez</Label>
-                            <select value={selectedPreviewRow.liquidez || ''} onChange={(e) => handleChangePreviewField(selectedPreviewRow.id, 'liquidez', e.target.value)} className="h-8 w-full rounded-md border border-slate-700 bg-slate-950 px-2 text-slate-100">
-                              <option value="">-</option>
-                              {LIQUIDEZ_OPTIONS.map((option) => (
-                                <option key={option.value} value={option.value}>{option.label}</option>
-                              ))}
-                            </select>
+                        <div className="rounded-md border border-slate-800 p-3 space-y-2">
+                          <div className="text-xs uppercase tracking-wide text-slate-400">Datas</div>
+                          <div className="grid grid-cols-2 gap-2">
+                            <div>
+                              <Label className="text-[11px] text-slate-400">Aplicação</Label>
+                              <Input type="date" value={selectedPreviewRow.data_aplicacao || ''} onChange={(e) => handleChangePreviewField(selectedPreviewRow.id, 'data_aplicacao', e.target.value)} className="h-8 bg-slate-950 border-slate-700 text-slate-100" />
+                            </div>
+                            <div>
+                              <Label className="text-[11px] text-slate-400">Vencimento</Label>
+                              <Input type="date" value={selectedPreviewRow.data_vencimento || ''} onChange={(e) => handleChangePreviewField(selectedPreviewRow.id, 'data_vencimento', e.target.value)} className="h-8 bg-slate-950 border-slate-700 text-slate-100" />
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -1017,7 +1191,23 @@ export function ImportB3Dialog({ open, onOpenChange, onSuccess }: ImportB3Dialog
           )}
         </div>
 
-        <div className="px-6 py-4 border-t border-slate-800 bg-slate-950 flex justify-end gap-3">
+        <div className="px-6 py-4 border-t border-slate-800 bg-slate-950 flex items-center justify-between gap-3">
+          <div className="text-xs text-slate-400">
+            {step === 'preview' ? (
+              <>
+                <span className="text-emerald-300 font-medium">{selectedRowsCount}</span> selecionado(s) para importar
+                {reviewStats.withIssues > 0 && (
+                  <>
+                    {' • '}
+                    <span className="text-amber-300 font-medium">{reviewStats.withIssues}</span> com pendência
+                  </>
+                )}
+              </>
+            ) : (
+              'Importe um arquivo da B3 para iniciar a pré-visualização.'
+            )}
+          </div>
+          <div className="flex justify-end gap-3">
           <Button
             variant="outline"
             onClick={() => onOpenChange(false)}
@@ -1041,7 +1231,7 @@ export function ImportB3Dialog({ open, onOpenChange, onSuccess }: ImportB3Dialog
           ) : (
             <Button
               onClick={handleImportPreview}
-              disabled={loading || previewRows.length === 0}
+              disabled={loading || previewRows.length === 0 || selectedRowsCount === 0}
               className="min-w-28 bg-blue-600 hover:bg-blue-500 text-white"
             >
               {loading ? (
@@ -1054,6 +1244,7 @@ export function ImportB3Dialog({ open, onOpenChange, onSuccess }: ImportB3Dialog
               )}
             </Button>
           )}
+          </div>
         </div>
       </DialogContent>
     </Dialog>
