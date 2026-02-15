@@ -17,6 +17,8 @@ interface EditInvestmentDialogProps {
 export const EditInvestmentDialog = ({ open, onClose, investimento }: EditInvestmentDialogProps) => {
   const { atualizarInvestimento } = useInvestments()
   const [loading, setLoading] = useState(false)
+  const isFixedIncomeType = (tipo?: string) =>
+    ['renda_fixa', 'tesouro_direto', 'cri', 'cra', 'debenture'].includes(tipo || '')
   
   const [codigo, setCodigo] = useState('')
   const [nome, setNome] = useState('')
@@ -44,7 +46,7 @@ export const EditInvestmentDialog = ({ open, onClose, investimento }: EditInvest
       setObservacoes(investimento.observacoes || '')
       setValorAplicado(investimento.valor_total?.toString() || '0')
       
-      if (investimento.tipo === 'renda_fixa') {
+      if (isFixedIncomeType(investimento.tipo)) {
         setTipoRentabilidade(investimento.tipo_rentabilidade || 'pos')
         setTaxaPercentual(investimento.taxa_percentual?.toString() || '')
         setIndexador(investimento.indexador || 'cdi')
@@ -80,7 +82,7 @@ export const EditInvestmentDialog = ({ open, onClose, investimento }: EditInvest
       }
 
       // Adicionar campos de renda fixa se aplicável
-      if (investimento.tipo === 'renda_fixa') {
+      if (isFixedIncomeType(investimento.tipo)) {
         dadosAtualizados.tipo_rentabilidade = tipoRentabilidade
         dadosAtualizados.taxa_percentual = parseValorBR(taxaPercentual) || undefined
         dadosAtualizados.indexador = indexador
@@ -94,9 +96,13 @@ export const EditInvestmentDialog = ({ open, onClose, investimento }: EditInvest
         if (usarValorManual && valorAtualManual) {
           // @ts-ignore - campo customizado
           dadosAtualizados.valor_atual_manual = parseValorBR(valorAtualManual)
+          // @ts-ignore - campo customizado
+          dadosAtualizados.tipo_marcacao = 'manual'
         } else {
           // @ts-ignore
           dadosAtualizados.valor_atual_manual = null
+          // @ts-ignore - campo customizado
+          dadosAtualizados.tipo_marcacao = 'curva'
         }
         
         // Isenção de IR
@@ -134,7 +140,7 @@ export const EditInvestmentDialog = ({ open, onClose, investimento }: EditInvest
 
   if (!investimento) return null
 
-  const isRendaFixa = ['renda_fixa', 'tesouro_direto', 'cri', 'cra', 'debenture'].includes(investimento.tipo)
+  const isRendaFixa = isFixedIncomeType(investimento.tipo)
   const tipoLabel = {
     acao: 'Ação',
     fii: 'FII',

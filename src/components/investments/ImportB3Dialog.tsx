@@ -212,6 +212,16 @@ function inferIndexador(texto: string): 'cdi' | 'ipca' | 'selic' | 'prefixado' |
   return undefined
 }
 
+function inferIsentoIR(nome: string, codigo: string, tipo: TipoInvestimento): boolean {
+  const base = `${nome} ${codigo}`.toLowerCase()
+
+  if (tipo === 'cri' || tipo === 'cra') return true
+  if (base.includes('lci') || base.includes('lca')) return true
+  if (base.includes('debenture') && base.includes('incentiv')) return true
+
+  return false
+}
+
 async function readRawRows(file: File): Promise<CsvRow[]> {
   const fileName = file.name.toLowerCase()
 
@@ -274,7 +284,10 @@ function mapRowsToPreviewRows(rawRows: CsvRow[], userId: string): ParseResult {
       )
 
       const vencimento = parseDateToISO(getValue(row, ['vencimento', 'data vencimento']))
-      const dataRef = parseDateToISO(getValue(row, ['data referencia', 'data', 'data posicao', 'data base']))
+      const dataRef = parseDateToISO(getValue(row, ['data referencia', 'data posicao', 'data base']))
+      const dataAplicacaoImportada = parseDateToISO(
+        getValue(row, ['data aplicacao', 'data de aplicacao', 'data emissao', 'data de emissao'])
+      )
       const taxaTexto = String(
         getValue(row, ['taxa', 'rentabilidade', 'taxa contratada', 'taxa a a']) || ''
       ).trim()
@@ -290,6 +303,8 @@ function mapRowsToPreviewRows(rawRows: CsvRow[], userId: string): ParseResult {
 
       const tipo = inferTipo(nome, codigo, tipoRaw)
       const isFixedIncomeLike = ['renda_fixa', 'tesouro_direto', 'cri', 'cra', 'debenture'].includes(tipo)
+      const rentabilidadeInferida = inferRentabilidade(`${taxaTexto} ${nome} ${tipoRaw}`)
+      const indexadorInferido = inferIndexador(`${taxaTexto} ${nome} ${tipoRaw}`)
 
       let quantidadeFinal = quantidade
       let precoMedioFinal = precoMedio
@@ -335,16 +350,16 @@ function mapRowsToPreviewRows(rawRows: CsvRow[], userId: string): ParseResult {
         quantidade: Number(quantidadeFinal.toFixed(8)),
         preco_medio: Number(precoMedioFinal.toFixed(8)),
         valor_total: Number((quantidadeFinal * precoMedioFinal).toFixed(2)),
-        data_primeira_compra:
-          dataRef || parseDateToISO(getValue(row, ['data de emissao', 'data emissao'])) || null,
-        data_aplicacao:
-          dataRef || parseDateToISO(getValue(row, ['data de emissao', 'data emissao'])) || null,
+        data_primeira_compra: dataAplicacaoImportada || dataRef || null,
+        data_aplicacao: dataAplicacaoImportada || null,
             data_vencimento: vencimento || null,
-            tipo_rentabilidade: inferRentabilidade(taxaTexto) || null,
-            taxa_percentual: taxaPercentual || null,
-            indexador: inferIndexador(taxaTexto) || null,
+            tipo_rentabilidade: isFixedIncomeLike ? (rentabilidadeInferida || 'pos') : (rentabilidadeInferida || null),
+            taxa_percentual: isFixedIncomeLike ? (taxaPercentual || 100) : (taxaPercentual || null),
+            indexador: isFixedIncomeLike ? (indexadorInferido || 'cdi') : (indexadorInferido || null),
             liquidez: isFixedIncomeLike ? 'no_vencimento' : null,
-            isento_ir: false,
+            isento_ir: inferIsentoIR(nome, codigo, tipo),
+            // Para renda fixa, deixamos o app recalcular diariamente (evita "congelar" no
+            // valor da data de posição do arquivo exportado).
             valor_atual_manual: isFixedIncomeLike ? null : valorAtual > 0 ? Number(valorAtual.toFixed(2)) : null,
             ativo: true,
           }
@@ -856,23 +871,39 @@ export function ImportB3Dialog({ open, onOpenChange, onSuccess }: ImportB3Dialog
                     {ignoredCount > 0 ? ` • ${ignoredCount} linha(s) ignorada(s)` : ''}
                   </div>
                 </div>
-                <Button
-                  variant="outline"
-                  className="border-slate-700 text-slate-200"
-                  disabled={loading}
-                  onClick={() => {
-                    setStep('upload')
-                    setPreviewRows([])
-                    setSelectedRowIds(new Set())
-                    setSelectedPreviewId(null)
-                    setSelectedTipoFilter('all')
-                    setSearchPreview('')
-                    setIgnoredCount(0)
-                    resetMessages()
-                  }}
-                >
-                  Trocar arquivo
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    className="border-slate-700 text-slate-200"
+                    disabled={loading}
+                    onClick={() => {
+                      setStep('upload')
+                      setPreviewRows([])
+                      setSelectedRowIds(new Set())
+                      setSelectedPreviewId(null)
+                      setSelectedTipoFilter('all')
+                      setSearchPreview('')
+                      setIgnoredCount(0)
+                      resetMessages()
+                    }}
+                  >
+                    Trocar arquivo
+                  </Button>
+                  <Button
+                    onClick={handleImportPreview}
+                    disabled={loading || previewRows.length === 0 || selectedRowsCount === 0}
+                    className="bg-blue-600 hover:bg-blue-500 text-white"
+                  >
+                    {loading ? (
+                      <>
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        Importando...
+                      </>
+                    ) : (
+                      'Importar selecionados'
+                    )}
+                  </Button>
+                </div>
               </div>
 
               <div className="grid grid-cols-3 gap-2">

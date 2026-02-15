@@ -95,6 +95,24 @@ export interface ResumoInvestimentos {
   }[]
 }
 
+function contarDiasUteis(inicio: Date, fim: Date): number {
+  const dataInicio = new Date(inicio.getFullYear(), inicio.getMonth(), inicio.getDate())
+  const dataFim = new Date(fim.getFullYear(), fim.getMonth(), fim.getDate())
+
+  if (dataInicio > dataFim) return 0
+
+  let dias = 0
+  const cursor = new Date(dataInicio)
+
+  while (cursor <= dataFim) {
+    const diaSemana = cursor.getDay()
+    if (diaSemana !== 0 && diaSemana !== 6) dias++
+    cursor.setDate(cursor.getDate() + 1)
+  }
+
+  return dias
+}
+
 export const useInvestments = () => {
   const { user } = useAuth()
   const { toast } = useToast()
@@ -189,8 +207,9 @@ export const useInvestments = () => {
               cotacao = await getCotacaoAtual(inv.codigo, inv.tipo)
               valor_atual = cotacao ? inv.quantidade * cotacao : inv.valor_total
             } else if (['renda_fixa', 'tesouro_direto', 'cri', 'cra', 'debenture'].includes(inv.tipo)) {
-              // 1. PRIORIDADE: Verificar se tem valor manual informado
-              if (inv.valor_atual_manual && inv.valor_atual_manual > 0) {
+              const isManualMode = inv.tipo_marcacao === 'manual'
+              // 1. PRIORIDADE: usar valor manual apenas quando explicitamente em modo manual.
+              if (isManualMode && inv.valor_atual_manual && inv.valor_atual_manual > 0) {
                 console.log('📝 Usando valor manual informado:', inv.valor_atual_manual)
                 valor_atual = inv.valor_atual_manual
                 dadosAdicionais = {
@@ -298,11 +317,41 @@ export const useInvestments = () => {
               }
               // 5. SE NADA ACIMA, DEIXAR VALOR COMO ESTÁ
               else {
-                console.log('⚠️ Renda fixa sem rentabilidade definida:', {
-                  codigo: inv.codigo,
-                  valor_atual: inv.valor_total
-                })
-                valor_atual = inv.valor_total
+                // Fallback para legados/importações sem taxa: assumir 100% CDI
+                // para não zerar rentabilidade quando já existe tempo aplicado.
+                const dataBase = inv.data_aplicacao || inv.data_primeira_compra
+                if (dataBase && inv.data_vencimento) {
+                  try {
+                    const dadosFallback = await calcularRendaFixa({
+                      ...inv,
+                      tipo_rentabilidade: inv.tipo_rentabilidade || 'pos',
+                      indexador: inv.indexador || 'cdi',
+                      taxa_percentual: inv.taxa_percentual || 100,
+                      data_aplicacao: dataBase
+                    }, undefined)
+                    valor_atual = dadosFallback.valor_atual
+                    dadosAdicionais = {
+                      ...dadosFallback,
+                      usando_fallback_parametros: true
+                    }
+                    console.log('⚠️ Renda fixa sem parâmetros completos, aplicado fallback 100% CDI:', {
+                      codigo: inv.codigo,
+                      valor_atual
+                    })
+                  } catch (error) {
+                    console.log('⚠️ Falha no fallback de renda fixa, mantendo valor investido:', {
+                      codigo: inv.codigo,
+                      valor_atual: inv.valor_total
+                    })
+                    valor_atual = inv.valor_total
+                  }
+                } else {
+                  console.log('⚠️ Renda fixa sem rentabilidade e sem datas suficientes:', {
+                    codigo: inv.codigo,
+                    valor_atual: inv.valor_total
+                  })
+                  valor_atual = inv.valor_total
+                }
               }
             }
             
@@ -668,6 +717,9 @@ export const useInvestments = () => {
     }
     
     const diasAplicado = Math.floor((hoje.getTime() - dataAplicacao.getTime()) / (1000 * 60 * 60 * 24))
+    // Convenção inclusiva do dia inicial para aproximar cálculo B3/bancos.
+    const diasAplicadoCalculo = Math.max(diasAplicado + 1, 0)
+    const diasUteisAplicado = Math.max(contarDiasUteis(dataAplicacao, hoje), 0)
     const diasAteVencimento = Math.floor((dataVencimento.getTime() - hoje.getTime()) / (1000 * 60 * 60 * 24))
     const diasTotais = Math.floor((dataVencimento.getTime() - dataAplicacao.getTime()) / (1000 * 60 * 60 * 24))
     
@@ -690,16 +742,16 @@ export const useInvestments = () => {
         codigo: inv.codigo,
         taxaAnual: inv.taxa_percentual + '% a.a.',
         valorInvestido: inv.valor_total,
-        diasAplicado
+        diasAplicado,
+        diasUteisAplicado
       })
       
       // Taxa já é a taxa efetiva anual
       const taxaAnual = inv.taxa_percentual / 100
       
-      // CONVENÇÃO: Dias corridos / 365 (padrão bancário brasileiro)
-      // Juros COMPOSTOS
-      // Fórmula: VF = VP × (1 + taxa)^(dias_corridos/365)
-      const anos = diasAplicado / 365
+      // CONVENÇÃO: Base dias úteis / 252 para taxa anual em renda fixa bancária.
+      // Juros compostos: VF = VP × (1 + taxa)^(dias_uteis/252)
+      const anos = diasUteisAplicado / 252
       const fatorRendimento = Math.pow(1 + taxaAnual, anos)
       const valorBruto = inv.valor_total * fatorRendimento
       
@@ -707,6 +759,7 @@ export const useInvestments = () => {
         dataAplicacao: dataAplicacao.toLocaleDateString('pt-BR'),
         dataCalculo: hoje.toLocaleDateString('pt-BR'),
         diasCorridos: diasAplicado,
+        diasUteis: diasUteisAplicado,
         anos: anos.toFixed(6),
         taxaAnual: (taxaAnual * 100).toFixed(3) + '%',
         fator: fatorRendimento.toFixed(8),
@@ -734,7 +787,8 @@ export const useInvestments = () => {
       
       console.log('✅ PRÉ-FIXADO calculado:', {
         diasCorridos: diasAplicado,
-        convencao: 'DC/365 (Atual/365)',
+        diasUteis: diasUteisAplicado,
+        convencao: 'DU/252 (dias úteis)',
         fatorRendimento: fatorRendimento.toFixed(6),
         valorBruto: valorBruto.toFixed(2),
         rendimentoBruto: rendimentoBruto.toFixed(2),
@@ -749,7 +803,7 @@ export const useInvestments = () => {
         valor_bruto_resgate: valorBruto,
         ir_retido: irRetido,
         aliquota_ir: aliquotaIR,
-        dias_aplicado: diasAplicado,
+        dias_aplicado: diasAplicadoCalculo,
         dias_ate_vencimento: diasAteVencimento,
         rentabilidade_projetada: ((valorLiquido - inv.valor_total) / inv.valor_total) * 100
       }
@@ -763,7 +817,8 @@ export const useInvestments = () => {
         codigo: inv.codigo,
         taxaPrefixada: inv.taxa_percentual + '% a.a.',
         valorInvestido: inv.valor_total,
-        diasAplicado
+        diasAplicado,
+        diasUteisAplicado
       })
       
       try {
@@ -775,7 +830,8 @@ export const useInvestments = () => {
         const taxaPrefixada = inv.taxa_percentual / 100
         
         // Fator da taxa prefixada pro período
-        const fatorPrefixado = Math.pow(1 + taxaPrefixada, diasAplicado / 365)
+        // Parte prefixada em base útil/252 para aderência bancária.
+        const fatorPrefixado = Math.pow(1 + taxaPrefixada, diasUteisAplicado / 252)
         
         // IPCA+ = (1 + taxa_prefixada) × (1 + IPCA) - 1
         const fatorTotal = fatorPrefixado * fatorIPCA
@@ -785,6 +841,7 @@ export const useInvestments = () => {
         console.log('📈 Detalhes IPCA+:', {
           fatorIPCA: fatorIPCA.toFixed(6),
           variacaoIPCA: variacaoIPCA.toFixed(4) + '%',
+          diasUteis: diasUteisAplicado,
           fatorPrefixado: fatorPrefixado.toFixed(6),
           fatorTotal: fatorTotal.toFixed(6),
           valorBruto: valorBruto.toFixed(2),
@@ -819,7 +876,7 @@ export const useInvestments = () => {
           valor_bruto_resgate: valorBruto,
           ir_retido: irRetido,
           aliquota_ir: aliquotaIR,
-          dias_aplicado: diasAplicado,
+          dias_aplicado: diasAplicadoCalculo,
           dias_ate_vencimento: diasAteVencimento,
           rentabilidade_projetada: ((valorLiquido - inv.valor_total) / inv.valor_total) * 100
         }
@@ -841,7 +898,10 @@ export const useInvestments = () => {
         // Buscar CDI REAL acumulado do Banco Central (retorna fator composto)
         // Nota: API do BCB usa mesma série para CDI e SELIC (série 12)
         try {
-          const fatorCDI = await buscarCDIAcumulado(dataAplicacao, hoje)
+          const dataInicioCDI = new Date(dataAplicacao)
+          dataInicioCDI.setDate(dataInicioCDI.getDate() - 1)
+          const percentualContratado = inv.indexador === 'cdi' ? (inv.taxa_percentual / 100) : 1
+          const fatorCDI = await buscarCDIAcumulado(dataInicioCDI, hoje, true, percentualContratado)
           
           console.log('🔍 DADOS DO INVESTIMENTO:', {
             codigo: inv.codigo,
@@ -860,7 +920,7 @@ export const useInvestments = () => {
             // Tesouro Selic: SELIC + spread (taxa já é o spread em % a.a.)
             // Fórmula: VF = VP × fatorSELIC × (1 + spread)^(dias/365)
             const spread = inv.taxa_percentual / 100 // Ex: 0.15 → 0.0015
-            const anos = diasAplicado / 365
+            const anos = diasAplicadoCalculo / 365
             const fatorSpread = Math.pow(1 + spread, anos)
             valorBruto = inv.valor_total * fatorCDI * fatorSpread
             
@@ -872,10 +932,9 @@ export const useInvestments = () => {
               valorBruto: valorBruto.toFixed(2)
             })
           } else {
-            // CDI ou SELIC padrão: percentual do indexador
-            // Fórmula correta: valorBruto = valorInicial × (fatorCDI ^ percentualContratado)
-            const percentualContratado = inv.taxa_percentual / 100 // Ex: 101/100 = 1.01
-            valorBruto = inv.valor_total * Math.pow(fatorCDI, percentualContratado)
+            // CDI padrão: fator já vem ajustado pelo percentual contratado
+            // Fórmula diária: Π(1 + CDI_dia * percentual)
+            valorBruto = inv.valor_total * fatorCDI
           }
           
           const rendimentoBrutoValor = valorBruto - inv.valor_total
@@ -939,7 +998,7 @@ export const useInvestments = () => {
             valor_bruto_resgate: valorBruto,
             ir_retido: irRetido,
             aliquota_ir: aliquotaIR,
-            dias_aplicado: diasAplicado,
+            dias_aplicado: diasAplicadoCalculo,
             dias_ate_vencimento: diasAteVencimento,
             rentabilidade_projetada: rentabilidadeProjetada
           }
@@ -976,7 +1035,7 @@ export const useInvestments = () => {
     const taxaDiaria = Math.pow(1 + (taxaAnualEfetiva / 100), 1 / 365) - 1
     
     // Aplicar juros compostos sobre dias corridos
-    const fatorRendimento = Math.pow(1 + taxaDiaria, diasAplicado)
+    const fatorRendimento = Math.pow(1 + taxaDiaria, diasAplicadoCalculo)
     const valorBruto = inv.valor_total * fatorRendimento
     
     console.log('📊 Detalhes do Cálculo:', {
@@ -1040,7 +1099,7 @@ export const useInvestments = () => {
       valor_bruto_resgate: valorBruto,
       ir_retido: irRetido,
       aliquota_ir: aliquotaIR,
-      dias_aplicado: diasAplicado,
+      dias_aplicado: diasAplicadoCalculo,
       dias_ate_vencimento: diasAteVencimento,
       rentabilidade_projetada: rentabilidadeProjetada
     }

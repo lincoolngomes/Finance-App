@@ -39,13 +39,14 @@ function formatarDataISO(data: Date): string {
  * CDI padrão com base no histórico
  * Retorna 13.65% a.a. como fallback (aproximação conservadora)
  */
-function obterCDIPadrao(dataInicio: Date, dataFim: Date): number {
+function obterCDIPadrao(dataInicio: Date, dataFim: Date, percentualCDI = 1): number {
   const cdiAnualPadrao = 0.1365  // 13.65% a.a. (fallback conservador)
+  const cdiAnualAplicado = cdiAnualPadrao * percentualCDI
   
   const diasDecorridos = (dataFim.getTime() - dataInicio.getTime()) / (24 * 60 * 60 * 1000)
-  const fator = Math.pow(1 + cdiAnualPadrao, diasDecorridos / 365)
+  const fator = Math.pow(1 + cdiAnualAplicado, diasDecorridos / 365)
   
-  console.log(`⚠️ CDI padrão (fallback): ${(cdiAnualPadrao * 100).toFixed(2)}% a.a. | ${diasDecorridos.toFixed(0)} dias | Fator: ${fator.toFixed(6)}`)
+  console.log(`⚠️ CDI padrão (fallback): ${(cdiAnualAplicado * 100).toFixed(2)}% a.a. | ${diasDecorridos.toFixed(0)} dias | Fator: ${fator.toFixed(6)}`)
   return fator
 }
 
@@ -53,7 +54,12 @@ function obterCDIPadrao(dataInicio: Date, dataFim: Date): number {
  * Busca CDI da API do Banco Central (via proxy local para evitar CORS)
  * Tenta múltiplos endpoints
  */
-async function buscarCDIDoBancocentral(dataInicio: Date, dataFim: Date): Promise<number | null> {
+async function buscarCDIDoBancocentral(
+  dataInicio: Date,
+  dataFim: Date,
+  incluirDiaProjetado = false,
+  percentualCDI = 1
+): Promise<number | null> {
   try {
     const dataInicioStr = formatarData(dataInicio)
     const dataFimStr = formatarData(dataFim)
@@ -88,14 +94,25 @@ async function buscarCDIDoBancocentral(dataInicio: Date, dataFim: Date): Promise
           if (Array.isArray(dados) && dados.length > 0) {
             // Calcular fator acumulado
             let fator = 1
+            let ultimaTaxaDiaria = 0
             for (const item of dados) {
               const taxaDiaria = parseFloat(item.valor) / 100
               if (!isNaN(taxaDiaria) && taxaDiaria > -1) {
-                fator *= (1 + taxaDiaria)
+                const taxaAplicada = taxaDiaria * percentualCDI
+                fator *= (1 + taxaAplicada)
+                ultimaTaxaDiaria = taxaAplicada
               }
             }
 
-            console.log(`✅ CDI obtido do BC: Fator ${fator.toFixed(6)} (${dados.length} dias úteis)`)
+            // Opcional: projetar 1 dia útil com a última taxa conhecida
+            // (aproximação usada por bancos/consultas que mostram "saldo atualizado até ...").
+            if (incluirDiaProjetado && ultimaTaxaDiaria > 0) {
+              fator *= (1 + ultimaTaxaDiaria)
+            }
+
+            console.log(`✅ CDI obtido do BC: Fator ${fator.toFixed(6)} (${dados.length} dias úteis, ${(
+              percentualCDI * 100
+            ).toFixed(2)}% CDI)`)
             return fator
           }
         }
@@ -161,7 +178,11 @@ async function buscarCDIDaB3(dataInicio: Date, dataFim: Date): Promise<number | 
  * Busca CDI via proxy alternativo quando APIs principais falham
  * Usa serviço que agrega dados públicos
  */
-async function buscarCDIViaProxyAlternativo(dataInicio: Date, dataFim: Date): Promise<number | null> {
+async function buscarCDIViaProxyAlternativo(
+  dataInicio: Date,
+  dataFim: Date,
+  percentualCDI = 1
+): Promise<number | null> {
   try {
     console.log('🔄 Tentando via proxy alternativo...')
 
@@ -212,11 +233,13 @@ async function buscarCDIViaProxyAlternativo(dataInicio: Date, dataFim: Date): Pr
     for (const item of dadosFiltrados) {
       const taxa = parseFloat(item.valor) / 100
       if (!isNaN(taxa) && taxa > -1) {
-        fator *= (1 + taxa)
+        fator *= (1 + taxa * percentualCDI)
       }
     }
 
-    console.log(`✅ CDI obtido via proxy: Fator ${fator.toFixed(6)} (${dadosFiltrados.length} dias)`)
+    console.log(`✅ CDI obtido via proxy: Fator ${fator.toFixed(6)} (${dadosFiltrados.length} dias, ${(
+      percentualCDI * 100
+    ).toFixed(2)}% CDI)`)
     return fator
 
   } catch (error) {
@@ -229,8 +252,13 @@ async function buscarCDIViaProxyAlternativo(dataInicio: Date, dataFim: Date): Pr
  * Busca CDI acumulado entre duas datas
  * Tenta: BC → B3 → Proxy Alternativo → Fallback Padrão
  */
-export async function buscarCDIAcumulado(dataInicio: Date, dataFim: Date): Promise<number> {
-  const cacheKey = `${dataInicio.toISOString()}_${dataFim.toISOString()}`
+export async function buscarCDIAcumulado(
+  dataInicio: Date,
+  dataFim: Date,
+  incluirDiaProjetado = false,
+  percentualCDI = 1
+): Promise<number> {
+  const cacheKey = `${dataInicio.toISOString()}_${dataFim.toISOString()}_${incluirDiaProjetado ? 1 : 0}_${percentualCDI.toFixed(6)}`
   
   // Verificar cache em memória
   if (cdiCache.has(cacheKey)) {
@@ -241,7 +269,7 @@ export async function buscarCDIAcumulado(dataInicio: Date, dataFim: Date): Promi
   try {
     // 1. Tentar API do Banco Central
     console.log('═══ Iniciando busca de CDI ═══')
-    let fator = await buscarCDIDoBancocentral(dataInicio, dataFim)
+    let fator = await buscarCDIDoBancocentral(dataInicio, dataFim, incluirDiaProjetado, percentualCDI)
     if (fator) {
       cdiCache.set(cacheKey, fator)
       console.log('═══ CDI encontrado! ═══')
@@ -257,7 +285,7 @@ export async function buscarCDIAcumulado(dataInicio: Date, dataFim: Date): Promi
     }
 
     // 3. Tentar proxy alternativo
-    fator = await buscarCDIViaProxyAlternativo(dataInicio, dataFim)
+    fator = await buscarCDIViaProxyAlternativo(dataInicio, dataFim, percentualCDI)
     if (fator) {
       cdiCache.set(cacheKey, fator)
       console.log('═══ CDI encontrado! ═══')
@@ -266,14 +294,14 @@ export async function buscarCDIAcumulado(dataInicio: Date, dataFim: Date): Promi
 
     // 4. Fallback: CDI padrão
     console.warn('⚠️ Todas as fontes falharam, usando CDI padrão')
-    fator = obterCDIPadrao(dataInicio, dataFim)
+    fator = obterCDIPadrao(dataInicio, dataFim, percentualCDI)
     cdiCache.set(cacheKey, fator)
     console.log('═══ Usando fallback ═══')
     return fator
 
   } catch (error) {
     console.error('❌ Erro geral:', error)
-    return obterCDIPadrao(dataInicio, dataFim)
+    return obterCDIPadrao(dataInicio, dataFim, percentualCDI)
   }
 }
 

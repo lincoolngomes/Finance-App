@@ -62,7 +62,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 import { PieChart as RechartsPie, Pie, Cell, ResponsiveContainer, Legend, Tooltip as RechartsTooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts'
-import { format, differenceInDays, addDays, isPast, isWithinInterval } from 'date-fns'
+import { format, differenceInDays, addDays, isPast, isWithinInterval, parseISO } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 
 // Cores para gráficos
@@ -413,13 +413,15 @@ export default function Investimentos() {
   // Formatador de data
   const formatDate = (dateStr?: string) => {
     if (!dateStr) return '-'
-    return format(new Date(dateStr), "dd/MM/yyyy", { locale: ptBR })
+    const parsed = /^\d{4}-\d{2}-\d{2}$/.test(dateStr) ? parseISO(dateStr) : new Date(dateStr)
+    return format(parsed, "dd/MM/yyyy", { locale: ptBR })
   }
   
   // Calcular dias até vencimento
   const getDiasAteVencimento = (dataVencimento?: string) => {
     if (!dataVencimento) return null
-    const dias = differenceInDays(new Date(dataVencimento), new Date())
+    const venc = /^\d{4}-\d{2}-\d{2}$/.test(dataVencimento) ? parseISO(dataVencimento) : new Date(dataVencimento)
+    const dias = differenceInDays(venc, new Date())
     return dias
   }
   
