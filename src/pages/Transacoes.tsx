@@ -23,10 +23,11 @@ import { useAuth } from '@/hooks/useAuth'
 import { useCategories } from '@/hooks/useCategories'
 // import { useAccountsMap } from '@/hooks/useAccountsMap'
 import { toast } from '@/hooks/use-toast'
-import { Plus, Edit, Trash2, TrendingUp, TrendingDown, ArrowUpDown, Download, Clock, DollarSign, Wallet } from 'lucide-react'
+import { Edit, Trash2, TrendingUp, TrendingDown, ArrowUpDown, Download, Clock, DollarSign, Wallet } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import { formatCurrency } from '@/utils/currency'
-import { parse, format } from 'date-fns'
+import { addMonths, format, parse } from 'date-fns'
+import { useSearchParams } from 'react-router-dom'
 
 
 
@@ -55,24 +56,32 @@ interface Transacao {
   }
 }
 
+const createInitialFormData = () => ({
+  quando: '',
+  estabelecimento: '',
+  valor: 0,
+  detalhes: '',
+  tipo: '',
+  category_id: '',
+  metodo: '',
+  status: '',
+  account_id: '',
+  fatura_id: '',
+  isPago: true,
+  isParcelado: false,
+  numeroParcelas: 1,
+  isRecorrente: false,
+  repetirMeses: 1,
+})
+
 
 const Transacoes: React.FC = () => {
   // Estado do formulário de transação (corrige ReferenceError)
-  const [formData, setFormData] = useState({
-    quando: '',
-    estabelecimento: '',
-    valor: 0,
-    detalhes: '',
-    tipo: '',
-    category_id: '',
-    metodo: '',
-    status: '',
-    account_id: '',
-    fatura_id: '',
-  });
+  const [formData, setFormData] = useState(createInitialFormData);
   // Estados principais
   const { user } = useAuth();
   const { categories } = useCategories();
+  const [searchParams, setSearchParams] = useSearchParams();
   // mês/ano para filtro rápido (igual ao Dashboard)
   const [filterMonth, setFilterMonth] = useState<string>(new Date().getMonth().toString())
   const [filterYear, setFilterYear] = useState<string>(new Date().getFullYear().toString())
@@ -126,6 +135,12 @@ const Transacoes: React.FC = () => {
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
   // Estado para paginação (carregar mais)
   const [displayCount, setDisplayCount] = useState(30);
+
+  const openNewTransactionDialog = () => {
+    setEditingTransaction(null)
+    setFormData(createInitialFormData())
+    setDialogOpen(true)
+  }
 
   // Memo para mapear contas por id (accountsMap)
   const accountsMap = useMemo(() => {
@@ -623,6 +638,16 @@ const Transacoes: React.FC = () => {
     fetchTransacoes();
   }, [user]);
 
+  useEffect(() => {
+    if (searchParams.get('nova') !== '1') return
+
+    openNewTransactionDialog()
+
+    const nextParams = new URLSearchParams(searchParams)
+    nextParams.delete('nova')
+    setSearchParams(nextParams, { replace: true })
+  }, [searchParams, setSearchParams])
+
   const clearFilters = () => {
     setSearchTerm('')
     setTypeFilter('all')
@@ -775,51 +800,25 @@ const Transacoes: React.FC = () => {
         }
         toast({ title: "Transação atualizada com sucesso!" })
       } else {
-        // Se for parcelado, cria múltiplas transações em faturas futuras
-        if (formData.isParcelado && formData.metodo === 'cartao_credito') {
+        const shouldRepeat = Boolean(formData.isRecorrente)
+        const shouldInstallments = Boolean(formData.isParcelado) && formData.metodo === 'cartao_credito' && !shouldRepeat
+
+        // Se for recorrente, cria múltiplas transações incluindo o mês base selecionado
+        if (shouldRepeat) {
           const transacoes = [];
-          const numeroParcelas = formData.numeroParcelas;
-          const valorParcela = formData.valor / numeroParcelas;
-          
-          for (let i = 0; i < numeroParcelas; i++) {
-            // Calcula a data da fatura (mês seguinte + i meses)
-            const dataFatura = new Date(formData.quando);
-            dataFatura.setMonth(dataFatura.getMonth() + i + 1);
-            
-            const dataFormatada = dataFatura.toISOString().split('T')[0];
-            
-            transacoes.push({
-              ...payload,
-              valor: Math.round(valorParcela * 100) / 100, // Evita erros de ponto flutuante
-              quando: dataFormatada,
-              estabelecimento: `${formData.estabelecimento} (Parcela ${i + 1}/${numeroParcelas})`,
-            });
+          const repetirMeses = Number(formData.repetirMeses) || 1;
+          const dataBase = parse(formData.quando, 'yyyy-MM-dd', new Date())
+          if (isNaN(dataBase.getTime())) {
+            throw new Error('Informe uma data válida para repetir a transação.')
           }
-          
-          const { error } = await supabase
-            .from('transacoes')
-            .insert(transacoes)
-          
-          if (error) {
-            console.error('[Transacoes] parcelado insert error:', error)
-            throw error
-          }
-        } 
-        // Se for recorrente, cria múltiplas transações nos próximos meses
-        else if (formData.isRecorrente) {
-          const transacoes = [];
-          const repetirMeses = formData.repetirMeses;
           
           for (let i = 0; i < repetirMeses; i++) {
             // Calcula a data da próxima transação
-            const dataProxima = new Date(formData.quando);
-            dataProxima.setMonth(dataProxima.getMonth() + i);
-            
-            const dataFormatada = dataProxima.toISOString().split('T')[0];
+            const dataFormatada = format(addMonths(dataBase, i), 'yyyy-MM-dd')
             
             transacoes.push({
               ...payload,
-              quando: dataFormatada,
+              data: dataFormatada,
             });
           }
           
@@ -832,6 +831,37 @@ const Transacoes: React.FC = () => {
             throw error
           }
         }
+        // Se for parcelado, cria múltiplas transações em faturas futuras
+        else if (shouldInstallments) {
+          const transacoes = [];
+          const numeroParcelas = Number(formData.numeroParcelas) || 1;
+          const valorParcela = Number(formData.valor || 0) / numeroParcelas;
+          const dataBase = parse(formData.quando, 'yyyy-MM-dd', new Date())
+          if (isNaN(dataBase.getTime())) {
+            throw new Error('Informe uma data válida para parcelar a transação.')
+          }
+          
+          for (let i = 0; i < numeroParcelas; i++) {
+            // Calcula a data da fatura (mês seguinte + i meses)
+            const dataFormatada = format(addMonths(dataBase, i + 1), 'yyyy-MM-dd')
+            
+            transacoes.push({
+              ...payload,
+              valor: Math.round(valorParcela * 100) / 100, // Evita erros de ponto flutuante
+              data: dataFormatada,
+              descricao: `${formData.estabelecimento} (Parcela ${i + 1}/${numeroParcelas})`,
+            });
+          }
+          
+          const { error } = await supabase
+            .from('transacoes')
+            .insert(transacoes)
+          
+          if (error) {
+            console.error('[Transacoes] parcelado insert error:', error)
+            throw error
+          }
+        } 
         // Transação normal
         else {
           const { error } = await supabase
@@ -849,23 +879,7 @@ const Transacoes: React.FC = () => {
 
       setDialogOpen(false)
       setEditingTransaction(null)
-      setFormData({
-        quando: '',
-        estabelecimento: '',
-        valor: 0,
-        detalhes: '',
-        tipo: '',
-        category_id: '',
-        metodo: '',
-        status: 'pago',
-        account_id: '',
-        fatura_id: '',
-        isPago: true,
-        isParcelado: false,
-        numeroParcelas: 1,
-        isRecorrente: false,
-        repetirMeses: 1,
-      })
+      setFormData(createInitialFormData())
       fetchTransacoes()
     } catch (error: any) {
       toast({
@@ -889,7 +903,9 @@ const Transacoes: React.FC = () => {
     }
     // Normaliza data: se não houver data válida, usa created_at
     let dataNormalizada = '';
-    if (transacao.quando && !isNaN(new Date(transacao.quando).getTime())) {
+    if (transacao.data && !isNaN(new Date(transacao.data).getTime())) {
+      dataNormalizada = normalizeDate(transacao.data);
+    } else if (transacao.quando && !isNaN(new Date(transacao.quando).getTime())) {
       dataNormalizada = normalizeDate(transacao.quando);
     } else if (transacao.created_at && !isNaN(new Date(transacao.created_at).getTime())) {
       dataNormalizada = normalizeDate(transacao.created_at);
@@ -1096,7 +1112,7 @@ const Transacoes: React.FC = () => {
     try {
       const { error } = await supabase
         .from('transacoes')
-        .update({ category_id: massCategory })
+        .update({ categoria_id: massCategory })
         .in('id', selectedIds)
       if (error) throw error
       toast({ title: `Categoria atualizada para ${selectedIds.length} transações!` })
@@ -1118,7 +1134,7 @@ const Transacoes: React.FC = () => {
     try {
       const { error } = await supabase
         .from('transacoes')
-        .update({ account_id: massAccount })
+        .update({ conta_id: massAccount })
         .in('id', selectedIds)
       if (error) throw error
       toast({ title: `Conta atualizada para ${selectedIds.length} transações!` })
@@ -1143,7 +1159,7 @@ const Transacoes: React.FC = () => {
     try {
       const { error} = await supabase
         .from('transacoes')
-        .update({ quando: massDate })
+        .update({ data: massDate })
         .in('id', selectedIds)
       if (error) throw error
       toast({ title: `Data atualizada para ${selectedIds.length} transações!` })
@@ -1498,7 +1514,7 @@ const Transacoes: React.FC = () => {
           <h1 className="text-3xl font-bold text-white">Transações</h1>
           <p className="text-slate-400 text-sm mt-1">Gerencie todas as suas transações financeiras</p>
         </div>
-        <Button className="bg-primary hover:bg-primary/90 h-9 text-sm rounded-lg px-4 whitespace-nowrap font-semibold" onClick={() => { setEditingTransaction(null); setDialogOpen(true); }}>
+        <Button className="bg-primary hover:bg-primary/90 h-9 text-sm rounded-lg px-4 whitespace-nowrap font-semibold" onClick={openNewTransactionDialog}>
           + Nova Transação
         </Button>
       </div>
@@ -2123,7 +2139,14 @@ const Transacoes: React.FC = () => {
               {/* Método */}
               <div className="space-y-2">
                 <Label htmlFor="metodo" className="text-xs font-semibold text-foreground/80">Forma de Pagamento</Label>
-                <Select value={formData.metodo} onValueChange={value => setFormData({ ...formData, metodo: value })}>
+                <Select
+                  value={formData.metodo}
+                  onValueChange={value => setFormData(prev => ({
+                    ...prev,
+                    metodo: value,
+                    ...(value !== 'cartao_credito' ? { isParcelado: false, numeroParcelas: 1 } : {}),
+                  }))}
+                >
                   <SelectTrigger className="h-11 text-sm border-border/40 bg-secondary/30 hover:bg-secondary/50 focus:bg-secondary/80 rounded-lg transition-colors">
                     <SelectValue placeholder="Selecione" />
                   </SelectTrigger>
@@ -2200,7 +2223,12 @@ const Transacoes: React.FC = () => {
                         id="isParcelado"
                         type="checkbox"
                         checked={formData.isParcelado}
-                        onChange={e => setFormData({ ...formData, isParcelado: e.target.checked, numeroParcelas: e.target.checked ? 2 : 1 })}
+                        onChange={e => setFormData(prev => ({
+                          ...prev,
+                          isParcelado: e.target.checked,
+                          numeroParcelas: e.target.checked ? 2 : 1,
+                          ...(e.target.checked ? { isRecorrente: false, repetirMeses: 1 } : {}),
+                        }))}
                         className="w-4 h-4 cursor-pointer accent-primary rounded opacity-0 absolute"
                       />
                       {formData.isParcelado && (
@@ -2242,7 +2270,12 @@ const Transacoes: React.FC = () => {
                     id="isRecorrente"
                     type="checkbox"
                     checked={formData.isRecorrente}
-                    onChange={e => setFormData({ ...formData, isRecorrente: e.target.checked, repetirMeses: e.target.checked ? 3 : 1 })}
+                    onChange={e => setFormData(prev => ({
+                      ...prev,
+                      isRecorrente: e.target.checked,
+                      repetirMeses: e.target.checked ? 3 : 1,
+                      ...(e.target.checked ? { isParcelado: false, numeroParcelas: 1 } : {}),
+                    }))}
                     className="w-4 h-4 cursor-pointer accent-primary rounded opacity-0 absolute"
                   />
                   {formData.isRecorrente && (

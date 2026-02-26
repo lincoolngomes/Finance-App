@@ -2,7 +2,7 @@
 import { SidebarProvider, SidebarInset, useSidebar } from '@/components/ui/sidebar'
 import { AppSidebar } from './AppSidebar'
 import { ThemeToggle } from '@/components/ui/theme-toggle'
-import { Menu, X, Bell, Settings, User, LogOut, CreditCard, Wallet, Tag, Mail } from 'lucide-react'
+import { Menu, X, Bell, Settings, User, LogOut, CreditCard, Wallet, Tag, Mail, Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { useAuth } from '@/hooks/useAuth'
@@ -88,6 +88,10 @@ export function AppLayout({ children, userName }: AppLayoutProps) {
   const handleLogout = async () => {
     await logout()
     navigate('/auth')
+  }
+
+  const handleOpenNovaTransacao = () => {
+    navigate('/transacoes?nova=1')
   }
 
   return (
@@ -227,6 +231,16 @@ export function AppLayout({ children, userName }: AppLayoutProps) {
           </div>
         </SidebarInset>
       </div>
+
+      <Button
+        type="button"
+        onClick={handleOpenNovaTransacao}
+        className="fixed bottom-5 right-5 z-40 h-12 w-12 rounded-full shadow-lg sm:h-11 sm:w-auto sm:px-4"
+        aria-label="Adicionar transação"
+      >
+        <Plus className="h-5 w-5 sm:mr-2" />
+        <span className="hidden sm:inline">Nova Transação</span>
+      </Button>
 
       {/* Modal Categorias */}
       <Dialog open={categoriasOpen} onOpenChange={setCategoriasOpen}>

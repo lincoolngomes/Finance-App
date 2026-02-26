@@ -517,18 +517,77 @@ export default function Cartoes({ isModal = false }) {
     const criarParcelasFuturas = options?.criarParcelasFuturas ?? true;
     let totalParcelasFuturasCriadas = 0;
 
-    // Compatibilidade de schema:
-    // alguns ambientes não têm as colunas parcela_atual/total_parcelas em transacoes.
     let suportaCamposParcela = true;
-    {
-      const { error: probeError } = await supabase
-        .from('transacoes')
-        .select('parcela_atual,total_parcelas')
-        .limit(1);
-      if (probeError) {
-        suportaCamposParcela = false;
+    const toIsoDate = (date: Date) => {
+      const y = date.getUTCFullYear();
+      const m = String(date.getUTCMonth() + 1).padStart(2, '0');
+      const d = String(date.getUTCDate()).padStart(2, '0');
+      return `${y}-${m}-${d}`;
+    };
+
+    const parseDataParaBanco = (value: unknown): { dateObj: Date; isoDate: string } => {
+      const fallbackBase = new Date();
+      const fallbackDate = new Date(Date.UTC(
+        fallbackBase.getFullYear(),
+        fallbackBase.getMonth(),
+        fallbackBase.getDate()
+      ));
+
+      const texto = String(value || '').trim();
+      if (!texto) {
+        return { dateObj: fallbackDate, isoDate: toIsoDate(fallbackDate) };
       }
-    }
+
+      // Formato BR: dd/mm/yyyy ou dd/mm/yy (com ano opcional)
+      const br = texto.match(/^(\d{1,2})\s*\/\s*(\d{1,2})(?:\s*\/\s*(\d{2,4}))?$/);
+      if (br) {
+        const dia = parseInt(br[1], 10);
+        const mes = parseInt(br[2], 10);
+        let ano = faturaAno || new Date().getFullYear();
+        if (br[3]) {
+          const parsedYear = parseInt(br[3], 10);
+          ano = parsedYear < 100 ? 2000 + parsedYear : parsedYear;
+        }
+
+        const parsed = new Date(Date.UTC(ano, mes - 1, dia));
+        if (
+          !Number.isNaN(parsed.getTime()) &&
+          parsed.getUTCDate() === dia &&
+          parsed.getUTCMonth() === (mes - 1)
+        ) {
+          return { dateObj: parsed, isoDate: toIsoDate(parsed) };
+        }
+      }
+
+      // Formato ISO data: yyyy-mm-dd
+      const iso = texto.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+      if (iso) {
+        const ano = parseInt(iso[1], 10);
+        const mes = parseInt(iso[2], 10);
+        const dia = parseInt(iso[3], 10);
+        const parsed = new Date(Date.UTC(ano, mes - 1, dia));
+        if (
+          !Number.isNaN(parsed.getTime()) &&
+          parsed.getUTCDate() === dia &&
+          parsed.getUTCMonth() === (mes - 1)
+        ) {
+          return { dateObj: parsed, isoDate: toIsoDate(parsed) };
+        }
+      }
+
+      // Fallback: tenta parser nativo
+      const parsedNative = new Date(texto);
+      if (!Number.isNaN(parsedNative.getTime())) {
+        const normalized = new Date(Date.UTC(
+          parsedNative.getUTCFullYear(),
+          parsedNative.getUTCMonth(),
+          parsedNative.getUTCDate()
+        ));
+        return { dateObj: normalized, isoDate: toIsoDate(normalized) };
+      }
+
+      return { dateObj: fallbackDate, isoDate: toIsoDate(fallbackDate) };
+    };
 
     // Buscar/criar categorias para associar categoria_id
     const categoriaCache: Record<string, string> = {};
@@ -592,12 +651,10 @@ export default function Cartoes({ isModal = false }) {
       const tipoTransacao = (t.tipo === 'pagamento' || t.tipo === 'estorno') ? 'receita' : 'despesa';
       const tipoCategoria = tipoTransacao === 'despesa' ? 'despesa' : 'receita';
       const categoriaId = await getOrCreateCategoriaId(t.categoria || '', tipoCategoria);
-      const baseData = t.quando && !Number.isNaN(new Date(t.quando).getTime())
-        ? new Date(t.quando)
-        : new Date();
+      const { dateObj: baseData, isoDate: baseDataIso } = parseDataParaBanco(t.quando);
 
       toInsert.push({
-        data: t.quando,
+        data: baseDataIso,
         descricao: t.estabelecimento,
         valor: t.valor,
         tipo: tipoTransacao,
@@ -617,18 +674,18 @@ export default function Cartoes({ isModal = false }) {
         parcelaInfo &&
         parcelaInfo.total > parcelaInfo.atual
       ) {
-        const baseMes = faturaMes ?? (baseData.getMonth() + 1);
-        const baseAno = faturaAno ?? baseData.getFullYear();
+        const baseMes = faturaMes ?? (baseData.getUTCMonth() + 1);
+        const baseAno = faturaAno ?? baseData.getUTCFullYear();
         const parcelasRestantes = parcelaInfo.total - parcelaInfo.atual;
 
         for (let offset = 1; offset <= parcelasRestantes; offset++) {
           const proxParcela = parcelaInfo.atual + offset;
-          const dataFutura = new Date(baseAno, baseMes - 1 + offset, 1);
-          const faturaMesFutura = dataFutura.getMonth() + 1;
-          const faturaAnoFutura = dataFutura.getFullYear();
+          const dataFutura = new Date(Date.UTC(baseAno, baseMes - 1 + offset, 1));
+          const faturaMesFutura = dataFutura.getUTCMonth() + 1;
+          const faturaAnoFutura = dataFutura.getUTCFullYear();
 
           toInsert.push({
-            data: dataFutura.toISOString(),
+            data: toIsoDate(dataFutura),
             descricao: updateDescricaoParcela(t.estabelecimento, proxParcela, parcelaInfo.total),
             valor: t.valor,
             tipo: 'despesa',

@@ -864,17 +864,26 @@ export function GerenciarFaturasModal({
                   <SelectValue placeholder="Selecione o cartão" />
                 </SelectTrigger>
                 <SelectContent>
-                  {cartoes.map(cartao => (
-                    <SelectItem key={cartao.id} value={cartao.id}>
-                      <div className="flex items-center gap-2">
-                        <div
-                          className="w-3 h-3 rounded-full"
-                          style={{ backgroundColor: cartao.cor || '#3b82f6' }}
-                        />
-                        {cartao.nome}
-                      </div>
-                    </SelectItem>
-                  ))}
+                  {cartoes.map(cartao => {
+                    const linked = contas.find(c => c.id === cartao.linked_account_id)
+                    const linkedName = linked?.nome || linked?.name || cartao.banco || ''
+                    return (
+                      <SelectItem key={cartao.id} value={cartao.id}>
+                        <div className="flex items-center gap-2">
+                          <div
+                            className="w-3 h-3 rounded-full"
+                            style={{ backgroundColor: cartao.cor || '#3b82f6' }}
+                          />
+                          <div className="flex items-baseline gap-2">
+                            <span>{cartao.nome}</span>
+                            {linkedName && (
+                              <span className="text-xs text-muted-foreground">• {linkedName}</span>
+                            )}
+                          </div>
+                        </div>
+                      </SelectItem>
+                    )
+                  })}
                 </SelectContent>
               </Select>
             </div>

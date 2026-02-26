@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
 import Papa from 'papaparse';
+import pdfWorkerUrl from 'pdfjs-dist/legacy/build/pdf.worker.min.mjs?url';
 import { toast } from '@/hooks/use-toast';
 import { normalizar, categorizar, REGRAS_PADRAO } from '@/utils/categorizacao';
 import { formatCurrency } from '@/utils/currency';
@@ -246,12 +247,168 @@ export function ImportarFaturaModalNovo({ open, onClose, onImport, cartoes, init
     }
   }, [regrasTexto, step, categoriasDespesa]);
 
+  const detectarTipoArquivo = (file: File): 'csv' | 'pdf' | null => {
+    const nome = (file?.name || '').toLowerCase();
+    if (nome.endsWith('.csv')) return 'csv';
+    if (nome.endsWith('.pdf')) return 'pdf';
+    return null;
+  };
+
+  const parseValorMonetario = (value: unknown): number => {
+    if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
+
+    const texto = String(value || '').trim();
+    if (!texto) return 0;
+
+    let cleanValue = texto.replace(/[R$\s]/g, '');
+    if (cleanValue.includes('.') && cleanValue.includes(',')) {
+      cleanValue = cleanValue.replace(/\./g, '').replace(',', '.');
+    } else if (cleanValue.includes(',')) {
+      cleanValue = cleanValue.replace(',', '.');
+    }
+    cleanValue = cleanValue.replace(/[^0-9.-]/g, '');
+    return Number.parseFloat(cleanValue) || 0;
+  };
+
+  const classificarTipoLancamento = (descricao: string, valorRaw: number): 'despesa' | 'pagamento' | 'estorno' => {
+    const descricaoNorm = normalizar(descricao || '');
+    const ehPagamento = /(pagamento|pag fatura|pagto|pgto)/.test(descricaoNorm);
+    const ehEstorno = /(estorno|credito|devolv|reembols|chargeback)/.test(descricaoNorm);
+
+    if (valorRaw < 0) {
+      return ehPagamento ? 'pagamento' : 'estorno';
+    }
+    if (ehPagamento) return 'pagamento';
+    if (ehEstorno) return 'estorno';
+    return 'despesa';
+  };
+
+  const extrairParcelaDaDescricao = (
+    descricaoOriginal: string
+  ): { descricao: string; parcela_atual?: number; total_parcelas?: number } => {
+    const descricao = (descricaoOriginal || '').replace(/\s+/g, ' ').trim();
+    if (!descricao) return { descricao: '' };
+
+    // Ex.: "MERCADOLIVRE ... Parcela 9 de 18" -> "MERCADOLIVRE ... 9/18"
+    const matchParcelaTexto = descricao.match(/^(.*?)(?:\s+Parcela\s+(\d{1,2})\s+de\s+(\d{1,2}))\s*$/i);
+    if (matchParcelaTexto) {
+      const atual = Number.parseInt(matchParcelaTexto[2], 10);
+      const total = Number.parseInt(matchParcelaTexto[3], 10);
+      if (Number.isFinite(atual) && Number.isFinite(total) && total > 1 && atual >= 1 && atual <= total) {
+        const base = (matchParcelaTexto[1] || '').trim();
+        return {
+          descricao: `${base} ${atual}/${total}`.trim(),
+          parcela_atual: atual,
+          total_parcelas: total,
+        };
+      }
+    }
+
+    const matchParcelaPadrao = descricao.match(/^(.*?)(\d{1,2})\s*\/\s*(\d{1,2})\s*$/);
+    if (matchParcelaPadrao) {
+      const atual = Number.parseInt(matchParcelaPadrao[2], 10);
+      const total = Number.parseInt(matchParcelaPadrao[3], 10);
+      if (Number.isFinite(atual) && Number.isFinite(total) && total > 1 && atual >= 1 && atual <= total) {
+        const base = (matchParcelaPadrao[1] || '').trim();
+        return {
+          descricao: `${base} ${atual}/${total}`.trim(),
+          parcela_atual: atual,
+          total_parcelas: total,
+        };
+      }
+    }
+
+    return { descricao };
+  };
+
+  const extrairReferenciaFaturaPDF = (texto: string, linhas: string[]): { mes: number; ano: number } | null => {
+    const parseDataCompleta = (valor: string): { mes: number; ano: number } | null => {
+      const m = valor.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+      if (!m) return null;
+      const mes = Number.parseInt(m[2], 10);
+      const ano = Number.parseInt(m[3], 10);
+      if (!Number.isFinite(mes) || !Number.isFinite(ano) || mes < 1 || mes > 12 || ano < 1900) return null;
+      return { mes, ano };
+    };
+
+    const matchDireto = texto.match(/(?:Esta fatura vence em|Vence em|Vencimento:?)[\s\r\n]*?(\d{2}\/\d{2}\/\d{4})/i);
+    if (matchDireto?.[1]) {
+      const ref = parseDataCompleta(matchDireto[1]);
+      if (ref) return ref;
+    }
+
+    for (let i = 0; i < linhas.length; i++) {
+      const linha = linhas[i];
+      const matchInline = linha.match(/Vencimento:\s*(\d{2}\/\d{2}\/\d{4})/i);
+      if (matchInline?.[1]) {
+        const ref = parseDataCompleta(matchInline[1]);
+        if (ref) return ref;
+      }
+
+      if (/Esta fatura vence em|Vence em/i.test(linha)) {
+        const prox = linhas[i + 1] || '';
+        const matchProx = prox.match(/^(\d{2}\/\d{2}\/\d{4})$/);
+        if (matchProx?.[1]) {
+          const ref = parseDataCompleta(matchProx[1]);
+          if (ref) return ref;
+        }
+      }
+    }
+
+    return null;
+  };
+
+  const completarAnoDaData = (dataTexto: string, referencia: { mes: number; ano: number }): string => {
+    const valor = (dataTexto || '').trim();
+    const match = valor.match(/^(\d{2})\/(\d{2})(?:\/(\d{2,4}))?$/);
+    if (!match) return valor;
+
+    const dia = Number.parseInt(match[1], 10);
+    const mes = Number.parseInt(match[2], 10);
+    if (!Number.isFinite(dia) || !Number.isFinite(mes) || mes < 1 || mes > 12 || dia < 1 || dia > 31) return valor;
+
+    let ano = referencia.ano;
+    if (match[3]) {
+      const anoInformado = Number.parseInt(match[3], 10);
+      ano = anoInformado < 100 ? 2000 + anoInformado : anoInformado;
+    } else if (mes > referencia.mes) {
+      ano = referencia.ano - 1;
+    }
+
+    return `${String(dia).padStart(2, '0')}/${String(mes).padStart(2, '0')}/${ano}`;
+  };
+
+  const criarTransacaoNormalizada = (
+    quando: string,
+    estabelecimentoOriginal: string,
+    valorRaw: number,
+    index: number
+  ): Transacao | null => {
+    const { descricao, parcela_atual, total_parcelas } = extrairParcelaDaDescricao(estabelecimentoOriginal);
+    const valor = Math.abs(valorRaw);
+    if (!descricao || valor <= 0) return null;
+
+    const tipo = classificarTipoLancamento(descricao, valorRaw);
+    return {
+      uid: `${quando}-${descricao}-${valor}-${index}`,
+      quando,
+      estabelecimento: descricao,
+      valor,
+      tipo,
+      categoria: (tipo === 'pagamento' || tipo === 'estorno')
+        ? CATEGORIA_PAGAMENTO_FATURA
+        : (categorizar(descricao, regrasTexto) || categoriasDespesa[0] || 'Compras'),
+      parcela_atual,
+      total_parcelas,
+    };
+  };
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setParseError("");
     const file = e.target.files?.[0];
     if (file) {
-      if (!file.name.match(/\.(csv)$/i)) {
-        setParseError("Apenas arquivos CSV são aceitos");
+      if (!detectarTipoArquivo(file)) {
+        setParseError("Apenas arquivos CSV ou PDF são aceitos");
         return;
       }
       setCsvFile(file);
@@ -264,84 +421,103 @@ export function ImportarFaturaModalNovo({ open, onClose, onImport, cartoes, init
       return;
     }
 
-    Papa.parse(csvFile, {
-      header: true,
-      skipEmptyLines: true,
-      complete: (results: any) => {
-        const dados: Transacao[] = results.data
-          .map((row: any, index: number) => {
-            // Detectar colunas flexivelmente
-            const quando = row.data || row.Data || row.date || row.Date || row.quando || '';
-            const estabelecimento = (
-              row.descricao || row.Descricao ||
-              row.description || row.Description ||
-              row.lançamento || row.Lançamento ||
-              row.estabelecimento || row.Estabelecimento ||
-              row.historico || row.Histórico ||
-              ''
-            ).trim();
-            
-            const valorStr = row.valor || row.Valor || row.amount || row.Amount || '0';
-            let valorRaw = 0;
-            if (typeof valorStr === 'string') {
-              let cleanValue = valorStr.replace(/[R$\s]/g, '');
-              if (cleanValue.includes('.') && cleanValue.includes(',')) {
-                cleanValue = cleanValue.replace(/\./g, '').replace(',', '.');
-              } else if (cleanValue.includes(',')) {
-                cleanValue = cleanValue.replace(',', '.');
-              }
-              valorRaw = parseFloat(cleanValue) || 0;
-            } else {
-              valorRaw = Number(valorStr) || 0;
-            }
+    setParseError('');
+    const tipoArquivo = detectarTipoArquivo(csvFile);
+    if (!tipoArquivo) {
+      setParseError('Formato inválido. Use CSV ou PDF');
+      return;
+    }
 
-            // Classificar tipo:
-            // - Valores negativos grandes com "PAGAMENTO" = pagamento de fatura anterior
-            // - Valores negativos pequenos = estorno/crédito
-            // - Valores positivos = despesa
-            let tipo = 'despesa';
-            if (valorRaw < 0) {
-              const descUpper = estabelecimento.toUpperCase();
-              if (descUpper.includes('PAGAMENTO') || descUpper.includes('PAG FATURA') || descUpper.includes('PGTO')) {
-                tipo = 'pagamento';
-              } else {
-                tipo = 'estorno';
-              }
-            }
-            const valor = Math.abs(valorRaw);
+    if (tipoArquivo === 'csv') {
+      Papa.parse(csvFile, {
+        header: true,
+        skipEmptyLines: true,
+        complete: (results: any) => {
+          const dados: Transacao[] = results.data
+            .map((row: any, index: number) => {
+              const quando = row.data || row.Data || row.date || row.Date || row.quando || '';
+              const estabelecimento = (
+                row.descricao || row.Descricao ||
+                row.description || row.Description ||
+                row.lançamento || row.Lançamento ||
+                row.estabelecimento || row.Estabelecimento ||
+                row.historico || row.Histórico ||
+                row['histórico'] ||
+                ''
+              ).trim();
 
-            let parcela_atual: number | undefined;
-            let total_parcelas: number | undefined;
-            const parcelaMatch = estabelecimento.match(/(\d{1,2})\s*\/\s*(\d{1,2})\s*$/);
-            if (parcelaMatch) {
-              parcela_atual = parseInt(parcelaMatch[1], 10);
-              total_parcelas = parseInt(parcelaMatch[2], 10);
-            }
+              const valorStr = row.valor || row.Valor || row.amount || row.Amount || '0';
+              const valorRaw = parseValorMonetario(valorStr);
+              return criarTransacaoNormalizada(quando, estabelecimento, valorRaw, index);
+            })
+            .filter((t: Transacao | null): t is Transacao => t !== null);
 
-            return {
-              uid: `${quando}-${estabelecimento}-${valor}-${index}`,
-              quando,
-              estabelecimento,
-              valor,
-              tipo,
-              categoria: (tipo === 'pagamento' || tipo === 'estorno')
-                ? CATEGORIA_PAGAMENTO_FATURA
-                : (categorizar(estabelecimento, regrasTexto) || categoriasDespesa[0] || 'Compras'),
-              parcela_atual,
-              total_parcelas,
-            };
+          setTransacoes(dados);
+          setStep(2);
+          setSortBy('');
+          setSortOrder('asc');
+        },
+        error: (error: any) => {
+          setParseError(`Erro ao processar CSV: ${error.message}`);
+        }
+      });
+      return;
+    }
+
+    (async () => {
+      try {
+        const { PDFParse } = await import('pdf-parse');
+        PDFParse.setWorker(pdfWorkerUrl);
+        const arrayBuffer = await csvFile.arrayBuffer();
+        const parser = new PDFParse({ data: new Uint8Array(arrayBuffer) });
+
+        let texto = '';
+        try {
+          const result = await parser.getText();
+          texto = result?.text || '';
+        } finally {
+          await parser.destroy().catch(() => undefined);
+        }
+
+        const linhas = texto
+          .split(/\r?\n/)
+          .map((linha: string) => linha.replace(/\s+/g, ' ').trim())
+          .filter(Boolean);
+
+        const referenciaArquivo = extrairReferenciaFaturaPDF(texto, linhas);
+        const fallbackMes = Number.parseInt(mesReferencia || String(new Date().getMonth() + 1), 10);
+        const fallbackAno = Number.parseInt(anoReferencia || String(new Date().getFullYear()), 10);
+        const referencia = referenciaArquivo || {
+          mes: Number.isFinite(fallbackMes) ? Math.min(12, Math.max(1, fallbackMes)) : (new Date().getMonth() + 1),
+          ano: Number.isFinite(fallbackAno) ? fallbackAno : new Date().getFullYear(),
+        };
+
+        const regexLinhaTransacao = /^(\d{2}\/\d{2}(?:\/\d{2,4})?)\s+(.+?)\s+(?:R\$\s*)?(-?\d{1,3}(?:\.\d{3})*,\d{2})$/i;
+        const dados: Transacao[] = linhas
+          .map((linha: string, index: number) => {
+            const match = linha.match(regexLinhaTransacao);
+            if (!match) return null;
+
+            const quando = completarAnoDaData(match[1], referencia);
+            const estabelecimento = match[2];
+            const valorRaw = parseValorMonetario(match[3]);
+            return criarTransacaoNormalizada(quando, estabelecimento, valorRaw, index);
           })
-          .filter(t => t.estabelecimento && t.valor > 0);
+          .filter((t: Transacao | null): t is Transacao => t !== null);
+
+        if (dados.length === 0) {
+          setParseError('Nenhuma transação foi identificada no PDF. Verifique se o layout está no padrão de fatura.');
+          return;
+        }
 
         setTransacoes(dados);
         setStep(2);
         setSortBy('');
         setSortOrder('asc');
-      },
-      error: (error: any) => {
-        setParseError(`Erro ao processar CSV: ${error.message}`);
+      } catch (error: any) {
+        setParseError(`Erro ao processar PDF: ${error?.message || 'não foi possível ler o arquivo'}`);
       }
-    });
+    })();
   };
 
   const formatarDataBR = (data: string) => {
@@ -634,10 +810,10 @@ export function ImportarFaturaModalNovo({ open, onClose, onImport, cartoes, init
                 )}
 
                 <div>
-                  <label className="block text-sm font-semibold text-slate-200 mb-3">Arquivo CSV</label>
+                  <label className="block text-sm font-semibold text-slate-200 mb-3">Arquivo da fatura (CSV ou PDF)</label>
                   <input
                     type="file"
-                    accept=".csv"
+                    accept=".csv,.pdf"
                     onChange={handleFileChange}
                     className="w-full px-4 py-4 rounded-xl border-2 border-dashed border-slate-600 hover:border-slate-500 bg-slate-800/30 text-slate-100 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-gradient-to-r file:from-blue-500 file:to-blue-600 file:text-white hover:file:from-blue-600 hover:file:to-blue-700 cursor-pointer transition"
                   />
