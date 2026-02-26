@@ -80,6 +80,21 @@ interface DashboardChartsProps {
 const COLORS = ['#6366f1', '#8b5cf6', '#ec4899', '#06b6d4', '#10b981', '#f59e0b', '#ef4444', '#84cc16']
 
 export function DashboardCharts({ transacoes, recentTransacoes, contas = [], cartoes = [], lembretes = [], selectedMonth, selectedYear, allTransactions, showCardTransactions = false, onOpenFatura }: DashboardChartsProps) {
+  const getLancamentoTimestamp = (t: Transacao) => {
+    const raw = t.created_at || t.data
+    if (!raw) return 0
+    const dt = new Date(raw)
+    return Number.isNaN(dt.getTime()) ? 0 : dt.getTime()
+  }
+
+  const formatLancamentoDate = (t: Transacao) => {
+    const raw = t.created_at || t.data
+    if (!raw) return '-'
+    const dt = new Date(raw)
+    if (Number.isNaN(dt.getTime())) return String(raw)
+    return dt.toLocaleDateString('pt-BR')
+  }
+
   // Criar mapa de contas para exibir nome da conta
   const accountsMap = contas.reduce((acc, conta) => {
     acc[conta.id] = conta
@@ -568,12 +583,10 @@ export function DashboardCharts({ transacoes, recentTransacoes, contas = [], car
           </CardHeader>
           <CardContent className="pt-0">
             <div className="space-y-3">
-              { transacoes
+              { allTransacoes
                 .slice()
                 .sort((a, b) => {
-                  const aTime = parseToDateUTC(a.data ?? a.created_at)?.getTime() || 0
-                  const bTime = parseToDateUTC(b.data ?? b.created_at)?.getTime() || 0
-                  return bTime - aTime
+                  return getLancamentoTimestamp(b) - getLancamentoTimestamp(a)
                 })
                 .slice(0, 5)
                 .map((transacao) => (
@@ -600,13 +613,7 @@ export function DashboardCharts({ transacoes, recentTransacoes, contas = [], car
                             <> • 🏦 {accountsMap[transacao.conta_id].name}</>
                           )}
                           {!transacao.cartao_id && !transacao.conta_id && ' • 🏦 Conta'}
-                          {' • '}{
-                            (() => {
-                              const raw = transacao.data ?? transacao.created_at
-                              const parsed = parseToDateUTC(raw)
-                              return parsed ? parsed.toLocaleDateString('pt-BR', { timeZone: 'UTC' }) : String(raw || '')
-                            })()
-                          }
+                          {' • '}{formatLancamentoDate(transacao)}
                         </div>
                       </div>
                     </div>
@@ -618,7 +625,7 @@ export function DashboardCharts({ transacoes, recentTransacoes, contas = [], car
                   </div>
                 ))
               }
-              {transacoes.length === 0 && (
+              {allTransacoes.length === 0 && (
                 <div className="text-center py-8 text-muted-foreground">
                   Nenhuma transação encontrada
                 </div>
