@@ -449,18 +449,27 @@ const Transacoes: React.FC = () => {
       return { success: false, message: 'Usuário não autenticado.' };
     }
     try {
-      async function getOrCreateCategoriaId(nomeCategoria: string) {
+      async function getOrCreateCategoriaId(nomeCategoria: string, tipoCategoria: 'receita' | 'despesa') {
         if (!nomeCategoria) return null;
-        const { data: cat } = await supabase
+        const nomeNormalizado = nomeCategoria.trim();
+
+        const { data: categoriasEncontradas } = await supabase
           .from('categorias')
-          .select('id')
+          .select('id, nome')
           .eq('user_id', user.id)
-          .ilike('nome', nomeCategoria)
-          .maybeSingle();
-        if (cat && cat.id) return cat.id;
+          .eq('tipo', tipoCategoria)
+          .ilike('nome', nomeNormalizado);
+
+        const existente =
+          (categoriasEncontradas || []).find(
+            (c) => String(c.nome || '').trim().toLowerCase() === nomeNormalizado.toLowerCase()
+          ) || categoriasEncontradas?.[0];
+
+        if (existente?.id) return existente.id;
+
         const { data: newCat } = await supabase
           .from('categorias')
-          .insert({ user_id: user.id, nome: nomeCategoria })
+          .insert({ user_id: user.id, nome: nomeNormalizado, tipo: tipoCategoria })
           .select('id')
           .maybeSingle();
         if (newCat && newCat.id) return newCat.id;
@@ -489,27 +498,16 @@ const Transacoes: React.FC = () => {
       }
 
       for (const l of lancamentos) {
-        let categoriaId = null;
-        let nomeCategoria = l.categoria && l.categoria.trim() !== '' ? l.categoria.trim() : (l.tipo === 'receita' ? 'Renda Extra' : l.tipo === 'despesa' ? 'Compras' : 'Outros');
-        const { data: cat } = await supabase
-          .from('categorias')
-          .select('id')
-          .eq('user_id', user.id)
-          .ilike('nome', nomeCategoria)
-          .maybeSingle();
-        if (cat && cat.id) {
-          categoriaId = cat.id;
-        } else {
-          const { data: newCat } = await supabase
-            .from('categorias')
-            .insert({ user_id: user.id, nome: nomeCategoria, tipo: l.tipo })
-            .select('id')
-            .maybeSingle();
-          if (newCat && newCat.id) categoriaId = newCat.id;
-        }
-
         const valorNum = parseValorBR(l.valor);
-        const tipo = valorNum >= 0 ? 'receita' : 'despesa';
+        const tipo: 'receita' | 'despesa' = valorNum >= 0 ? 'receita' : 'despesa';
+        const nomeCategoria =
+          l.categoria && l.categoria.trim() !== ''
+            ? l.categoria.trim()
+            : tipo === 'receita'
+              ? 'Renda Extra'
+              : 'Compras';
+        const categoriaId = await getOrCreateCategoriaId(nomeCategoria, tipo);
+
         lancamentosComCategoriaId.push({
           user_id: user.id,
           conta_id: contaId,

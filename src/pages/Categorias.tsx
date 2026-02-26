@@ -11,10 +11,55 @@ import { toast } from '@/hooks/use-toast';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useAuth } from '@/hooks/useAuth';
+import { isDefaultCategory } from '@/constants/defaultCategories';
+
+type CategoryStats = Record<string, { lancamentos: number; valor: number }>;
+
+const formatDateBr = (value: string | null | undefined) => {
+  const raw = String(value || '').trim();
+  if (!raw) return '-';
+
+  if (/^\d{2}\/\d{2}\/\d{4}$/.test(raw)) {
+    return raw;
+  }
+
+  const ymd = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (ymd) {
+    return `${ymd[3]}/${ymd[2]}/${ymd[1]}`;
+  }
+
+  const date = new Date(raw);
+  if (!Number.isNaN(date.getTime())) {
+    return date.toLocaleDateString('pt-BR');
+  }
+
+  return raw;
+};
+
+const parseDateSortValue = (value: string | null | undefined) => {
+  const raw = String(value || '').trim();
+  if (!raw) return 0;
+
+  const br = raw.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (br) {
+    const date = new Date(Number(br[3]), Number(br[2]) - 1, Number(br[1]));
+    return Number.isNaN(date.getTime()) ? 0 : date.getTime();
+  }
+
+  const date = new Date(raw);
+  return Number.isNaN(date.getTime()) ? 0 : date.getTime();
+};
 
 export default function Categorias() {
       // Editar categoria
       const handleEditCategory = (category: any) => {
+        if (isDefaultCategory(category)) {
+          toast({
+            title: 'Categoria padrão',
+            description: 'Categorias padrão não podem ser editadas.',
+          });
+          return;
+        }
         setEditingCategory(category);
         setIsFormOpen(true);
       };
@@ -28,8 +73,10 @@ export default function Categorias() {
     // Selecionar todas as categorias
     const handleSelectAll = (checked: boolean | "indeterminate") => {
       if (checked) {
-        const todos = categories.map((c) => c.id);
-        console.log('[DEBUG] handleSelectAll - selecionando todos:', todos);
+        const todos = categories
+          .filter((c) => !isDefaultCategory(c))
+          .map((c) => c.id);
+        console.log('[DEBUG] handleSelectAll - selecionando editáveis:', todos);
         setSelectedIds(todos);
       } else {
         console.log('[DEBUG] handleSelectAll - limpando seleção');
@@ -55,16 +102,165 @@ export default function Categorias() {
     setModalOpen(true);
     setModalLoading(true);
     try {
-      // Busca lançamentos com join para pegar o nome da conta
-      const { data, error } = await supabase
+      if (!user?.id) {
+        throw new Error('Usuário não autenticado.');
+      }
+
+      const { data: transacoesData, error: transacoesError } = await supabase
         .from('transacoes')
-        .select('*, conta:accounts(name)')
+        .select('*')
         .eq('categoria_id', categoria.id)
+        .eq('user_id', user.id)
         .order('data', { ascending: false });
-      if (error) throw error;
-      setModalLancamentos(data || []);
+
+      if (transacoesError) throw transacoesError;
+      let lancamentosBrutos = transacoesData || [];
+
+      // Fallback: se não houver lançamentos nesse ID, tenta por categorias
+      // duplicadas do mesmo usuário com o mesmo nome/tipo.
+      if (lancamentosBrutos.length === 0 && categoria?.nome) {
+        const normalizeCategoryValue = (value: string | null | undefined) =>
+          String(value || '')
+            .normalize('NFD')
+            .replace(/\p{Diacritic}/gu, '')
+            .replace(/\s+/g, ' ')
+            .trim()
+            .toLowerCase();
+
+        const nomeAlvo = normalizeCategoryValue(categoria.nome);
+        const tipoAlvo = normalizeCategoryValue(categoria.tipo);
+
+        const { data: categoriasRelacionadas, error: categoriasRelacionadasError } = await supabase
+          .from('categorias')
+          .select('id, nome, tipo')
+          .eq('user_id', user.id);
+
+        if (!categoriasRelacionadasError && categoriasRelacionadas?.length) {
+          const categoriaIdsRelacionados = categoriasRelacionadas
+            .filter((c: any) => {
+              const mesmoNome = normalizeCategoryValue(c?.nome) === nomeAlvo;
+              if (!mesmoNome) return false;
+              if (!tipoAlvo) return true;
+              return normalizeCategoryValue(c?.tipo) === tipoAlvo;
+            })
+            .map((c: any) => c.id)
+            .filter(Boolean);
+
+          if (categoriaIdsRelacionados.length > 0) {
+            const { data: fallbackTransacoes, error: fallbackTransacoesError } = await supabase
+              .from('transacoes')
+              .select('*')
+              .in('categoria_id', categoriaIdsRelacionados)
+              .eq('user_id', user.id)
+              .order('data', { ascending: false });
+
+            if (!fallbackTransacoesError && fallbackTransacoes) {
+              lancamentosBrutos = fallbackTransacoes;
+            }
+          }
+        }
+      }
+
+      const contaIds = Array.from(
+        new Set(
+          lancamentosBrutos
+            .map((l) => l.conta_id || l.account_id)
+            .filter(Boolean)
+        )
+      );
+      const cartaoIds = Array.from(
+        new Set(
+          lancamentosBrutos
+            .map((l) => l.cartao_id || l.card_id)
+            .filter(Boolean)
+        )
+      );
+
+      let contasMap = new Map<string, string>();
+      if (contaIds.length > 0) {
+        // Fallback para diferentes schemas: alguns usam "nome", outros "name".
+        let contasData: any[] = [];
+
+        const byNome = await supabase
+          .from('accounts')
+          .select('id, nome')
+          .in('id', contaIds);
+
+        if (!byNome.error && byNome.data) {
+          contasData = byNome.data.map((c: any) => ({ id: c.id, label: c.nome }));
+        } else {
+          const byName = await supabase
+            .from('accounts')
+            .select('id, name')
+            .in('id', contaIds);
+
+          if (!byName.error && byName.data) {
+            contasData = byName.data.map((c: any) => ({ id: c.id, label: c.name }));
+          } else {
+            console.warn('Não foi possível carregar nomes das contas para o modal de categorias.', {
+              byNomeError: byNome.error,
+              byNameError: byName.error,
+            });
+          }
+        }
+
+        contasMap = new Map(
+          contasData.map((c: any) => [String(c.id), c.label || 'Sem conta'])
+        );
+      }
+
+      let cartoesMap = new Map<string, string>();
+      if (cartaoIds.length > 0) {
+        let cartoesData: any[] = [];
+
+        const byNome = await supabase
+          .from('cartoes')
+          .select('id, nome')
+          .in('id', cartaoIds);
+
+        if (!byNome.error && byNome.data) {
+          cartoesData = byNome.data.map((c: any) => ({ id: c.id, label: c.nome }));
+        } else {
+          const byName = await supabase
+            .from('cartoes')
+            .select('id, name')
+            .in('id', cartaoIds);
+
+          if (!byName.error && byName.data) {
+            cartoesData = byName.data.map((c: any) => ({ id: c.id, label: c.name }));
+          } else {
+            console.warn('Não foi possível carregar nomes dos cartões para o modal de categorias.', {
+              byNomeError: byNome.error,
+              byNameError: byName.error,
+            });
+          }
+        }
+
+        cartoesMap = new Map(
+          cartoesData.map((c: any) => [String(c.id), c.label || 'Cartão'])
+        );
+      }
+
+      const lancamentosComConta = lancamentosBrutos.map((l: any) => {
+        const contaId = l.conta_id || l.account_id;
+        const cartaoId = l.cartao_id || l.card_id;
+        const contaNome = contaId ? contasMap.get(String(contaId)) || 'Sem conta' : 'Sem conta';
+        const cartaoNome = cartaoId ? cartoesMap.get(String(cartaoId)) || 'Cartão' : null;
+        const origemNome = cartaoNome || contaNome;
+        const origemTipo = cartaoNome ? 'cartao' : 'conta';
+
+        return {
+          ...l,
+          conta_nome: contaNome,
+          cartao_nome: cartaoNome,
+          origem_nome: origemNome,
+          origem_tipo: origemTipo,
+        };
+      });
+
+      setModalLancamentos(lancamentosComConta);
     } catch (err) {
-      toast({ title: 'Erro ao buscar lançamentos', description: err.message, variant: 'destructive' });
+      toast({ title: 'Erro ao buscar lançamentos', description: err?.message || String(err), variant: 'destructive' });
       setModalLancamentos([]);
     } finally {
       setModalLoading(false);
@@ -73,6 +269,10 @@ export default function Categorias() {
 
   // Selecionar/deselecionar categoria individual
   const handleToggleSelect = (id: string) => {
+    if (defaultCategoryIdSet.has(id)) {
+      return;
+    }
+
     setSelectedIds((prev) => {
       const novo = prev.includes(id) ? prev.filter((sid) => sid !== id) : [...prev, id];
       console.log('[DEBUG] handleToggleSelect - novo selectedIds:', novo);
@@ -83,14 +283,68 @@ export default function Categorias() {
   const { user } = useAuth();
   const [changingType, setChangingType] = useState(false);
   const [sortOption, setSortOption] = useState('tipo');
-  const [categoryStats, setCategoryStats] = useState<any>({});
+  const [categoryStats, setCategoryStats] = useState<CategoryStats>({});
+  const defaultCategoryIds = useMemo(
+    () => categories.filter((c) => isDefaultCategory(c)).map((c) => c.id),
+    [categories]
+  );
+  const defaultCategoryIdSet = useMemo(() => new Set(defaultCategoryIds), [defaultCategoryIds]);
+  const selectableCategoryIds = useMemo(
+    () => categories.filter((c) => !isDefaultCategory(c)).map((c) => c.id),
+    [categories]
+  );
 
   useEffect(() => {
+    setSelectedIds((prev) => prev.filter((id) => selectableCategoryIds.includes(id)));
+  }, [selectableCategoryIds]);
+
+  useEffect(() => {
+    let isActive = true;
+
     async function fetchStats() {
-      // Implemente a lógica de busca de stats aqui, se necessário
+      if (!user?.id) {
+        if (isActive) setCategoryStats({});
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from('transacoes')
+        .select('categoria_id, valor')
+        .eq('user_id', user.id)
+        .not('categoria_id', 'is', null);
+
+      if (error) {
+        console.error('Erro ao buscar estatísticas das categorias:', error);
+        if (isActive) setCategoryStats({});
+        return;
+      }
+
+      const stats = (data || []).reduce((acc, row: any) => {
+        const categoriaId = row?.categoria_id;
+        if (!categoriaId) return acc;
+
+        if (!acc[categoriaId]) {
+          acc[categoriaId] = { lancamentos: 0, valor: 0 };
+        }
+
+        const valor = Number(row?.valor);
+        acc[categoriaId].lancamentos += 1;
+        acc[categoriaId].valor += Number.isFinite(valor) ? Math.abs(valor) : 0;
+
+        return acc;
+      }, {} as CategoryStats);
+
+      if (isActive) {
+        setCategoryStats(stats);
+      }
     }
+
     fetchStats();
-  }, []);
+
+    return () => {
+      isActive = false;
+    };
+  }, [user?.id]);
 
   // Ordenação das categorias
   // ...existing code...
@@ -145,6 +399,7 @@ export default function Categorias() {
       return false;
     }
   });
+  const duplicadasRemoviveis = duplicadas.filter((c) => !isDefaultCategory(c));
 
   // Ordenação dos lançamentos do modal
   const [lancSort, setLancSort] = useState<{ key: string, asc: boolean }>({ key: 'quando', asc: false });
@@ -163,20 +418,20 @@ export default function Categorias() {
       let aValue = a[lancSort.key];
       let bValue = b[lancSort.key];
       if (lancSort.key === 'conta') {
-        aValue = a.conta?.name || '';
-        bValue = b.conta?.name || '';
+        aValue = a.origem_nome || '';
+        bValue = b.origem_nome || '';
       }
       if (lancSort.key === 'valor') {
         aValue = Number(aValue);
         bValue = Number(bValue);
       }
       if (lancSort.key === 'quando') {
-        aValue = aValue || '';
-        bValue = bValue || '';
+        aValue = parseDateSortValue(a.data || a.quando);
+        bValue = parseDateSortValue(b.data || b.quando);
       }
       if (lancSort.key === 'descricao') {
-        aValue = a.estabelecimento || '';
-        bValue = b.estabelecimento || '';
+        aValue = a.descricao || a.estabelecimento || '';
+        bValue = b.descricao || b.estabelecimento || '';
       }
       if (aValue < bValue) return lancSort.asc ? -1 : 1;
       if (aValue > bValue) return lancSort.asc ? 1 : -1;
@@ -187,18 +442,23 @@ export default function Categorias() {
 
   // Função para remover duplicadas
   const handleRemoveDuplicates = async () => {
-    if (!confirm(`Deseja remover ${duplicadas.length} categoria(s) duplicada(s)? Esta ação não pode ser desfeita.`)) {
+    if (duplicadasRemoviveis.length === 0) {
+      toast({ title: 'Não há categorias duplicadas removíveis.' });
+      return;
+    }
+
+    if (!confirm(`Deseja remover ${duplicadasRemoviveis.length} categoria(s) duplicada(s)? Esta ação não pode ser desfeita.`)) {
       return;
     }
     try {
       // Remove as categorias duplicadas (mantém a primeira de cada nome)
-      const idsToDelete = duplicadas.map(c => c.id);
+      const idsToDelete = duplicadasRemoviveis.map(c => c.id);
       const { error } = await supabase
         .from('categorias')
         .delete()
         .in('id', idsToDelete);
       if (error) throw error;
-      toast({ title: `${duplicadas.length} categoria(s) duplicada(s) removida(s) com sucesso!` });
+      toast({ title: `${duplicadasRemoviveis.length} categoria(s) duplicada(s) removida(s) com sucesso!` });
       window.location.reload();
     } catch (error: any) {
       console.error('Erro ao remover duplicadas:', error);
@@ -212,9 +472,15 @@ export default function Categorias() {
 
   // Função para alterar o tipo das categorias selecionadas
   const handleChangeType = async (newType: string) => {
+    const idsParaAlterar = selectedIds.filter((id) => !defaultCategoryIdSet.has(id));
+    if (idsParaAlterar.length === 0) {
+      toast({ title: 'Selecione ao menos uma categoria não padrão para alterar o tipo.' });
+      return;
+    }
+
     setChangingType(true);
     try {
-      for (const id of selectedIds) {
+      for (const id of idsParaAlterar) {
         const cat = categories.find(c => c.id === id);
         console.log('[DEBUG] Tentando atualizar tipo das transações', { id, newType, cat });
         if (cat) {
@@ -237,7 +503,7 @@ export default function Categorias() {
         }
       }
       setSelectedIds([]);
-      toast({ title: `Tipo alterado para ${newType} em ${selectedIds.length} categoria(s) e transações vinculadas!` });
+      toast({ title: `Tipo alterado para ${newType} em ${idsParaAlterar.length} categoria(s) e transações vinculadas!` });
       window.location.reload();
     } catch (error: any) {
       console.error('[DEBUG] Erro ao alterar tipo:', error);
@@ -248,9 +514,13 @@ export default function Categorias() {
   };
 
   const handleDeleteSelected = async () => {
-    if (selectedIds.length === 0) return;
+    const idsParaExcluir = selectedIds.filter((id) => !defaultCategoryIdSet.has(id));
+    if (idsParaExcluir.length === 0) {
+      toast({ title: 'Selecione ao menos uma categoria não padrão para excluir.' });
+      return;
+    }
 
-    if (!confirm(`Deseja remover ${selectedIds.length} categoria(s) selecionada(s)? Esta ação não pode ser desfeita.`)) {
+    if (!confirm(`Deseja remover ${idsParaExcluir.length} categoria(s) selecionada(s)? Esta ação não pode ser desfeita.`)) {
       return;
     }
 
@@ -258,11 +528,11 @@ export default function Categorias() {
       const { error } = await supabase
         .from('categorias')
         .delete()
-        .in('id', selectedIds);
+        .in('id', idsParaExcluir);
 
       if (error) throw error;
 
-      toast({ title: `${selectedIds.length} categoria(s) removida(s) com sucesso!` });
+      toast({ title: `${idsParaExcluir.length} categoria(s) removida(s) com sucesso!` });
       setSelectedIds([]);
       window.location.reload();
     } catch (error: any) {
@@ -297,7 +567,7 @@ export default function Categorias() {
     );
   }
 
-  const isAllSelected = categories.length > 0 && selectedIds.length === categories.length;
+  const isAllSelected = categories.length > 0 && selectedIds.length === selectableCategoryIds.length;
 
   return (
     <>
@@ -318,17 +588,17 @@ export default function Categorias() {
                     <th className="px-2 py-1 border cursor-pointer" onClick={() => handleLancSort('quando')}>Data</th>
                     <th className="px-2 py-1 border cursor-pointer" onClick={() => handleLancSort('descricao')}>Descrição</th>
                     <th className="px-2 py-1 border cursor-pointer" onClick={() => handleLancSort('valor')}>Valor</th>
-                    <th className="px-2 py-1 border cursor-pointer" onClick={() => handleLancSort('conta')}>Conta</th>
+                    <th className="px-2 py-1 border cursor-pointer" onClick={() => handleLancSort('conta')}>Conta/Cartão</th>
                     <th className="px-2 py-1 border cursor-pointer" onClick={() => handleLancSort('tipo')}>Tipo</th>
                   </tr>
                 </thead>
                 <tbody>
                   {sortedModalLancamentos.map((lanc) => (
                     <tr key={lanc.id} className="border-b hover:bg-muted/50">
-                      <td className="px-2 py-1 border">{lanc.data}</td>
-                      <td className="px-2 py-1 border">{lanc.estabelecimento}</td>
+                      <td className="px-2 py-1 border">{formatDateBr(lanc.data)}</td>
+                      <td className="px-2 py-1 border">{lanc.descricao || lanc.estabelecimento || '-'}</td>
                       <td className="px-2 py-1 border text-right">{Number(lanc.valor).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>
-                      <td className="px-2 py-1 border">{lanc.conta?.name || 'Sem conta'}</td>
+                      <td className="px-2 py-1 border">{lanc.origem_nome || '-'}</td>
                       <td className="px-2 py-1 border">{lanc.tipo}</td>
                     </tr>
                   ))}
@@ -399,6 +669,7 @@ export default function Categorias() {
         <div className="flex items-center gap-2 mb-6">
           <Checkbox
             checked={isAllSelected}
+            disabled={selectableCategoryIds.length === 0}
             onCheckedChange={handleSelectAll}
             id="select-all"
           />
@@ -414,6 +685,7 @@ export default function Categorias() {
         onEdit={handleEditCategory}
         selectedIds={selectedIds}
         onToggleSelect={handleToggleSelect}
+        lockedCategoryIds={defaultCategoryIds}
         showTypeColor
         categoryStats={categoryStats}
         onOpenLancamentos={handleOpenLancamentos}

@@ -1,9 +1,19 @@
 
-import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
+
+const normalizeCategoryName = (value: string) =>
+  String(value || '')
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+
+const categoryKey = (category: { nome: string; tipo: string | null }) =>
+  `${String(category.tipo || '').trim().toLowerCase()}::${normalizeCategoryName(category.nome)}`;
 
 export interface Category {
   id: string;
@@ -35,7 +45,31 @@ export function useCategories() {
         throw error;
       }
 
-      return data as Category[];
+      const rows = (data || []) as Category[];
+      const deduped = new Map<string, Category>();
+
+      for (const row of rows) {
+        const key = categoryKey(row);
+        const existing = deduped.get(key);
+
+        if (!existing) {
+          deduped.set(key, row);
+          continue;
+        }
+
+        const existingTs = Date.parse(existing.created_at || '');
+        const candidateTs = Date.parse(row.created_at || '');
+        const shouldReplace =
+          !Number.isNaN(candidateTs) && (Number.isNaN(existingTs) || candidateTs < existingTs);
+
+        if (shouldReplace) {
+          deduped.set(key, row);
+        }
+      }
+
+      return Array.from(deduped.values()).sort((a, b) =>
+        String(a.nome || '').localeCompare(String(b.nome || ''), 'pt-BR')
+      );
     },
     enabled: !!user?.id,
   });
@@ -44,24 +78,55 @@ export function useCategories() {
     mutationFn: async (newCategory: { nome: string; tipo?: string; tags?: string }) => {
       if (!user?.id) throw new Error('Usuário não autenticado');
 
+      const nome = newCategory.nome.trim();
+      const tipo = newCategory.tipo || null;
+      const normalizedNome = normalizeCategoryName(nome);
+
+      let checkQuery = supabase
+        .from('categorias')
+        .select('id, nome, tipo')
+        .eq('user_id', user.id)
+        .ilike('nome', nome);
+
+      if (tipo) {
+        checkQuery = checkQuery.eq('tipo', tipo);
+      } else {
+        checkQuery = checkQuery.is('tipo', null);
+      }
+
+      const { data: existingRows, error: existingError } = await checkQuery;
+      if (existingError) throw existingError;
+
+      const existing = (existingRows || []).find(
+        (row) => normalizeCategoryName(String(row.nome || '')) === normalizedNome
+      );
+
+      if (existing?.id) {
+        return { ...existing, __alreadyExists: true };
+      }
+
       const { data, error } = await supabase
         .from('categorias')
         .insert([
           {
-            nome: newCategory.nome,
-            tipo: newCategory.tipo || null,
+            nome,
+            tipo,
             tags: newCategory.tags || null,
-            userid: user.id,
+            user_id: user.id,
           },
         ])
         .select()
         .single();
 
       if (error) throw error;
-      return data;
+      return { ...data, __alreadyExists: false };
     },
-    onSuccess: () => {
+    onSuccess: (result: any) => {
       queryClient.invalidateQueries({ queryKey: ['categories'] });
+      if (result?.__alreadyExists) {
+        toast.info('Categoria já existe.');
+        return;
+      }
       toast.success('Categoria criada com sucesso!');
     },
     onError: (error) => {

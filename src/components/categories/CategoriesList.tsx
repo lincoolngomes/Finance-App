@@ -1,5 +1,5 @@
-
 import { Edit, Trash2, Tag, List } from 'lucide-react';
+import { useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
@@ -17,21 +17,29 @@ import {
 } from '@/components/ui/alert-dialog';
 import { useCategories, Category } from '@/hooks/useCategories';
 
-import { useNavigate } from 'react-router-dom';
-
 interface CategoriesListProps {
   categories: Category[];
   onEdit: (category: Category) => void;
   selectedIds: string[];
   onToggleSelect: (id: string) => void;
+  lockedCategoryIds?: string[];
   showTypeColor?: boolean;
   categoryStats?: Record<string, { lancamentos: number, valor: number }>;
   onOpenLancamentos?: (category: Category) => void;
 }
 
-export function CategoriesList({ categories, onEdit, selectedIds, onToggleSelect, showTypeColor, categoryStats, onOpenLancamentos }: CategoriesListProps) {
-  // const navigate = useNavigate();
+export function CategoriesList({
+  categories,
+  onEdit,
+  selectedIds,
+  onToggleSelect,
+  lockedCategoryIds = [],
+  showTypeColor,
+  categoryStats,
+  onOpenLancamentos,
+}: CategoriesListProps) {
   const { deleteCategory } = useCategories();
+  const lockedCategoryIdSet = useMemo(() => new Set(lockedCategoryIds), [lockedCategoryIds]);
 
   if (categories.length === 0) {
     return (
@@ -59,7 +67,9 @@ export function CategoriesList({ categories, onEdit, selectedIds, onToggleSelect
   return (
     <div className="space-y-3">
       {categories.map((category) => {
-        const isSelected = selectedIds.includes(category.id);
+        const isLocked = lockedCategoryIdSet.has(category.id);
+        const isSelected = isLocked || selectedIds.includes(category.id);
+        const stats = categoryStats?.[category.id] || { lancamentos: 0, valor: 0 };
         const typeColor = 
           category.tipo === 'receita' ? 'text-emerald-600' :
           category.tipo === 'despesa' ? 'text-rose-600' :
@@ -70,14 +80,15 @@ export function CategoriesList({ categories, onEdit, selectedIds, onToggleSelect
           <div 
             key={category.id}
             className={`flex items-center gap-4 p-4 border rounded-lg transition-colors ${
-              isSelected 
+              isSelected && !isLocked
                 ? 'bg-primary/10 border-primary' 
                 : 'bg-secondary/30 border-border hover:bg-secondary/50'
             }`}
           >
             <Checkbox
               checked={isSelected}
-              onCheckedChange={() => onToggleSelect(category.id)}
+              disabled={isLocked}
+              onCheckedChange={() => !isLocked && onToggleSelect(category.id)}
             />
             
             <div className="flex-1 min-w-0">
@@ -89,12 +100,24 @@ export function CategoriesList({ categories, onEdit, selectedIds, onToggleSelect
                 >
                   {category.tipo || 'sem tipo'}
                 </Badge>
+                {isLocked && (
+                  <Badge variant="outline" className="text-xs border-primary/50 text-primary">
+                    padrão
+                  </Badge>
+                )}
               </div>
               {category.tags && (
                 <p className="text-xs text-muted-foreground">
                   {category.tags}
                 </p>
               )}
+              <p className="text-xs text-muted-foreground mt-1">
+                {stats.lancamentos} lançamentos •{' '}
+                {Number(stats.valor || 0).toLocaleString('pt-BR', {
+                  style: 'currency',
+                  currency: 'BRL',
+                })}
+              </p>
             </div>
 
             <div className="flex gap-2 flex-shrink-0">
@@ -111,41 +134,54 @@ export function CategoriesList({ categories, onEdit, selectedIds, onToggleSelect
                 variant="ghost"
                 size="sm"
                 onClick={() => onEdit(category)}
+                disabled={isLocked}
                 className="h-8 px-3"
-                title="Editar categoria"
+                title={isLocked ? 'Categoria padrão não pode ser editada' : 'Editar categoria'}
               >
                 <Edit className="h-4 w-4" />
               </Button>
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button 
-                    variant="ghost" 
-                    size="sm" 
-                    className="h-8 px-3 text-red-500 hover:text-red-600 hover:bg-red-500/10"
-                    title="Excluir categoria"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>Excluir categoria</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      Tem certeza que deseja excluir a categoria "{category.nome}"? 
-                      Esta ação não pode ser desfeita.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                    <AlertDialogAction
-                      onClick={() => deleteCategory(category.id)}
-                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              {isLocked ? (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  disabled
+                  className="h-8 px-3 text-red-500/50"
+                  title="Categoria padrão não pode ser excluída"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              ) : (
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      className="h-8 px-3 text-red-500 hover:text-red-600 hover:bg-red-500/10"
+                      title="Excluir categoria"
                     >
-                      Excluir
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Excluir categoria</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Tem certeza que deseja excluir a categoria "{category.nome}"? 
+                        Esta ação não pode ser desfeita.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                      <AlertDialogAction
+                        onClick={() => deleteCategory(category.id)}
+                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                      >
+                        Excluir
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              )}
             </div>
           </div>
         );

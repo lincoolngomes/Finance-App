@@ -89,11 +89,11 @@ function ImportarExtratoModal({ open, onClose, onImport, contas }) {
     { nome: 'Alimentação', tipo: 'despesa' },
     { nome: 'Aluguel', tipo: 'despesa' },
     { nome: 'Assinaturas', tipo: 'despesa' },
-    { nome: 'Carro Fin.', tipo: 'despesa' },
+    { nome: 'Carro', tipo: 'despesa' },
     { nome: 'Celular', tipo: 'despesa' },
     { nome: 'Compras', tipo: 'despesa' },
     { nome: 'Condomínio', tipo: 'despesa' },
-    { nome: 'Diarista', tipo: 'despesa' },
+    { nome: 'Casa', tipo: 'despesa' },
     { nome: 'Dívida', tipo: 'despesa' },
     { nome: 'Educação', tipo: 'despesa' },
     { nome: 'Energia', tipo: 'despesa' },
@@ -1003,32 +1003,38 @@ export default function ContasPage() {
     }
     try {
       // Função auxiliar para buscar ou criar categoria
-      async function getOrCreateCategoriaId(nomeCategoria) {
+      async function getOrCreateCategoriaId(nomeCategoria, tipoCategoria) {
         if (!nomeCategoria) return null;
+        const nomeNormalizado = String(nomeCategoria).trim();
+
         // Busca categoria do usuário
-        const { data: cat, error: catErr } = await supabase
+        const { data: categoriasEncontradas } = await supabase
           .from('categorias')
-          .select('id')
+          .select('id, nome')
           .eq('user_id', user.id)
-          .ilike('nome', nomeCategoria)
-          .maybeSingle();
-        if (cat && cat.id) return cat.id;
+          .eq('tipo', tipoCategoria)
+          .ilike('nome', nomeNormalizado);
+
+        const existente =
+          (categoriasEncontradas || []).find(
+            (c) => String(c.nome || '').trim().toLowerCase() === nomeNormalizado.toLowerCase()
+          ) || categoriasEncontradas?.[0];
+
+        if (existente?.id) return existente.id;
+
         // Cria se não existir
-        const { data: newCat, error: newCatErr } = await supabase
+        const { data: newCat } = await supabase
           .from('categorias')
-          .insert({ user_id: user.id, nome: nomeCategoria })
+          .insert({ user_id: user.id, nome: nomeNormalizado, tipo: tipoCategoria })
           .select('id')
           .maybeSingle();
+
         if (newCat && newCat.id) return newCat.id;
         return null;
       }
 
       // Para cada lançamento, resolve o categoria_id
       const lancamentosComCategoriaId = [];
-      // Busca/cria categorias padrão
-      const outrosCategoriaId = await getOrCreateCategoriaId('Outros');
-      const rendaExtraCategoriaId = await getOrCreateCategoriaId('Renda Extra');
-      const comprasCategoriaId = await getOrCreateCategoriaId('Compras');
       
       // Função para determinar status baseado na data
       const determinarStatus = (dataStr) => {
@@ -1063,26 +1069,6 @@ export default function ContasPage() {
       }
 
       for (const l of lancamentos) {
-        let categoriaId = null;
-        let nomeCategoria = l.categoria && l.categoria.trim() !== '' ? l.categoria.trim() : (l.tipo === 'receita' ? 'Renda Extra' : l.tipo === 'despesa' ? 'Compras' : 'Outros');
-        // Busca categoria do usuário pelo nome e tipo
-        const { data: cat, error: catErr } = await supabase
-          .from('categorias')
-          .select('id')
-          .eq('user_id', user.id)
-          .ilike('nome', nomeCategoria)
-          .maybeSingle();
-        if (cat && cat.id) {
-          categoriaId = cat.id;
-        } else {
-          // Cria se não existir
-          const { data: newCat, error: newCatErr } = await supabase
-            .from('categorias')
-            .insert({ user_id: user.id, nome: nomeCategoria, tipo: l.tipo })
-            .select('id')
-            .maybeSingle();
-          if (newCat && newCat.id) categoriaId = newCat.id;
-        }
         // Conversão de campos do CSV para o schema do banco
         function parseDataBRtoISO(dataBR) {
           if (!dataBR) return null;
@@ -1099,6 +1085,11 @@ export default function ContasPage() {
         }
         const valorNum = parseValorBR(l.valor);
         const tipo = valorNum >= 0 ? 'receita' : 'despesa';
+        const nomeCategoria = l.categoria && l.categoria.trim() !== ''
+          ? l.categoria.trim()
+          : (tipo === 'receita' ? 'Renda Extra' : 'Compras');
+        const categoriaId = await getOrCreateCategoriaId(nomeCategoria, tipo);
+
         lancamentosComCategoriaId.push({
           user_id: user.id,
           conta_id: contaId,

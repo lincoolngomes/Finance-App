@@ -597,13 +597,18 @@ export default function Cartoes({ isModal = false }) {
       const cacheKey = `${tipoCategoria}:${nome.toLowerCase()}`;
       if (categoriaCache[cacheKey]) return categoriaCache[cacheKey];
       // Buscar existente
-      const { data: existing } = await supabase
+      const { data: existingRows } = await supabase
         .from('categorias')
-        .select('id')
+        .select('id, nome')
         .eq('user_id', user?.id)
         .eq('tipo', tipoCategoria)
-        .ilike('nome', nome)
-        .maybeSingle();
+        .ilike('nome', nome);
+
+      const existing =
+        (existingRows || []).find(
+          (c) => String(c.nome || '').trim().toLowerCase() === nome.toLowerCase()
+        ) || existingRows?.[0];
+
       if (existing?.id) {
         categoriaCache[cacheKey] = existing.id;
         return existing.id;
