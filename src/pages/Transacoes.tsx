@@ -85,6 +85,7 @@ const Transacoes: React.FC = () => {
   // mês/ano para filtro rápido (igual ao Dashboard)
   const [filterMonth, setFilterMonth] = useState<string>(new Date().getMonth().toString())
   const [filterYear, setFilterYear] = useState<string>(new Date().getFullYear().toString())
+  const [viewMode, setViewMode] = useState<'mes' | 'ultimos'>('ultimos')
   const [transacoes, setTransacoes] = useState<any[]>([]);
   const [contas, setContas] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -237,21 +238,23 @@ const Transacoes: React.FC = () => {
       });
     }
 
-    // Filtro por mês/ano selecionado
-    const monthIndex = (() => { const m = parseInt(filterMonth); return isNaN(m) ? new Date().getMonth() : (m > 11 ? m - 1 : m) })()
-    const yearNum = parseInt(filterYear) || new Date().getFullYear()
-    filtered = filtered.filter(t => {
-      // Transações de cartão importadas por fatura:
-      // quando houver fatura_mes/fatura_ano, o mês de referência é o vencimento da fatura.
-      if (t.cartao_id && t.fatura_mes && t.fatura_ano) {
-        return (Number(t.fatura_mes) - 1) === monthIndex && Number(t.fatura_ano) === yearNum
-      }
+    if (viewMode === 'mes') {
+      // Filtro por mês/ano selecionado
+      const monthIndex = (() => { const m = parseInt(filterMonth); return isNaN(m) ? new Date().getMonth() : (m > 11 ? m - 1 : m) })()
+      const yearNum = parseInt(filterYear) || new Date().getFullYear()
+      filtered = filtered.filter(t => {
+        // Transações de cartão importadas por fatura:
+        // quando houver fatura_mes/fatura_ano, o mês de referência é o vencimento da fatura.
+        if (t.cartao_id && t.fatura_mes && t.fatura_ano) {
+          return (Number(t.fatura_mes) - 1) === monthIndex && Number(t.fatura_ano) === yearNum
+        }
 
-      // Transações de conta (ou cartão sem referência de fatura): usar data da transação
-      const dt = parseToDate(t.data || t.created_at)
-      if (!dt) return false
-      return dt.getUTCMonth() === monthIndex && dt.getUTCFullYear() === yearNum
-    })
+        // Transações de conta (ou cartão sem referência de fatura): usar data da transação
+        const dt = parseToDate(t.data || t.created_at)
+        if (!dt) return false
+        return dt.getUTCMonth() === monthIndex && dt.getUTCFullYear() === yearNum
+      })
+    }
     
     // Helper para parsear datas em vários formatos (dd/mm/yyyy, yyyy-mm-dd, ISO)
     const parseDateToTime = (dateStr) => {
@@ -270,7 +273,7 @@ const Transacoes: React.FC = () => {
     const getSortValue = (t: any, field: SortField) => {
       switch (field) {
         case 'data':
-          return parseDateToTime(t.data || t.created_at)
+          return parseDateToTime(viewMode === 'ultimos' ? (t.created_at || t.data) : (t.data || t.created_at))
         case 'descricao':
           return (t.descricao || t.observacao || '').toString().toLowerCase()
         case 'categoria':
@@ -307,7 +310,7 @@ const Transacoes: React.FC = () => {
     
     console.log('✨ Transações filtradas:', filtered.length, 'de', transacoes.length);
     return filtered;
-  }, [transacoes, accountFilter, typeFilter, categoryFilter, dateFrom, dateTo, searchTerm, sortCriteria, hideCardTransactions, filterMonth, filterYear, advFilters]);
+  }, [transacoes, accountFilter, typeFilter, categoryFilter, dateFrom, dateTo, searchTerm, sortCriteria, hideCardTransactions, filterMonth, filterYear, advFilters, viewMode]);
 
   // Variáveis auxiliares para seleção em massa (após filteredTransacoes)
   const isAllSelected = filteredTransacoes.length > 0 && selectedIds.length === filteredTransacoes.length;
@@ -648,6 +651,11 @@ const Transacoes: React.FC = () => {
     setSearchParams(nextParams, { replace: true })
   }, [searchParams, setSearchParams])
 
+  useEffect(() => {
+    setDisplayCount(30)
+    setSelectedIds([])
+  }, [viewMode, filterMonth, filterYear])
+
   const clearFilters = () => {
     setSearchTerm('')
     setTypeFilter('all')
@@ -770,7 +778,9 @@ const Transacoes: React.FC = () => {
 
       const transacaoData = {
         data: formData.quando || null,
-        descricao: formData.estabelecimento || null,
+        descricao: formData.estabelecimento
+          ? String(formData.estabelecimento).trim().toLocaleUpperCase('pt-BR')
+          : null,
         valor: formData.valor || null,
         observacao: formData.detalhes || null,
         tipo: formData.tipo || null,
@@ -1587,44 +1597,80 @@ const Transacoes: React.FC = () => {
       </div>
 
       {/* Filtros Superiores */}
-      <div className="flex items-center justify-between gap-4 py-4">
-        <div className="flex items-center gap-3">
-          {/* Ano */}
-          <Select value={filterYear} onValueChange={setFilterYear}>
-            <SelectTrigger className="w-20 h-9 text-sm bg-slate-900/50 border-slate-700/50">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent className="bg-slate-900 border-slate-700">
-              <SelectItem value="2024">2024</SelectItem>
-              <SelectItem value="2025">2025</SelectItem>
-              <SelectItem value="2026">2026</SelectItem>
-            </SelectContent>
-          </Select>
-
-          {/* Período */}
-          <span className="text-xs text-slate-400">Período:</span>
-
-          {/* Botões de Mês */}
-          <div className="flex gap-1">
-            {['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'].map((m, i) => (
-              <Button
-                key={i}
-                variant={parseInt(filterMonth) === i ? 'default' : 'ghost'}
-                className={`h-8 w-10 text-xs rounded px-1 ${
-                  parseInt(filterMonth) === i 
-                    ? 'bg-primary hover:bg-primary/90 text-primary-foreground' 
-                    : 'bg-slate-800/50 hover:bg-slate-800 text-slate-400'
-                }`}
-                onClick={() => setFilterMonth(i.toString())}
-              >
-                {m}
-              </Button>
-            ))}
+      <div className="flex flex-wrap items-start justify-between gap-4 py-4">
+        <div className="flex flex-wrap items-center gap-3 min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <Button
+              variant={viewMode === 'mes' ? 'default' : 'ghost'}
+              className={`h-8 text-xs rounded px-3 ${
+                viewMode === 'mes'
+                  ? 'bg-primary hover:bg-primary/90 text-primary-foreground'
+                  : 'bg-slate-800/50 hover:bg-slate-800 text-slate-400'
+              }`}
+              onClick={() => setViewMode('mes')}
+            >
+              Por mês
+            </Button>
+            <Button
+              variant={viewMode === 'ultimos' ? 'default' : 'ghost'}
+              className={`h-8 text-xs rounded px-3 ${
+                viewMode === 'ultimos'
+                  ? 'bg-primary hover:bg-primary/90 text-primary-foreground'
+                  : 'bg-slate-800/50 hover:bg-slate-800 text-slate-400'
+              }`}
+              onClick={() => {
+                setViewMode('ultimos')
+                setSortCriteria([{ field: 'data', direction: 'desc' }])
+              }}
+            >
+              Últimos lançamentos
+            </Button>
           </div>
+
+          {viewMode === 'mes' ? (
+            <>
+              {/* Ano */}
+              <Select value={filterYear} onValueChange={setFilterYear}>
+                <SelectTrigger className="w-20 h-9 text-sm bg-slate-900/50 border-slate-700/50">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="bg-slate-900 border-slate-700">
+                  <SelectItem value="2024">2024</SelectItem>
+                  <SelectItem value="2025">2025</SelectItem>
+                  <SelectItem value="2026">2026</SelectItem>
+                </SelectContent>
+              </Select>
+
+              {/* Período */}
+              <span className="text-xs text-slate-400">Período:</span>
+
+              {/* Botões de Mês */}
+              <div className="flex flex-wrap gap-1">
+                {['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'].map((m, i) => (
+                  <Button
+                    key={i}
+                    variant={parseInt(filterMonth) === i ? 'default' : 'ghost'}
+                    className={`h-8 w-10 text-xs rounded px-1 ${
+                      parseInt(filterMonth) === i 
+                        ? 'bg-primary hover:bg-primary/90 text-primary-foreground' 
+                        : 'bg-slate-800/50 hover:bg-slate-800 text-slate-400'
+                    }`}
+                    onClick={() => setFilterMonth(i.toString())}
+                  >
+                    {m}
+                  </Button>
+                ))}
+              </div>
+            </>
+          ) : (
+            <span className="text-xs text-slate-400">
+              Mostrando os lançamentos mais recentes (independente do mês de fatura).
+            </span>
+          )}
         </div>
 
         {/* Ações Direita */}
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap justify-end">
           <Button 
             variant="ghost" 
             className="h-9 text-sm rounded-lg px-3 bg-slate-800/50 hover:bg-slate-800 text-slate-300"
@@ -1804,7 +1850,7 @@ const Transacoes: React.FC = () => {
           <input type="checkbox" className="w-4 h-4 cursor-pointer" onChange={(e) => handleSelectAll(e.target.checked)} checked={isAllSelected} />
         </div>
         <button type="button" onClick={() => toggleSort('data')} className="flex items-center gap-1.5 hover:text-slate-200 transition-colors">
-          DATA {getSortIndicator('data')}
+          {viewMode === 'ultimos' ? 'LANÇAMENTO' : 'DATA'} {getSortIndicator('data')}
         </button>
         <button type="button" onClick={() => toggleSort('descricao')} className="flex items-center gap-1.5 hover:text-slate-200 transition-colors">
           DESCRIÇÃO {getSortIndicator('descricao')}
@@ -1828,13 +1874,15 @@ const Transacoes: React.FC = () => {
       <div className="space-y-2">
         {filteredTransacoes.length === 0 ? (
           <div className="text-center py-12 text-slate-500">
-            Nenhuma transação encontrada
+            {viewMode === 'ultimos' ? 'Nenhum lançamento encontrado' : 'Nenhuma transação encontrada'}
           </div>
         ) : (
           <>
             {filteredTransacoes.slice(0, displayCount).map((transacao) => {
             const dataFormatada = (() => {
-              const dateStr = transacao.data || transacao.created_at;
+              const dateStr = viewMode === 'ultimos'
+                ? (transacao.created_at || transacao.data)
+                : (transacao.data || transacao.created_at);
               if (!dateStr) return '-';
               
               try {
@@ -1896,7 +1944,10 @@ const Transacoes: React.FC = () => {
                   {dataFormatada}
                 </div>
                 <div className="font-medium text-slate-200 line-clamp-1">
-                  {transacao.descricao || transacao.observacao || '-'}
+                  {(() => {
+                    const desc = transacao.descricao || transacao.observacao
+                    return desc ? String(desc).toLocaleUpperCase('pt-BR') : '-'
+                  })()}
                 </div>
                 <div className="text-slate-400 truncate text-xs">
                   {transacao.categorias?.nome || '-'}
