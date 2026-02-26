@@ -794,6 +794,11 @@ export default function Cartoes({ isModal = false }) {
     setEditOpen(true);
   }
 
+  function handleOpenFaturas(cartaoId: string) {
+    setCartaoSelecionado(cartaoId);
+    setFaturasOpen(true);
+  }
+
   // Salvar edição
   async function handleSaveCartao(cartaoEditado) {
     // Converter strings vazias para null (campos INTEGER no banco)
@@ -902,7 +907,7 @@ export default function Cartoes({ isModal = false }) {
           </Button>
         </div>
       ) : (
-        <div className={isModal ? "space-y-6" : "grid grid-cols-1 2xl:grid-cols-2 gap-6"}>
+        <div className={isModal ? "space-y-6" : "grid grid-cols-1 min-[1450px]:grid-cols-2 gap-6"}>
           {cartoes.map((cartao) => {
             const transacoesCartao = transacoes.filter(t => t.cartao_id === cartao.id);
             
@@ -967,7 +972,7 @@ export default function Cartoes({ isModal = false }) {
                     <Button
                       size="sm"
                       variant="outline"
-                      onClick={() => { setCartaoSelecionado(cartao.id); setFaturasOpen(true); }}
+                      onClick={() => handleOpenFaturas(cartao.id)}
                       className="h-8 border-slate-600/70 bg-slate-800/60 hover:bg-slate-700/70 text-slate-100"
                     >
                       Faturas
@@ -982,13 +987,13 @@ export default function Cartoes({ isModal = false }) {
                   </div>
                 </div>
 
-                <div className="relative z-10 grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <div className="relative z-10 flex flex-wrap gap-4">
                   <div
-                    className="relative overflow-hidden rounded-2xl border border-white/15 p-5 text-white cursor-pointer min-h-[220px]"
+                    className="relative min-w-[300px] flex-1 basis-[340px] overflow-hidden rounded-2xl border border-white/15 p-5 text-white cursor-pointer min-h-[220px]"
                     style={{
                       background: `linear-gradient(135deg, ${cartao.cor || '#2563eb'} 0%, ${adjustColor(cartao.cor || '#2563eb', -20)} 100%)`,
                     }}
-                    onClick={() => handleEditCartao(cartao)}
+                    onClick={() => handleOpenFaturas(cartao.id)}
                   >
                     <div className="absolute -right-20 -top-20 h-48 w-48 rounded-full bg-white/10 blur-2xl" />
                     <div className="relative z-10 flex h-full flex-col justify-between">
@@ -998,35 +1003,36 @@ export default function Cartoes({ isModal = false }) {
                       </div>
                       <p className="text-base font-mono tracking-[0.28em] text-white/90">•••• •••• •••• ••••</p>
                       <div className="grid grid-cols-2 gap-3 text-sm">
-                        <div>
+                        <div className="min-w-0">
                           <p className="text-[11px] uppercase tracking-wider text-white/70">Disponível</p>
-                          <p className="font-semibold">{formatCurrency(limiteDisponivel)}</p>
+                          <p className="font-semibold leading-tight [overflow-wrap:anywhere]">{formatCurrency(limiteDisponivel)}</p>
                         </div>
-                        <div className="text-right">
+                        <div className="min-w-0 text-right">
                           <p className="text-[11px] uppercase tracking-wider text-white/70">Limite</p>
-                          <p className="font-semibold">{formatCurrency(limite)}</p>
+                          <p className="font-semibold leading-tight [overflow-wrap:anywhere]">{formatCurrency(limite)}</p>
                         </div>
                       </div>
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div className="rounded-xl border border-red-500/35 bg-red-500/10 p-3.5">
-                      <div className="flex items-center justify-between">
-                        <p className="text-xs font-semibold uppercase tracking-wider text-red-300">Saldo em aberto</p>
-                        <p className="text-xs text-slate-400">{qtdDespesasProximaFatura} despesas</p>
+                  <div className="min-w-[280px] flex-1 basis-[320px]">
+                    <div className="flex flex-wrap gap-3">
+                      <div className="min-w-[190px] flex-1 rounded-xl border border-red-500/35 bg-red-500/10 p-3.5 overflow-hidden">
+                        <div className="flex items-start justify-between gap-2">
+                          <p className="text-xs font-semibold uppercase tracking-wider text-red-300">Saldo em aberto</p>
+                          <p className="text-xs text-slate-400">{qtdDespesasProximaFatura} despesas</p>
+                        </div>
+                        <p className="mt-1 text-[clamp(1.8rem,1.35vw,2.2rem)] font-bold text-red-400 leading-tight tracking-tight whitespace-nowrap">{formatCurrency(faturaAberta)}</p>
+                        <p className="text-[11px] text-slate-400">Próxima fatura</p>
                       </div>
-                      <p className="mt-1 text-2xl font-bold text-red-400">{formatCurrency(faturaAberta)}</p>
-                      <p className="text-[11px] text-slate-400">Próxima fatura</p>
-                    </div>
 
-                    <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3.5">
-                      <p className="text-xs font-semibold uppercase tracking-wider text-emerald-300">Disponível</p>
-                      <p className="mt-1 text-2xl font-bold text-emerald-300">{formatCurrency(limiteDisponivel)}</p>
-                      <p className="text-[11px] text-slate-400">Limite total - limite usado</p>
-                    </div>
+                      <div className="min-w-[190px] flex-1 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3.5 overflow-hidden">
+                        <p className="text-xs font-semibold uppercase tracking-wider text-emerald-300">Disponível</p>
+                        <p className="mt-1 text-[clamp(1.8rem,1.35vw,2.2rem)] font-bold text-emerald-300 leading-tight tracking-tight whitespace-nowrap">{formatCurrency(limiteDisponivel)}</p>
+                        <p className="text-[11px] text-slate-400">Limite total - limite usado</p>
+                      </div>
 
-                    <div className="rounded-xl border border-slate-700/70 bg-slate-900/70 p-3.5 sm:col-span-2">
+                      <div className="w-full min-w-0 rounded-xl border border-slate-700/70 bg-slate-900/70 p-3.5">
                       <div className="mb-2 flex items-center justify-between">
                         <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Limite usado</p>
                         <p className="text-xs font-bold text-slate-300">{percentualUsado.toFixed(0)}%</p>
@@ -1037,11 +1043,11 @@ export default function Cartoes({ isModal = false }) {
                           style={{ width: `${percentualUsado}%` }}
                         />
                       </div>
-                      <p className="text-sm font-semibold text-slate-200">
+                      <p className="text-sm font-semibold text-slate-200 [overflow-wrap:anywhere]">
                         {formatCurrency(limiteUsado)} <span className="text-xs font-normal text-slate-500">de {formatCurrency(limite)}</span>
                       </p>
                     </div>
-
+                    </div>
                   </div>
                 </div>
 
