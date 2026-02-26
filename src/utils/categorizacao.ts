@@ -8,18 +8,54 @@ export function normalizar(str: string): string {
     .toLowerCase();
 }
 
+type RegraCategoria = {
+  termo: string;
+  termoNormalizado: string;
+  categoria: string;
+};
+
+function parseRegrasCategorias(regrasTexto: string): RegraCategoria[] {
+  return (regrasTexto || '')
+    .split('\n')
+    .map((linha) => linha.trim())
+    .filter((linha) => linha && !linha.startsWith('#'))
+    .map((linha) => {
+      const idx = linha.indexOf('=');
+      if (idx <= 0 || idx >= linha.length - 1) return null;
+      const termo = linha.slice(0, idx).trim();
+      const categoria = linha.slice(idx + 1).trim();
+      if (!termo || !categoria) return null;
+      // Evita regras muito genéricas como "a = Academia", que categorizam quase tudo.
+      const termoNormalizado = normalizar(termo);
+      if (termoNormalizado.length < 2) return null;
+      return {
+        termo,
+        termoNormalizado,
+        categoria: categoria.charAt(0).toUpperCase() + categoria.slice(1),
+      };
+    })
+    .filter((regra): regra is RegraCategoria => Boolean(regra));
+}
+
 // Categorizar uma descrição com base nas regras de texto
 export function categorizar(descricao: string, regrasTexto: string): string {
   if (!descricao) return '';
   const descNorm = normalizar(descricao);
-  const regras = regrasTexto.split('\n').filter(l => l.includes('=')).map(l => l.trim());
+  const regras = parseRegrasCategorias(regrasTexto);
+  let melhorCategoria = '';
+  let melhorTamanhoTermo = -1;
+
   for (const regra of regras) {
-    const [termo, categoria] = regra.split('=').map(s => s.trim());
-    if (termo && categoria && descNorm.includes(normalizar(termo))) {
-      return categoria.charAt(0).toUpperCase() + categoria.slice(1);
+    if (descNorm.includes(regra.termoNormalizado)) {
+      const tamanhoTermo = regra.termoNormalizado.length;
+      // Prioriza regra mais específica (termo mais longo).
+      if (tamanhoTermo > melhorTamanhoTermo) {
+        melhorTamanhoTermo = tamanhoTermo;
+        melhorCategoria = regra.categoria;
+      }
     }
   }
-  return '';
+  return melhorCategoria;
 }
 
 // Regras padrão de categorização

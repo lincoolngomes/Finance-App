@@ -232,16 +232,23 @@ export function ImportarFaturaModalNovo({ open, onClose, onImport, cartoes, init
   useEffect(() => {
     if (step === 2 && transacoes.length > 0) {
       setTransacoes(trans => trans.map(t => {
-        if (t.categoriaManual) return t;
         if (t.tipo === 'pagamento' || t.tipo === 'estorno') {
           return {
             ...t,
             categoria: CATEGORIA_PAGAMENTO_FATURA,
           };
         }
+        const categoriaRegra = categorizar(t.estabelecimento, regrasTexto);
+        if (categoriaRegra) {
+          return {
+            ...t,
+            categoria: categoriaRegra,
+          };
+        }
+        if (t.categoriaManual) return t;
         return {
           ...t,
-          categoria: categorizar(t.estabelecimento, regrasTexto) || categoriasDespesa[0] || 'Compras'
+          categoria: ''
         };
       }));
     }
@@ -397,7 +404,7 @@ export function ImportarFaturaModalNovo({ open, onClose, onImport, cartoes, init
       tipo,
       categoria: (tipo === 'pagamento' || tipo === 'estorno')
         ? CATEGORIA_PAGAMENTO_FATURA
-        : (categorizar(descricao, regrasTexto) || categoriasDespesa[0] || 'Compras'),
+        : (categorizar(descricao, regrasTexto) || ''),
       parcela_atual,
       total_parcelas,
     };
@@ -617,6 +624,19 @@ export function ImportarFaturaModalNovo({ open, onClose, onImport, cartoes, init
       toast({
         title: 'Erro',
         description: 'Nenhuma transação atende ao filtro de importação selecionado',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    const pendentesCategoria = transacoesSelecionadas.filter((t) => {
+      if (t.tipo === 'pagamento' || t.tipo === 'estorno') return false;
+      return !String(t.categoria || '').trim();
+    });
+    if (pendentesCategoria.length > 0) {
+      toast({
+        title: 'Categoria pendente',
+        description: `${pendentesCategoria.length} lançamento(s) sem categoria. Preencha antes de importar.`,
         variant: 'destructive'
       });
       return;
@@ -976,13 +996,20 @@ export function ImportarFaturaModalNovo({ open, onClose, onImport, cartoes, init
                                 : categoriasDespesa;
                               const valueAtual = categoriasDaLinha.includes(t.categoria)
                                 ? t.categoria
-                                : (t.categoria || categoriasDaLinha[0] || '');
+                                : (t.categoria || '');
                               return (
                             <select
-                              className="w-full px-1 py-1 rounded-lg bg-slate-700/30 border border-slate-600/50 text-slate-100 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition"
+                              className={`w-full px-1 py-1 rounded-lg bg-slate-700/30 border text-slate-100 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition ${
+                                (t.tipo !== 'pagamento' && t.tipo !== 'estorno' && !valueAtual)
+                                  ? 'border-red-500/70'
+                                  : 'border-slate-600/50'
+                              }`}
                               value={valueAtual}
                               onChange={e => handleCategoriaChange(t, e.target.value)}
                             >
+                              {(t.tipo !== 'pagamento' && t.tipo !== 'estorno') && (
+                                <option value="">Selecione categoria...</option>
+                              )}
                               {!categoriasDaLinha.includes(valueAtual) && valueAtual && (
                                 <option value={valueAtual}>{valueAtual}</option>
                               )}

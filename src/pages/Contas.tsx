@@ -11,18 +11,29 @@
   function categorizar(descricao, regrasTexto, tipo = '') {
     if (!descricao) return '';
     const descNorm = normalizar(descricao);
-    const regras = regrasTexto.split('\n').filter(l => l.includes('=')).map(l => l.trim());
+    const regras = (regrasTexto || '')
+      .split('\n')
+      .map(l => l.trim())
+      .filter(l => l && !l.startsWith('#') && l.includes('='));
+    let melhorCategoria = '';
+    let melhorTamanhoTermo = -1;
     for (const regra of regras) {
-      const [termo, categoria] = regra.split('=').map(s => s.trim());
-      if (descNorm.includes(normalizar(termo))) {
-        const catNorm = categoria.trim();
-        return catNorm.charAt(0).toUpperCase() + catNorm.slice(1);
+      const idx = regra.indexOf('=');
+      if (idx <= 0 || idx >= regra.length - 1) continue;
+      const termo = regra.slice(0, idx).trim();
+      const categoria = regra.slice(idx + 1).trim();
+      if (!termo || !categoria) continue;
+      const termoNormalizado = normalizar(termo);
+      if (termoNormalizado.length < 2) continue;
+      if (descNorm.includes(termoNormalizado)) {
+        const catNorm = categoria;
+        if (termoNormalizado.length > melhorTamanhoTermo) {
+          melhorTamanhoTermo = termoNormalizado.length;
+          melhorCategoria = catNorm.charAt(0).toUpperCase() + catNorm.slice(1);
+        }
       }
     }
-    // Se não encontrou categoria pela regra, retorna a padrão de acordo com o tipo
-    if (tipo === 'receita') return 'Renda Extra';
-    if (tipo === 'despesa') return 'Compras';
-    return '';
+    return melhorCategoria;
   }
 import React, { useEffect, useState } from 'react';
 import { supabase } from "../lib/supabase";
@@ -144,11 +155,18 @@ function ImportarExtratoModal({ open, onClose, onImport, contas }) {
   React.useEffect(() => {
     if (step === 2 && lancamentos.length > 0) {
       setLancamentos(lancs => lancs.map(l => {
-        // Se a categoria foi editada manualmente, não sobrescreve
+        const categoriaRegra = categorizar(l.estabelecimento, regrasTexto, l.tipo);
+        if (categoriaRegra) {
+          return {
+            ...l,
+            categoria: categoriaRegra,
+          };
+        }
+        // Se a categoria foi editada manualmente, só mantém quando não houver regra
         if (l.categoriaManual) return l;
         return {
           ...l,
-          categoria: categorizar(l.estabelecimento, regrasTexto, l.tipo)
+          categoria: ''
         };
       }));
     }
@@ -534,9 +552,11 @@ function ImportarExtratoModal({ open, onClose, onImport, contas }) {
                         <td className="px-1 py-2">
                           <input
                             type="text"
-                            className="w-full px-1 py-1 rounded-lg bg-slate-700/30 border border-slate-600/50 text-slate-100 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition"
+                            className={`w-full px-1 py-1 rounded-lg bg-slate-700/30 border text-slate-100 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition ${
+                              !String(l.categoria || '').trim() ? 'border-red-500/70' : 'border-slate-600/50'
+                            }`}
                             value={l.categoria && l.categoria.trim() !== '' ? l.categoria : ''}
-                            placeholder="Categoria"
+                            placeholder="Preencha categoria"
                             onChange={e => handleEditLancamento(l, 'categoria', e.target.value)}
                           />
                         </td>
@@ -621,9 +641,11 @@ function ImportarExtratoModal({ open, onClose, onImport, contas }) {
       <td className="px-1 py-2">
         <input
           type="text"
-          className="w-full px-1 py-1 rounded-lg bg-slate-700/30 border border-slate-600/50 text-slate-100 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition"
+          className={`w-full px-1 py-1 rounded-lg bg-slate-700/30 border text-slate-100 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition ${
+            !String(l.categoria || '').trim() ? 'border-red-500/70' : 'border-slate-600/50'
+          }`}
           value={l.categoria && l.categoria.trim() !== '' ? l.categoria : ''}
-          placeholder="Categoria"
+          placeholder="Preencha categoria"
           onChange={e => handleEditLancamento(l, 'categoria', e.target.value)}
         />
       </td>
@@ -1001,6 +1023,13 @@ export default function ContasPage() {
     if (!user || !user.id) {
       return { success: false, message: 'Usuário não autenticado.' };
     }
+    const pendentesCategoria = (lancamentos || []).filter((l) => !String(l?.categoria || '').trim());
+    if (pendentesCategoria.length > 0) {
+      return {
+        success: false,
+        message: `Existem ${pendentesCategoria.length} lançamento(s) sem categoria. Preencha antes de importar.`,
+      };
+    }
     try {
       // Função auxiliar para buscar ou criar categoria
       async function getOrCreateCategoriaId(nomeCategoria, tipoCategoria) {
@@ -1085,9 +1114,11 @@ export default function ContasPage() {
         }
         const valorNum = parseValorBR(l.valor);
         const tipo = valorNum >= 0 ? 'receita' : 'despesa';
-        const nomeCategoria = l.categoria && l.categoria.trim() !== ''
+        const descricao = l.estabelecimento || l.descricao || '';
+        const categoriaPorRegra = categorizar(descricao, regras || '', tipo);
+        const nomeCategoria = (categoriaPorRegra || (l.categoria && l.categoria.trim() !== ''
           ? l.categoria.trim()
-          : (tipo === 'receita' ? 'Renda Extra' : 'Compras');
+          : '')).trim();
         const categoriaId = await getOrCreateCategoriaId(nomeCategoria, tipo);
 
         lancamentosComCategoriaId.push({
@@ -1095,7 +1126,7 @@ export default function ContasPage() {
           conta_id: contaId,
           account_id: contaId,
           categoria_id: categoriaId,
-          descricao: l.estabelecimento || l.descricao || '',
+          descricao,
           valor: valorNum,
           tipo,
           data: parseDataBRtoISO(l.quando || l.data),
@@ -1115,6 +1146,38 @@ export default function ContasPage() {
       if (error) {
         return { success: false, message: 'Erro ao importar: ' + error.message };
       }
+
+      let totalRecategorizadas = 0;
+      const { data: transacoesContaExistentes } = await supabase
+        .from('transacoes')
+        .select('id, descricao, tipo, categoria_id')
+        .eq('user_id', user.id)
+        .is('cartao_id', null);
+
+      if (Array.isArray(transacoesContaExistentes) && transacoesContaExistentes.length > 0) {
+        const atualizacoes = [];
+        for (const row of transacoesContaExistentes) {
+          const descricao = String(row?.descricao || '').trim();
+          if (!descricao) continue;
+          const categoriaPorRegra = categorizar(descricao, regras || '', row?.tipo || '');
+          if (!categoriaPorRegra) continue;
+          const tipoCategoria = row?.tipo === 'receita' ? 'receita' : 'despesa';
+          const categoriaId = await getOrCreateCategoriaId(categoriaPorRegra, tipoCategoria);
+          if (categoriaId && categoriaId !== row?.categoria_id) {
+            atualizacoes.push({ id: row.id, categoria_id: categoriaId });
+          }
+        }
+
+        for (const updateRow of atualizacoes) {
+          const { error: updateError } = await supabase
+            .from('transacoes')
+            .update({ categoria_id: updateRow.categoria_id })
+            .eq('id', updateRow.id)
+            .eq('user_id', user.id);
+          if (!updateError) totalRecategorizadas += 1;
+        }
+      }
+
       fetchContas();
       // Resumo simples e limpo
       const conta = contas.find(c => c.id === contaId);
@@ -1122,7 +1185,7 @@ export default function ContasPage() {
         success: true,
         count: (data || []).length,
         accountName: conta ? conta.nome : contaId,
-        message: `✓ Importação realizada com sucesso!`
+        message: `✓ Importação realizada com sucesso!${totalRecategorizadas > 0 ? ` ${totalRecategorizadas} transações recategorizadas pelas regras.` : ''}`
       };
     } catch (e) {
       return { success: false, message: `Erro ao importar: ${e.message || e}` };

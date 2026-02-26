@@ -10,6 +10,7 @@ import { GerenciarFaturasModal } from '@/components/faturas/GerenciarFaturasModa
 import { ImportarFaturaModalNovo } from '@/components/faturas/ImportarFaturaModalNovo';
 import { HistoricoImportacoesModal } from '@/components/faturas/HistoricoImportacoesModal';
 import { formatCurrency, formatarValorBR, parseValorBR } from '@/utils/currency';
+import { categorizar } from '@/utils/categorizacao';
 import { Card, CardContent } from '@/components/ui/card';
 
 // Modal simplificado para importar extrato (antigo - manter para compatibilidade)
@@ -511,11 +512,26 @@ export default function Cartoes({ isModal = false }) {
     options?: { criarParcelasFuturas?: boolean }
   ) {
     // Salvar regras no localStorage é feito no componente
+    const CATEGORIA_PAGAMENTO_FATURA = 'Pagamento de Fatura';
     const refFatura = mesReferencia && anoReferencia ? `${mesReferencia}/${anoReferencia}` : null;
     const faturaMes = mesReferencia ? parseInt(mesReferencia) : null;
     const faturaAno = anoReferencia ? parseInt(anoReferencia) : null;
     const criarParcelasFuturas = options?.criarParcelasFuturas ?? true;
     let totalParcelasFuturasCriadas = 0;
+    const faltandoCategoria = (transacoes || []).filter((t: any) => {
+      const tipoTransacao = (t?.tipo === 'pagamento' || t?.tipo === 'estorno') ? 'receita' : 'despesa';
+      if (tipoTransacao !== 'despesa') return false;
+      const categoriaRegra = categorizar(String(t?.estabelecimento || ''), regrasTexto || '');
+      const categoriaAtual = String(t?.categoria || '').trim();
+      return !categoriaRegra && !categoriaAtual;
+    });
+
+    if (faltandoCategoria.length > 0) {
+      return {
+        success: false,
+        message: `Existem ${faltandoCategoria.length} lançamento(s) sem categoria. Preencha antes de importar.`,
+      };
+    }
 
     let suportaCamposParcela = true;
     const toIsoDate = (date: Date) => {
@@ -655,7 +671,11 @@ export default function Cartoes({ isModal = false }) {
       const parcelaInfo = parseParcela(t);
       const tipoTransacao = (t.tipo === 'pagamento' || t.tipo === 'estorno') ? 'receita' : 'despesa';
       const tipoCategoria = tipoTransacao === 'despesa' ? 'despesa' : 'receita';
-      const categoriaId = await getOrCreateCategoriaId(t.categoria || '', tipoCategoria);
+      const categoriaPorRegra = (t.tipo === 'pagamento' || t.tipo === 'estorno')
+        ? CATEGORIA_PAGAMENTO_FATURA
+        : categorizar(t.estabelecimento || '', regrasTexto || '');
+      const nomeCategoriaFinal = (categoriaPorRegra || String(t.categoria || '').trim()).trim();
+      const categoriaId = await getOrCreateCategoriaId(nomeCategoriaFinal, tipoCategoria);
       const { dateObj: baseData, isoDate: baseDataIso } = parseDataParaBanco(t.quando);
 
       toInsert.push({
@@ -740,10 +760,41 @@ export default function Cartoes({ isModal = false }) {
       };
     }
 
+    let totalRecategorizadas = 0;
+    const { data: transacoesCartaoExistentes } = await supabase
+      .from('transacoes')
+      .select('id, descricao, tipo, categoria_id')
+      .eq('user_id', user?.id)
+      .not('cartao_id', 'is', null);
+
+    if (Array.isArray(transacoesCartaoExistentes) && transacoesCartaoExistentes.length > 0) {
+      const atualizacoes: Array<{ id: string; categoria_id: string }> = [];
+      for (const row of transacoesCartaoExistentes) {
+        const descricao = String(row?.descricao || '').trim();
+        if (!descricao) continue;
+        const categoriaPorRegra = categorizar(descricao, regrasTexto || '');
+        if (!categoriaPorRegra) continue;
+        const tipoCategoria = row?.tipo === 'receita' ? 'receita' : 'despesa';
+        const categoriaId = await getOrCreateCategoriaId(categoriaPorRegra, tipoCategoria);
+        if (categoriaId && categoriaId !== row?.categoria_id) {
+          atualizacoes.push({ id: row.id, categoria_id: categoriaId });
+        }
+      }
+
+      for (const updateRow of atualizacoes) {
+        const { error: updateError } = await supabase
+          .from('transacoes')
+          .update({ categoria_id: updateRow.categoria_id })
+          .eq('id', updateRow.id)
+          .eq('user_id', user?.id);
+        if (!updateError) totalRecategorizadas += 1;
+      }
+    }
+
     fetchCartoes();
     return {
       success: true,
-      message: `Importação realizada com sucesso! ${transacoes.length} transações importadas${totalParcelasFuturasCriadas > 0 ? ` e ${totalParcelasFuturasCriadas} parcelas futuras criadas` : ''}.`
+      message: `Importação realizada com sucesso! ${transacoes.length} transações importadas${totalParcelasFuturasCriadas > 0 ? ` e ${totalParcelasFuturasCriadas} parcelas futuras criadas` : ''}${totalRecategorizadas > 0 ? `. ${totalRecategorizadas} transações recategorizadas pelas regras` : ''}.`
     };
   }
 

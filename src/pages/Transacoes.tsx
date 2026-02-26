@@ -26,6 +26,7 @@ import { toast } from '@/hooks/use-toast'
 import { Edit, Trash2, TrendingUp, TrendingDown, ArrowUpDown, Download, Clock, DollarSign, Wallet } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import { formatCurrency } from '@/utils/currency'
+import { categorizar } from '@/utils/categorizacao'
 import { addMonths, format, parse } from 'date-fns'
 import { useSearchParams } from 'react-router-dom'
 
@@ -448,6 +449,13 @@ const Transacoes: React.FC = () => {
     if (!user || !user.id) {
       return { success: false, message: 'Usuário não autenticado.' };
     }
+    const pendentesCategoria = (lancamentos || []).filter((l) => !String(l?.categoria || '').trim());
+    if (pendentesCategoria.length > 0) {
+      return {
+        success: false,
+        message: `Existem ${pendentesCategoria.length} lançamento(s) sem categoria. Preencha antes de importar.`,
+      };
+    }
     try {
       async function getOrCreateCategoriaId(nomeCategoria: string, tipoCategoria: 'receita' | 'despesa') {
         if (!nomeCategoria) return null;
@@ -500,19 +508,22 @@ const Transacoes: React.FC = () => {
       for (const l of lancamentos) {
         const valorNum = parseValorBR(l.valor);
         const tipo: 'receita' | 'despesa' = valorNum >= 0 ? 'receita' : 'despesa';
-        const nomeCategoria =
+        const descricao = l.estabelecimento || l.descricao || '';
+        const categoriaPorRegra = categorizar(descricao, regras || '');
+        const nomeCategoria = (categoriaPorRegra || (
           l.categoria && l.categoria.trim() !== ''
             ? l.categoria.trim()
             : tipo === 'receita'
               ? 'Renda Extra'
-              : 'Compras';
+              : 'Compras'
+        )).trim();
         const categoriaId = await getOrCreateCategoriaId(nomeCategoria, tipo);
 
         lancamentosComCategoriaId.push({
           user_id: user.id,
           conta_id: contaId,
           categoria_id: categoriaId,
-          descricao: l.estabelecimento || l.descricao || '',
+          descricao,
           valor: valorNum,
           tipo,
           data: parseDataBRtoISO(l.quando || l.data),
@@ -527,13 +538,45 @@ const Transacoes: React.FC = () => {
       if (error) {
         return { success: false, message: 'Erro ao importar: ' + error.message };
       }
+
+      let totalRecategorizadas = 0;
+      const { data: transacoesContaExistentes } = await supabase
+        .from('transacoes')
+        .select('id, descricao, tipo, categoria_id')
+        .eq('user_id', user.id)
+        .is('cartao_id', null);
+
+      if (Array.isArray(transacoesContaExistentes) && transacoesContaExistentes.length > 0) {
+        const atualizacoes: Array<{ id: string; categoria_id: string }> = [];
+        for (const row of transacoesContaExistentes) {
+          const descricao = String(row?.descricao || '').trim();
+          if (!descricao) continue;
+          const categoriaPorRegra = categorizar(descricao, regras || '');
+          if (!categoriaPorRegra) continue;
+          const tipoCategoria: 'receita' | 'despesa' = row?.tipo === 'receita' ? 'receita' : 'despesa';
+          const categoriaId = await getOrCreateCategoriaId(categoriaPorRegra, tipoCategoria);
+          if (categoriaId && categoriaId !== row?.categoria_id) {
+            atualizacoes.push({ id: row.id, categoria_id: categoriaId });
+          }
+        }
+
+        for (const updateRow of atualizacoes) {
+          const { error: updateError } = await supabase
+            .from('transacoes')
+            .update({ categoria_id: updateRow.categoria_id })
+            .eq('id', updateRow.id)
+            .eq('user_id', user.id);
+          if (!updateError) totalRecategorizadas += 1;
+        }
+      }
+
       fetchTransacoes();
       const conta = contas.find(c => c.id === contaId);
       return {
         success: true,
         count: (data || []).length,
         accountName: conta ? conta.nome : contaId,
-        message: `✓ Importação realizada com sucesso!`
+        message: `✓ Importação realizada com sucesso!${totalRecategorizadas > 0 ? ` ${totalRecategorizadas} transações recategorizadas pelas regras.` : ''}`
       };
     } catch (e: any) {
       return { success: false, message: `Erro ao importar: ${e.message || e}` };

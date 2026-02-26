@@ -16,18 +16,29 @@ function normalizar(str: string): string {
 function categorizar(descricao: string, regrasTexto: string, tipo: string = ''): string {
   if (!descricao) return '';
   const descNorm = normalizar(descricao);
-  const regras = regrasTexto.split('\n').filter(l => l.includes('=')).map(l => l.trim());
+  const regras = (regrasTexto || '')
+    .split('\n')
+    .map((l) => l.trim())
+    .filter((l) => l && !l.startsWith('#') && l.includes('='));
+  let melhorCategoria = '';
+  let melhorTamanhoTermo = -1;
   for (const regra of regras) {
-    const [termo, categoria] = regra.split('=').map(s => s.trim());
-    if (descNorm.includes(normalizar(termo))) {
+    const idx = regra.indexOf('=');
+    if (idx <= 0 || idx >= regra.length - 1) continue;
+    const termo = regra.slice(0, idx).trim();
+    const categoria = regra.slice(idx + 1).trim();
+    if (!termo || !categoria) continue;
+    const termoNormalizado = normalizar(termo);
+    if (termoNormalizado.length < 2) continue;
+    if (descNorm.includes(termoNormalizado)) {
       const catNorm = categoria.trim();
-      return catNorm.charAt(0).toUpperCase() + catNorm.slice(1);
+      if (termoNormalizado.length > melhorTamanhoTermo) {
+        melhorTamanhoTermo = termoNormalizado.length;
+        melhorCategoria = catNorm.charAt(0).toUpperCase() + catNorm.slice(1);
+      }
     }
   }
-  // Se não encontrou categoria pela regra, retorna a padrão de acordo com o tipo
-  if (tipo === 'receita') return 'Renda Extra';
-  if (tipo === 'despesa') return 'Compras';
-  return '';
+  return melhorCategoria;
 }
 
 interface Lancamento {
@@ -130,10 +141,17 @@ export function ImportarExtratoModal({ open, onClose, onImport, contas }: Import
   useEffect(() => {
     if (step === 2 && lancamentos.length > 0) {
       setLancamentos(lancs => lancs.map(l => {
+        const categoriaRegra = categorizar(l.estabelecimento, regrasTexto, l.tipo);
+        if (categoriaRegra) {
+          return {
+            ...l,
+            categoria: categoriaRegra,
+          };
+        }
         if (l.categoriaManual) return l;
         return {
           ...l,
-          categoria: categorizar(l.estabelecimento, regrasTexto, l.tipo)
+          categoria: ''
         };
       }));
     }
@@ -277,6 +295,14 @@ export function ImportarExtratoModal({ open, onClose, onImport, contas }: Import
   };
 
   const handleImportar = async () => {
+    const pendentesCategoria = lancamentos.filter((l) => !String(l.categoria || '').trim());
+    if (pendentesCategoria.length > 0) {
+      setImportFeedback({
+        success: false,
+        message: `${pendentesCategoria.length} lançamento(s) sem categoria. Preencha antes de importar.`,
+      });
+      return;
+    }
     setLoading(true);
     try {
       const result = await onImport(lancamentos, contaSelecionada, regrasTexto);
@@ -478,9 +504,11 @@ export function ImportarExtratoModal({ open, onClose, onImport, contas }: Import
                           <td className="px-1 py-2">
                             <input
                               type="text"
-                              className="w-full px-1 py-1 rounded-lg bg-slate-700/30 border border-slate-600/50 text-slate-100 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition"
+                              className={`w-full px-1 py-1 rounded-lg bg-slate-700/30 border text-slate-100 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition ${
+                                !String(l.categoria || '').trim() ? 'border-red-500/70' : 'border-slate-600/50'
+                              }`}
                               value={l.categoria && l.categoria.trim() !== '' ? l.categoria : ''}
-                              placeholder="Categoria"
+                              placeholder="Preencha categoria"
                               onChange={e => handleEditLancamento(l, 'categoria', e.target.value)}
                             />
                           </td>
