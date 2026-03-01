@@ -23,6 +23,52 @@ export function isInvestmentApplicationCategoryName(categoryName?: string | null
   return normalized.includes('investimento')
 }
 
+export function isCardInvoiceCategoryName(categoryName?: string | null) {
+  const normalized = normalizeText(categoryName)
+  if (!normalized) return false
+  return normalized.includes('fatura') && normalized.includes('cartao')
+}
+
+export function isCardInvoicePaymentDescription(description?: string | null) {
+  const normalized = normalizeText(description)
+  if (!normalized) return false
+
+  return (
+    normalized.includes('pagamento fatura') ||
+    normalized.includes('pag fatura') ||
+    normalized.includes('pagto fatura') ||
+    normalized.includes('pgto fatura') ||
+    (normalized.includes('fatura') &&
+      (normalized.includes('pagamento') || normalized.includes('pagto') || normalized.includes('pgto')))
+  )
+}
+
+export function isCardInvoicePaymentTransaction(transaction: DashboardClassifiableTransaction) {
+  if (transaction.cartao_id) return false
+  if (transaction.tipo !== 'despesa') return false
+
+  return (
+    isCardInvoiceCategoryName(transaction.categorias?.nome) ||
+    isCardInvoicePaymentDescription(transaction.descricao)
+  )
+}
+
+export function shouldIncludeTransactionByCardExpenseMode(
+  transaction: DashboardClassifiableTransaction,
+  showCardTransactions: boolean,
+  useCardInvoicePayments: boolean
+) {
+  if (!showCardTransactions) {
+    return !transaction.cartao_id && !isCardInvoicePaymentTransaction(transaction)
+  }
+
+  if (useCardInvoicePayments) {
+    return !transaction.cartao_id || isCardInvoicePaymentTransaction(transaction)
+  }
+
+  return !isCardInvoicePaymentTransaction(transaction)
+}
+
 export function isInvestmentTransaction(transaction: DashboardClassifiableTransaction) {
   return isInvestmentApplicationCategoryName(transaction.categorias?.nome)
 }

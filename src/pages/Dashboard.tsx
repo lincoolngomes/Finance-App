@@ -7,7 +7,12 @@ import { DashboardFilters } from '@/components/dashboard/DashboardFilters'
 import { DashboardCharts } from '@/components/dashboard/DashboardCharts'
 import { GerenciarFaturasModal } from '@/components/faturas/GerenciarFaturasModal'
 import { getTransactionMonth, enrichCardTransactions } from '@/utils/dateParser'
-import { getInvestmentImpact, isInvestmentTransaction, shouldIncludeTransactionInDashboardView } from '@/utils/dashboard-classification'
+import {
+  getInvestmentImpact,
+  isInvestmentTransaction,
+  shouldIncludeTransactionByCardExpenseMode,
+  shouldIncludeTransactionInDashboardView,
+} from '@/utils/dashboard-classification'
 
 interface Transacao {
   id: number
@@ -73,6 +78,7 @@ export default function Dashboard() {
       month: now.getMonth().toString(),
       year: now.getFullYear().toString(),
       showCardTransactions: true,
+      useCardInvoicePayments: false,
       showPendingInMonthlyChart: false,
       showInvestmentsSeparately: false,
       hideValues: false,
@@ -87,6 +93,7 @@ export default function Dashboard() {
         month: Number.isInteger(monthNum) && monthNum >= 0 && monthNum <= 11 ? String(monthNum) : fallback.month,
         year: Number.isInteger(yearNum) && yearNum >= 2000 && yearNum <= 2100 ? String(yearNum) : fallback.year,
         showCardTransactions: typeof parsed?.showCardTransactions === 'boolean' ? parsed.showCardTransactions : fallback.showCardTransactions,
+        useCardInvoicePayments: typeof parsed?.useCardInvoicePayments === 'boolean' ? parsed.useCardInvoicePayments : fallback.useCardInvoicePayments,
         showPendingInMonthlyChart: typeof parsed?.showPendingInMonthlyChart === 'boolean' ? parsed.showPendingInMonthlyChart : fallback.showPendingInMonthlyChart,
         showInvestmentsSeparately: typeof parsed?.showInvestmentsSeparately === 'boolean' ? parsed.showInvestmentsSeparately : fallback.showInvestmentsSeparately,
         hideValues: typeof parsed?.hideValues === 'boolean' ? parsed.hideValues : fallback.hideValues,
@@ -104,6 +111,7 @@ export default function Dashboard() {
   const [cartoes, setCartoes] = useState<Cartao[]>([])
   const [loading, setLoading] = useState(true)
   const [showCardTransactions, setShowCardTransactions] = useState(initialFilters.showCardTransactions)
+  const [useCardInvoicePayments, setUseCardInvoicePayments] = useState(initialFilters.useCardInvoicePayments)
   const [showPendingInMonthlyChart, setShowPendingInMonthlyChart] = useState(initialFilters.showPendingInMonthlyChart)
   const [showInvestmentsSeparately, setShowInvestmentsSeparately] = useState(initialFilters.showInvestmentsSeparately)
   const [faturasOpen, setFaturasOpen] = useState(false)
@@ -143,11 +151,12 @@ export default function Dashboard() {
       month: filterMonth,
       year: filterYear,
       showCardTransactions,
+      useCardInvoicePayments,
       showPendingInMonthlyChart,
       showInvestmentsSeparately,
       hideValues,
     }))
-  }, [filterMonth, filterYear, showCardTransactions, showPendingInMonthlyChart, showInvestmentsSeparately, hideValues])
+  }, [filterMonth, filterYear, showCardTransactions, useCardInvoicePayments, showPendingInMonthlyChart, showInvestmentsSeparately, hideValues])
 
   useEffect(() => {
     if (!user) return
@@ -271,8 +280,7 @@ export default function Dashboard() {
     const filterYearNum = parseInt(filterYear) || new Date().getFullYear()
 
     const resultado = transacoes.filter(transacao => {
-      // Filtrar transações de cartão quando toggle desativado
-      if (!showCardTransactions && transacao.cartao_id) {
+      if (!shouldIncludeTransactionByCardExpenseMode(transacao, showCardTransactions, useCardInvoicePayments)) {
         return false
       }
 
@@ -289,13 +297,14 @@ export default function Dashboard() {
         totalTransacoes: transacoes.length,
         filteredCount: resultado.length,
         showCardTransactions,
+        useCardInvoicePayments,
         cartaoCount: resultado.filter(t => t.cartao_id).length,
         contaCount: resultado.filter(t => !t.cartao_id).length,
       })
     }
 
     return resultado
-  }, [transacoes, filterMonth, filterYear, showCardTransactions])
+  }, [transacoes, filterMonth, filterYear, showCardTransactions, useCardInvoicePayments])
 
   // DEBUG: Logar transacoes filtradas
   useEffect(() => {
@@ -425,6 +434,8 @@ export default function Dashboard() {
         setHideValues={setHideValues}
         showCardTransactions={showCardTransactions}
         setShowCardTransactions={setShowCardTransactions}
+        useCardInvoicePayments={useCardInvoicePayments}
+        setUseCardInvoicePayments={setUseCardInvoicePayments}
         showPendingInMonthlyChart={showPendingInMonthlyChart}
         setShowPendingInMonthlyChart={setShowPendingInMonthlyChart}
         showInvestmentsSeparately={showInvestmentsSeparately}
@@ -455,8 +466,10 @@ export default function Dashboard() {
         selectedYear={filterYear}
         allTransactions={transacoes}
         showCardTransactions={showCardTransactions}
+        useCardInvoicePayments={useCardInvoicePayments}
         showPendingInMonthlyChart={showPendingInMonthlyChart}
         showInvestmentsSeparately={showInvestmentsSeparately}
+        hideValues={hideValues}
         monthDetailsRequest={monthDetailsRequest}
         onOpenFatura={(mes, ano) => {
           const mesNum = parseInt(mes)

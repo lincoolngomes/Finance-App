@@ -7,7 +7,12 @@ import { getTransactionMonth, parseToDateUTC } from '@/utils/dateParser'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line, Legend, ReferenceLine } from 'recharts'
 import { Calendar, CreditCard, Landmark, TrendingDown, TrendingUp } from 'lucide-react'
 import { useEffect, useState, useMemo } from 'react'
-import { getInvestmentImpact, isInvestmentTransaction, shouldIncludeTransactionInDashboardView } from '@/utils/dashboard-classification'
+import {
+  getInvestmentImpact,
+  isInvestmentTransaction,
+  shouldIncludeTransactionByCardExpenseMode,
+  shouldIncludeTransactionInDashboardView,
+} from '@/utils/dashboard-classification'
 
 // (Removido bloco duplicado da função DashboardCharts)
 
@@ -100,8 +105,10 @@ interface DashboardChartsProps {
   selectedYear?: string
   allTransactions?: Transacao[]
   showCardTransactions?: boolean
+  useCardInvoicePayments?: boolean
   showPendingInMonthlyChart?: boolean
   showInvestmentsSeparately?: boolean
+  hideValues?: boolean
   monthDetailsRequest?: {
     monthIndex: number
     year: number
@@ -144,8 +151,10 @@ export function DashboardCharts({
   selectedYear,
   allTransactions,
   showCardTransactions = false,
+  useCardInvoicePayments = false,
   showPendingInMonthlyChart = false,
   showInvestmentsSeparately = false,
+  hideValues = false,
   monthDetailsRequest,
   onOpenFatura,
 }: DashboardChartsProps) {
@@ -166,6 +175,9 @@ export function DashboardCharts({
     return dt.toLocaleDateString('pt-BR')
   }
 
+  const formatValue = (value: number) => (hideValues ? '••••••' : formatCurrency(value))
+  const formatAxisValue = (value: number) => (hideValues ? '' : `R$ ${(value / 1000).toFixed(0)}k`)
+
   // Criar mapa de contas para exibir nome da conta
   const accountsMap = contas.reduce<Record<string, ContaResumo>>((acc, conta) => {
     acc[conta.id] = conta
@@ -180,9 +192,9 @@ export function DashboardCharts({
 
   // Filtra transações de cartão se showCardTransactions está desativado
   const allTransacoesRaw = allTransactions || recentTransacoes || transacoes
-  const allTransacoes = showCardTransactions
-    ? allTransacoesRaw
-    : allTransacoesRaw.filter(t => !t.cartao_id)
+  const allTransacoes = allTransacoesRaw.filter((transacao) =>
+    shouldIncludeTransactionByCardExpenseMode(transacao, showCardTransactions, useCardInvoicePayments)
+  )
 
   if (import.meta.env.DEV) {
     const sample = allTransacoes.slice(0, 10).map(t => ({
@@ -317,6 +329,7 @@ export function DashboardCharts({
       console.log('📊 GRÁFICO BARRAS:', {
         currentYear,
         showCardTransactions,
+        useCardInvoicePayments,
         showPendingInMonthlyChart,
         showInvestmentsSeparately,
         totalAllTransacoes: allTransacoes.length,
@@ -327,7 +340,7 @@ export function DashboardCharts({
     }
     
     return result
-  }, [selectedYear, allTransacoes, showPendingInMonthlyChart, showCardTransactions, showInvestmentsSeparately])
+  }, [selectedYear, allTransacoes, showPendingInMonthlyChart, showCardTransactions, useCardInvoicePayments, showInvestmentsSeparately])
 
   const despesasDataAll = getCategoriesData('despesa')
   const receitasData = getCategoriesData('receita')
@@ -584,13 +597,13 @@ export function DashboardCharts({
                     axisLine={{ stroke: 'rgba(148, 163, 184, 0.3)' }}
                   />
                   <YAxis 
-                    tickFormatter={(value) => `R$ ${(value / 1000).toFixed(0)}k`}
+                    tickFormatter={formatAxisValue}
                     tick={{ fontSize: 13 }}
                     tickLine={false}
                     axisLine={{ stroke: 'rgba(148, 163, 184, 0.3)' }}
                   />
                   <Tooltip
-                    formatter={(value: number) => formatCurrency(value)}
+                    formatter={(value: number) => formatValue(value)}
                     contentStyle={{
                       background: 'rgba(23, 23, 35, 0.95)',
                       border: '1px solid #334155',
@@ -662,7 +675,7 @@ export function DashboardCharts({
                             <span className="text-[10px] text-cyan-500 font-medium">{percParcelado}% parcelas</span>
                           )}
                           {fatura.total > 0 ? (
-                            <span className={`text-base font-bold ${isMesAtual ? 'text-blue-600 dark:text-blue-400' : 'text-foreground'}`}>{formatCurrency(fatura.total)}</span>
+                            <span className={`text-base font-bold ${isMesAtual ? 'text-blue-600 dark:text-blue-400' : 'text-foreground'}`}>{formatValue(fatura.total)}</span>
                           ) : (
                             <span className="text-xs text-muted-foreground">—</span>
                           )}
@@ -734,7 +747,7 @@ export function DashboardCharts({
                             {percentage}%
                           </span>
                           <span className="text-xs font-semibold text-foreground">
-                            {formatCurrency(category.value)}
+                            {formatValue(category.value)}
                           </span>
                         </div>
                       </div>
@@ -791,7 +804,7 @@ export function DashboardCharts({
                             {percentage}%
                           </span>
                           <span className="text-xs font-semibold text-foreground">
-                            {formatCurrency(category.value)}
+                            {formatValue(category.value)}
                           </span>
                         </div>
                       </div>
@@ -848,7 +861,7 @@ export function DashboardCharts({
                               {percentage}%
                             </span>
                             <span className="text-xs font-semibold text-foreground">
-                              {formatCurrency(category.value)}
+                              {formatValue(category.value)}
                             </span>
                           </div>
                         </div>
@@ -934,7 +947,7 @@ export function DashboardCharts({
                           ? 'text-green-600 dark:text-green-500'
                           : 'text-red-600 dark:text-red-500'
                     }`}>
-                      {formatCurrency(getDisplayAmount(showInvestmentsSeparately, transacao))}
+                      {formatValue(getDisplayAmount(showInvestmentsSeparately, transacao))}
                     </div>
                   </div>
                 ))
@@ -977,7 +990,7 @@ export function DashboardCharts({
                     </div>
                     {proximoLembrete.valor && (
                       <p className="text-base font-semibold text-teal-600 dark:text-teal-500">
-                        {formatCurrency(proximoLembrete.valor)}
+                        {formatValue(proximoLembrete.valor)}
                       </p>
                     )}
                   </div>
@@ -1018,7 +1031,7 @@ export function DashboardCharts({
               {selectedCategory?.name}
             </DialogTitle>
             <DialogDescription>
-              {selectedTransactions.length} lançamento(s) • {selectedCategory?.tipo === 'investimento' ? 'Liquido' : 'Total'}: {formatCurrency(selectedCategory?.tipo === 'investimento' ? selectedCategoryNetTotal : totalSelectedCategory)}
+              {selectedTransactions.length} lançamento(s) • {selectedCategory?.tipo === 'investimento' ? 'Liquido' : 'Total'}: {formatValue(selectedCategory?.tipo === 'investimento' ? selectedCategoryNetTotal : totalSelectedCategory)}
             </DialogDescription>
           </DialogHeader>
           
@@ -1078,7 +1091,7 @@ export function DashboardCharts({
                               ? 'text-green-600 dark:text-green-500'
                               : 'text-red-600 dark:text-red-500'
                         }`}>
-                          {formatCurrency(getDisplayAmount(showInvestmentsSeparately, transacao))}
+                          {formatValue(getDisplayAmount(showInvestmentsSeparately, transacao))}
                         </div>
                         <div className={`text-xs font-semibold ${
                           isSeparatedInvestmentTransaction(showInvestmentsSeparately, transacao)
@@ -1142,7 +1155,7 @@ export function DashboardCharts({
             >
               <p className="text-xs text-muted-foreground">Receitas</p>
               <p className="mt-1 text-lg font-semibold text-green-600 dark:text-green-500">
-                {formatCurrency(selectedMonthTotals.receitas)}
+                {formatValue(selectedMonthTotals.receitas)}
               </p>
               <p className="mt-1 text-[11px] text-muted-foreground">
                 {selectedMonthFilter === 'receitas' ? 'Filtrando a lista' : 'Clique para ver só receitas'}
@@ -1156,7 +1169,7 @@ export function DashboardCharts({
             >
               <p className="text-xs text-muted-foreground">Despesas</p>
               <p className="mt-1 text-lg font-semibold text-red-600 dark:text-red-500">
-                {formatCurrency(selectedMonthTotals.despesas)}
+                {formatValue(selectedMonthTotals.despesas)}
               </p>
               <p className="mt-1 text-[11px] text-muted-foreground">
                 {selectedMonthFilter === 'despesas' ? 'Filtrando a lista' : 'Clique para ver só despesas'}
@@ -1171,7 +1184,7 @@ export function DashboardCharts({
               >
                 <p className="text-xs text-muted-foreground">Investimentos</p>
                 <p className="mt-1 text-lg font-semibold text-sky-600 dark:text-sky-400">
-                  {formatCurrency(selectedMonthTotals.investimentos)}
+                  {formatValue(selectedMonthTotals.investimentos)}
                 </p>
                 <p className="mt-1 text-[11px] text-muted-foreground">
                   {selectedMonthFilter === 'investimentos' ? 'Filtrando a lista' : 'Clique para ver só investimentos'}
@@ -1185,7 +1198,7 @@ export function DashboardCharts({
                   ? 'text-green-600 dark:text-green-500'
                   : 'text-red-600 dark:text-red-500'
               }`}>
-                {formatCurrency(selectedMonthTotals.receitas - selectedMonthTotals.despesas)}
+                {formatValue(selectedMonthTotals.receitas - selectedMonthTotals.despesas)}
               </p>
             </div>
           </div>
@@ -1274,7 +1287,7 @@ export function DashboardCharts({
                           ? 'text-green-600 dark:text-green-500'
                           : 'text-red-600 dark:text-red-500'
                     }`}>
-                      {formatCurrency(getDisplayAmount(showInvestmentsSeparately, transacao))}
+                      {formatValue(getDisplayAmount(showInvestmentsSeparately, transacao))}
                     </div>
                   </div>
                 </div>
