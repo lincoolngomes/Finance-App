@@ -57,6 +57,7 @@ export function ImportarFaturaModalNovo({ open, onClose, onImport, cartoes, init
   const [regrasHydrated, setRegrasHydrated] = useState(false);
   const [csvFile, setCsvFile] = useState<File | null>(null);
   const [transacoes, setTransacoes] = useState<Transacao[]>([]);
+  const [needsRecategorization, setNeedsRecategorization] = useState(false);
   const [parseError, setParseError] = useState("");
   const [cartaoSelecionado, setCartaoSelecionado] = useState(initialCardId || cartoes?.[0]?.id || '');
   const [mesReferencia, setMesReferencia] = useState('');
@@ -290,9 +291,9 @@ export function ImportarFaturaModalNovo({ open, onClose, onImport, cartoes, init
     modoImportacao,
   ]);
 
-  // Atualizar categorias ao editar regras ou ao entrar no step 2
+  // Atualizar categorias ao editar regras ou quando needsRecategorization é true
   useEffect(() => {
-    if (step === 2 && transacoes.length > 0 && regrasHydrated) {
+    if (step === 2 && transacoes.length > 0 && regrasHydrated && needsRecategorization) {
       setTransacoes(trans => trans.map(t => {
         if (t.tipo === 'pagamento' || t.tipo === 'estorno') {
           return {
@@ -313,9 +314,16 @@ export function ImportarFaturaModalNovo({ open, onClose, onImport, cartoes, init
           categoria: ''
         };
       }));
+      setNeedsRecategorization(false);
     }
-    // Incluímos transacoes.length para recategorizar quando as transações são carregadas
-  }, [regrasTexto, step, categoriasDespesa, transacoes.length, regrasHydrated]);
+  }, [regrasTexto, step, needsRecategorization, regrasHydrated]);
+
+  // Ativar recategorização quando as regras mudarem
+  useEffect(() => {
+    if (regrasHydrated && step === 2 && transacoes.length > 0) {
+      setNeedsRecategorization(true);
+    }
+  }, [regrasTexto]);
 
   const detectarTipoArquivo = (file: File): 'csv' | 'pdf' | null => {
     const nome = (file?.name || '').toLowerCase();
@@ -483,6 +491,8 @@ export function ImportarFaturaModalNovo({ open, onClose, onImport, cartoes, init
     if (!descricao || valor <= 0) return null;
 
     const tipo = classificarTipoLancamento(descricao, valorRaw);
+    // Não categorizar aqui - o useEffect vai aplicar as regras após o parse
+    // Isso garante que as regras do localStorage sejam usadas corretamente
     return {
       uid: `${quando}-${descricao}-${valor}-${index}`,
       quando,
@@ -491,7 +501,7 @@ export function ImportarFaturaModalNovo({ open, onClose, onImport, cartoes, init
       tipo,
       categoria: (tipo === 'pagamento' || tipo === 'estorno')
         ? CATEGORIA_PAGAMENTO_FATURA
-        : (categorizar(descricao, regrasTexto) || ''),
+        : '',
       parcela_atual,
       total_parcelas,
     };
@@ -747,6 +757,7 @@ export function ImportarFaturaModalNovo({ open, onClose, onImport, cartoes, init
             .filter((t: Transacao | null): t is Transacao => t !== null);
 
           setTransacoes(dados);
+          setNeedsRecategorization(true);
           setResumoPdf(null);
           setStep(2);
           setSortBy('');
@@ -829,6 +840,7 @@ export function ImportarFaturaModalNovo({ open, onClose, onImport, cartoes, init
         }
 
         setTransacoes(dados);
+        setNeedsRecategorization(true);
         setResumoPdf(resumoExtraido);
         setStep(2);
         setSortBy('');
