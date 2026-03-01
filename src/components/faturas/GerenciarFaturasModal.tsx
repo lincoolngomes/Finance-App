@@ -161,7 +161,7 @@ export function GerenciarFaturasModal({
       fetchContas()
       fetchCategorias()
       // Carregar regras salvas
-      const saved = localStorage.getItem('regrasFatura')
+      const saved = localStorage.getItem('regrasImportacaoCategorias') || localStorage.getItem('regrasFatura')
       if (saved) setRegrasTexto(saved)
 
       // Restaurar rascunho para não perder contexto ao navegar
@@ -1086,6 +1086,7 @@ export function GerenciarFaturasModal({
                         value={regrasTexto}
                         onChange={e => {
                           setRegrasTexto(e.target.value)
+                          localStorage.setItem('regrasImportacaoCategorias', e.target.value)
                           localStorage.setItem('regrasFatura', e.target.value)
                         }}
                         placeholder="burger king = Alimentação&#10;netflix = Assinaturas&#10;uber = Transporte"
