@@ -6,9 +6,11 @@ yarn-error.log*
 .gitignore
 README.md
 .env
+.env.local
 .nyc_output
 coverage
 .DS_Store
 .vscode
 build
+dist
 bun.lockb

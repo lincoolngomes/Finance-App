@@ -254,6 +254,11 @@ const Transacoes: React.FC = () => {
       });
     }
 
+    const hojeNormalizado = (() => {
+      const now = new Date()
+      return new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()))
+    })()
+
     if (viewMode === 'mes') {
       // Filtro por mês/ano selecionado
       const monthIndex = (() => { const m = parseInt(filterMonth); return isNaN(m) ? new Date().getMonth() : (m > 11 ? m - 1 : m) })()
@@ -270,6 +275,13 @@ const Transacoes: React.FC = () => {
         if (!dt) return false
         return dt.getUTCMonth() === monthIndex && dt.getUTCFullYear() === yearNum
       })
+    } else {
+      // Em "Últimos lançamentos", não misturar parcelas futuras com lançamentos recentes.
+      filtered = filtered.filter(t => {
+        const dt = parseToDate(t.data || t.created_at)
+        if (!dt) return true
+        return dt.getTime() <= hojeNormalizado.getTime()
+      })
     }
     
     // Helper para ordenar por data real do lançamento (fallback para created_at)
@@ -281,7 +293,9 @@ const Transacoes: React.FC = () => {
     const getSortValue = (t: any, field: SortField) => {
       switch (field) {
         case 'data':
-          return parseDateToTime(t.data || t.created_at)
+          return viewMode === 'ultimos'
+            ? parseDateToTime(t.created_at || t.data)
+            : parseDateToTime(t.data || t.created_at)
         case 'descricao':
           return (t.descricao || t.observacao || '').toString().toLowerCase()
         case 'categoria':
@@ -1994,7 +2008,7 @@ const Transacoes: React.FC = () => {
             </>
           ) : (
             <span className="text-xs text-slate-400">
-              Mostrando os lançamentos mais recentes (independente do mês de fatura).
+              Mostrando os lançamentos mais recentes já incluídos. Parcelas futuras ficam no modo por mês.
             </span>
           )}
         </div>
@@ -2210,7 +2224,9 @@ const Transacoes: React.FC = () => {
           <>
             {filteredTransacoes.slice(0, displayCount).map((transacao) => {
             const dataFormatada = (() => {
-              const dateStr = transacao.data || transacao.created_at;
+              const dateStr = viewMode === 'ultimos'
+                ? (transacao.created_at || transacao.data)
+                : (transacao.data || transacao.created_at);
               if (!dateStr) return '-';
               return formatDate(dateStr);
             })()
