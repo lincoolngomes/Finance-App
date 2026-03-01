@@ -80,6 +80,8 @@ interface DashboardChartsProps {
 const COLORS = ['#6366f1', '#8b5cf6', '#ec4899', '#06b6d4', '#10b981', '#f59e0b', '#ef4444', '#84cc16']
 
 export function DashboardCharts({ transacoes, recentTransacoes, contas = [], cartoes = [], lembretes = [], selectedMonth, selectedYear, allTransactions, showCardTransactions = false, onOpenFatura }: DashboardChartsProps) {
+  const isTransacaoPaga = (transacao: { pago?: boolean | null }) => transacao.pago === true
+
   const getLancamentoTimestamp = (t: Transacao) => {
     const raw = t.created_at || t.data
     if (!raw) return 0
@@ -124,8 +126,10 @@ export function DashboardCharts({ transacoes, recentTransacoes, contas = [], car
     console.debug('DashboardCharts sample dates:', sample)
   }
 
-  const [modalOpen, setModalOpen] = useState(false)
+  const [categoryModalOpen, setCategoryModalOpen] = useState(false)
+  const [monthModalOpen, setMonthModalOpen] = useState(false)
   const [selectedCategory, setSelectedCategory] = useState<{ name: string, tipo: 'receita' | 'despesa' } | null>(null)
+  const [selectedMonthData, setSelectedMonthData] = useState<{ monthIndex: number; year: number; label: string } | null>(null)
   const [hiddenCategories, setHiddenCategories] = useState<Set<string>>(new Set())
 
   const getCategoriesData = (tipo: 'receita' | 'despesa') => {
@@ -171,6 +175,18 @@ export function DashboardCharts({ transacoes, recentTransacoes, contas = [], car
     ]
   }
 
+  const shouldIncludeInMonthlyChart = (t: Transacao) => {
+    if (t.tipo === 'receita') {
+      return !t.cartao_id && isTransacaoPaga(t)
+    }
+
+    if (t.tipo === 'despesa') {
+      return isTransacaoPaga(t)
+    }
+
+    return false
+  }
+
   // Função para gerar dados mensais do ano selecionado
   const getMonthlyBalanceData = () => {
     const currentYear = selectedYear ? parseInt(selectedYear) : new Date().getFullYear()
@@ -187,16 +203,15 @@ export function DashboardCharts({ transacoes, recentTransacoes, contas = [], car
       const tm = getTransactionMonth(t)
       if (!tm) return
       if (tm.year !== currentYear) return
+      if (!shouldIncludeInMonthlyChart(t)) return
       const monthKey = String(tm.month).padStart(2, '0')
 
       if (monthlyData[monthKey]) {
-        if (t.tipo === 'receita' && !t.cartao_id) {
-          // Receitas: apenas de contas (receitas de cartão são pgto fatura/estorno, ignorar)
+        if (t.tipo === 'receita') {
           monthlyData[monthKey].receitas += Math.abs(Number(t.valor) || 0)
         } else if (t.tipo === 'despesa') {
           monthlyData[monthKey].despesas += Math.abs(Number(t.valor) || 0)
         }
-        // Receitas de cartão (pagamentos/estornos) são ignoradas
       }
     })
 
@@ -243,7 +258,22 @@ export function DashboardCharts({ transacoes, recentTransacoes, contas = [], car
 
   const handleCategoryClick = (categoryName: string, tipo: 'receita' | 'despesa') => {
     setSelectedCategory({ name: categoryName, tipo })
-    setModalOpen(true)
+    setCategoryModalOpen(true)
+  }
+
+  const handleMonthClick = (chartData: any) => {
+    const payload = chartData?.payload ?? chartData
+    const monthIndex = Number(payload?.monthKey)
+    if (!Number.isInteger(monthIndex) || monthIndex < 0 || monthIndex > 11) return
+
+    const year = selectedYear ? parseInt(selectedYear) : new Date().getFullYear()
+
+    setSelectedMonthData({
+      monthIndex,
+      year: Number.isInteger(year) ? year : new Date().getFullYear(),
+      label: payload?.month || new Date(2000, monthIndex, 1).toLocaleDateString('pt-BR', { month: 'short' })
+    })
+    setMonthModalOpen(true)
   }
 
   const toggleCategoryVisibility = (categoryName: string) => {
@@ -261,6 +291,35 @@ export function DashboardCharts({ transacoes, recentTransacoes, contas = [], car
     : []
 
   const totalSelectedCategory = selectedTransactions.reduce((sum, t) => sum + Math.abs(t.valor || 0), 0)
+
+  const selectedMonthTransactions = useMemo(() => {
+    if (!selectedMonthData) return []
+
+    return allTransacoes
+      .filter((t) => {
+        const tm = getTransactionMonth(t)
+        if (!tm) return false
+        if (tm.year !== selectedMonthData.year || tm.month !== selectedMonthData.monthIndex) return false
+        return shouldIncludeInMonthlyChart(t)
+      })
+      .sort((a, b) => getLancamentoTimestamp(b) - getLancamentoTimestamp(a))
+  }, [allTransacoes, selectedMonthData])
+
+  const selectedMonthTotals = useMemo(() => {
+    return selectedMonthTransactions.reduce((acc, transacao) => {
+      const valor = Math.abs(Number(transacao.valor) || 0)
+      if (transacao.tipo === 'receita') {
+        acc.receitas += valor
+      } else if (transacao.tipo === 'despesa') {
+        acc.despesas += valor
+      }
+      return acc
+    }, { receitas: 0, despesas: 0 })
+  }, [selectedMonthTransactions])
+
+  const selectedMonthLabel = selectedMonthData
+    ? `${selectedMonthData.label.replace('.', '')}/${selectedMonthData.year}`
+    : ''
 
   // Dados de faturas do cartão mês a mês (próximos 6 meses)
   const getCartaoFaturasMensais = () => {
@@ -374,11 +433,14 @@ export function DashboardCharts({ transacoes, recentTransacoes, contas = [], car
                       return labels[value] || value
                     }}
                   />
-                  <Bar dataKey="receitas" fill="#10b981" name="Receitas" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="despesas" fill="#ef4444" name="Despesas" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="receitas" fill="#10b981" name="Receitas" radius={[4, 4, 0, 0]} onClick={handleMonthClick} className="cursor-pointer" />
+                  <Bar dataKey="despesas" fill="#ef4444" name="Despesas" radius={[4, 4, 0, 0]} onClick={handleMonthClick} className="cursor-pointer" />
                 </BarChart>
               </ResponsiveContainer>
             </div>
+            <p className="mt-3 text-xs text-muted-foreground">
+              Clique em uma barra para ver os lançamentos que compõem o mês.
+            </p>
           </CardContent>
         </Card>
 
@@ -682,7 +744,7 @@ export function DashboardCharts({ transacoes, recentTransacoes, contas = [], car
       </div>
 
       {/* Modal de Lançamentos por Categoria */}
-      <Dialog open={modalOpen} onOpenChange={setModalOpen}>
+      <Dialog open={categoryModalOpen} onOpenChange={setCategoryModalOpen}>
         <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-3">
@@ -776,6 +838,106 @@ export function DashboardCharts({ transacoes, recentTransacoes, contas = [], car
             ) : (
               <div className="text-center py-8">
                 <p className="text-sm text-muted-foreground">Nenhum lançamento encontrado</p>
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={monthModalOpen} onOpenChange={setMonthModalOpen}>
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-3">
+              <div className="p-2 rounded-lg bg-blue-500/10">
+                <Calendar className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+              </div>
+              {selectedMonthLabel ? `Lançamentos de ${selectedMonthLabel}` : 'Lançamentos do mês'}
+            </DialogTitle>
+            <DialogDescription>
+              {selectedMonthTransactions.length} lançamento(s) considerados no gráfico
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="grid gap-3 mt-4 md:grid-cols-3">
+            <div className="rounded-lg border bg-card p-4">
+              <p className="text-xs text-muted-foreground">Receitas</p>
+              <p className="mt-1 text-lg font-semibold text-green-600 dark:text-green-500">
+                {formatCurrency(selectedMonthTotals.receitas)}
+              </p>
+            </div>
+            <div className="rounded-lg border bg-card p-4">
+              <p className="text-xs text-muted-foreground">Despesas</p>
+              <p className="mt-1 text-lg font-semibold text-red-600 dark:text-red-500">
+                {formatCurrency(selectedMonthTotals.despesas)}
+              </p>
+            </div>
+            <div className="rounded-lg border bg-card p-4">
+              <p className="text-xs text-muted-foreground">Saldo do mês</p>
+              <p className={`mt-1 text-lg font-semibold ${
+                selectedMonthTotals.receitas - selectedMonthTotals.despesas >= 0
+                  ? 'text-green-600 dark:text-green-500'
+                  : 'text-red-600 dark:text-red-500'
+              }`}>
+                {formatCurrency(selectedMonthTotals.receitas - selectedMonthTotals.despesas)}
+              </p>
+            </div>
+          </div>
+
+          <div className="space-y-3 mt-4">
+            {selectedMonthTransactions.length > 0 ? (
+              selectedMonthTransactions.map((transacao) => (
+                <div
+                  key={transacao.id}
+                  className="p-4 rounded-lg border bg-card hover:shadow-md transition-all"
+                >
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <div className={`w-2 h-2 rounded-full ${
+                          transacao.tipo === 'receita' ? 'bg-green-500' : 'bg-red-500'
+                        }`} />
+                        <span className="font-semibold text-sm">
+                          {transacao.descricao || 'Sem descrição'}
+                        </span>
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        {transacao.categorias?.nome || 'Sem categoria'}
+                        {transacao.cartao_id && cartoesMap[transacao.cartao_id] ? (
+                          <> • 💳 {cartoesMap[transacao.cartao_id].nome}</>
+                        ) : transacao.cartao_id ? (
+                          <> • 💳 Cartão</>
+                        ) : transacao.conta_id && accountsMap[transacao.conta_id] ? (
+                          <> • 🏦 {accountsMap[transacao.conta_id].name}</>
+                        ) : (
+                          <> • 🏦 Conta</>
+                        )}
+                        {' • '}
+                        {(() => {
+                          const raw = transacao.data ?? transacao.created_at
+                          const parsed = parseToDateUTC(raw)
+                          return parsed ? parsed.toLocaleDateString('pt-BR', { timeZone: 'UTC' }) : String(raw || '')
+                        })()}
+                      </div>
+                      {transacao.observacao && (
+                        <div className="text-xs text-muted-foreground mt-1 line-clamp-2">
+                          {transacao.observacao}
+                        </div>
+                      )}
+                    </div>
+                    <div className={`shrink-0 text-right font-bold text-base ${
+                      transacao.tipo === 'receita'
+                        ? 'text-green-600 dark:text-green-500'
+                        : 'text-red-600 dark:text-red-500'
+                    }`}>
+                      {transacao.tipo === 'receita' ? '+' : '-'}
+                      {formatCurrency(Math.abs(transacao.valor || 0))}
+                    </div>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="text-center py-8">
+                <p className="text-sm text-muted-foreground">Nenhum lançamento encontrado para este mês.</p>
               </div>
             )}
           </div>

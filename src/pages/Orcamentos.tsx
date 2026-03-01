@@ -48,6 +48,24 @@ interface MesAnoRef {
   year: number
 }
 
+const isTransacaoPaga = (transacao: { pago?: boolean | null }) => transacao.pago === true
+
+const shouldIncludeInOrcamentoRealizado = (transacao: {
+  tipo?: string | null
+  cartao_id?: string | null
+  pago?: boolean | null
+}) => {
+  if (transacao.tipo === 'receita') {
+    return !transacao.cartao_id && isTransacaoPaga(transacao)
+  }
+
+  if (transacao.tipo === 'despesa') {
+    return isTransacaoPaga(transacao)
+  }
+
+  return false
+}
+
 export default function Orcamentos() {
   const { user } = useAuth()
   const { toast } = useToast()
@@ -198,7 +216,7 @@ export default function Orcamentos() {
 
     const { data, error } = await supabase
       .from('transacoes')
-      .select('categoria_id, valor, data, created_at, tipo, cartao_id, fatura_mes, fatura_ano, observacao')
+      .select('categoria_id, valor, data, created_at, tipo, cartao_id, fatura_mes, fatura_ano, observacao, pago')
       .eq('user_id', user?.id)
 
     console.log('🔍 DEBUG Orcamentos:', {
@@ -219,6 +237,8 @@ export default function Orcamentos() {
       // Filtrar transações do mês/ano selecionado.
       // Para cartão de crédito, sempre usa o mês/ano de vencimento da fatura.
       const transacoesFiltradas = data.filter(t => {
+        if (!shouldIncludeInOrcamentoRealizado(t as any)) return false
+
         const tm = getMesAnoReferenciaOrcamento(t as any, cartaoFechamentoMap)
         if (!tm) return false
         const dentroDoMes = tm.month === mesSelecionado && tm.year === anoSelecionado
@@ -723,6 +743,8 @@ export default function Orcamentos() {
 
       // Filtrar pelo mês e ano selecionados
       const transacoesFiltradas = (data || []).filter(t => {
+        if (!shouldIncludeInOrcamentoRealizado(t as any)) return false
+
         const tm = getMesAnoReferenciaOrcamento(t as any, cartaoFechamentoMap)
         if (!tm) return false
         return tm.month === mesSelecionado && tm.year === anoSelecionado
@@ -737,9 +759,9 @@ export default function Orcamentos() {
         origemNome: t.cartao_id ? (cartoesMap.get(t.cartao_id) || 'Cartão') : (contasMap.get(t.conta_id) || 'Conta')
       }))
 
-      // Separar receitas (valor > 0) e despesas (valor < 0)
-      const receitas = transacoesComOrigem.filter(t => t.valor > 0)
-      const despesas = transacoesComOrigem.filter(t => t.valor < 0)
+      // Usar o tipo da transação em vez do sinal do valor.
+      const receitas = transacoesComOrigem.filter(t => t.tipo === 'receita')
+      const despesas = transacoesComOrigem.filter(t => t.tipo === 'despesa')
 
       console.log('🔍 Total transações:', transacoesComOrigem.length)
       console.log('💰 Receitas:', receitas.length, receitas)

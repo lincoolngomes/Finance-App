@@ -229,7 +229,7 @@ export default function Patrimonio() {
 
     const { data: transacoesCartao, error: erroTransacoes } = await supabase
       .from('transacoes')
-      .select('id, valor, tipo, cartao_id, data, descricao, fatura_mes, fatura_ano')
+      .select('id, valor, tipo, cartao_id, data, descricao, fatura_mes, fatura_ano, pago')
       .eq('user_id', user?.id)
       .not('cartao_id', 'is', null)
 
