@@ -2175,7 +2175,7 @@ const Transacoes: React.FC = () => {
       )}
 
       {/* Cabeçalho da Tabela */}
-      <div className="grid gap-4 grid-cols-[50px_100px_1.5fr_130px_130px_100px_110px_120px] items-center px-6 py-3 bg-slate-800/50 rounded-lg font-semibold text-xs text-slate-400 border border-slate-700/50 sticky top-0">
+      <div className="grid gap-3 grid-cols-[44px_96px_minmax(260px,2.7fr)_minmax(110px,0.95fr)_minmax(90px,0.8fr)_minmax(130px,1fr)_110px_120px] items-center px-5 py-3 bg-slate-800/50 rounded-lg font-semibold text-xs text-slate-400 border border-slate-700/50 sticky top-0">
         <div className="flex items-center justify-center">
           <input type="checkbox" className="w-4 h-4 cursor-pointer" onChange={(e) => handleSelectAll(e.target.checked)} checked={isAllSelected} />
         </div>
@@ -2221,7 +2221,7 @@ const Transacoes: React.FC = () => {
             return (
               <div
                 key={transacao.id}
-                className={`grid gap-4 grid-cols-[50px_100px_1.5fr_130px_130px_100px_110px_120px] items-center px-6 py-4 rounded-lg border-l-4 border-b border-slate-700/30 bg-gradient-to-r hover:bg-slate-800/50 transition-colors text-sm ${
+                className={`grid gap-3 grid-cols-[44px_96px_minmax(260px,2.7fr)_minmax(110px,0.95fr)_minmax(90px,0.8fr)_minmax(130px,1fr)_110px_120px] items-center px-5 py-3.5 rounded-lg border-l-4 border-b border-slate-700/30 bg-gradient-to-r hover:bg-slate-800/50 transition-colors text-sm ${
                   isReceita
                     ? 'from-green-500/5 border-l-green-500'
                     : isPendente
@@ -2244,22 +2244,25 @@ const Transacoes: React.FC = () => {
                 <div className="text-slate-300">
                   {dataFormatada}
                 </div>
-                <div className="font-medium text-slate-200 line-clamp-1">
+                <div
+                  className="min-w-0 font-medium text-slate-100 leading-snug line-clamp-2 break-words"
+                  title={String(transacao.descricao || transacao.observacao || '-')}
+                >
                   {(() => {
                     const desc = transacao.descricao || transacao.observacao
-                    return desc ? String(desc).toLocaleUpperCase('pt-BR') : '-'
+                    return desc ? String(desc) : '-'
                   })()}
                 </div>
-                <div className="text-slate-400 truncate text-xs">
+                <div className="min-w-0 text-slate-400 truncate text-xs" title={transacao.categorias?.nome || '-'}>
                   {transacao.categorias?.nome || '-'}
                 </div>
-                <div className="text-slate-400 truncate text-xs">
+                <div className="min-w-0 text-slate-400 truncate text-xs" title={!transacao.cartao_id && transacao.conta_id && transacao.contas ? transacao.contas.nome : '-'}>
                   {/* CONTA: mostra apenas se NÃO for cartão de crédito */}
                   {!transacao.cartao_id && transacao.conta_id && transacao.contas
                     ? transacao.contas.nome
                     : '-'}
                 </div>
-                <div className="text-slate-400 truncate text-xs">
+                <div className="min-w-0 text-slate-400 truncate text-xs" title={transacao.cartao_id ? (transacao.cartao_nome || 'Cartão') : '-'}>
                   {/* CARTÃO: mostra nome do cartão */}
                   {transacao.cartao_id ? (transacao.cartao_nome || 'Cartão') : '-'}
                 </div>
