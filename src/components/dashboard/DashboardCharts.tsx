@@ -1,11 +1,13 @@
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { formatCurrency } from '@/utils/currency'
 import { getTransactionMonth, parseToDateUTC } from '@/utils/dateParser'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line, Legend, ReferenceLine } from 'recharts'
-import { Calendar, CreditCard, TrendingDown, TrendingUp } from 'lucide-react'
+import { Calendar, CreditCard, Landmark, TrendingDown, TrendingUp } from 'lucide-react'
 import { useEffect, useState, useMemo } from 'react'
+import { getInvestmentImpact, isInvestmentTransaction, shouldIncludeTransactionInDashboardView } from '@/utils/dashboard-classification'
 
 // (Removido bloco duplicado da função DashboardCharts)
 
@@ -64,22 +66,69 @@ interface Lembrete {
   valor: number | null
 }
 
+interface ContaResumo {
+  id: string
+  name?: string | null
+}
+
+interface CartaoResumo {
+  id: string
+  nome?: string | null
+}
+
+interface MonthlyChartDataPoint {
+  monthKey: string
+  month: string
+  receitas: number
+  despesas: number
+  investimentos: number
+}
+
+interface MonthClickPayload {
+  payload?: Partial<MonthlyChartDataPoint>
+  monthKey?: string | number
+  month?: string
+}
+
 interface DashboardChartsProps {
   transacoes: Transacao[]
   recentTransacoes?: Transacao[]
-  contas?: any[]
-  cartoes?: any[]
+  contas?: ContaResumo[]
+  cartoes?: CartaoResumo[]
   lembretes?: Lembrete[]
   selectedMonth?: string
   selectedYear?: string
   allTransactions?: Transacao[]
   showCardTransactions?: boolean
+  showPendingInMonthlyChart?: boolean
+  showInvestmentsSeparately?: boolean
   onOpenFatura?: (mes: string, ano: string) => void
 }
 
-const COLORS = ['#6366f1', '#8b5cf6', '#ec4899', '#06b6d4', '#10b981', '#f59e0b', '#ef4444', '#84cc16']
+interface CategoryDataItem {
+  name: string
+  value: number
+  magnitude: number
+}
 
-export function DashboardCharts({ transacoes, recentTransacoes, contas = [], cartoes = [], lembretes = [], selectedMonth, selectedYear, allTransactions, showCardTransactions = false, onOpenFatura }: DashboardChartsProps) {
+type MonthModalFilter = 'all' | 'receitas' | 'despesas' | 'investimentos'
+
+const COLORS = ['#6366f1', '#8b5cf6', '#ec4899', '#06b6d4', '#10b981', '#f59e0b', '#ef4444', '#84cc16']
+const INVESTMENT_SERIES_COLOR = '#60a5fa'
+
+const isSeparatedInvestmentTransaction = (showInvestmentsSeparately: boolean, transaction: Transacao) =>
+  showInvestmentsSeparately && isInvestmentTransaction(transaction)
+
+const getDisplayAmount = (showInvestmentsSeparately: boolean, transaction: Transacao) => {
+  if (isSeparatedInvestmentTransaction(showInvestmentsSeparately, transaction)) {
+    return getInvestmentImpact(transaction)
+  }
+
+  const value = Math.abs(Number(transaction.valor) || 0)
+  return transaction.tipo === 'receita' ? value : -value
+}
+
+export function DashboardCharts({ transacoes, recentTransacoes, contas = [], cartoes = [], lembretes = [], selectedMonth, selectedYear, allTransactions, showCardTransactions = false, showPendingInMonthlyChart = false, showInvestmentsSeparately = false, onOpenFatura }: DashboardChartsProps) {
   const isTransacaoPaga = (transacao: { pago?: boolean | null }) => transacao.pago === true
 
   const getLancamentoTimestamp = (t: Transacao) => {
@@ -98,16 +147,16 @@ export function DashboardCharts({ transacoes, recentTransacoes, contas = [], car
   }
 
   // Criar mapa de contas para exibir nome da conta
-  const accountsMap = contas.reduce((acc, conta) => {
+  const accountsMap = contas.reduce<Record<string, ContaResumo>>((acc, conta) => {
     acc[conta.id] = conta
     return acc
-  }, {} as Record<string, any>)
+  }, {})
 
   // Criar mapa de cartões para exibir nome do cartão
-  const cartoesMap = cartoes.reduce((acc, cartao) => {
+  const cartoesMap = cartoes.reduce<Record<string, CartaoResumo>>((acc, cartao) => {
     acc[cartao.id] = cartao
     return acc
-  }, {} as Record<string, any>)
+  }, {})
 
   // Filtra transações de cartão se showCardTransactions está desativado
   const allTransacoesRaw = allTransactions || recentTransacoes || transacoes
@@ -128,33 +177,48 @@ export function DashboardCharts({ transacoes, recentTransacoes, contas = [], car
 
   const [categoryModalOpen, setCategoryModalOpen] = useState(false)
   const [monthModalOpen, setMonthModalOpen] = useState(false)
-  const [selectedCategory, setSelectedCategory] = useState<{ name: string, tipo: 'receita' | 'despesa' } | null>(null)
+  const [selectedMonthFilter, setSelectedMonthFilter] = useState<MonthModalFilter>('all')
+  const [selectedCategory, setSelectedCategory] = useState<{ name: string, tipo: 'receita' | 'despesa' | 'investimento' } | null>(null)
   const [selectedMonthData, setSelectedMonthData] = useState<{ monthIndex: number; year: number; label: string } | null>(null)
   const [hiddenCategories, setHiddenCategories] = useState<Set<string>>(new Set())
 
-  const getCategoriesData = (tipo: 'receita' | 'despesa') => {
-    const categorias: { [key: string]: number } = {}
+  const getCategoriesData = (tipo: 'receita' | 'despesa' | 'investimento'): CategoryDataItem[] => {
+    const categorias: Record<string, number> = {}
     
     transacoes.forEach(t => {
-      if (t.valor && t.tipo === tipo) {
-        // Receitas de cartão são estornos/pagamentos, não receita real
-        if (tipo === 'receita' && t.cartao_id) return
-        const nomeCategoria = t.categorias?.nome || 'Sem categoria'
-        categorias[nomeCategoria] = (categorias[nomeCategoria] || 0) + Math.abs(t.valor)
+      if (!t.valor) return
+
+      if (tipo === 'receita') {
+        if (t.tipo !== 'receita' || t.cartao_id) return
+        if (isSeparatedInvestmentTransaction(showInvestmentsSeparately, t)) return
+      } else if (tipo === 'investimento') {
+        if (!isSeparatedInvestmentTransaction(showInvestmentsSeparately, t)) return
+      } else {
+        if (t.tipo !== 'despesa') return
+        if (isSeparatedInvestmentTransaction(showInvestmentsSeparately, t)) return
       }
+
+      const nomeCategoria = t.categorias?.nome || 'Sem categoria'
+      const value = tipo === 'investimento'
+        ? getInvestmentImpact(t)
+        : Math.abs(Number(t.valor) || 0)
+      categorias[nomeCategoria] = (categorias[nomeCategoria] || 0) + value
     })
 
     return Object.entries(categorias)
-      .map(([name, value]) => ({ name, value }))
-      .sort((a, b) => b.value - a.value)
+      .map(([name, value]) => ({ name, value, magnitude: Math.abs(value) }))
+      .sort((a, b) => b.magnitude - a.magnitude)
       .slice(0, 8) // Limitar a 8 categorias para melhor visualização
   }
 
-  const getCategoryTransactions = (categoryName: string, tipo: 'receita' | 'despesa') => {
+  const getCategoryTransactions = (categoryName: string, tipo: 'receita' | 'despesa' | 'investimento') => {
     return transacoes
       .filter(t => {
         const nome = t.categorias?.nome || 'Sem categoria'
-        return nome === categoryName && t.tipo === tipo
+        if (nome !== categoryName) return false
+        if (tipo === 'receita') return t.tipo === 'receita' && !t.cartao_id && !isSeparatedInvestmentTransaction(showInvestmentsSeparately, t)
+        if (tipo === 'investimento') return isSeparatedInvestmentTransaction(showInvestmentsSeparately, t)
+        return t.tipo === 'despesa' && !isSeparatedInvestmentTransaction(showInvestmentsSeparately, t)
       })
       .sort((a, b) => {
         const dateA = parseToDateUTC(a.data)
@@ -166,8 +230,12 @@ export function DashboardCharts({ transacoes, recentTransacoes, contas = [], car
 
   const getReceitasDespesasData = () => {
     // Receitas: apenas de contas (receitas de cartão são pgto fatura/estorno, ignorar)
-    const receitas = transacoes.filter(t => t.tipo === 'receita' && !t.cartao_id).reduce((sum, t) => sum + (Number(t.valor) || 0), 0)
-    const despesas = transacoes.filter(t => t.tipo === 'despesa').reduce((sum, t) => sum + Math.abs(Number(t.valor) || 0), 0)
+    const receitas = transacoes
+      .filter(t => t.tipo === 'receita' && !t.cartao_id && !isSeparatedInvestmentTransaction(showInvestmentsSeparately, t))
+      .reduce((sum, t) => sum + (Number(t.valor) || 0), 0)
+    const despesas = transacoes
+      .filter(t => t.tipo === 'despesa' && !isSeparatedInvestmentTransaction(showInvestmentsSeparately, t))
+      .reduce((sum, t) => sum + Math.abs(Number(t.valor) || 0), 0)
 
     return [
       { name: 'Receitas', value: receitas },
@@ -175,27 +243,14 @@ export function DashboardCharts({ transacoes, recentTransacoes, contas = [], car
     ]
   }
 
-  const shouldIncludeInMonthlyChart = (t: Transacao) => {
-    if (t.tipo === 'receita') {
-      return !t.cartao_id && isTransacaoPaga(t)
-    }
-
-    if (t.tipo === 'despesa') {
-      return isTransacaoPaga(t)
-    }
-
-    return false
-  }
-
-  // Função para gerar dados mensais do ano selecionado
-  const getMonthlyBalanceData = () => {
+  const monthlyBalanceData = useMemo(() => {
     const currentYear = selectedYear ? parseInt(selectedYear) : new Date().getFullYear()
-    const monthlyData: { [key: string]: { receitas: number; despesas: number } } = {}
+    const monthlyData: { [key: string]: { receitas: number; despesas: number; investimentos: number } } = {}
     
     // Inicializar todos os 12 meses do ano
     for (let month = 0; month < 12; month++) {
       const monthKey = String(month).padStart(2, '0')
-      monthlyData[monthKey] = { receitas: 0, despesas: 0 }
+      monthlyData[monthKey] = { receitas: 0, despesas: 0, investimentos: 0 }
     }
 
     // Agrupar transações por mês (usando TODAS as transações do ano selecionado)
@@ -203,14 +258,22 @@ export function DashboardCharts({ transacoes, recentTransacoes, contas = [], car
       const tm = getTransactionMonth(t)
       if (!tm) return
       if (tm.year !== currentYear) return
-      if (!shouldIncludeInMonthlyChart(t)) return
+      if (!shouldIncludeTransactionInDashboardView(t, showPendingInMonthlyChart)) return
       const monthKey = String(tm.month).padStart(2, '0')
 
       if (monthlyData[monthKey]) {
         if (t.tipo === 'receita') {
-          monthlyData[monthKey].receitas += Math.abs(Number(t.valor) || 0)
+          if (isSeparatedInvestmentTransaction(showInvestmentsSeparately, t)) {
+            monthlyData[monthKey].investimentos += getInvestmentImpact(t)
+          } else {
+            monthlyData[monthKey].receitas += Math.abs(Number(t.valor) || 0)
+          }
         } else if (t.tipo === 'despesa') {
-          monthlyData[monthKey].despesas += Math.abs(Number(t.valor) || 0)
+          if (isSeparatedInvestmentTransaction(showInvestmentsSeparately, t)) {
+            monthlyData[monthKey].investimentos += getInvestmentImpact(t)
+          } else {
+            monthlyData[monthKey].despesas += Math.abs(Number(t.valor) || 0)
+          }
         }
       }
     })
@@ -225,7 +288,8 @@ export function DashboardCharts({ transacoes, recentTransacoes, contas = [], car
           monthKey: key,
           month: monthName.charAt(0).toUpperCase() + monthName.slice(1),
           receitas: parseFloat(monthlyData[key].receitas.toFixed(2)),
-          despesas: parseFloat(monthlyData[key].despesas.toFixed(2))
+          despesas: parseFloat(monthlyData[key].despesas.toFixed(2)),
+          investimentos: parseFloat(monthlyData[key].investimentos.toFixed(2))
         }
       })
     
@@ -233,35 +297,37 @@ export function DashboardCharts({ transacoes, recentTransacoes, contas = [], car
       console.log('📊 GRÁFICO BARRAS:', {
         currentYear,
         showCardTransactions,
+        showPendingInMonthlyChart,
+        showInvestmentsSeparately,
         totalAllTransacoes: allTransacoes.length,
         cartaoNoAll: allTransacoes.filter(t => t.cartao_id).length,
         contaNoAll: allTransacoes.filter(t => !t.cartao_id).length,
-        meses: result.filter(m => m.receitas > 0 || m.despesas > 0)
+        meses: result.filter(m => m.receitas > 0 || m.despesas > 0 || m.investimentos > 0)
       })
     }
     
     return result
-  }
+  }, [selectedYear, allTransacoes, showPendingInMonthlyChart, showCardTransactions, showInvestmentsSeparately])
 
   const despesasDataAll = getCategoriesData('despesa')
   const receitasData = getCategoriesData('receita')
+  const investimentosDataAll = getCategoriesData('investimento')
   const receitasDespesasData = getReceitasDespesasData()
-  
-  // Recalcula dados mensais quando ano mudar
-  const monthlyBalanceData = useMemo(() => getMonthlyBalanceData(), [selectedYear, allTransacoes])
 
   // Filtrar categorias visíveis
   const despesasData = despesasDataAll.filter(c => !hiddenCategories.has(c.name))
+  const investimentosData = investimentosDataAll.filter(c => !hiddenCategories.has(c.name))
 
   const totalDespesasCategoria = despesasData.reduce((sum, c) => sum + c.value, 0)
   const totalReceitasCategoria = receitasData.reduce((sum, c) => sum + c.value, 0)
+  const totalInvestimentosCategoria = investimentosData.reduce((sum, c) => sum + c.magnitude, 0)
 
-  const handleCategoryClick = (categoryName: string, tipo: 'receita' | 'despesa') => {
+  const handleCategoryClick = (categoryName: string, tipo: 'receita' | 'despesa' | 'investimento') => {
     setSelectedCategory({ name: categoryName, tipo })
     setCategoryModalOpen(true)
   }
 
-  const handleMonthClick = (chartData: any) => {
+  const handleMonthClick = (chartData: MonthClickPayload) => {
     const payload = chartData?.payload ?? chartData
     const monthIndex = Number(payload?.monthKey)
     if (!Number.isInteger(monthIndex) || monthIndex < 0 || monthIndex > 11) return
@@ -290,7 +356,19 @@ export function DashboardCharts({ transacoes, recentTransacoes, contas = [], car
     ? getCategoryTransactions(selectedCategory.name, selectedCategory.tipo)
     : []
 
-  const totalSelectedCategory = selectedTransactions.reduce((sum, t) => sum + Math.abs(t.valor || 0), 0)
+  const totalSelectedCategory = selectedTransactions.reduce((sum, t) => {
+    if (selectedCategory?.tipo === 'investimento') {
+      return sum + Math.abs(getInvestmentImpact(t))
+    }
+    return sum + Math.abs(t.valor || 0)
+  }, 0)
+
+  const selectedCategoryNetTotal = selectedTransactions.reduce((sum, t) => {
+    if (selectedCategory?.tipo === 'investimento') {
+      return sum + getInvestmentImpact(t)
+    }
+    return sum + Math.abs(t.valor || 0)
+  }, 0)
 
   const selectedMonthTransactions = useMemo(() => {
     if (!selectedMonthData) return []
@@ -300,29 +378,96 @@ export function DashboardCharts({ transacoes, recentTransacoes, contas = [], car
         const tm = getTransactionMonth(t)
         if (!tm) return false
         if (tm.year !== selectedMonthData.year || tm.month !== selectedMonthData.monthIndex) return false
-        return shouldIncludeInMonthlyChart(t)
+        return shouldIncludeTransactionInDashboardView(t, showPendingInMonthlyChart)
       })
       .sort((a, b) => getLancamentoTimestamp(b) - getLancamentoTimestamp(a))
-  }, [allTransacoes, selectedMonthData])
+  }, [allTransacoes, selectedMonthData, showPendingInMonthlyChart])
+
+  useEffect(() => {
+    setSelectedMonthFilter('all')
+  }, [selectedMonthData?.monthIndex, selectedMonthData?.year])
 
   const selectedMonthTotals = useMemo(() => {
     return selectedMonthTransactions.reduce((acc, transacao) => {
       const valor = Math.abs(Number(transacao.valor) || 0)
       if (transacao.tipo === 'receita') {
-        acc.receitas += valor
+        if (isSeparatedInvestmentTransaction(showInvestmentsSeparately, transacao)) {
+          acc.investimentos += getInvestmentImpact(transacao)
+        } else {
+          acc.receitas += valor
+        }
       } else if (transacao.tipo === 'despesa') {
-        acc.despesas += valor
+        if (isSeparatedInvestmentTransaction(showInvestmentsSeparately, transacao)) {
+          acc.investimentos += getInvestmentImpact(transacao)
+        } else {
+          acc.despesas += valor
+        }
       }
       return acc
-    }, { receitas: 0, despesas: 0 })
-  }, [selectedMonthTransactions])
+    }, { receitas: 0, despesas: 0, investimentos: 0 })
+  }, [selectedMonthTransactions, showInvestmentsSeparately])
+
+  const filteredSelectedMonthTransactions = useMemo(() => {
+    if (selectedMonthFilter === 'all') return selectedMonthTransactions
+
+    return selectedMonthTransactions.filter((transacao) => {
+      const isInvestment = isSeparatedInvestmentTransaction(showInvestmentsSeparately, transacao)
+
+      if (selectedMonthFilter === 'investimentos') {
+        return isInvestment
+      }
+
+      if (isInvestment) return false
+
+      if (selectedMonthFilter === 'receitas') return transacao.tipo === 'receita'
+      if (selectedMonthFilter === 'despesas') return transacao.tipo === 'despesa'
+
+      return true
+    })
+  }, [selectedMonthFilter, selectedMonthTransactions, showInvestmentsSeparately])
+
+  const selectedMonthFilterLabel =
+    selectedMonthFilter === 'receitas'
+      ? 'Receitas'
+      : selectedMonthFilter === 'despesas'
+        ? 'Despesas'
+        : selectedMonthFilter === 'investimentos'
+          ? 'Investimentos'
+          : 'Todos'
+
+  const getMonthMetricCardClassName = (filter: Exclude<MonthModalFilter, 'all'>) => {
+    const isActive = selectedMonthFilter === filter
+
+    if (filter === 'receitas') {
+      return isActive
+        ? 'border-green-500/40 bg-green-500/10 shadow-sm'
+        : 'hover:border-green-500/20 hover:bg-green-500/5'
+    }
+
+    if (filter === 'despesas') {
+      return isActive
+        ? 'border-red-500/40 bg-red-500/10 shadow-sm'
+        : 'hover:border-red-500/20 hover:bg-red-500/5'
+    }
+
+    return isActive
+      ? 'border-sky-500/40 bg-sky-500/10 shadow-sm'
+      : 'hover:border-sky-500/20 hover:bg-sky-500/5'
+  }
 
   const selectedMonthLabel = selectedMonthData
     ? `${selectedMonthData.label.replace('.', '')}/${selectedMonthData.year}`
     : ''
+  const monthlyChartDescription = showPendingInMonthlyChart
+    ? showInvestmentsSeparately
+      ? 'Comparação entre receitas, despesas e investimentos liquidos, incluindo pendentes e faturas'
+      : 'Comparação entre receitas e despesas mês a mês, incluindo pendentes e faturas'
+    : showInvestmentsSeparately
+      ? 'Comparação entre receitas, despesas e investimentos liquidos mês a mês'
+      : 'Comparação entre receitas e despesas mês a mês'
 
   // Dados de faturas do cartão mês a mês (próximos 6 meses)
-  const getCartaoFaturasMensais = () => {
+  const cartaoFaturas = useMemo(() => {
     if (!cartoes || cartoes.length === 0) return []
     
     const hoje = new Date()
@@ -373,9 +518,8 @@ export function DashboardCharts({ transacoes, recentTransacoes, contas = [], car
     }
     
     return meses
-  }
+  }, [cartoes, allTransacoesRaw])
 
-  const cartaoFaturas = useMemo(() => getCartaoFaturasMensais(), [cartoes, allTransacoesRaw])
   const maiorFatura = Math.max(...cartaoFaturas.map(f => f.total), 1)
   return (
     <div className="space-y-6">
@@ -391,7 +535,7 @@ export function DashboardCharts({ transacoes, recentTransacoes, contas = [], car
               </div>
               <div>
                 <CardTitle className="text-lg font-semibold">Evolução Mensal</CardTitle>
-                <CardDescription className="text-xs">Comparação entre receitas e despesas mês a mês</CardDescription>
+                <CardDescription className="text-xs">{monthlyChartDescription}</CardDescription>
               </div>
             </div>
           </CardHeader>
@@ -400,6 +544,7 @@ export function DashboardCharts({ transacoes, recentTransacoes, contas = [], car
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={monthlyBalanceData} margin={{ top: 20, right: 30, left: 0, bottom: 40 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="rgba(148, 163, 184, 0.2)" />
+                  <ReferenceLine y={0} stroke="rgba(148, 163, 184, 0.35)" />
                   <XAxis 
                     dataKey="month" 
                     tick={{ fontSize: 13 }}
@@ -429,17 +574,26 @@ export function DashboardCharts({ transacoes, recentTransacoes, contas = [], car
                     wrapperStyle={{ paddingTop: '20px' }}
                     iconType="circle"
                     formatter={(value) => {
-                      const labels: any = { receitas: 'Receitas', despesas: 'Despesas' }
+                      const labels: Record<string, string> = { receitas: 'Receitas', despesas: 'Despesas', investimentos: 'Investimentos' }
                       return labels[value] || value
                     }}
                   />
                   <Bar dataKey="receitas" fill="#10b981" name="Receitas" radius={[4, 4, 0, 0]} onClick={handleMonthClick} className="cursor-pointer" />
                   <Bar dataKey="despesas" fill="#ef4444" name="Despesas" radius={[4, 4, 0, 0]} onClick={handleMonthClick} className="cursor-pointer" />
+                  {showInvestmentsSeparately && (
+                    <Bar dataKey="investimentos" fill={INVESTMENT_SERIES_COLOR} name="Investimentos" radius={[4, 4, 0, 0]} onClick={handleMonthClick} className="cursor-pointer" />
+                  )}
                 </BarChart>
               </ResponsiveContainer>
             </div>
             <p className="mt-3 text-xs text-muted-foreground">
-              Clique em uma barra para ver os lançamentos que compõem o mês.
+              {showPendingInMonthlyChart
+                ? showInvestmentsSeparately
+                  ? 'Clique em uma barra para ver os lançamentos do mês, incluindo pendentes, faturas e a movimentacao liquida de investimentos.'
+                  : 'Clique em uma barra para ver os lançamentos do mês, incluindo pendentes e despesas em fatura.'
+                : showInvestmentsSeparately
+                  ? 'Clique em uma barra para ver os lançamentos pagos do mês, com investimento liquido separado.'
+                  : 'Clique em uma barra para ver os lançamentos pagos que compõem o mês.'}
             </p>
           </CardContent>
         </Card>
@@ -511,8 +665,8 @@ export function DashboardCharts({ transacoes, recentTransacoes, contas = [], car
         </Card>
       </div>
 
-      {/* Linha 2: Receitas e Despesas por Categoria */}
-      <div className="grid gap-6 grid-cols-1 lg:grid-cols-2">
+      {/* Linha 2: Receitas, Despesas e Investimentos por Categoria */}
+      <div className={`grid gap-6 grid-cols-1 ${showInvestmentsSeparately ? 'xl:grid-cols-3' : 'lg:grid-cols-2'}`}>
         {/* Receitas por Categoria */}
         <Card className="overflow-hidden border-0">
           <CardHeader className="pb-3">
@@ -626,6 +780,64 @@ export function DashboardCharts({ transacoes, recentTransacoes, contas = [], car
             )}
           </CardContent>
         </Card>
+
+        {showInvestmentsSeparately && (
+          <Card className="overflow-hidden border-0">
+            <CardHeader className="pb-3">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 rounded-lg bg-sky-500/10">
+                  <Landmark className="h-5 w-5 text-sky-600 dark:text-sky-400" />
+                </div>
+                <div>
+                  <CardTitle className="text-lg font-semibold">Investimentos por Categoria</CardTitle>
+                  <CardDescription className="text-xs">Aportes, resgates e rendimentos separados de receitas e despesas</CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="pt-0">
+              {investimentosData.length > 0 ? (
+                <div className="space-y-3">
+                  {investimentosData.map((category, index) => {
+                    const percentage = totalInvestimentosCategoria > 0 ? ((category.magnitude / totalInvestimentosCategoria) * 100).toFixed(1) : 0
+                    const barPercentage = (category.magnitude / Math.max(...investimentosData.map(c => c.magnitude), 1)) * 100
+
+                    return (
+                      <div
+                        key={index}
+                        className="space-y-1.5 cursor-pointer hover:bg-accent/50 p-2 rounded-lg transition-colors"
+                        onClick={() => handleCategoryClick(category.name, 'investimento')}
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-medium text-muted-foreground truncate max-w-[140px]">
+                            {category.name}
+                          </span>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-semibold text-sky-600 dark:text-sky-400">
+                              {percentage}%
+                            </span>
+                            <span className="text-xs font-semibold text-foreground">
+                              {formatCurrency(category.value)}
+                            </span>
+                          </div>
+                        </div>
+                        <div className="relative h-2 bg-muted rounded-full overflow-hidden">
+                          <div
+                            className="absolute h-full bg-gradient-to-r from-sky-500 to-indigo-500 rounded-full transition-all duration-500 ease-out"
+                            style={{ width: `${barPercentage}%` }}
+                          />
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              ) : (
+                <div className="flex items-center justify-center h-32">
+                  <p className="text-xs text-muted-foreground">Nenhuma movimentação de investimento registrada</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
       </div>
 
       {/* Linha 3: Últimos Lançamentos (2/3) + Lembretes (1/3) */}
@@ -652,14 +864,18 @@ export function DashboardCharts({ transacoes, recentTransacoes, contas = [], car
                 })
                 .slice(0, 5)
                 .map((transacao) => (
-                  <div 
-                    key={transacao.id} 
-                    className="flex items-center justify-between p-3 rounded-lg border bg-card hover:shadow-sm transition-all"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className={`w-2 h-2 rounded-full ${
-                        transacao.tipo === 'receita' ? 'bg-green-500' : 'bg-red-500'
-                      }`} />
+                    <div 
+                      key={transacao.id} 
+                      className="flex items-center justify-between p-3 rounded-lg border bg-card hover:shadow-sm transition-all"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className={`w-2 h-2 rounded-full ${
+                          isSeparatedInvestmentTransaction(showInvestmentsSeparately, transacao)
+                          ? 'bg-sky-500'
+                          : transacao.tipo === 'receita'
+                            ? 'bg-green-500'
+                            : 'bg-red-500'
+                        }`} />
                     <div>
                       <div className="font-medium text-sm">
                         {transacao.descricao || 'Sem descrição'}
@@ -680,9 +896,13 @@ export function DashboardCharts({ transacoes, recentTransacoes, contas = [], car
                       </div>
                     </div>
                     <div className={`font-semibold text-sm ${
-                      transacao.tipo === 'receita' ? 'text-green-600 dark:text-green-500' : 'text-red-600 dark:text-red-500'
+                      isSeparatedInvestmentTransaction(showInvestmentsSeparately, transacao)
+                        ? 'text-sky-600 dark:text-sky-400'
+                        : getDisplayAmount(showInvestmentsSeparately, transacao) >= 0
+                          ? 'text-green-600 dark:text-green-500'
+                          : 'text-red-600 dark:text-red-500'
                     }`}>
-                      {transacao.tipo === 'receita' ? '+' : '-'}{formatCurrency(Math.abs(transacao.valor || 0))}
+                      {formatCurrency(getDisplayAmount(showInvestmentsSeparately, transacao))}
                     </div>
                   </div>
                 ))
@@ -749,10 +969,16 @@ export function DashboardCharts({ transacoes, recentTransacoes, contas = [], car
           <DialogHeader>
             <DialogTitle className="flex items-center gap-3">
               <div className={`p-2 rounded-lg ${
-                selectedCategory?.tipo === 'receita' ? 'bg-green-500/10' : 'bg-red-500/10'
+                selectedCategory?.tipo === 'receita'
+                  ? 'bg-green-500/10'
+                  : selectedCategory?.tipo === 'investimento'
+                    ? 'bg-sky-500/10'
+                    : 'bg-red-500/10'
               }`}>
                 {selectedCategory?.tipo === 'receita' ? (
                   <TrendingUp className="h-5 w-5 text-green-600 dark:text-green-500" />
+                ) : selectedCategory?.tipo === 'investimento' ? (
+                  <Landmark className="h-5 w-5 text-sky-600 dark:text-sky-400" />
                 ) : (
                   <TrendingDown className="h-5 w-5 text-red-600 dark:text-red-500" />
                 )}
@@ -760,7 +986,7 @@ export function DashboardCharts({ transacoes, recentTransacoes, contas = [], car
               {selectedCategory?.name}
             </DialogTitle>
             <DialogDescription>
-              {selectedTransactions.length} lançamento(s) • Total: {formatCurrency(totalSelectedCategory)}
+              {selectedTransactions.length} lançamento(s) • {selectedCategory?.tipo === 'investimento' ? 'Liquido' : 'Total'}: {formatCurrency(selectedCategory?.tipo === 'investimento' ? selectedCategoryNetTotal : totalSelectedCategory)}
             </DialogDescription>
           </DialogHeader>
           
@@ -768,7 +994,7 @@ export function DashboardCharts({ transacoes, recentTransacoes, contas = [], car
             {selectedTransactions.length > 0 ? (
               selectedTransactions.map((transacao) => {
                 const percentage = totalSelectedCategory > 0 
-                  ? ((Math.abs(transacao.valor || 0) / totalSelectedCategory) * 100).toFixed(1) 
+                  ? (((selectedCategory?.tipo === 'investimento' ? Math.abs(getInvestmentImpact(transacao)) : Math.abs(transacao.valor || 0)) / totalSelectedCategory) * 100).toFixed(1) 
                   : 0
                 
                 return (
@@ -780,7 +1006,11 @@ export function DashboardCharts({ transacoes, recentTransacoes, contas = [], car
                       <div className="flex-1">
                         <div className="flex items-center gap-2 mb-1">
                           <div className={`w-2 h-2 rounded-full ${
-                            transacao.tipo === 'receita' ? 'bg-green-500' : 'bg-red-500'
+                            isSeparatedInvestmentTransaction(showInvestmentsSeparately, transacao)
+                              ? 'bg-sky-500'
+                              : getDisplayAmount(showInvestmentsSeparately, transacao) >= 0
+                                ? 'bg-green-500'
+                                : 'bg-red-500'
                           }`} />
                           <span className="font-semibold text-sm">
                             {transacao.descricao || 'Sem descrição'}
@@ -810,16 +1040,20 @@ export function DashboardCharts({ transacoes, recentTransacoes, contas = [], car
                       </div>
                       <div className="text-right">
                         <div className={`font-bold text-lg ${
-                          transacao.tipo === 'receita' 
-                            ? 'text-green-600 dark:text-green-500' 
-                            : 'text-red-600 dark:text-red-500'
+                          isSeparatedInvestmentTransaction(showInvestmentsSeparately, transacao)
+                            ? 'text-sky-600 dark:text-sky-400'
+                            : getDisplayAmount(showInvestmentsSeparately, transacao) >= 0
+                              ? 'text-green-600 dark:text-green-500'
+                              : 'text-red-600 dark:text-red-500'
                         }`}>
-                          {formatCurrency(Math.abs(transacao.valor || 0))}
+                          {formatCurrency(getDisplayAmount(showInvestmentsSeparately, transacao))}
                         </div>
                         <div className={`text-xs font-semibold ${
-                          transacao.tipo === 'receita' 
-                            ? 'text-green-600/70 dark:text-green-500/70' 
-                            : 'text-red-600/70 dark:text-red-500/70'
+                          isSeparatedInvestmentTransaction(showInvestmentsSeparately, transacao)
+                            ? 'text-sky-600/70 dark:text-sky-400/70'
+                            : getDisplayAmount(showInvestmentsSeparately, transacao) >= 0
+                              ? 'text-green-600/70 dark:text-green-500/70'
+                              : 'text-red-600/70 dark:text-red-500/70'
                         }`}>
                           {percentage}%
                         </div>
@@ -844,7 +1078,13 @@ export function DashboardCharts({ transacoes, recentTransacoes, contas = [], car
         </DialogContent>
       </Dialog>
 
-      <Dialog open={monthModalOpen} onOpenChange={setMonthModalOpen}>
+      <Dialog
+        open={monthModalOpen}
+        onOpenChange={(open) => {
+          setMonthModalOpen(open)
+          if (!open) setSelectedMonthFilter('all')
+        }}
+      >
         <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-3">
@@ -855,22 +1095,57 @@ export function DashboardCharts({ transacoes, recentTransacoes, contas = [], car
             </DialogTitle>
             <DialogDescription>
               {selectedMonthTransactions.length} lançamento(s) considerados no gráfico
+              {showPendingInMonthlyChart ? ' • incluindo pendentes e faturas' : ' • somente pagos'}
+              {showInvestmentsSeparately ? ' • investimento liquido separado' : ''}
+              {selectedMonthFilter !== 'all' ? ` • visualizando somente ${selectedMonthFilterLabel.toLowerCase()}` : ''}
             </DialogDescription>
           </DialogHeader>
 
-          <div className="grid gap-3 mt-4 md:grid-cols-3">
-            <div className="rounded-lg border bg-card p-4">
+          <div className={`grid gap-3 mt-4 ${showInvestmentsSeparately ? 'md:grid-cols-4' : 'md:grid-cols-3'}`}>
+            <button
+              type="button"
+              className={`rounded-lg border bg-card p-4 text-left transition-all ${getMonthMetricCardClassName('receitas')}`}
+              onClick={() => setSelectedMonthFilter('receitas')}
+              aria-pressed={selectedMonthFilter === 'receitas'}
+            >
               <p className="text-xs text-muted-foreground">Receitas</p>
               <p className="mt-1 text-lg font-semibold text-green-600 dark:text-green-500">
                 {formatCurrency(selectedMonthTotals.receitas)}
               </p>
-            </div>
-            <div className="rounded-lg border bg-card p-4">
+              <p className="mt-1 text-[11px] text-muted-foreground">
+                {selectedMonthFilter === 'receitas' ? 'Filtrando a lista' : 'Clique para ver só receitas'}
+              </p>
+            </button>
+            <button
+              type="button"
+              className={`rounded-lg border bg-card p-4 text-left transition-all ${getMonthMetricCardClassName('despesas')}`}
+              onClick={() => setSelectedMonthFilter('despesas')}
+              aria-pressed={selectedMonthFilter === 'despesas'}
+            >
               <p className="text-xs text-muted-foreground">Despesas</p>
               <p className="mt-1 text-lg font-semibold text-red-600 dark:text-red-500">
                 {formatCurrency(selectedMonthTotals.despesas)}
               </p>
-            </div>
+              <p className="mt-1 text-[11px] text-muted-foreground">
+                {selectedMonthFilter === 'despesas' ? 'Filtrando a lista' : 'Clique para ver só despesas'}
+              </p>
+            </button>
+            {showInvestmentsSeparately && (
+              <button
+                type="button"
+                className={`rounded-lg border bg-card p-4 text-left transition-all ${getMonthMetricCardClassName('investimentos')}`}
+                onClick={() => setSelectedMonthFilter('investimentos')}
+                aria-pressed={selectedMonthFilter === 'investimentos'}
+              >
+                <p className="text-xs text-muted-foreground">Investimentos</p>
+                <p className="mt-1 text-lg font-semibold text-sky-600 dark:text-sky-400">
+                  {formatCurrency(selectedMonthTotals.investimentos)}
+                </p>
+                <p className="mt-1 text-[11px] text-muted-foreground">
+                  {selectedMonthFilter === 'investimentos' ? 'Filtrando a lista' : 'Clique para ver só investimentos'}
+                </p>
+              </button>
+            )}
             <div className="rounded-lg border bg-card p-4">
               <p className="text-xs text-muted-foreground">Saldo do mês</p>
               <p className={`mt-1 text-lg font-semibold ${
@@ -883,9 +1158,22 @@ export function DashboardCharts({ transacoes, recentTransacoes, contas = [], car
             </div>
           </div>
 
+          <div className="mt-4 flex items-center justify-between gap-3">
+            <div className="text-xs text-muted-foreground">
+              {selectedMonthFilter === 'all'
+                ? `Mostrando todos os ${filteredSelectedMonthTransactions.length} lançamentos do mês`
+                : `Mostrando ${filteredSelectedMonthTransactions.length} lançamento(s) de ${selectedMonthFilterLabel.toLowerCase()}`}
+            </div>
+            {selectedMonthFilter !== 'all' && (
+              <Button type="button" variant="outline" size="sm" onClick={() => setSelectedMonthFilter('all')}>
+                Ver tudo
+              </Button>
+            )}
+          </div>
+
           <div className="space-y-3 mt-4">
-            {selectedMonthTransactions.length > 0 ? (
-              selectedMonthTransactions.map((transacao) => (
+            {filteredSelectedMonthTransactions.length > 0 ? (
+              filteredSelectedMonthTransactions.map((transacao) => (
                 <div
                   key={transacao.id}
                   className="p-4 rounded-lg border bg-card hover:shadow-md transition-all"
@@ -894,7 +1182,11 @@ export function DashboardCharts({ transacoes, recentTransacoes, contas = [], car
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2 mb-1">
                         <div className={`w-2 h-2 rounded-full ${
-                          transacao.tipo === 'receita' ? 'bg-green-500' : 'bg-red-500'
+                          isSeparatedInvestmentTransaction(showInvestmentsSeparately, transacao)
+                            ? 'bg-sky-500'
+                            : getDisplayAmount(showInvestmentsSeparately, transacao) >= 0
+                              ? 'bg-green-500'
+                              : 'bg-red-500'
                         }`} />
                         <span className="font-semibold text-sm">
                           {transacao.descricao || 'Sem descrição'}
@@ -923,21 +1215,45 @@ export function DashboardCharts({ transacoes, recentTransacoes, contas = [], car
                           {transacao.observacao}
                         </div>
                       )}
+                      <div className="mt-2">
+                        <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-medium ${
+                          isSeparatedInvestmentTransaction(showInvestmentsSeparately, transacao)
+                            ? 'bg-sky-500/10 text-sky-600 dark:text-sky-400'
+                            : transacao.pago === true
+                            ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                            : transacao.cartao_id
+                              ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400'
+                              : 'bg-slate-500/10 text-slate-500 dark:text-slate-400'
+                        }`}>
+                          {isSeparatedInvestmentTransaction(showInvestmentsSeparately, transacao)
+                            ? 'Investimento'
+                            : transacao.pago === true
+                              ? 'Pago'
+                              : transacao.cartao_id
+                                ? 'Pendente em fatura'
+                                : 'Pendente'}
+                        </span>
+                      </div>
                     </div>
                     <div className={`shrink-0 text-right font-bold text-base ${
-                      transacao.tipo === 'receita'
-                        ? 'text-green-600 dark:text-green-500'
-                        : 'text-red-600 dark:text-red-500'
+                      isSeparatedInvestmentTransaction(showInvestmentsSeparately, transacao)
+                        ? 'text-sky-600 dark:text-sky-400'
+                        : getDisplayAmount(showInvestmentsSeparately, transacao) >= 0
+                          ? 'text-green-600 dark:text-green-500'
+                          : 'text-red-600 dark:text-red-500'
                     }`}>
-                      {transacao.tipo === 'receita' ? '+' : '-'}
-                      {formatCurrency(Math.abs(transacao.valor || 0))}
+                      {formatCurrency(getDisplayAmount(showInvestmentsSeparately, transacao))}
                     </div>
                   </div>
                 </div>
               ))
             ) : (
               <div className="text-center py-8">
-                <p className="text-sm text-muted-foreground">Nenhum lançamento encontrado para este mês.</p>
+                <p className="text-sm text-muted-foreground">
+                  {selectedMonthFilter === 'all'
+                    ? 'Nenhum lançamento encontrado para este mês.'
+                    : `Nenhum lançamento de ${selectedMonthFilterLabel.toLowerCase()} encontrado para este mês.`}
+                </p>
               </div>
             )}
           </div>

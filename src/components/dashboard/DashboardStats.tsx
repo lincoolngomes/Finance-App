@@ -1,22 +1,24 @@
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { TrendingUp, TrendingDown, DollarSign, Calendar } from 'lucide-react'
+import { TrendingUp, TrendingDown, DollarSign, Calendar, Landmark } from 'lucide-react'
 import { formatCurrency } from '@/utils/currency'
 
 interface DashboardStatsProps {
   stats: {
     totalReceitas: number
     totalDespesas: number
+    totalInvestimentos?: number
     saldo: number
     transacoesCount: number
     lembretesCount: number
   }
   hideValues?: boolean
+  showInvestmentsSeparately?: boolean
 }
 
-export function DashboardStats({ stats, hideValues = false }: DashboardStatsProps) {
+export function DashboardStats({ stats, hideValues = false, showInvestmentsSeparately = false }: DashboardStatsProps) {
   return (
-    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+    <div className={`grid gap-4 md:grid-cols-2 ${showInvestmentsSeparately ? 'xl:grid-cols-5' : 'lg:grid-cols-4'}`}>
       <Card className={`relative overflow-hidden ${stats.saldo >= 0 ? 'bg-gradient-to-br from-blue-500/10 to-blue-600/5 border-blue-500/20' : 'bg-gradient-to-br from-orange-500/10 to-orange-600/5 border-orange-500/20'} hover:shadow-lg transition-all`}>
         <CardContent className="p-4">
           <div className="flex items-start justify-between mb-3">
@@ -67,6 +69,25 @@ export function DashboardStats({ stats, hideValues = false }: DashboardStatsProp
           </div>
         </CardContent>
       </Card>
+
+      {showInvestmentsSeparately && (
+        <Card className="relative overflow-hidden bg-gradient-to-br from-sky-500/10 to-indigo-500/5 border-sky-500/20 hover:shadow-lg transition-all">
+          <CardContent className="p-4">
+            <div className="flex items-start justify-between mb-3">
+              <div className="p-2 rounded-lg bg-sky-500/20">
+                <Landmark className="h-5 w-5 text-sky-600 dark:text-sky-400" />
+              </div>
+            </div>
+            <div>
+              <p className="text-xs font-medium text-muted-foreground mb-1">Investimentos</p>
+              <p className="text-2xl font-bold text-sky-600 dark:text-sky-400 mb-0.5">
+                {hideValues ? '••••••' : formatCurrency(stats.totalInvestimentos || 0)}
+              </p>
+              <p className="text-xs text-muted-foreground">Movimentação liquida do mês</p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <Card className="relative overflow-hidden bg-gradient-to-br from-teal-500/10 to-teal-600/5 border-teal-500/20 hover:shadow-lg transition-all">
         <CardContent className="pt-6">

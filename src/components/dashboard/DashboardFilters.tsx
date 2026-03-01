@@ -1,7 +1,7 @@
 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Button } from '@/components/ui/button'
-import { Filter, Eye, EyeOff } from 'lucide-react'
+import { Filter, Eye, EyeOff, Clock3, Landmark } from 'lucide-react'
 
 interface DashboardFiltersProps {
   filterMonth: string
@@ -13,6 +13,10 @@ interface DashboardFiltersProps {
   setHideValues?: (hide: boolean) => void
   showCardTransactions?: boolean
   setShowCardTransactions?: (show: boolean) => void
+  showPendingInMonthlyChart?: boolean
+  setShowPendingInMonthlyChart?: (show: boolean) => void
+  showInvestmentsSeparately?: boolean
+  setShowInvestmentsSeparately?: (show: boolean) => void
 }
 
 export function DashboardFilters({ 
@@ -24,7 +28,11 @@ export function DashboardFilters({
   hideValues = false,
   setHideValues,
   showCardTransactions = false,
-  setShowCardTransactions
+  setShowCardTransactions,
+  showPendingInMonthlyChart = false,
+  setShowPendingInMonthlyChart,
+  showInvestmentsSeparately = false,
+  setShowInvestmentsSeparately
 }: DashboardFiltersProps) {
 
   return (
@@ -65,6 +73,44 @@ export function DashboardFilters({
               <span
                 className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
                   showCardTransactions ? 'translate-x-[18px]' : 'translate-x-[3px]'
+                }`}
+              />
+            </button>
+          </div>
+        )}
+        {setShowPendingInMonthlyChart && (
+          <div className="flex items-center gap-2 bg-secondary/50 rounded-lg px-3 py-2 border border-border/40">
+            <Clock3 className="h-4 w-4 text-muted-foreground" />
+            <span className="text-xs text-muted-foreground whitespace-nowrap">Pend./Fatura</span>
+            <button
+              onClick={() => setShowPendingInMonthlyChart(!showPendingInMonthlyChart)}
+              className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none ${
+                showPendingInMonthlyChart ? 'bg-blue-600' : 'bg-slate-600'
+              }`}
+              title={showPendingInMonthlyChart ? 'Gráfico mensal incluindo pendentes e faturas' : 'Gráfico mensal só com lançamentos pagos'}
+            >
+              <span
+                className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
+                  showPendingInMonthlyChart ? 'translate-x-[18px]' : 'translate-x-[3px]'
+                }`}
+              />
+            </button>
+          </div>
+        )}
+        {setShowInvestmentsSeparately && (
+          <div className="flex items-center gap-2 bg-secondary/50 rounded-lg px-3 py-2 border border-border/40">
+            <Landmark className="h-4 w-4 text-muted-foreground" />
+            <span className="text-xs text-muted-foreground whitespace-nowrap">Invest.</span>
+            <button
+              onClick={() => setShowInvestmentsSeparately(!showInvestmentsSeparately)}
+              className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none ${
+                showInvestmentsSeparately ? 'bg-blue-600' : 'bg-slate-600'
+              }`}
+              title={showInvestmentsSeparately ? 'Aplicações separadas como investimentos' : 'Aplicações somadas em despesas'}
+            >
+              <span
+                className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
+                  showInvestmentsSeparately ? 'translate-x-[18px]' : 'translate-x-[3px]'
                 }`}
               />
             </button>
