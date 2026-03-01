@@ -290,9 +290,9 @@ export function ImportarFaturaModalNovo({ open, onClose, onImport, cartoes, init
     modoImportacao,
   ]);
 
-  // Atualizar categorias ao editar regras
+  // Atualizar categorias ao editar regras ou ao entrar no step 2
   useEffect(() => {
-    if (step === 2 && transacoes.length > 0) {
+    if (step === 2 && transacoes.length > 0 && regrasHydrated) {
       setTransacoes(trans => trans.map(t => {
         if (t.tipo === 'pagamento' || t.tipo === 'estorno') {
           return {
@@ -314,7 +314,8 @@ export function ImportarFaturaModalNovo({ open, onClose, onImport, cartoes, init
         };
       }));
     }
-  }, [regrasTexto, step, categoriasDespesa]);
+    // Incluímos transacoes.length para recategorizar quando as transações são carregadas
+  }, [regrasTexto, step, categoriasDespesa, transacoes.length, regrasHydrated]);
 
   const detectarTipoArquivo = (file: File): 'csv' | 'pdf' | null => {
     const nome = (file?.name || '').toLowerCase();
