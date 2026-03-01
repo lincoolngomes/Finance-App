@@ -1,8 +1,8 @@
 FROM node:20-alpine AS build
 WORKDIR /app
 COPY package*.json ./
-# Instalar dependências com npm ci (reproducível e mais rápido que npm install)
-RUN rm -f package-lock.json bun.lockb && npm ci --legacy-peer-deps --omit=dev
+# Instalar dependências: se package-lock.json existir, usar npm ci; senão, npm install
+RUN if [ -f package-lock.json ]; then npm ci --legacy-peer-deps --omit=dev; else npm install --legacy-peer-deps --omit=dev; fi && rm -f bun.lockb
 COPY . .
 RUN npm run build && ls -la dist/
 
