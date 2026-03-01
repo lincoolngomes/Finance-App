@@ -57,8 +57,15 @@ interface Cartao {
   limite?: number | null
 }
 
+type DashboardMonthDetailFilter = 'receitas' | 'despesas' | 'investimentos'
+
 export default function Dashboard() {
   const isTransacaoPaga = (transacao: { pago?: boolean | null }) => transacao.pago === true
+  const normalizeDashboardMonthIndex = (monthValue: string) => {
+    const monthNumber = parseInt(monthValue)
+    if (Number.isNaN(monthNumber)) return new Date().getMonth()
+    return monthNumber > 11 ? monthNumber - 1 : monthNumber
+  }
   const DASHBOARD_FILTERS_KEY = 'dashboard:filters:v1'
   const getInitialDashboardFilters = () => {
     const now = new Date()
@@ -103,6 +110,12 @@ export default function Dashboard() {
   const [faturaInitialCardId, setFaturaInitialCardId] = useState<string | null>(null)
   const [faturaInitialMonth, setFaturaInitialMonth] = useState<string>('')
   const [faturaInitialYear, setFaturaInitialYear] = useState<string>('')
+  const [monthDetailsRequest, setMonthDetailsRequest] = useState<{
+    monthIndex: number
+    year: number
+    filter: DashboardMonthDetailFilter
+    requestId: number
+  } | null>(null)
 
   // DEBUG: Logar transacoes carregadas
   useEffect(() => {
@@ -254,11 +267,7 @@ export default function Dashboard() {
   // Filtrar transações por mês e ano
   const filteredTransacoes = useMemo(() => {
     // normalize filter month: accept either 0-11 or 1-12 from the select
-    const filterMonthIndex = (() => {
-      const m = parseInt(filterMonth)
-      if (isNaN(m)) return new Date().getMonth()
-      return m > 11 ? m - 1 : m
-    })()
+    const filterMonthIndex = normalizeDashboardMonthIndex(filterMonth)
     const filterYearNum = parseInt(filterYear) || new Date().getFullYear()
 
     const resultado = transacoes.filter(transacao => {
@@ -422,8 +431,20 @@ export default function Dashboard() {
         setShowInvestmentsSeparately={setShowInvestmentsSeparately}
       />
       
-      <DashboardStats stats={stats} hideValues={hideValues} showInvestmentsSeparately={showInvestmentsSeparately} />
-      
+      <DashboardStats
+        stats={stats}
+        hideValues={hideValues}
+        showInvestmentsSeparately={showInvestmentsSeparately}
+        onOpenMonthDetails={(detailFilter) => {
+          setMonthDetailsRequest({
+            monthIndex: normalizeDashboardMonthIndex(filterMonth),
+            year: parseInt(filterYear) || new Date().getFullYear(),
+            filter: detailFilter,
+            requestId: Date.now(),
+          })
+        }}
+      />
+
       <DashboardCharts 
         transacoes={dashboardViewTransacoes} 
         recentTransacoes={transacoes} 
@@ -436,6 +457,7 @@ export default function Dashboard() {
         showCardTransactions={showCardTransactions}
         showPendingInMonthlyChart={showPendingInMonthlyChart}
         showInvestmentsSeparately={showInvestmentsSeparately}
+        monthDetailsRequest={monthDetailsRequest}
         onOpenFatura={(mes, ano) => {
           const mesNum = parseInt(mes)
           const anoNum = parseInt(ano)

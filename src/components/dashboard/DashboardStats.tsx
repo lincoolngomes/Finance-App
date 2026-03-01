@@ -1,4 +1,4 @@
-
+import type { KeyboardEvent } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { TrendingUp, TrendingDown, DollarSign, Calendar, Landmark } from 'lucide-react'
 import { formatCurrency } from '@/utils/currency'
@@ -14,9 +14,27 @@ interface DashboardStatsProps {
   }
   hideValues?: boolean
   showInvestmentsSeparately?: boolean
+  onOpenMonthDetails?: (filter: 'receitas' | 'despesas' | 'investimentos') => void
 }
 
-export function DashboardStats({ stats, hideValues = false, showInvestmentsSeparately = false }: DashboardStatsProps) {
+export function DashboardStats({
+  stats,
+  hideValues = false,
+  showInvestmentsSeparately = false,
+  onOpenMonthDetails,
+}: DashboardStatsProps) {
+  const getInteractiveCardProps = (filter: 'receitas' | 'despesas' | 'investimentos') => ({
+    role: 'button' as const,
+    tabIndex: 0,
+    onClick: () => onOpenMonthDetails?.(filter),
+    onKeyDown: (event: KeyboardEvent<HTMLDivElement>) => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault()
+        onOpenMonthDetails?.(filter)
+      }
+    },
+  })
+
   return (
     <div className={`grid gap-4 md:grid-cols-2 ${showInvestmentsSeparately ? 'xl:grid-cols-5' : 'lg:grid-cols-4'}`}>
       <Card className={`relative overflow-hidden ${stats.saldo >= 0 ? 'bg-gradient-to-br from-blue-500/10 to-blue-600/5 border-blue-500/20' : 'bg-gradient-to-br from-orange-500/10 to-orange-600/5 border-orange-500/20'} hover:shadow-lg transition-all`}>
@@ -36,7 +54,10 @@ export function DashboardStats({ stats, hideValues = false, showInvestmentsSepar
         </CardContent>
       </Card>
 
-      <Card className="relative overflow-hidden bg-gradient-to-br from-green-500/10 to-green-600/5 border-green-500/20 hover:shadow-lg transition-all">
+      <Card
+        className="relative overflow-hidden bg-gradient-to-br from-green-500/10 to-green-600/5 border-green-500/20 hover:shadow-lg transition-all cursor-pointer"
+        {...getInteractiveCardProps('receitas')}
+      >
         <CardContent className="p-4">
           <div className="flex items-start justify-between mb-3">
             <div className="p-2 rounded-lg bg-green-500/20">
@@ -48,12 +69,15 @@ export function DashboardStats({ stats, hideValues = false, showInvestmentsSepar
             <p className="text-2xl font-bold text-green-600 dark:text-green-500 mb-0.5">
               {hideValues ? '••••••' : formatCurrency(stats.totalReceitas)}
             </p>
-            <p className="text-xs text-muted-foreground">Mês atual</p>
+            <p className="text-xs text-muted-foreground">No período</p>
           </div>
         </CardContent>
       </Card>
 
-      <Card className="relative overflow-hidden bg-gradient-to-br from-red-500/10 to-red-600/5 border-red-500/20 hover:shadow-lg transition-all">
+      <Card
+        className="relative overflow-hidden bg-gradient-to-br from-red-500/10 to-red-600/5 border-red-500/20 hover:shadow-lg transition-all cursor-pointer"
+        {...getInteractiveCardProps('despesas')}
+      >
         <CardContent className="p-4">
           <div className="flex items-start justify-between mb-3">
             <div className="p-2 rounded-lg bg-red-500/20">
@@ -65,13 +89,16 @@ export function DashboardStats({ stats, hideValues = false, showInvestmentsSepar
             <p className="text-2xl font-bold text-red-600 dark:text-red-500 mb-0.5">
               {hideValues ? '••••••' : formatCurrency(stats.totalDespesas)}
             </p>
-            <p className="text-xs text-muted-foreground">Mês atual</p>
+            <p className="text-xs text-muted-foreground">No período</p>
           </div>
         </CardContent>
       </Card>
 
       {showInvestmentsSeparately && (
-        <Card className="relative overflow-hidden bg-gradient-to-br from-sky-500/10 to-indigo-500/5 border-sky-500/20 hover:shadow-lg transition-all">
+        <Card
+          className="relative overflow-hidden bg-gradient-to-br from-sky-500/10 to-indigo-500/5 border-sky-500/20 hover:shadow-lg transition-all cursor-pointer"
+          {...getInteractiveCardProps('investimentos')}
+        >
           <CardContent className="p-4">
             <div className="flex items-start justify-between mb-3">
               <div className="p-2 rounded-lg bg-sky-500/20">
@@ -83,7 +110,7 @@ export function DashboardStats({ stats, hideValues = false, showInvestmentsSepar
               <p className="text-2xl font-bold text-sky-600 dark:text-sky-400 mb-0.5">
                 {hideValues ? '••••••' : formatCurrency(stats.totalInvestimentos || 0)}
               </p>
-              <p className="text-xs text-muted-foreground">Movimentação liquida do mês</p>
+              <p className="text-xs text-muted-foreground">Fluxo líquido</p>
             </div>
           </CardContent>
         </Card>

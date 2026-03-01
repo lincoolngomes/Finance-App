@@ -102,6 +102,12 @@ interface DashboardChartsProps {
   showCardTransactions?: boolean
   showPendingInMonthlyChart?: boolean
   showInvestmentsSeparately?: boolean
+  monthDetailsRequest?: {
+    monthIndex: number
+    year: number
+    filter: Exclude<MonthModalFilter, 'all'>
+    requestId: number
+  } | null
   onOpenFatura?: (mes: string, ano: string) => void
 }
 
@@ -128,7 +134,21 @@ const getDisplayAmount = (showInvestmentsSeparately: boolean, transaction: Trans
   return transaction.tipo === 'receita' ? value : -value
 }
 
-export function DashboardCharts({ transacoes, recentTransacoes, contas = [], cartoes = [], lembretes = [], selectedMonth, selectedYear, allTransactions, showCardTransactions = false, showPendingInMonthlyChart = false, showInvestmentsSeparately = false, onOpenFatura }: DashboardChartsProps) {
+export function DashboardCharts({
+  transacoes,
+  recentTransacoes,
+  contas = [],
+  cartoes = [],
+  lembretes = [],
+  selectedMonth,
+  selectedYear,
+  allTransactions,
+  showCardTransactions = false,
+  showPendingInMonthlyChart = false,
+  showInvestmentsSeparately = false,
+  monthDetailsRequest,
+  onOpenFatura,
+}: DashboardChartsProps) {
   const isTransacaoPaga = (transacao: { pago?: boolean | null }) => transacao.pago === true
 
   const getLancamentoTimestamp = (t: Transacao) => {
@@ -334,6 +354,7 @@ export function DashboardCharts({ transacoes, recentTransacoes, contas = [], car
 
     const year = selectedYear ? parseInt(selectedYear) : new Date().getFullYear()
 
+    setSelectedMonthFilter('all')
     setSelectedMonthData({
       monthIndex,
       year: Number.isInteger(year) ? year : new Date().getFullYear(),
@@ -341,6 +362,21 @@ export function DashboardCharts({ transacoes, recentTransacoes, contas = [], car
     })
     setMonthModalOpen(true)
   }
+
+  useEffect(() => {
+    if (!monthDetailsRequest) return
+
+    const { monthIndex, year, filter } = monthDetailsRequest
+    if (!Number.isInteger(monthIndex) || monthIndex < 0 || monthIndex > 11) return
+
+    setSelectedMonthData({
+      monthIndex,
+      year,
+      label: new Date(2000, monthIndex, 1).toLocaleDateString('pt-BR', { month: 'short' }),
+    })
+    setSelectedMonthFilter(filter)
+    setMonthModalOpen(true)
+  }, [monthDetailsRequest])
 
   const toggleCategoryVisibility = (categoryName: string) => {
     const newHidden = new Set(hiddenCategories)
@@ -382,10 +418,6 @@ export function DashboardCharts({ transacoes, recentTransacoes, contas = [], car
       })
       .sort((a, b) => getLancamentoTimestamp(b) - getLancamentoTimestamp(a))
   }, [allTransacoes, selectedMonthData, showPendingInMonthlyChart])
-
-  useEffect(() => {
-    setSelectedMonthFilter('all')
-  }, [selectedMonthData?.monthIndex, selectedMonthData?.year])
 
   const selectedMonthTotals = useMemo(() => {
     return selectedMonthTransactions.reduce((acc, transacao) => {
