@@ -2,9 +2,12 @@ FROM node:20-alpine AS build
 WORKDIR /app
 COPY package*.json ./
 # Instalar com devDependencies para build (vite é necessário)
-RUN if [ -f package-lock.json ]; then npm ci --legacy-peer-deps; else npm install --legacy-peer-deps; fi && rm -f bun.lockb
+# --no-audit reduz consumo de RAM durante npm install
+RUN if [ -f package-lock.json ]; then npm ci --legacy-peer-deps --no-audit; else npm install --legacy-peer-deps --no-audit; fi && rm -f bun.lockb
 COPY . .
-RUN npm run build && ls -la dist/
+# NODE_OPTIONS para otimizar vite build em VPS com pouca RAM
+ENV NODE_OPTIONS=--max-old-space-size=1024
+RUN npm run build && ls -la dist/ && npm cache clean --force
 
 FROM nginx:alpine
 COPY --from=build /app/dist /usr/share/nginx/html
