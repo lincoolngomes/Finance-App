@@ -71,10 +71,11 @@ export function ImportarFaturaModalNovo({ open, onClose, onImport, cartoes, init
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
   const [criarParcelasFuturas, setCriarParcelasFuturas] = useState(true);
   const [modoImportacao, setModoImportacao] = useState<'ambas' | 'somente_parceladas' | 'somente_nao_parceladas'>('ambas');
+  const [usarSemCategoria, setUsarSemCategoria] = useState(false);
   const [draftRestored, setDraftRestored] = useState(false);
   const [categoriasDespesa, setCategoriasDespesa] = useState<string[]>([
     'Alimentação', 'Transporte', 'Compras', 'Assinaturas', 'Saúde', 'Combustível', 'Lazer', 'Academia', 'Vestuário',
-    'Educação', 'Serviços', 'Utilidades'
+    'Educação', 'Serviços', 'Utilidades', 'Sem categoria'
   ]);
   const [categoriasReceita, setCategoriasReceita] = useState<string[]>([CATEGORIA_PAGAMENTO_FATURA]);
 
@@ -109,8 +110,14 @@ export function ImportarFaturaModalNovo({ open, onClose, onImport, cartoes, init
 
   const categoriasDespesaDropdown = useMemo(
     () => {
-      // Mescla categorias padrão com categorias das regras
-      const todasCategorias = new Set([...categoriasDespesa, ...categoriasExtraidasDasRegras]);
+      // Mescla categorias padrão com categorias das regras, excluindo categorias de receita
+      const categoriasReceitaNorm = new Set(
+        categoriasReceita.map(c => normalizar(c))
+      );
+      const categoriasRegrasValidas = categoriasExtraidasDasRegras.filter(
+        c => !categoriasReceitaNorm.has(normalizar(c))
+      );
+      const todasCategorias = new Set([...categoriasDespesa, ...categoriasRegrasValidas]);
       return normalizarListaCategorias(
         Array.from(todasCategorias).map((nome) => ({
           value: nome,
@@ -120,7 +127,7 @@ export function ImportarFaturaModalNovo({ open, onClose, onImport, cartoes, init
         }))
       );
     },
-    [categoriasDespesa, categoriasExtraidasDasRegras]
+    [categoriasDespesa, categoriasExtraidasDasRegras, categoriasReceita]
   );
   const categoriasReceitaDropdown = useMemo(
     () =>
@@ -989,7 +996,18 @@ export function ImportarFaturaModalNovo({ open, onClose, onImport, cartoes, init
       if (t.tipo === 'pagamento' || t.tipo === 'estorno') return false;
       return !String(t.categoria || '').trim();
     });
-    if (pendentesCategoria.length > 0) {
+    
+    // Se o toggle "Usar Sem categoria" está ativado, aplica "Sem categoria" aos itens pendentes
+    let transacoesParaImportar = transacoesSelecionadas;
+    if (usarSemCategoria && pendentesCategoria.length > 0) {
+      transacoesParaImportar = transacoesSelecionadas.map(t => {
+        if (t.tipo === 'pagamento' || t.tipo === 'estorno') return t;
+        if (!String(t.categoria || '').trim()) {
+          return { ...t, categoria: 'Sem categoria' };
+        }
+        return t;
+      });
+    } else if (pendentesCategoria.length > 0) {
       toast({
         title: 'Categoria pendente',
         description: `${pendentesCategoria.length} lançamento(s) sem categoria. Preencha antes de importar.`,
@@ -1001,7 +1019,7 @@ export function ImportarFaturaModalNovo({ open, onClose, onImport, cartoes, init
     setLoading(true);
     try {
       const result = await onImport(
-        transacoesSelecionadas,
+        transacoesParaImportar,
         cartaoSelecionado,
         regrasTexto,
         mesReferencia,
@@ -1241,6 +1259,21 @@ export function ImportarFaturaModalNovo({ open, onClose, onImport, cartoes, init
                   value={regrasTexto}
                   onChange={e => setRegrasTexto(e.target.value)}
                 />
+                
+                <div className="mt-4 p-3 rounded-lg border border-slate-700 bg-slate-800/30">
+                  <label className="flex items-center gap-2 text-sm text-slate-300 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={usarSemCategoria}
+                      onChange={(e) => setUsarSemCategoria(e.target.checked)}
+                      className="w-4 h-4 rounded border-slate-600 text-blue-500 focus:ring-blue-500/20"
+                    />
+                    Usar "Sem categoria" para itens não categorizados
+                  </label>
+                  <p className="text-xs text-slate-400 mt-1.5 ml-6">
+                    Marcado: itens sem categoria serão importados como "Sem categoria". Desmarcado: será necessário categorizar todos.
+                  </p>
+                </div>
               </div>
 
               <div className="mb-6">

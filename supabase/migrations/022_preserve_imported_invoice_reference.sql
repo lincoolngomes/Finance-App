@@ -1,6 +1,3 @@
--- Padroniza status e referência de fatura para transações de cartão
--- Execute no Supabase SQL Editor
-
 ALTER TABLE public.transacoes ADD COLUMN IF NOT EXISTS status VARCHAR(30);
 ALTER TABLE public.transacoes ADD COLUMN IF NOT EXISTS fatura_mes INTEGER;
 ALTER TABLE public.transacoes ADD COLUMN IF NOT EXISTS fatura_ano INTEGER;
@@ -18,16 +15,13 @@ DECLARE
   v_compra_dia INTEGER := EXTRACT(DAY FROM v_data);
   v_vencimento DATE;
 BEGIN
-  -- Compra no cartão de crédito
   IF NEW.cartao_id IS NOT NULL THEN
-    -- Prioriza tabela cartoes
     SELECT COALESCE(c.dia_fechamento, 1), COALESCE(c.dia_vencimento, 10)
       INTO v_dia_fechamento, v_dia_vencimento
       FROM public.cartoes c
      WHERE c.id = NEW.cartao_id
      LIMIT 1;
 
-    -- Fallback legado (accounts)
     IF NOT FOUND THEN
       SELECT COALESCE(NULLIF(a.dia_fechamento, '')::INTEGER, 1),
              COALESCE(NULLIF(a.dia_vencimento, '')::INTEGER, 10)
@@ -37,13 +31,7 @@ BEGIN
        LIMIT 1;
     END IF;
 
-    -- Se a importação já definiu explicitamente o mês/ano da fatura,
-    -- preserva essa referência ao invés de recalcular pela data da compra.
     IF NEW.fatura_mes IS NULL OR NEW.fatura_ano IS NULL THEN
-      -- Mês de referência = mês de vencimento da fatura
-      -- Regra alinhada ao app web (GerenciarFaturasModal):
-      -- se fechamento >= vencimento: compra até fechamento cai no mês+1, após fechamento mês+2
-      -- se fechamento <  vencimento: compra até fechamento cai no mês+0, após fechamento mês+1
       IF v_dia_fechamento >= v_dia_vencimento THEN
         v_add_months := CASE WHEN v_compra_dia <= v_dia_fechamento THEN 1 ELSE 2 END;
       ELSE
@@ -56,7 +44,6 @@ BEGIN
       NEW.fatura_ano := EXTRACT(YEAR FROM v_vencimento)::INTEGER;
     END IF;
 
-    -- Cartão nasce em aberto por padrão
     IF NEW.pago IS NULL THEN
       NEW.pago := FALSE;
     END IF;
@@ -64,9 +51,7 @@ BEGIN
     IF COALESCE(NEW.status, '') = '' THEN
       NEW.status := CASE WHEN NEW.pago THEN 'pago' ELSE 'pendente_fatura' END;
     END IF;
-
   ELSE
-    -- Transação de conta
     NEW.fatura_mes := NULL;
     NEW.fatura_ano := NULL;
 
@@ -91,7 +76,6 @@ ON public.transacoes
 FOR EACH ROW
 EXECUTE FUNCTION public.definir_status_e_fatura_transacao();
 
--- Corrige importações antigas com referência explícita em observação.
 WITH refs AS (
   SELECT
     t.id,
@@ -111,12 +95,3 @@ WHERE t.id = refs.id
     t.fatura_mes IS DISTINCT FROM refs.ref_mes
     OR t.fatura_ano IS DISTINCT FROM refs.ref_ano
   );
-
--- Correção retroativa do legado
-UPDATE public.transacoes
-SET status = CASE
-  WHEN cartao_id IS NOT NULL AND COALESCE(pago, FALSE) = FALSE THEN 'pendente_fatura'
-  WHEN COALESCE(pago, FALSE) = TRUE THEN 'pago'
-  ELSE 'pendente'
-END
-WHERE status IS NULL OR status = '';

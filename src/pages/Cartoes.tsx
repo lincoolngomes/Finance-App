@@ -511,11 +511,16 @@ export default function Cartoes({ isModal = false }) {
     anoReferencia?: string,
     options?: { criarParcelasFuturas?: boolean }
   ) {
+    console.log('📥 handleImportFatura chamado com:', { mesReferencia, anoReferencia, transacoesCount: transacoes?.length })
+    
     // Salvar regras no localStorage é feito no componente
     const CATEGORIA_PAGAMENTO_FATURA = 'Pagamento de Fatura';
     const refFatura = mesReferencia && anoReferencia ? `${mesReferencia}/${anoReferencia}` : null;
     const faturaMes = mesReferencia ? parseInt(mesReferencia) : null;
     const faturaAno = anoReferencia ? parseInt(anoReferencia) : null;
+    
+    console.log('📥 faturaMes:', faturaMes, 'faturaAno:', faturaAno)
+    
     const criarParcelasFuturas = options?.criarParcelasFuturas ?? true;
     let totalParcelasFuturasCriadas = 0;
     const faltandoCategoria = (transacoes || []).filter((t: any) => {
@@ -688,8 +693,9 @@ export default function Cartoes({ isModal = false }) {
         ...(categoriaId ? { categoria_id: categoriaId } : {}),
         ...(refFatura ? { observacao: `Fatura ${refFatura}` } : {}),
         ...(suportaCamposParcela && parcelaInfo ? { parcela_atual: parcelaInfo.atual, total_parcelas: parcelaInfo.total } : {}),
-        ...(faturaMes ? { fatura_mes: faturaMes } : {}),
-        ...(faturaAno ? { fatura_ano: faturaAno } : {}),
+        // Sempre usar o mês/ano de referência selecionado pelo usuário
+        fatura_mes: faturaMes ?? (baseData.getUTCMonth() + 1),
+        fatura_ano: faturaAno ?? baseData.getUTCFullYear(),
       });
 
       if (

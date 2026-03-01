@@ -261,7 +261,8 @@ export function GerenciarFaturasModal({
 
   useEffect(() => {
     setSelectedIds(new Set())
-  }, [selectedCard, selectedMonth, selectedYear, filtroParceladas, open])
+    setFiltroParceladas(false) // Reset filtro ao mudar de fatura
+  }, [selectedCard, selectedMonth, selectedYear, open])
 
   async function fetchCartoes() {
     if (!user?.id) {
@@ -369,6 +370,17 @@ export function GerenciarFaturasModal({
     }
   }
 
+  function extrairReferenciaImportada(observacao?: string | null): { mes: number; ano: number } | null {
+    const match = String(observacao || '').match(/^\s*Fatura\s+(\d{2})\/(\d{4})\s*$/i)
+    if (!match) return null
+
+    const mes = parseInt(match[1], 10)
+    const ano = parseInt(match[2], 10)
+    if (Number.isNaN(mes) || Number.isNaN(ano)) return null
+
+    return { mes, ano }
+  }
+
   async function calcularFatura(overrideCardId?: string, overrideMonth?: string, overrideYear?: string) {
     const cardId = overrideCardId || selectedCard
     const month = overrideMonth || selectedMonth
@@ -396,9 +408,20 @@ export function GerenciarFaturasModal({
 
     const mesNum = parseInt(month)
     const anoNum = parseInt(year)
+    const referenciaImportada = `Fatura ${month}/${year}`
 
-    // Buscar transações por fatura_mes/fatura_ano (prioridade)
-    // OU por período de data (fallback para transações antigas sem fatura_mes/fatura_ano)
+    // Prioridade 1: importações com referência explícita escolhida pelo usuário.
+    const { data: transacoesReferenciaImportada, error: errorReferenciaImportada } = await supabase
+      .from('transacoes')
+      .select(`
+        *,
+        categorias(id, nome)
+      `)
+      .eq('cartao_id', cardId)
+      .eq('observacao', referenciaImportada)
+      .order('data', { ascending: false })
+
+    // Prioridade 2: transações já gravadas corretamente em fatura_mes/fatura_ano.
     const { data: transacoesFatura, error: errorFatura } = await supabase
       .from('transacoes')
       .select(`
@@ -414,7 +437,8 @@ export function GerenciarFaturasModal({
     const inicioISO = new Date(new Date(inicioPeriodo).setHours(0,0,0,0)).toISOString()
     const fimISO = new Date(new Date(fimPeriodo).setHours(23,59,59,999)).toISOString()
 
-    // Fallback: buscar por data para transações que não têm fatura_mes/fatura_ano
+    // Fallback: buscar por data SOMENTE para transações que NÃO têm fatura_mes/fatura_ano
+    // Isso evita trazer transações de outras faturas só pela data
     const { data: transacoesPeriodo, error: errorPeriodo } = await supabase
       .from('transacoes')
       .select(`
@@ -424,18 +448,34 @@ export function GerenciarFaturasModal({
       .eq('cartao_id', cardId)
       .gte('data', inicioISO)
       .lte('data', fimISO)
+      .is('fatura_mes', null)
       .order('data', { ascending: false })
 
-    const error = errorFatura || errorPeriodo
-    console.debug('[Faturas] query results', { transacoesFaturaCount: (transacoesFatura||[]).length, transacoesPeriodoCount: (transacoesPeriodo||[]).length, errorFatura, errorPeriodo, inicioISO, fimISO })
-    // Combinar e deduplicar
-    const allTransacoes = [...(transacoesFatura || []), ...(transacoesPeriodo || [])]
-    const seen = new Set<number>()
+    const error = errorReferenciaImportada || errorFatura || errorPeriodo
+
+    // Combinar e deduplicar respeitando a referência explícita da importação.
+    const allTransacoes = [
+      ...(transacoesReferenciaImportada || []),
+      ...(transacoesFatura || []),
+      ...(transacoesPeriodo || []),
+    ]
+    const seen = new Set<string>()
     const transacoes = allTransacoes.filter(t => {
-      if (seen.has(t.id)) return false
-      seen.add(t.id)
+      const id = String(t.id)
+      if (seen.has(id)) return false
+
+      const referenciaObservacao = extrairReferenciaImportada(t.observacao)
+      const pertenceAFatura = referenciaObservacao
+        ? referenciaObservacao.mes === mesNum && referenciaObservacao.ano === anoNum
+        : t.fatura_mes != null && t.fatura_ano != null
+          ? Number(t.fatura_mes) === mesNum && Number(t.fatura_ano) === anoNum
+          : true
+
+      if (!pertenceAFatura) return false
+
+      seen.add(id)
       return true
-    })
+    }).sort((a, b) => String(b.data || b.quando || '').localeCompare(String(a.data || a.quando || '')))
 
     if (error) {
       console.error('Erro ao buscar transações:', error)
@@ -501,8 +541,8 @@ export function GerenciarFaturasModal({
     const todasPagas = transacoesDespesa.length > 0 && transacoesDespesa.every(t => t.pago === true)
 
     setFatura({
-      mes: selectedMonth,
-      ano: selectedYear,
+      mes: month,
+      ano: year,
       dataFechamento: fechamento,
       dataVencimento: vencimento,
       transacoes: transacoes || [],
@@ -791,6 +831,48 @@ export function GerenciarFaturasModal({
     }
   }
 
+  async function deleteAllFromCard() {
+    if (!selectedCard) {
+      toast({ title: 'Selecione um cartão', variant: 'destructive' })
+      return
+    }
+
+    const cartaoNome = cartoes.find(c => c.id === selectedCard)?.nome || 'este cartão'
+
+    if (!window.confirm(`⚠️ ATENÇÃO: Isso irá EXCLUIR PERMANENTEMENTE TODOS os lançamentos do cartão "${cartaoNome}".\n\nEssa ação NÃO pode ser desfeita!\n\nDeseja continuar?`)) return
+
+    setDeleting(true)
+    try {
+      const { data: transacoes, error: fetchError } = await supabase
+        .from('transacoes')
+        .select('id')
+        .eq('cartao_id', selectedCard)
+        .eq('user_id', user?.id)
+
+      if (fetchError) throw fetchError
+
+      if (!transacoes || transacoes.length === 0) {
+        toast({ title: 'Nenhum lançamento encontrado para este cartão' })
+        return
+      }
+
+      const { error } = await supabase
+        .from('transacoes')
+        .delete()
+        .eq('cartao_id', selectedCard)
+        .eq('user_id', user?.id)
+
+      if (error) throw error
+
+      toast({ title: `${transacoes.length} lançamentos excluídos ✅`, description: `Todos os lançamentos do cartão "${cartaoNome}" foram removidos.` })
+      calcularFatura()
+    } catch (err: any) {
+      toast({ title: 'Erro ao excluir', description: err.message, variant: 'destructive' })
+    } finally {
+      setDeleting(false)
+    }
+  }
+
   return (
     <>
     <Dialog open={open} onOpenChange={onClose}>
@@ -974,6 +1056,18 @@ export function GerenciarFaturasModal({
                     <p className="text-xs text-muted-foreground mb-1">Vencimento</p>
                     <p className="font-semibold">Dia {cartaoSelecionado.dia_vencimento || '10'}</p>
                   </div>
+                </div>
+                <div className="mt-3 pt-3 border-t border-border flex justify-end">
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={deleteAllFromCard}
+                    disabled={deleting}
+                    className="gap-1.5 text-xs"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                    {deleting ? 'Excluindo...' : 'Excluir Todos os Lançamentos'}
+                  </Button>
                 </div>
               </CardContent>
             </Card>
