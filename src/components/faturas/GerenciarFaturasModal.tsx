@@ -579,7 +579,7 @@ export function GerenciarFaturasModal({
 
     try {
       const cartao = cartoes.find(c => c.id === selectedCard)
-      const contaDebitoId = contaPagamentoId || cartao?.linked_account_id || null
+      const contaDebitoId = contaPagamentoId || null
       
       // Marcar todas as transações da fatura como pagas
       const transactionIds = fatura.transacoes.map(t => t.id)
@@ -954,8 +954,7 @@ export function GerenciarFaturasModal({
                 ) : (
                   <Button 
                     onClick={() => {
-                      const cartaoSelecionado = cartoes.find(c => c.id === selectedCard)
-                      setContaPagamentoId(cartaoSelecionado?.linked_account_id || contas[0]?.id || '')
+                      setContaPagamentoId('')
                       setDataPagamento(format(new Date(), 'yyyy-MM-dd'))
                       setShowPagarDialog(true)
                     }} 
@@ -1524,7 +1523,7 @@ export function GerenciarFaturasModal({
               </SelectContent>
             </Select>
             <p className="text-xs text-muted-foreground mt-2">
-              O pagamento da fatura será lançado como despesa na conta escolhida.
+              Opcional. Se selecionar uma conta, o pagamento sera lancado como despesa nela.
             </p>
           </div>
         </div>
