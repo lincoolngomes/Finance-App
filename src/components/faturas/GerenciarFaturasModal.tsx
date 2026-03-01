@@ -102,11 +102,10 @@ export function GerenciarFaturasModal({
   const [filtroParceladas, setFiltroParceladas] = useState(false)
   const [showPagarDialog, setShowPagarDialog] = useState(false)
   const [dataPagamento, setDataPagamento] = useState(format(new Date(), 'yyyy-MM-dd'))
-  const [contaPagamentoId, setContaPagamentoId] = useState<string>('__none__')
+  const [contaPagamentoId, setContaPagamentoId] = useState<string>('')
 
   // Flag para forçar cálculo da fatura após setar estados
   const shouldForceCalcularFatura = useRef(false)
-  const initializedOnOpenRef = useRef(false)
 
   const meses = [
     { value: '01', label: 'Janeiro' },
@@ -157,47 +156,39 @@ export function GerenciarFaturasModal({
   }
 
   useEffect(() => {
-    if (!open) {
-      initializedOnOpenRef.current = false
-      return
+    if (open && user) {
+      fetchCartoes()
+      fetchContas()
+      fetchCategorias()
+      // Carregar regras salvas
+      const saved = localStorage.getItem('regrasFatura')
+      if (saved) setRegrasTexto(saved)
+
+      // Restaurar rascunho para não perder contexto ao navegar
+      let draft: any = null
+      try {
+        const raw = localStorage.getItem(DRAFT_KEY)
+        draft = raw ? JSON.parse(raw) : null
+      } catch {
+        draft = null
+      }
+
+      // Prioridade: inicial explícito -> rascunho -> estado atual
+      if (initialCardId) setSelectedCard(initialCardId)
+      else if (draft?.selectedCard) setSelectedCard(draft.selectedCard)
+
+      if (initialMonth) setSelectedMonth(initialMonth)
+      else setSelectedMonth('')
+
+      if (initialYear) setSelectedYear(initialYear)
+      else setSelectedYear('')
+
+      if (!initialMonth && !initialYear) {
+        if (typeof draft?.showRegras === 'boolean') setShowRegras(draft.showRegras)
+        if (typeof draft?.filtroParceladas === 'boolean') setFiltroParceladas(draft.filtroParceladas)
+      }
+      shouldForceCalcularFatura.current = true
     }
-    if (initializedOnOpenRef.current) return
-    if (!user) return
-
-    initializedOnOpenRef.current = true
-    fetchCartoes()
-    fetchContas()
-    fetchCategorias()
-    // Carregar regras salvas
-    const saved = localStorage.getItem('regrasFatura')
-    if (saved) setRegrasTexto(saved)
-
-    // Restaurar rascunho para não perder contexto ao navegar
-    let draft: any = null
-    try {
-      const raw = localStorage.getItem(DRAFT_KEY)
-      draft = raw ? JSON.parse(raw) : null
-    } catch {
-      draft = null
-    }
-
-    // Prioridade: inicial explícito -> rascunho -> vazio
-    if (initialCardId) setSelectedCard(initialCardId)
-    else if (draft?.selectedCard) setSelectedCard(draft.selectedCard)
-
-    if (initialMonth) setSelectedMonth(initialMonth)
-    else if (draft?.selectedMonth) setSelectedMonth(draft.selectedMonth)
-    else setSelectedMonth('')
-
-    if (initialYear) setSelectedYear(initialYear)
-    else if (draft?.selectedYear) setSelectedYear(draft.selectedYear)
-    else setSelectedYear('')
-
-    if (!initialMonth && !initialYear) {
-      if (typeof draft?.showRegras === 'boolean') setShowRegras(draft.showRegras)
-      if (typeof draft?.filtroParceladas === 'boolean') setFiltroParceladas(draft.filtroParceladas)
-    }
-    shouldForceCalcularFatura.current = true
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, user, initialCardId, initialMonth, initialYear])
 
@@ -219,7 +210,6 @@ export function GerenciarFaturasModal({
   useEffect(() => {
     if (!open || initialMonth || initialYear) return
     if (!selectedCard || !cartoes.length) return
-    if (selectedMonth && selectedYear) return
     const cartao = cartoes.find(c => c.id === selectedCard)
     if (!cartao) return
 
@@ -227,7 +217,7 @@ export function GerenciarFaturasModal({
     setSelectedMonth(ref.mes)
     setSelectedYear(ref.ano)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, selectedCard, cartoes, initialMonth, initialYear, selectedMonth, selectedYear])
+  }, [open, selectedCard, cartoes, initialMonth, initialYear])
 
   useEffect(() => {
     if (!open) return
@@ -252,35 +242,27 @@ export function GerenciarFaturasModal({
       console.log('⚠️ User não carregado ainda em GerenciarFaturasModal')
       return
     }
-    const { data, error } = await supabase
-      .from('cartoes')
-      .select('*')
-      .eq('user_id', user.id)
-
+    
+    // Buscar cartões E contas em paralelo para evitar sequential bottleneck
+    const [cartResult, accResult] = await Promise.all([
+      supabase.from('cartoes').select('*').eq('user_id', user.id),
+      supabase.from('accounts').select('id, nome, banco').eq('user_id', user.id)
+    ])
+    
+    const { data, error } = cartResult
+    const { data: accounts } = accResult
+    
     if (error) {
       console.error('Erro ao buscar cartões:', error)
       return
     }
 
-    // Tentar popular o campo `banco` a partir das contas vinculadas, se possível
-    let enriched = data || []
-    try {
-      const { data: accounts } = await supabase
-        .from('accounts')
-        .select('id, nome, banco')
-        .eq('user_id', user.id)
-
-      if (accounts && accounts.length > 0) {
-        const accMap = new Map((accounts || []).map((a: any) => [a.id, a]))
-        enriched = (data || []).map((c: any) => ({
-          ...c,
-          banco: c.banco || accMap.get(c.linked_account_id)?.nome || accMap.get(c.linked_account_id)?.banco || c.banco
-        }))
-      }
-    } catch (e) {
-      // não crítico
-      console.debug('[Faturas] erro ao enriquecer cartões com accounts', e)
-    }
+    // Mapear accounts e enriquecer cartões em uma única passada
+    const accMap = new Map((accounts || []).map((a: any) => [a.id, a]))
+    const enriched = (data || []).map((c: any) => ({
+      ...c,
+      banco: c.banco || accMap.get(c.linked_account_id)?.nome || accMap.get(c.linked_account_id)?.banco
+    }))
 
     setCartoes(enriched)
     // Não sobrescreve selectedCard se já foi setado pelo initialCardId
@@ -289,8 +271,8 @@ export function GerenciarFaturasModal({
     }
 
     // Se a abertura veio do dashboard (flag setada), forçar cálculo imediatamente usando os valores disponíveis
-    if (shouldForceCalcularFatura.current) {
-      const cardToUse = selectedCard || initialCardId || (enriched && enriched[0]?.id)
+    if (shouldForceCalcularFatura.current && enriched.length > 0) {
+      const cardToUse = selectedCard || initialCardId || enriched[0]?.id
       const monthToUse = selectedMonth || initialMonth
       const yearToUse = selectedYear || initialYear
       if (cardToUse && monthToUse && yearToUse) {
@@ -514,45 +496,26 @@ export function GerenciarFaturasModal({
 
     try {
       const cartao = cartoes.find(c => c.id === selectedCard)
-      const contaDebitoId = contaPagamentoId && contaPagamentoId !== '__none__' ? contaPagamentoId : null
-      const valorPagamento = Math.max(0, Number(fatura.totalEmAberto ?? fatura.total ?? 0))
-      const descricaoPagamento = `Pagamento Fatura ${cartao?.nome || ''} - ${fatura.mes}/${fatura.ano}`
+      const contaDebitoId = contaPagamentoId || cartao?.linked_account_id || null
       
       // Marcar todas as transações da fatura como pagas
-      const transactionIds = fatura.transacoes.map(t => t.id).filter(Boolean)
-      if (transactionIds.length > 0) {
-        const { error: updateError } = await supabase
-          .from('transacoes')
-          .update({ pago: true })
-          .in('id', transactionIds)
+      const transactionIds = fatura.transacoes.map(t => t.id)
+      const { error: updateError } = await supabase
+        .from('transacoes')
+        .update({ pago: true })
+        .in('id', transactionIds)
 
-        if (updateError) throw updateError
-      }
+      if (updateError) throw updateError
 
-      // Segurança extra: garante atualização também por referência de fatura do cartão
-      const mesNum = Number(selectedMonth)
-      const anoNum = Number(selectedYear)
-      if (!Number.isNaN(mesNum) && !Number.isNaN(anoNum)) {
-        const { error: refUpdateError } = await supabase
-          .from('transacoes')
-          .update({ pago: true })
-          .eq('user_id', user?.id)
-          .eq('cartao_id', selectedCard)
-          .eq('fatura_mes', mesNum)
-          .eq('fatura_ano', anoNum)
-
-        if (refUpdateError) throw refUpdateError
-      }
-
-      // Se houver conta selecionada, criar débito automático (somente se houver valor)
-      if (contaDebitoId && valorPagamento > 0) {
+      // Se houver conta selecionada/vinculada, criar débito automático
+      if (contaDebitoId) {
         const { error: debitoError } = await supabase
           .from('transacoes')
           .insert({
             user_id: user?.id,
             data: dataPagamento || new Date().toISOString().split('T')[0],
-            descricao: descricaoPagamento,
-            valor: valorPagamento,
+            descricao: `Pagamento Fatura ${cartao.nome} - ${fatura.mes}/${fatura.ano}`,
+            valor: fatura.total,
             tipo: 'despesa',
             conta_id: contaDebitoId,
             pago: true,
@@ -562,18 +525,9 @@ export function GerenciarFaturasModal({
 
         toast({
           title: 'Fatura paga! ✅',
-          description: `${formatCurrency(valorPagamento)} debitado da conta selecionada`,
+          description: `${formatCurrency(fatura.total)} debitado da conta selecionada`,
         })
       } else {
-        // Remove eventuais lançamentos antigos de pagamento automático (bug anterior)
-        await supabase
-          .from('transacoes')
-          .delete()
-          .eq('user_id', user?.id)
-          .eq('descricao', descricaoPagamento)
-          .eq('tipo', 'despesa')
-          .is('cartao_id', null)
-
         toast({
           title: 'Fatura marcada como paga! ✅',
           description: 'As transações foram atualizadas (sem débito em conta)',
@@ -581,8 +535,8 @@ export function GerenciarFaturasModal({
       }
 
       setShowPagarDialog(false)
-      setContaPagamentoId('__none__')
-      await calcularFatura(selectedCard, selectedMonth, selectedYear) // Recarrega a fatura
+      setContaPagamentoId('')
+      calcularFatura() // Recarrega a fatura
     } catch (error: any) {
       console.error('Erro ao pagar fatura:', error)
       toast({
@@ -876,7 +830,7 @@ export function GerenciarFaturasModal({
                   <Button 
                     onClick={() => {
                       const cartaoSelecionado = cartoes.find(c => c.id === selectedCard)
-                      setContaPagamentoId(cartaoSelecionado?.linked_account_id || contas[0]?.id || '__none__')
+                      setContaPagamentoId(cartaoSelecionado?.linked_account_id || contas[0]?.id || '')
                       setDataPagamento(format(new Date(), 'yyyy-MM-dd'))
                       setShowPagarDialog(true)
                     }} 
@@ -1039,7 +993,7 @@ export function GerenciarFaturasModal({
                   <CardContent className="p-3">
                     <div className="flex items-center gap-1.5 mb-1">
                       <DollarSign className={`h-3.5 w-3.5 ${fatura.paga ? 'text-green-500' : 'text-red-500'}`} />
-                      <p className="text-xs text-muted-foreground">{fatura.paga ? 'Total da Fatura' : 'Saldo da Fatura (mês selecionado)'}</p>
+                      <p className="text-xs text-muted-foreground">{fatura.paga ? 'Total da Fatura' : 'Saldo em Aberto'}</p>
                     </div>
                     <p className={`text-xl font-bold ${fatura.paga ? 'text-green-500' : 'text-red-500'}`}>
                       {formatCurrency(fatura.paga ? fatura.total : (fatura.totalEmAberto ?? fatura.total))}
@@ -1085,9 +1039,6 @@ export function GerenciarFaturasModal({
                   </CardContent>
                 </Card>
               </div>
-              <p className="text-xs text-muted-foreground mt-2">
-                Este resumo considera apenas as transações da fatura selecionada (mês/ano). Se houver saldo financiado de fatura anterior, o total do banco pode ser diferente.
-              </p>
 
               {/* Lista de Transações */}
               <div>
@@ -1406,7 +1357,7 @@ export function GerenciarFaturasModal({
             Pagar Fatura
           </DialogTitle>
           <DialogDescription>
-            {fatura && `Valor: ${formatCurrency(fatura.totalEmAberto ?? fatura.total)}`}
+            {fatura && `Valor: ${formatCurrency(fatura.total)}`}
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4 py-2">
@@ -1421,7 +1372,7 @@ export function GerenciarFaturasModal({
           </div>
           <div>
             <Label className="text-sm font-medium mb-2 block">Conta de débito</Label>
-            <Select value={contaPagamentoId || '__none__'} onValueChange={setContaPagamentoId}>
+            <Select value={contaPagamentoId || '__none__'} onValueChange={(value) => setContaPagamentoId(value === '__none__' ? '' : value)}>
               <SelectTrigger>
                 <SelectValue placeholder="Selecione a conta para débito" />
               </SelectTrigger>

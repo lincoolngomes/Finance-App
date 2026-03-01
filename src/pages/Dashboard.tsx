@@ -116,38 +116,57 @@ export default function Dashboard() {
     const fetchData = async () => {
       try {
         setLoading(true)
-        // Buscar transações
-        const { data: transacoesData, error: transacoesError } = await supabase
-          .from('transacoes')
-          .select(`
-            *,
-            categorias (
-              id,
-              nome
-            )
-          `)
-          .eq('user_id', user?.id)
-          .order('created_at', { ascending: false })
+        
+        // Buscar TODAS as queries em paralelo, não sequencialmente
+        const [transResult, lemResult, contasResult, cartoesResult, categResult] = await Promise.all([
+          supabase
+            .from('transacoes')
+            .select(`
+              *,
+              categorias (
+                id,
+                nome
+              )
+            `)
+            .eq('user_id', user?.id)
+            .order('created_at', { ascending: false }),
+          supabase
+            .from('lembretes')
+            .select('*')
+            .eq('userid', user?.id)
+            .order('data', { ascending: true }),
+          supabase
+            .from('accounts')
+            .select('*')
+            .eq('user_id', user?.id),
+          supabase
+            .from('cartoes')
+            .select('id, nome, dia_fechamento, bandeira, cor, limite')
+            .eq('user_id', user?.id),
+          supabase
+            .from('categorias')
+            .select('id, nome')
+            .eq('user_id', user?.id)
+        ])
+
+        const { data: transacoesData, error: transacoesError } = transResult
+        const { data: lembretesData, error: lembretesError } = lemResult
+        const { data: contasData, error: contasError } = contasResult
+        const { data: cartoesData } = cartoesResult
+        const { data: categoriasData } = categResult
 
         if (import.meta.env.DEV) {
-          console.log('Resultado bruto transacoes:', transacoesData)
-          if (transacoesError) {
-            console.error('Erro ao buscar transacoes:', transacoesError)
-          }
+          console.log('Resultado bruto transacoes:', transacoesData?.length || 0)
+          if (transacoesError) console.error('Erro ao buscar transacoes:', transacoesError)
         }
 
         if (transacoesError) throw transacoesError
+        if (lembretesError) throw lembretesError
 
         // Aplicar categorização retroativa para transações sem categoria
         if (transacoesData) {
           const { categorizar, REGRAS_PADRAO } = await import('@/utils/categorizacao');
           const regrasTexto = localStorage.getItem('regrasFatura') || REGRAS_PADRAO;
-          
-          // Buscar todas as categorias do usuário
-          const { data: categoriasData } = await supabase
-            .from('categorias')
-            .select('id, nome')
-            .eq('user_id', user?.id);
           
           const categoriasMap = new Map((categoriasData || []).map(c => [c.nome?.toLowerCase(), c]));
           
@@ -170,50 +189,25 @@ export default function Dashboard() {
                 if (cat) {
                   t.categoria_id = cat.id;
                   t.categorias = { id: cat.id, nome: cat.nome };
-                  // Salvar no banco em background
+                  // Salvar no banco em background (não bloqueia)
                   supabase.from('transacoes').update({ categoria_id: cat.id }).eq('id', t.id).then();
                 }
               }
             }
             // Corrigir status de cartão (apenas em memória, sem salvar no banco)
-            if (t.cartao_id) {
-              t.status = isTransacaoPaga(t) ? 'pago' : 'pendente_fatura';
+            if (t.cartao_id && t.pago !== undefined) {
+              t.status = t.pago ? 'pago' : 'pendente_fatura';
             }
           }
         }
 
-        // Buscar lembretes
-        const { data: lembretesData, error: lembretesError } = await supabase
-          .from('lembretes')
-          .select('*')
-          .eq('userid', user?.id)
-          .order('data', { ascending: true })
-
-        if (lembretesError) throw lembretesError
-
-        // Buscar contas do usuário (usadas para cálculo de saldo por conta)
-        const { data: contasData, error: contasError } = await supabase
-          .from('accounts')
-          .select('*')
-          .eq('user_id', user?.id)
-
-        if (!contasError) setContas(contasData || [])
-
-        // Buscar cartões do usuário (precisamos do dia_fechamento + nome para exibição)
-        const { data: cartoesData } = await supabase
-          .from('cartoes')
-          .select('id, nome, dia_fechamento, bandeira, cor, limite')
-          .eq('user_id', user?.id)
-
-        if (cartoesData) setCartoes(cartoesData)
-
         // Enriquecer transações de cartão que não têm fatura_mes/fatura_ano
-        // Calcula baseado no dia_fechamento do cartão (mesma lógica de GerenciarFaturasModal)
         if (transacoesData && cartoesData && cartoesData.length > 0) {
           enrichCardTransactions(transacoesData, cartoesData)
         }
 
-        // Setar transações (já enriquecidas com fatura_mes/fatura_ano calculados)
+        if (!contasError) setContas(contasData || [])
+        if (cartoesData) setCartoes(cartoesData)
         setTransacoes(transacoesData || [])
         setLembretes(lembretesData || [])
       } catch (error: any) {
