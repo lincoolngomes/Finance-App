@@ -206,6 +206,32 @@ export function GerenciarFaturasModal({
     )
   }, [open, selectedCard, selectedMonth, selectedYear, showRegras, filtroParceladas])
 
+  // Recategorizar transações automaticamente quando as regras mudarem (igual ImportarExtrato)
+  useEffect(() => {
+    if (!fatura || !fatura.transacoes.length) return
+    
+    const transacoesRecategorizadas = fatura.transacoes.map(t => {
+      // Se já tem categoria definida no banco, mantém
+      if (t.categorias?.nome) return t
+      
+      // Aplica regra de categorização
+      const categoriaRegra = categorizar(t.descricao || t.estabelecimento || '', regrasTexto)
+      if (categoriaRegra) {
+        return { ...t, categoria: categoriaRegra }
+      }
+      return t
+    })
+    
+    // Só atualiza se houver mudança
+    const mudou = transacoesRecategorizadas.some((t, i) => 
+      t.categoria !== fatura.transacoes[i].categoria
+    )
+    
+    if (mudou) {
+      setFatura(prev => prev ? { ...prev, transacoes: transacoesRecategorizadas } : null)
+    }
+  }, [regrasTexto])
+
   // Definir período padrão correto da fatura ao selecionar cartão (quando não vier mês/ano inicial explícito)
   useEffect(() => {
     if (!open || initialMonth || initialYear) return
