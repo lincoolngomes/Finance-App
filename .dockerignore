@@ -10,7 +10,5 @@ README.md
 coverage
 .DS_Store
 .vscode
-dist
 build
-bun.lockb
 bun.lockb
