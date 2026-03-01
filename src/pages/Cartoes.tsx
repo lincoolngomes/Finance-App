@@ -440,6 +440,23 @@ export default function Cartoes({ isModal = false }) {
   const [deleteCartaoTarget, setDeleteCartaoTarget] = useState<any | null>(null);
   const [deleteCartaoTransacoesCount, setDeleteCartaoTransacoesCount] = useState(0);
 
+  async function fetchTransacoesCartao() {
+    if (!user?.id) return;
+
+    const { data: transData, error: transError } = await supabase
+      .from('transacoes')
+      .select('id, valor, tipo, cartao_id, data, descricao, fatura_mes, fatura_ano, pago')
+      .eq('user_id', user?.id);
+
+    console.log('📊 Transações carregadas:', transData?.length, 'Erro:', transError)
+    if (!transError && transData) {
+      setTransacoes(transData);
+    } else {
+      console.error('❌ Erro ao buscar transações:', transError)
+      setTransacoes([]);
+    }
+  }
+
   async function fetchCartoes() {
     setLoading(true);
     const { data, error } = await supabase
@@ -460,18 +477,7 @@ export default function Cartoes({ isModal = false }) {
       setCartoes(cartoesFormatados);
     }
     setLoading(false);
-    // Busca transações
-    const { data: transData, error: transError } = await supabase
-      .from('transacoes')
-      .select('id, valor, tipo, cartao_id, data, descricao, fatura_mes, fatura_ano')
-      .eq('user_id', user?.id);
-    console.log('📊 Transações carregadas:', transData?.length, 'Erro:', transError)
-    if (!transError && transData) {
-      setTransacoes(transData);
-    } else {
-      console.error('❌ Erro ao buscar transações:', transError)
-      setTransacoes([]);
-    }
+    await fetchTransacoesCartao();
   }
 
   useEffect(() => {
@@ -993,23 +999,23 @@ export default function Cartoes({ isModal = false }) {
             
             // Calcular saldo em aberto da PRÓXIMA fatura (apenas transações NÃO pagas)
             const totalDespesasProximaFatura = transacoesCartao
-              .filter(t => t.tipo === 'despesa' && !t.pago && isDaProximaFatura(t))
+              .filter(t => t.tipo === 'despesa' && t.pago !== true && isDaProximaFatura(t))
               .reduce((acc, t) => acc + Math.abs(t.valor || 0), 0);
             // Estornos = receitas que NÃO são pagamento de fatura e NÃO pagas (na próxima fatura)
             const totalEstornosProximaFatura = transacoesCartao
-              .filter(t => t.tipo === 'receita' && !isPagamentoFatura(t.descricao) && !t.pago && isDaProximaFatura(t))
+              .filter(t => t.tipo === 'receita' && !isPagamentoFatura(t.descricao) && t.pago !== true && isDaProximaFatura(t))
               .reduce((acc, t) => acc + Math.abs(t.valor || 0), 0);
             
             // Saldo em aberto = despesas não pagas - estornos não pagos (somente próxima fatura)
             const faturaAberta = Math.max(0, totalDespesasProximaFatura - totalEstornosProximaFatura);
-            const qtdDespesasProximaFatura = transacoesCartao.filter(t => t.tipo === 'despesa' && isDaProximaFatura(t)).length;
+            const qtdDespesasProximaFatura = transacoesCartao.filter(t => t.tipo === 'despesa' && t.pago !== true && isDaProximaFatura(t)).length;
 
             // Limite usado deve considerar TODO o saldo em aberto do cartão (não só próxima fatura)
             const totalDespesasAbertas = transacoesCartao
-              .filter(t => t.tipo === 'despesa' && !t.pago)
+              .filter(t => t.tipo === 'despesa' && t.pago !== true)
               .reduce((acc, t) => acc + Math.abs(t.valor || 0), 0);
             const totalEstornosAbertos = transacoesCartao
-              .filter(t => t.tipo === 'receita' && !isPagamentoFatura(t.descricao) && !t.pago)
+              .filter(t => t.tipo === 'receita' && !isPagamentoFatura(t.descricao) && t.pago !== true)
               .reduce((acc, t) => acc + Math.abs(t.valor || 0), 0);
             const limiteUsado = Math.max(0, totalDespesasAbertas - totalEstornosAbertos);
             
@@ -1299,7 +1305,8 @@ export default function Cartoes({ isModal = false }) {
       {/* Modal de Faturas */}
       <GerenciarFaturasModal 
         open={faturasOpen} 
-        onClose={() => { setFaturasOpen(false); setCartaoSelecionado(null); fetchCartoes(); }} 
+        onClose={() => { setFaturasOpen(false); setCartaoSelecionado(null); fetchTransacoesCartao(); }}
+        onDataChange={fetchTransacoesCartao}
         initialCardId={cartaoSelecionado}
         onImportClick={(cardId) => {
           setCartaoParaImportar(cardId);

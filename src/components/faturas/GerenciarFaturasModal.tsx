@@ -43,6 +43,7 @@ interface Transacao {
   descricao?: string
   valor: number
   tipo: string
+  pago?: boolean
   categoria?: string
   categorias?: { id: string; nome: string }
   conta_id?: string
@@ -71,6 +72,7 @@ interface Fatura {
 export function GerenciarFaturasModal({ 
   open, 
   onClose, 
+  onDataChange,
   initialCardId,
   onImportClick,
   initialMonth,
@@ -78,6 +80,7 @@ export function GerenciarFaturasModal({
 }: { 
   open: boolean
   onClose: () => void
+  onDataChange?: () => void | Promise<void>
   initialCardId?: string | null
   onImportClick?: (cardId: string) => void
   initialMonth?: string
@@ -381,6 +384,20 @@ export function GerenciarFaturasModal({
     return { mes, ano }
   }
 
+  async function notifyDataChange() {
+    if (!onDataChange) return
+
+    try {
+      await onDataChange()
+    } catch (error) {
+      console.error('Erro ao atualizar dados do cartão após alteração na fatura:', error)
+    }
+  }
+
+  async function refreshViews() {
+    await Promise.all([calcularFatura(), notifyDataChange()])
+  }
+
   async function calcularFatura(overrideCardId?: string, overrideMonth?: string, overrideYear?: string) {
     const cardId = overrideCardId || selectedCard
     const month = overrideMonth || selectedMonth
@@ -602,7 +619,7 @@ export function GerenciarFaturasModal({
 
       setShowPagarDialog(false)
       setContaPagamentoId('')
-      calcularFatura() // Recarrega a fatura
+      await refreshViews()
     } catch (error: any) {
       console.error('Erro ao pagar fatura:', error)
       toast({
@@ -649,7 +666,7 @@ export function GerenciarFaturasModal({
         description: 'As transações foram marcadas como pendentes e o débito foi removido',
       })
 
-      calcularFatura()
+      await refreshViews()
     } catch (error: any) {
       console.error('Erro ao reverter pagamento:', error)
       toast({
@@ -727,7 +744,7 @@ export function GerenciarFaturasModal({
 
       toast({ title: 'Transação atualizada ✅' })
       setEditingId(null)
-      calcularFatura()
+      await refreshViews()
     } catch (err: any) {
       toast({ title: 'Erro ao editar', description: err.message, variant: 'destructive' })
     }
@@ -783,7 +800,7 @@ export function GerenciarFaturasModal({
       }
 
       setSelectedIds(new Set())
-      calcularFatura()
+      await refreshViews()
     } catch (err: any) {
       toast({ title: 'Erro ao excluir', description: err.message, variant: 'destructive' })
     } finally {
@@ -825,7 +842,7 @@ export function GerenciarFaturasModal({
       if (error) throw error
 
       toast({ title: 'Transação excluída ✅' })
-      calcularFatura()
+      await refreshViews()
     } catch (err: any) {
       toast({ title: 'Erro ao excluir', description: err.message, variant: 'destructive' })
     }
@@ -865,7 +882,7 @@ export function GerenciarFaturasModal({
       if (error) throw error
 
       toast({ title: `${transacoes.length} lançamentos excluídos ✅`, description: `Todos os lançamentos do cartão "${cartaoNome}" foram removidos.` })
-      calcularFatura()
+      await refreshViews()
     } catch (err: any) {
       toast({ title: 'Erro ao excluir', description: err.message, variant: 'destructive' })
     } finally {
