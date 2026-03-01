@@ -57,7 +57,6 @@ export function ImportarFaturaModalNovo({ open, onClose, onImport, cartoes, init
   const [regrasHydrated, setRegrasHydrated] = useState(false);
   const [csvFile, setCsvFile] = useState<File | null>(null);
   const [transacoes, setTransacoes] = useState<Transacao[]>([]);
-  const [needsRecategorization, setNeedsRecategorization] = useState(false);
   const [parseError, setParseError] = useState("");
   const [cartaoSelecionado, setCartaoSelecionado] = useState(initialCardId || cartoes?.[0]?.id || '');
   const [mesReferencia, setMesReferencia] = useState('');
@@ -292,38 +291,30 @@ export function ImportarFaturaModalNovo({ open, onClose, onImport, cartoes, init
   ]);
 
   // Atualizar categorias ao editar regras ou quando needsRecategorization é true
+  // Recategorizar transações quando as regras mudarem OU quando entrar no step 2
   useEffect(() => {
-    if (step === 2 && transacoes.length > 0 && regrasHydrated && needsRecategorization) {
-      setTransacoes(trans => trans.map(t => {
-        if (t.tipo === 'pagamento' || t.tipo === 'estorno') {
-          return {
-            ...t,
-            categoria: CATEGORIA_PAGAMENTO_FATURA,
-          };
-        }
-        const categoriaRegra = categorizar(t.estabelecimento, regrasTexto);
-        if (categoriaRegra) {
-          return {
-            ...t,
-            categoria: categoriaRegra,
-          };
-        }
-        if (t.categoriaManual) return t;
+    if (step !== 2 || transacoes.length === 0 || !regrasHydrated) return;
+    
+    console.log('[DEBUG] Recategorizando transações com regras:', regrasTexto.substring(0, 100));
+    
+    setTransacoes(trans => trans.map(t => {
+      if (t.tipo === 'pagamento' || t.tipo === 'estorno') {
         return {
           ...t,
-          categoria: ''
+          categoria: CATEGORIA_PAGAMENTO_FATURA,
         };
-      }));
-      setNeedsRecategorization(false);
-    }
-  }, [regrasTexto, step, needsRecategorization, regrasHydrated]);
-
-  // Ativar recategorização quando as regras mudarem
-  useEffect(() => {
-    if (regrasHydrated && step === 2 && transacoes.length > 0) {
-      setNeedsRecategorization(true);
-    }
-  }, [regrasTexto]);
+      }
+      // Só recategoriza se não foi definido manualmente
+      if (t.categoriaManual) return t;
+      
+      const categoriaRegra = categorizar(t.estabelecimento, regrasTexto);
+      console.log(`[DEBUG] "${t.estabelecimento}" => "${categoriaRegra}"`);
+      return {
+        ...t,
+        categoria: categoriaRegra || '',
+      };
+    }));
+  }, [regrasTexto, step, regrasHydrated]);
 
   const detectarTipoArquivo = (file: File): 'csv' | 'pdf' | null => {
     const nome = (file?.name || '').toLowerCase();
@@ -757,7 +748,6 @@ export function ImportarFaturaModalNovo({ open, onClose, onImport, cartoes, init
             .filter((t: Transacao | null): t is Transacao => t !== null);
 
           setTransacoes(dados);
-          setNeedsRecategorization(true);
           setResumoPdf(null);
           setStep(2);
           setSortBy('');
@@ -840,7 +830,6 @@ export function ImportarFaturaModalNovo({ open, onClose, onImport, cartoes, init
         }
 
         setTransacoes(dados);
-        setNeedsRecategorization(true);
         setResumoPdf(resumoExtraido);
         setStep(2);
         setSortBy('');
