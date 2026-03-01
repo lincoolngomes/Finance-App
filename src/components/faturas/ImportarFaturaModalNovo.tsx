@@ -91,30 +91,36 @@ export function ImportarFaturaModalNovo({ open, onClose, onImport, cartoes, init
     );
   };
 
-  const extrairCategoriasDasRegras = (texto: string) => {
-    const categorias = String(texto || '')
+  // Extrai categorias únicas das regras para adicionar ao dropdown
+  const categoriasExtraidasDasRegras = useMemo(() => {
+    return String(regrasTexto || '')
       .split('\n')
       .map((linha) => linha.trim())
       .filter((linha) => linha && !linha.startsWith('#') && linha.includes('='))
       .map((linha) => {
         const idx = linha.indexOf('=');
-        return idx >= 0 ? linha.slice(idx + 1).trim() : '';
+        if (idx < 0) return '';
+        const cat = linha.slice(idx + 1).trim();
+        // Capitaliza primeira letra
+        return cat.charAt(0).toUpperCase() + cat.slice(1);
       })
       .filter(Boolean);
-    return normalizarListaCategorias(categorias);
-  };
+  }, [regrasTexto]);
 
   const categoriasDespesaDropdown = useMemo(
-    () =>
-      normalizarListaCategorias(
-        categoriasDespesa.map((nome) => ({
+    () => {
+      // Mescla categorias padrão com categorias das regras
+      const todasCategorias = new Set([...categoriasDespesa, ...categoriasExtraidasDasRegras]);
+      return normalizarListaCategorias(
+        Array.from(todasCategorias).map((nome) => ({
           value: nome,
           label: nome,
           tipo: 'despesa',
           isDefault: isDefaultCategory({ nome, tipo: 'despesa' }),
         }))
-      ),
-    [categoriasDespesa]
+      );
+    },
+    [categoriasDespesa, categoriasExtraidasDasRegras]
   );
   const categoriasReceitaDropdown = useMemo(
     () =>
@@ -255,8 +261,19 @@ export function ImportarFaturaModalNovo({ open, onClose, onImport, cartoes, init
         .map((c: any) => (c.nome || '').trim())
         .filter(Boolean);
 
-      if (despesas.length > 0) setCategoriasDespesa(normalizarListaCategorias(despesas));
-      setCategoriasReceita(normalizarListaCategorias([CATEGORIA_PAGAMENTO_FATURA, ...receitas]));
+      // Não usar normalizarListaCategorias aqui - só mesclar com as existentes
+      if (despesas.length > 0) {
+        setCategoriasDespesa(prev => {
+          const merged = new Set([...prev, ...despesas]);
+          return Array.from(merged).sort((a, b) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' }));
+        });
+      }
+      if (receitas.length > 0) {
+        setCategoriasReceita(prev => {
+          const merged = new Set([...prev, ...receitas]);
+          return Array.from(merged).sort((a, b) => a.localeCompare(b, 'pt-BR', { sensitivity: 'base' }));
+        });
+      }
     })();
   }, [open, user?.id]);
 
@@ -290,12 +307,9 @@ export function ImportarFaturaModalNovo({ open, onClose, onImport, cartoes, init
     modoImportacao,
   ]);
 
-  // Atualizar categorias ao editar regras ou quando needsRecategorization é true
   // Recategorizar transações quando as regras mudarem OU quando entrar no step 2
   useEffect(() => {
     if (step !== 2 || transacoes.length === 0 || !regrasHydrated) return;
-    
-    console.log('[DEBUG] Recategorizando transações com regras:', regrasTexto.substring(0, 100));
     
     setTransacoes(trans => trans.map(t => {
       if (t.tipo === 'pagamento' || t.tipo === 'estorno') {
@@ -308,7 +322,6 @@ export function ImportarFaturaModalNovo({ open, onClose, onImport, cartoes, init
       if (t.categoriaManual) return t;
       
       const categoriaRegra = categorizar(t.estabelecimento, regrasTexto);
-      console.log(`[DEBUG] "${t.estabelecimento}" => "${categoriaRegra}"`);
       return {
         ...t,
         categoria: categoriaRegra || '',
@@ -1357,9 +1370,9 @@ export function ImportarFaturaModalNovo({ open, onClose, onImport, cartoes, init
                                 ? categoriasReceitaDropdown
                                 : categoriasDespesaDropdown;
                               const categoriaAtual = String(t.categoria || '');
-                              const valueAtual = categoriasDaLinha.some((option) => normalizar(option.value) === normalizar(categoriaAtual))
-                                ? categoriaAtual
-                                : '';
+                              const found = categoriasDaLinha.some((option) => normalizar(option.value) === normalizar(categoriaAtual));
+                              const valueAtual = found ? categoriaAtual : '';
+                              
                               return (
                             <ImportCategoryCombobox
                               value={valueAtual}
