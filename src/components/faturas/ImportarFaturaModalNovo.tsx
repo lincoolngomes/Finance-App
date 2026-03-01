@@ -1,11 +1,13 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
 import Papa from 'papaparse';
 import pdfWorkerUrl from 'pdfjs-dist/legacy/build/pdf.worker.min.mjs?url';
 import { toast } from '@/hooks/use-toast';
+import { ImportCategoryCombobox, type ImportCategoryOption } from '@/components/importers/ImportCategoryCombobox';
 import { normalizar, categorizar, REGRAS_PADRAO } from '@/utils/categorizacao';
 import { formatCurrency } from '@/utils/currency';
+import { isDefaultCategory } from '@/constants/defaultCategories';
 
 interface Transacao {
   uid: string;
@@ -34,8 +36,16 @@ interface ImportarFaturaModalNovoProps {
   initialCardId?: string;
 }
 
+interface ResumoPDFImportacao {
+  lancamentosAtuais: number | null;
+  saldoFinanciado: number | null;
+  totalDestaFatura: number | null;
+  pagamentoEfetuado: number | null;
+}
+
 export function ImportarFaturaModalNovo({ open, onClose, onImport, cartoes, initialCardId }: ImportarFaturaModalNovoProps) {
   const DRAFT_KEY = 'importar-fatura-modal-novo:draft:v1';
+  const REGRAS_STORAGE_KEY = 'regrasImportacaoCategorias';
   const CATEGORIA_PAGAMENTO_FATURA = 'Pagamento de Fatura';
   const { user } = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -44,6 +54,7 @@ export function ImportarFaturaModalNovo({ open, onClose, onImport, cartoes, init
   // Estados principais
   const [step, setStep] = useState(1);
   const [regrasTexto, setRegrasTexto] = useState(REGRAS_PADRAO);
+  const [regrasHydrated, setRegrasHydrated] = useState(false);
   const [csvFile, setCsvFile] = useState<File | null>(null);
   const [transacoes, setTransacoes] = useState<Transacao[]>([]);
   const [parseError, setParseError] = useState("");
@@ -52,6 +63,7 @@ export function ImportarFaturaModalNovo({ open, onClose, onImport, cartoes, init
   const [anoReferencia, setAnoReferencia] = useState('');
   const [loading, setLoading] = useState(false);
   const [importFeedback, setImportFeedback] = useState<any>(null);
+  const [resumoPdf, setResumoPdf] = useState<ResumoPDFImportacao | null>(null);
   const [scrollPosition, setScrollPosition] = useState(0);
   const [editandoData, setEditandoData] = useState<{ [key: string]: boolean }>({});
   const [editandoValor, setEditandoValor] = useState<{ [key: string]: boolean }>({});
@@ -65,6 +77,57 @@ export function ImportarFaturaModalNovo({ open, onClose, onImport, cartoes, init
     'Educação', 'Serviços', 'Utilidades'
   ]);
   const [categoriasReceita, setCategoriasReceita] = useState<string[]>([CATEGORIA_PAGAMENTO_FATURA]);
+
+  const normalizarListaCategorias = (lista: ImportCategoryOption[]) => {
+    const map = new Map<string, ImportCategoryOption>();
+    for (const item of lista || []) {
+      const nome = String(item?.value || '').trim();
+      if (!nome) continue;
+      const key = `${normalizar(item?.tipo || '')}::${normalizar(nome)}`;
+      if (!map.has(key)) map.set(key, item);
+    }
+    return Array.from(map.values()).sort((a, b) =>
+      (a.label || a.value).localeCompare(b.label || b.value, 'pt-BR', { sensitivity: 'base' })
+    );
+  };
+
+  const extrairCategoriasDasRegras = (texto: string) => {
+    const categorias = String(texto || '')
+      .split('\n')
+      .map((linha) => linha.trim())
+      .filter((linha) => linha && !linha.startsWith('#') && linha.includes('='))
+      .map((linha) => {
+        const idx = linha.indexOf('=');
+        return idx >= 0 ? linha.slice(idx + 1).trim() : '';
+      })
+      .filter(Boolean);
+    return normalizarListaCategorias(categorias);
+  };
+
+  const categoriasDespesaDropdown = useMemo(
+    () =>
+      normalizarListaCategorias(
+        categoriasDespesa.map((nome) => ({
+          value: nome,
+          label: nome,
+          tipo: 'despesa',
+          isDefault: isDefaultCategory({ nome, tipo: 'despesa' }),
+        }))
+      ),
+    [categoriasDespesa]
+  );
+  const categoriasReceitaDropdown = useMemo(
+    () =>
+      normalizarListaCategorias(
+        [CATEGORIA_PAGAMENTO_FATURA, ...categoriasReceita].map((nome) => ({
+          value: nome,
+          label: nome,
+          tipo: 'receita',
+          isDefault: isDefaultCategory({ nome, tipo: 'receita' }),
+        }))
+      ),
+    [categoriasReceita]
+  );
 
   const getDefaultFaturaVencimento = (cartao: any, referencia = new Date()) => {
     const diaFechamento = Math.max(1, Number(cartao?.dia_fechamento || 1));
@@ -104,11 +167,12 @@ export function ImportarFaturaModalNovo({ open, onClose, onImport, cartoes, init
     year: 'numeric',
   });
 
-  // Carregar regras do localStorage
   useEffect(() => {
-    const saved = localStorage.getItem('regrasFatura');
-    if (saved) setRegrasTexto(saved);
-  }, []);
+    if (!open) return;
+    const saved = localStorage.getItem(REGRAS_STORAGE_KEY) || localStorage.getItem('regrasFatura');
+    setRegrasTexto(saved || REGRAS_PADRAO);
+    setRegrasHydrated(true);
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -128,7 +192,6 @@ export function ImportarFaturaModalNovo({ open, onClose, onImport, cartoes, init
       if (draft.mesReferencia) setMesReferencia(draft.mesReferencia);
       if (draft.anoReferencia) setAnoReferencia(draft.anoReferencia);
       if (typeof draft.step === 'number') setStep(draft.step);
-      if (typeof draft.regrasTexto === 'string') setRegrasTexto(draft.regrasTexto);
       if (Array.isArray(draft.transacoes)) setTransacoes(draft.transacoes);
       if (typeof draft.criarParcelasFuturas === 'boolean') setCriarParcelasFuturas(draft.criarParcelasFuturas);
       if (draft.modoImportacao === 'ambas' || draft.modoImportacao === 'somente_parceladas' || draft.modoImportacao === 'somente_nao_parceladas') {
@@ -168,8 +231,9 @@ export function ImportarFaturaModalNovo({ open, onClose, onImport, cartoes, init
 
   // Salvar regras no localStorage
   useEffect(() => {
-    localStorage.setItem('regrasFatura', regrasTexto);
-  }, [regrasTexto]);
+    if (!open || !regrasHydrated) return;
+    localStorage.setItem(REGRAS_STORAGE_KEY, regrasTexto);
+  }, [open, regrasHydrated, regrasTexto]);
 
   useEffect(() => {
     if (!open || !user?.id) return;
@@ -191,19 +255,18 @@ export function ImportarFaturaModalNovo({ open, onClose, onImport, cartoes, init
         .map((c: any) => (c.nome || '').trim())
         .filter(Boolean);
 
-      if (despesas.length > 0) setCategoriasDespesa(Array.from(new Set(despesas)));
-      setCategoriasReceita(Array.from(new Set([CATEGORIA_PAGAMENTO_FATURA, ...receitas])));
+      if (despesas.length > 0) setCategoriasDespesa(normalizarListaCategorias(despesas));
+      setCategoriasReceita(normalizarListaCategorias([CATEGORIA_PAGAMENTO_FATURA, ...receitas]));
     })();
   }, [open, user?.id]);
 
   useEffect(() => {
     if (!open || !draftRestored) return;
-    const draft = {
-      userId: user?.id || null,
-      step,
-      regrasTexto,
-      transacoes,
-      cartaoSelecionado,
+      const draft = {
+        userId: user?.id || null,
+        step,
+        transacoes,
+        cartaoSelecionado,
       mesReferencia,
       anoReferencia,
       sortBy,
@@ -217,7 +280,6 @@ export function ImportarFaturaModalNovo({ open, onClose, onImport, cartoes, init
     draftRestored,
     user?.id,
     step,
-    regrasTexto,
     transacoes,
     cartaoSelecionado,
     mesReferencia,
@@ -258,6 +320,30 @@ export function ImportarFaturaModalNovo({ open, onClose, onImport, cartoes, init
     const nome = (file?.name || '').toLowerCase();
     if (nome.endsWith('.csv')) return 'csv';
     if (nome.endsWith('.pdf')) return 'pdf';
+    return null;
+  };
+
+  const extrairReferenciaDoNomeArquivo = (nomeArquivo: string): { mes: string; ano: string } | null => {
+    const nome = String(nomeArquivo || '').toLowerCase();
+
+    // Ex.: fatura-20260201.csv / fatura_2026-02-01.csv
+    let m = nome.match(/(\d{4})[-_]?(\d{2})[-_]?(\d{2})/);
+    if (m) {
+      const ano = m[1];
+      const mes = m[2];
+      const mesNum = Number(mes);
+      if (mesNum >= 1 && mesNum <= 12) return { mes, ano };
+    }
+
+    // Ex.: fatura-01-02-2026.csv (dd-mm-yyyy)
+    m = nome.match(/(\d{2})[-_](\d{2})[-_](\d{4})/);
+    if (m) {
+      const mes = m[2];
+      const ano = m[3];
+      const mesNum = Number(mes);
+      if (mesNum >= 1 && mesNum <= 12) return { mes, ano };
+    }
+
     return null;
   };
 
@@ -410,14 +496,199 @@ export function ImportarFaturaModalNovo({ open, onClose, onImport, cartoes, init
     };
   };
 
+  const descricaoPareceResumoFatura = (descricao: string): boolean => {
+    const d = normalizar(descricao || '');
+    if (!d) return true;
+
+    // Linhas de resumo/cabeçalho da fatura que não devem virar transação.
+    return [
+      'resumo da fatura',
+      'total desta fatura',
+      'total da sua fatura',
+      'total da fatura anterior',
+      'lancamentos atuais',
+      'saldo financiado',
+      'limite total de credito',
+      'pagamento minimo',
+      'parcelas fixas',
+      'total a pagar',
+      'com vencimento em',
+      'previsao prox fechamento',
+      'previsao prox',
+      'postagem',
+      'titular',
+      'recibo do pagador',
+      'banco itau',
+      'personnalite',
+      'lancamentos no cartao',
+      'lancamentos: compras e saques',
+      'lancamentos internacionais',
+      'total lancamentos inter',
+      'dolar de conversao',
+      'valor em r$',
+      'vkrpof',
+      'pc - 00',
+    ].some((trecho) => d.includes(trecho));
+  };
+
+  const VALOR_BR_REGEX = /-?\s*\d{1,3}(?:\.\d{3})*,\d{2}/g;
+  const REGEX_LINHA_TRANSACAO_PDF = /(\d{2}\/\d{2}(?:\/\d{2,4})?)\s+(.+?)\s+(-?\s*\d{1,3}(?:\.\d{3})*,\d{2})/g;
+
+  const normalizarLinhaParaParsePDF = (linha: string): string => {
+    return String(linha || '')
+      .replace(/\s+/g, ' ')
+      .trim()
+      // OCR/PDF costuma colar "texto23/01" sem espaço.
+      .replace(/([A-Za-zÀ-ÿ])(\d{2}\/\d{2}(?:\/\d{2,4})?)/g, '$1 $2')
+      .replace(/(\d{2}\/\d{2}(?:\/\d{2,4})?)([A-Za-zÀ-ÿ])/g, '$1 $2');
+  };
+
+  const extrairCandidatosPDFItaulayout = (
+    pages: Array<{ text?: string }>
+  ): Array<{ quando: string; estabelecimento: string; valorRaw: number }> => {
+    const paginaPareceLancamentos = (texto: string) => {
+      const t = normalizar(texto || '');
+      return t.includes('lancamentos: compras e saques') || t.includes('lancamentos internacionais');
+    };
+
+    const pagesLancamentos = (pages || []).filter((p) => paginaPareceLancamentos(String(p?.text || '')));
+    const fontes = pagesLancamentos.length > 0 ? pagesLancamentos : (pages || []);
+    const candidatos: Array<{ quando: string; estabelecimento: string; valorRaw: number }> = [];
+
+    for (const page of fontes) {
+      const textoPagina = String(page?.text || '');
+      if (!textoPagina) continue;
+      let ultimoQuandoConhecido = '';
+
+      const linhasPagina = textoPagina.split(/\r?\n/);
+      for (const rawLinha of linhasPagina) {
+        const linha = normalizarLinhaParaParsePDF(rawLinha);
+        if (!linha) continue;
+
+        // Cada linha pode conter 1 ou mais lançamentos (colunas esquerda/direita).
+        const regexLinha = new RegExp(REGEX_LINHA_TRANSACAO_PDF);
+        let m: RegExpExecArray | null = regexLinha.exec(linha);
+        while (m) {
+          const quando = String(m[1] || '').trim();
+          const estabelecimento = String(m[2] || '')
+            .replace(/\s+/g, ' ')
+            .replace(/[-–—]+$/, '')
+            .trim();
+          const valorRaw = parseValorMonetario(m[3]);
+          const descComecaComValor = /^\d{1,3}(?:\.\d{3})*,\d{2}\b/.test(estabelecimento);
+
+          const descValida = estabelecimento
+            && /[A-Za-zÀ-ÿ]/.test(estabelecimento)
+            && !descComecaComValor
+            && !descricaoPareceResumoFatura(estabelecimento);
+
+          if (quando && descValida && Number.isFinite(valorRaw) && valorRaw !== 0) {
+            candidatos.push({ quando, estabelecimento, valorRaw });
+            ultimoQuandoConhecido = quando;
+          }
+
+          m = regexLinha.exec(linha);
+        }
+
+        // Ex.: "Repasse de IOF em R$ 2,00" geralmente vem sem data explícita.
+        // Atribuímos à última data conhecida da seção para não perder valor.
+        const matchRepasseIof = linha.match(/repasse de iof em r\$?\s*(-?\s*\d{1,3}(?:\.\d{3})*,\d{2})/i);
+        if (matchRepasseIof?.[1] && ultimoQuandoConhecido) {
+          const valorRaw = parseValorMonetario(matchRepasseIof[1]);
+          if (Number.isFinite(valorRaw) && valorRaw !== 0) {
+            candidatos.push({
+              quando: ultimoQuandoConhecido,
+              estabelecimento: 'Repasse de IOF',
+              valorRaw,
+            });
+          }
+        }
+      }
+    }
+
+    return candidatos;
+  };
+
+  const extrairPagamentoEfetuadoDoResumoPDF = (
+    textoCompleto: string
+  ): Array<{ quando: string; estabelecimento: string; valorRaw: number }> => {
+    const itens: Array<{ quando: string; estabelecimento: string; valorRaw: number }> = [];
+    const regexPagamento = /pagamento efetuado em\s+(\d{2}\/\d{2}\/\d{4})\s*-\s*(-?\s*\d{1,3}(?:\.\d{3})*,\d{2})/gi;
+
+    let m: RegExpExecArray | null = regexPagamento.exec(String(textoCompleto || ''));
+    while (m) {
+      const quando = String(m[1] || '').trim();
+      const valorRaw = -Math.abs(parseValorMonetario(m[2]));
+      if (quando && Number.isFinite(valorRaw) && valorRaw !== 0) {
+        itens.push({
+          quando,
+          estabelecimento: 'PAGAMENTO EFETUADO',
+          valorRaw,
+        });
+      }
+      m = regexPagamento.exec(String(textoCompleto || ''));
+    }
+
+    return itens;
+  };
+
+  const extrairResumoFinanceiroPDF = (textoCompleto: string): ResumoPDFImportacao | null => {
+    const texto = String(textoCompleto || '');
+    const capturar = (regex: RegExp): number | null => {
+      const m = texto.match(regex);
+      if (!m?.[1]) return null;
+      const v = Math.abs(parseValorMonetario(m[1]));
+      return Number.isFinite(v) ? v : null;
+    };
+
+    const lancamentosAtuais = capturar(/lancamentos atuais\s+(-?\s*\d{1,3}(?:\.\d{3})*,\d{2})/i);
+    const saldoFinanciado = capturar(/saldo financiado\s*-\s*(-?\s*\d{1,3}(?:\.\d{3})*,\d{2})/i);
+    const totalDestaFaturaEncontrado = capturar(/total desta fatura\s+(-?\s*\d{1,3}(?:\.\d{3})*,\d{2})/i);
+    const pagamentoEfetuado = capturar(/pagamento efetuado em\s+\d{2}\/\d{2}\/\d{4}\s*-\s*(-?\s*\d{1,3}(?:\.\d{3})*,\d{2})/i);
+
+    const totalDestaFaturaCalculado =
+      totalDestaFaturaEncontrado
+      ?? ((lancamentosAtuais != null && saldoFinanciado != null)
+        ? Math.max(0, lancamentosAtuais - saldoFinanciado)
+        : null);
+
+    if (
+      lancamentosAtuais == null
+      && saldoFinanciado == null
+      && totalDestaFaturaCalculado == null
+      && pagamentoEfetuado == null
+    ) {
+      return null;
+    }
+
+    return {
+      lancamentosAtuais,
+      saldoFinanciado,
+      totalDestaFatura: totalDestaFaturaCalculado,
+      pagamentoEfetuado,
+    };
+  };
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setParseError("");
+    setResumoPdf(null);
     const file = e.target.files?.[0];
     if (file) {
       if (!detectarTipoArquivo(file)) {
         setParseError("Apenas arquivos CSV ou PDF são aceitos");
         return;
       }
+
+      // Evita importações parciais por filtro antigo salvo em draft
+      setModoImportacao('ambas');
+
+      // Se o nome do arquivo traz a data de vencimento, usa como referência da fatura
+      const refArquivo = extrairReferenciaDoNomeArquivo(file.name);
+      if (refArquivo) {
+        setMesReferencia(refArquivo.mes);
+        setAnoReferencia(refArquivo.ano);
+      }
+
       setCsvFile(file);
     }
   };
@@ -436,30 +707,46 @@ export function ImportarFaturaModalNovo({ open, onClose, onImport, cartoes, init
     }
 
     if (tipoArquivo === 'csv') {
+      const getCsvValue = (row: Record<string, unknown>, aliases: string[]): string => {
+        const aliasSet = new Set(aliases.map((a) => normalizar(a)));
+
+        for (const [rawKey, rawValue] of Object.entries(row || {})) {
+          const keyNorm = normalizar(String(rawKey || '').replace(/^\uFEFF/, ''));
+          if (!aliasSet.has(keyNorm)) continue;
+          if (rawValue === null || rawValue === undefined) continue;
+          const value = String(rawValue).trim();
+          if (value) return value;
+        }
+
+        return '';
+      };
+
       Papa.parse(csvFile, {
         header: true,
         skipEmptyLines: true,
+        transformHeader: (header: string) => String(header || '').replace(/^\uFEFF/, '').trim(),
         complete: (results: any) => {
           const dados: Transacao[] = results.data
             .map((row: any, index: number) => {
-              const quando = row.data || row.Data || row.date || row.Date || row.quando || '';
-              const estabelecimento = (
-                row.descricao || row.Descricao ||
-                row.description || row.Description ||
-                row.lançamento || row.Lançamento ||
-                row.estabelecimento || row.Estabelecimento ||
-                row.historico || row.Histórico ||
-                row['histórico'] ||
-                ''
-              ).trim();
+              const quando = getCsvValue(row, ['data', 'date', 'quando']);
+              const estabelecimento = getCsvValue(row, [
+                'descricao',
+                'description',
+                'lançamento',
+                'lancamento',
+                'estabelecimento',
+                'historico',
+                'histórico',
+              ]);
 
-              const valorStr = row.valor || row.Valor || row.amount || row.Amount || '0';
+              const valorStr = getCsvValue(row, ['valor', 'amount']) || '0';
               const valorRaw = parseValorMonetario(valorStr);
               return criarTransacaoNormalizada(quando, estabelecimento, valorRaw, index);
             })
             .filter((t: Transacao | null): t is Transacao => t !== null);
 
           setTransacoes(dados);
+          setResumoPdf(null);
           setStep(2);
           setSortBy('');
           setSortOrder('asc');
@@ -479,9 +766,10 @@ export function ImportarFaturaModalNovo({ open, onClose, onImport, cartoes, init
         const parser = new PDFParse({ data: new Uint8Array(arrayBuffer) });
 
         let texto = '';
+        let textResult: any = null;
         try {
-          const result = await parser.getText();
-          texto = result?.text || '';
+          textResult = await parser.getText();
+          texto = textResult?.text || '';
         } finally {
           await parser.destroy().catch(() => undefined);
         }
@@ -499,16 +787,38 @@ export function ImportarFaturaModalNovo({ open, onClose, onImport, cartoes, init
           ano: Number.isFinite(fallbackAno) ? fallbackAno : new Date().getFullYear(),
         };
 
-        const regexLinhaTransacao = /^(\d{2}\/\d{2}(?:\/\d{2,4})?)\s+(.+?)\s+(?:R\$\s*)?(-?\d{1,3}(?:\.\d{3})*,\d{2})$/i;
-        const dados: Transacao[] = linhas
-          .map((linha: string, index: number) => {
-            const match = linha.match(regexLinhaTransacao);
-            if (!match) return null;
+        const pages = Array.isArray(textResult?.pages) ? textResult.pages : [];
+        const candidatosEstruturados = extrairCandidatosPDFItaulayout(pages);
+        const pagamentosResumo = extrairPagamentoEfetuadoDoResumoPDF(texto);
+        const candidatos = [...candidatosEstruturados, ...pagamentosResumo];
+        const resumoExtraido = extrairResumoFinanceiroPDF(texto);
 
-            const quando = completarAnoDaData(match[1], referencia);
-            const estabelecimento = match[2];
-            const valorRaw = parseValorMonetario(match[3]);
-            return criarTransacaoNormalizada(quando, estabelecimento, valorRaw, index);
+        // Fallback para outros layouts de PDF.
+        if (candidatos.length === 0) {
+          const textoLinear = linhas
+            .join('\n')
+            .replace(/([A-Za-zÀ-ÿ0-9])(\d{2}\/\d{2}(?:\/\d{2,4})?)/g, '$1 $2')
+            .replace(/(\d{2}\/\d{2}(?:\/\d{2,4})?)([A-Za-zÀ-ÿ])/g, '$1 $2');
+
+          const regexFallback = /(\d{2}\/\d{2}(?:\/\d{2,4})?)\s+(.+?)\s+(?:R\$\s*)?(-?\s*\d{1,3}(?:\.\d{3})*,\d{2})/gims;
+          let matchFallback: RegExpExecArray | null = regexFallback.exec(textoLinear);
+          while (matchFallback) {
+            const quando = String(matchFallback[1] || '').trim();
+            const estabelecimento = String(matchFallback[2] || '').replace(/\s+/g, ' ').trim();
+            const valorRaw = parseValorMonetario(matchFallback[3]);
+            if (quando && estabelecimento && !descricaoPareceResumoFatura(estabelecimento)) {
+              candidatos.push({ quando, estabelecimento, valorRaw });
+            }
+            matchFallback = regexFallback.exec(textoLinear);
+          }
+        }
+
+        const dados: Transacao[] = candidatos
+          .map((item, index) => {
+            if (!item.estabelecimento || descricaoPareceResumoFatura(item.estabelecimento)) return null;
+
+            const quando = completarAnoDaData(item.quando, referencia);
+            return criarTransacaoNormalizada(quando, item.estabelecimento, item.valorRaw, index);
           })
           .filter((t: Transacao | null): t is Transacao => t !== null);
 
@@ -518,10 +828,12 @@ export function ImportarFaturaModalNovo({ open, onClose, onImport, cartoes, init
         }
 
         setTransacoes(dados);
+        setResumoPdf(resumoExtraido);
         setStep(2);
         setSortBy('');
         setSortOrder('asc');
       } catch (error: any) {
+        setResumoPdf(null);
         setParseError(`Erro ao processar PDF: ${error?.message || 'não foi possível ler o arquivo'}`);
       }
     })();
@@ -529,7 +841,11 @@ export function ImportarFaturaModalNovo({ open, onClose, onImport, cartoes, init
 
   const formatarDataBR = (data: string) => {
     if (!data) return '';
-    if (data.includes('/')) return data;
+    if (/^\d{2}\/\d{2}\/\d{4}$/.test(data)) return data;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(data)) {
+      const [ano, mes, dia] = data.split('-');
+      return `${dia}/${mes}/${ano}`;
+    }
     try {
       const d = new Date(data);
       return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
@@ -551,15 +867,36 @@ export function ImportarFaturaModalNovo({ open, onClose, onImport, cartoes, init
     }));
   };
 
-  const handleCategoriaChange = (t: Transacao, value: string) => {
-    if (value !== '__nova__') {
-      handleEditLancamento(t, 'categoria', value);
-      return;
-    }
+  const handleAddNovaCategoria = async (t: Transacao, suggestedName?: string) => {
+    const nomeInicial = String(suggestedName || '').trim();
+    const nome = nomeInicial || window.prompt('Digite o nome da nova categoria:', nomeInicial);
+    if (!nome || !String(nome).trim()) return;
+    const nomeLimpo = String(nome).trim();
+    const tipoCategoria =
+      t.tipo === 'pagamento' || t.tipo === 'estorno' || t.tipo === 'receita'
+        ? 'receita'
+        : 'despesa';
 
-    const nome = window.prompt('Digite o nome da nova categoria:');
-    if (!nome || !nome.trim()) return;
-    const nomeLimpo = nome.trim();
+    if (user?.id) {
+      const { data: existente } = await supabase
+        .from('categorias')
+        .select('id, nome, tipo')
+        .eq('user_id', user.id)
+        .eq('tipo', tipoCategoria)
+        .ilike('nome', nomeLimpo);
+
+      const categoriaExistente = (existente || []).find(
+        (c: any) => normalizar(String(c?.nome || '')) === normalizar(nomeLimpo)
+      );
+
+      if (!categoriaExistente) {
+        await supabase.from('categorias').insert({
+          user_id: user.id,
+          nome: nomeLimpo,
+          tipo: tipoCategoria,
+        });
+      }
+    }
 
     if (t.tipo === 'pagamento' || t.tipo === 'estorno') {
       setCategoriasReceita(prev => Array.from(new Set([nomeLimpo, ...prev])));
@@ -567,6 +904,10 @@ export function ImportarFaturaModalNovo({ open, onClose, onImport, cartoes, init
       setCategoriasDespesa(prev => Array.from(new Set([nomeLimpo, ...prev])));
     }
     handleEditLancamento(t, 'categoria', nomeLimpo);
+  };
+
+  const handleCategoriaChange = (t: Transacao, value: string) => {
+    handleEditLancamento(t, 'categoria', value);
   };
 
   const handleSort = (field: string) => {
@@ -681,6 +1022,7 @@ export function ImportarFaturaModalNovo({ open, onClose, onImport, cartoes, init
     setCsvFile(null);
     setParseError("");
     setImportFeedback(null);
+    setResumoPdf(null);
     setSortBy('');
     setSortOrder('asc');
     setCriarParcelasFuturas(true);
@@ -894,7 +1236,12 @@ export function ImportarFaturaModalNovo({ open, onClose, onImport, cartoes, init
                   const totalDespesas = despesas.reduce((s, t) => s + t.valor, 0);
                   const totalEstornos = estornos.reduce((s, t) => s + t.valor, 0);
                   const totalPagamentos = pagamentos.reduce((s, t) => s + t.valor, 0);
-                  const saldoFatura = totalDespesas - totalEstornos;
+                  const lancamentosAtuaisCalculado = totalDespesas - totalEstornos;
+                  const lancamentosAtuaisExibicao = resumoPdf?.lancamentosAtuais ?? lancamentosAtuaisCalculado;
+                  const totalFaturaExibicao = resumoPdf?.totalDestaFatura ?? lancamentosAtuaisCalculado;
+                  const saldoFinanciadoExibicao = resumoPdf?.saldoFinanciado ?? null;
+                  const pagamentoAnteriorExibicao = resumoPdf?.pagamentoEfetuado ?? totalPagamentos;
+                  const mostraPagamentoAnterior = pagamentoAnteriorExibicao > 0;
                   return (
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
                       <div className="p-4 bg-slate-500/10 border border-slate-500/30 rounded-xl">
@@ -907,14 +1254,24 @@ export function ImportarFaturaModalNovo({ open, onClose, onImport, cartoes, init
                         <p className="text-xs text-red-400/70 mt-0.5">{despesas.length} itens</p>
                       </div>
                       <div className="p-4 bg-blue-500/10 border border-blue-500/30 rounded-xl">
-                        <p className="text-sm text-blue-400 font-medium">Saldo da Fatura</p>
-                        <p className="text-lg font-bold text-blue-100 mt-1">{formatCurrency(saldoFatura)}</p>
+                        <p className="text-sm text-blue-400 font-medium">
+                          {resumoPdf?.totalDestaFatura != null ? 'Total da Fatura' : 'Valor da Fatura'}
+                        </p>
+                        <p className="text-lg font-bold text-blue-100 mt-1">{formatCurrency(totalFaturaExibicao)}</p>
+                        <p className="text-xs text-blue-300/70 mt-0.5">
+                          Lançamentos atuais: {formatCurrency(lancamentosAtuaisExibicao)}
+                        </p>
+                        {saldoFinanciadoExibicao != null && saldoFinanciadoExibicao > 0 && (
+                          <p className="text-xs text-amber-300/80 mt-0.5">
+                            - {formatCurrency(saldoFinanciadoExibicao)} saldo financiado
+                          </p>
+                        )}
                         {totalEstornos > 0 && <p className="text-xs text-green-400/70 mt-0.5">- {formatCurrency(totalEstornos)} estornos</p>}
                       </div>
-                      {pagamentos.length > 0 ? (
+                      {mostraPagamentoAnterior ? (
                         <div className="p-4 bg-green-500/10 border border-green-500/30 rounded-xl">
                           <p className="text-sm text-green-400 font-medium">Pgto Fatura Anterior</p>
-                          <p className="text-lg font-bold text-green-300 mt-1">{formatCurrency(totalPagamentos)}</p>
+                          <p className="text-lg font-bold text-green-300 mt-1">{formatCurrency(pagamentoAnteriorExibicao)}</p>
                           <p className="text-xs text-green-400/70 mt-0.5">Não entra no total</p>
                         </div>
                       ) : (
@@ -927,6 +1284,9 @@ export function ImportarFaturaModalNovo({ open, onClose, onImport, cartoes, init
                     </div>
                   );
                 })()}
+                <p className="text-xs text-slate-400 mt-2">
+                  Se houver saldo financiado da fatura anterior no banco, o "Total desta fatura" pode diferir deste valor importado.
+                </p>
               </div>
 
               <div className="mb-24">
@@ -992,32 +1352,21 @@ export function ImportarFaturaModalNovo({ open, onClose, onImport, cartoes, init
                           <td className="px-1 py-2">
                             {(() => {
                               const categoriasDaLinha = (t.tipo === 'pagamento' || t.tipo === 'estorno')
-                                ? categoriasReceita
-                                : categoriasDespesa;
-                              const valueAtual = categoriasDaLinha.includes(t.categoria)
-                                ? t.categoria
-                                : (t.categoria || '');
+                                ? categoriasReceitaDropdown
+                                : categoriasDespesaDropdown;
+                              const categoriaAtual = String(t.categoria || '');
+                              const valueAtual = categoriasDaLinha.some((option) => normalizar(option.value) === normalizar(categoriaAtual))
+                                ? categoriaAtual
+                                : '';
                               return (
-                            <select
-                              className={`w-full px-1 py-1 rounded-lg bg-slate-700/30 border text-slate-100 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition ${
-                                (t.tipo !== 'pagamento' && t.tipo !== 'estorno' && !valueAtual)
-                                  ? 'border-red-500/70'
-                                  : 'border-slate-600/50'
-                              }`}
+                            <ImportCategoryCombobox
                               value={valueAtual}
-                              onChange={e => handleCategoriaChange(t, e.target.value)}
-                            >
-                              {(t.tipo !== 'pagamento' && t.tipo !== 'estorno') && (
-                                <option value="">Selecione categoria...</option>
-                              )}
-                              {!categoriasDaLinha.includes(valueAtual) && valueAtual && (
-                                <option value={valueAtual}>{valueAtual}</option>
-                              )}
-                              {categoriasDaLinha.map(cat => (
-                                <option key={cat} value={cat}>{cat}</option>
-                              ))}
-                              <option value="__nova__">+ Nova categoria...</option>
-                            </select>
+                              options={categoriasDaLinha}
+                              placeholder="Selecione categoria..."
+                              invalid={t.tipo !== 'pagamento' && t.tipo !== 'estorno' && !valueAtual}
+                              onValueChange={(value) => handleCategoriaChange(t, value)}
+                              onCreateCategory={(suggestedName) => handleAddNovaCategoria(t, suggestedName)}
+                            />
                               );
                             })()}
                           </td>

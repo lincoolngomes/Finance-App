@@ -40,6 +40,7 @@ interface Lembrete {
 }
 
 export default function Dashboard() {
+  const isTransacaoPaga = (transacao: { pago?: boolean | null }) => transacao.pago === true
   const DASHBOARD_FILTERS_KEY = 'dashboard:filters:v1'
   const getInitialDashboardFilters = () => {
     const now = new Date()
@@ -175,8 +176,8 @@ export default function Dashboard() {
               }
             }
             // Corrigir status de cartão (apenas em memória, sem salvar no banco)
-            if (t.cartao_id && !t.status) {
-              t.status = t.pago ? 'pago' : 'pendente_fatura';
+            if (t.cartao_id) {
+              t.status = isTransacaoPaga(t) ? 'pago' : 'pendente_fatura';
             }
           }
         }
@@ -285,7 +286,7 @@ export default function Dashboard() {
     }, 0)
 
     // SALDO: apenas transações de CONTAS (sem cartão de crédito)
-    const transacoesConta = transacoes.filter(t => !t.cartao_id)
+    const transacoesConta = transacoes.filter(t => !t.cartao_id && isTransacaoPaga(t))
     const totalReceitas = transacoesConta
       .filter(t => t.tipo === 'receita')
       .reduce((acc, t) => acc + Math.abs(Number(t.valor) || 0), 0)
@@ -303,11 +304,11 @@ export default function Dashboard() {
     const transacoesConta = filteredTransacoes.filter(t => !t.cartao_id)
     
     const totalReceitas = filteredTransacoes
-      .filter(t => t.tipo === 'receita' && !t.cartao_id) // Receitas de cartão são estornos/pgto fatura, não receita real
+      .filter(t => t.tipo === 'receita' && !t.cartao_id && isTransacaoPaga(t)) // Receitas de cartão são estornos/pgto fatura, não receita real
       .reduce((acc, t) => acc + Math.abs(Number(t.valor) || 0), 0)
     
     const totalDespesas = filteredTransacoes
-      .filter(t => t.tipo === 'despesa')
+      .filter(t => t.tipo === 'despesa' && isTransacaoPaga(t))
       .reduce((acc, t) => acc + Math.abs(Number(t.valor) || 0), 0)
     
     if (import.meta.env.DEV) {

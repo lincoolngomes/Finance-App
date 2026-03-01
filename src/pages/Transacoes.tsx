@@ -16,7 +16,7 @@ import { TransactionFilters } from '@/components/transactions/TransactionFilters
 import { CategorySelector } from '@/components/transactions/CategorySelector'
 import { BankSelector, CardSelector } from '@/components/accounts/BankAndCardSelector'
 import { GerenciarFaturasModal } from '@/components/faturas/GerenciarFaturasModal'
-import { ImportarFaturaModal } from '@/components/faturas/ImportarFaturaModal'
+import { ImportarFaturaModalNovo } from '@/components/faturas/ImportarFaturaModalNovo'
 import { ImportarExtratoModal } from '@/components/extratos/ImportarExtratoModal'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
@@ -26,7 +26,7 @@ import { toast } from '@/hooks/use-toast'
 import { Edit, Trash2, TrendingUp, TrendingDown, ArrowUpDown, Download, Clock, DollarSign, Wallet } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import { formatCurrency } from '@/utils/currency'
-import { categorizar } from '@/utils/categorizacao'
+import { categorizar, normalizar } from '@/utils/categorizacao'
 import { addMonths, format, parse } from 'date-fns'
 import { useSearchParams } from 'react-router-dom'
 
@@ -75,6 +75,13 @@ const createInitialFormData = () => ({
   repetirMeses: 1,
 })
 
+const getTransactionStatus = (isPago: boolean, metodo?: string) => {
+  if (isPago) return 'pago'
+  return metodo === 'cartao_credito' ? 'pendente_fatura' : 'pendente'
+}
+
+const isTransacaoPaga = (transacao: { pago?: boolean | null }) => transacao.pago === true
+
 
 const Transacoes: React.FC = () => {
   // Estado do formulário de transação (corrige ReferenceError)
@@ -89,6 +96,7 @@ const Transacoes: React.FC = () => {
   const [viewMode, setViewMode] = useState<'mes' | 'ultimos'>('ultimos')
   const [transacoes, setTransacoes] = useState<any[]>([]);
   const [contas, setContas] = useState<any[]>([]);
+  const [cartoes, setCartoes] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [typeFilter, setTypeFilter] = useState('all');
@@ -168,6 +176,13 @@ const Transacoes: React.FC = () => {
     const dt = new Date(s)
     if (isNaN(dt.getTime())) return null
     return new Date(Date.UTC(dt.getUTCFullYear(), dt.getUTCMonth(), dt.getUTCDate()))
+  }
+
+  const isContaImportavel = (conta: any) => {
+    const tipo = normalizar(String(conta?.tipo || conta?.type || ''))
+    if (!tipo) return true
+    if (tipo.includes('credit') || tipo.includes('cartao') || tipo.includes('card')) return false
+    return true
   }
 
   // Memo para filtrar transações conforme filtros visuais
@@ -257,24 +272,16 @@ const Transacoes: React.FC = () => {
       })
     }
     
-    // Helper para parsear datas em vários formatos (dd/mm/yyyy, yyyy-mm-dd, ISO)
-    const parseDateToTime = (dateStr) => {
-      if (!dateStr) return 0
-      // dd/mm/yyyy
-      if (/^\d{2}\/\d{2}\/\d{4}$/.test(dateStr)) {
-        const [d, m, y] = dateStr.split('/')
-        return new Date(`${y}-${m}-${d}T00:00:00`).getTime()
-      }
-      // yyyy-mm-dd or ISO
-      const d = new Date(dateStr)
-      if (!isNaN(d.getTime())) return d.getTime()
-      return 0
+    // Helper para ordenar por data real do lançamento (fallback para created_at)
+    const parseDateToTime = (dateStr?: string | null) => {
+      const dt = parseToDate(dateStr)
+      return dt ? dt.getTime() : 0
     }
 
     const getSortValue = (t: any, field: SortField) => {
       switch (field) {
         case 'data':
-          return parseDateToTime(viewMode === 'ultimos' ? (t.created_at || t.data) : (t.data || t.created_at))
+          return parseDateToTime(t.data || t.created_at)
         case 'descricao':
           return (t.descricao || t.observacao || '').toString().toLowerCase()
         case 'categoria':
@@ -350,6 +357,7 @@ const Transacoes: React.FC = () => {
         .from('cartoes')
         .select('id, nome')
         .eq('user_id', user.id);
+      setCartoes(cartoesData || []);
 
       // Busca transações
       const { data, error } = await supabase
@@ -398,15 +406,10 @@ const Transacoes: React.FC = () => {
           }
         }
         
-        // Derivar status em memória (não salvar no banco — coluna pode não existir)
-        let statusDerivado = t.status;
-        if (!statusDerivado) {
-          if (t.cartao_id) {
-            statusDerivado = t.pago ? 'pago' : 'pendente_fatura';
-          } else {
-            statusDerivado = t.pago ? 'pago' : 'pendente';
-          }
-        }
+        // Derivar status sempre a partir de "pago" para evitar divergência com valor salvo no banco.
+        const statusDerivado = t.cartao_id
+          ? (isTransacaoPaga(t) ? 'pago' : 'pendente_fatura')
+          : (isTransacaoPaga(t) ? 'pago' : 'pendente')
         
         return {
           ...t,
@@ -443,6 +446,287 @@ const Transacoes: React.FC = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleImportFatura = async (
+    transacoesImportadas: any[],
+    cartaoId: string,
+    regrasTexto: string,
+    mesReferencia?: string,
+    anoReferencia?: string,
+    options?: { criarParcelasFuturas?: boolean }
+  ) => {
+    const CATEGORIA_PAGAMENTO_FATURA = 'Pagamento de Fatura';
+    const refFatura = mesReferencia && anoReferencia ? `${mesReferencia}/${anoReferencia}` : null;
+    const faturaMes = mesReferencia ? parseInt(mesReferencia, 10) : null;
+    const faturaAno = anoReferencia ? parseInt(anoReferencia, 10) : null;
+    const criarParcelasFuturas = options?.criarParcelasFuturas ?? true;
+    let totalParcelasFuturasCriadas = 0;
+
+    const faltandoCategoria = (transacoesImportadas || []).filter((t: any) => {
+      const tipoTransacao = (t?.tipo === 'pagamento' || t?.tipo === 'estorno') ? 'receita' : 'despesa';
+      if (tipoTransacao !== 'despesa') return false;
+      const categoriaRegra = categorizar(String(t?.estabelecimento || ''), regrasTexto || '');
+      const categoriaAtual = String(t?.categoria || '').trim();
+      return !categoriaRegra && !categoriaAtual;
+    });
+
+    if (faltandoCategoria.length > 0) {
+      return {
+        success: false,
+        message: `Existem ${faltandoCategoria.length} lançamento(s) sem categoria. Preencha antes de importar.`,
+      };
+    }
+
+    let suportaCamposParcela = true;
+    const toIsoDate = (date: Date) => {
+      const y = date.getUTCFullYear();
+      const m = String(date.getUTCMonth() + 1).padStart(2, '0');
+      const d = String(date.getUTCDate()).padStart(2, '0');
+      return `${y}-${m}-${d}`;
+    };
+
+    const parseDataParaBanco = (value: unknown): { dateObj: Date; isoDate: string } | null => {
+      const texto = String(value || '').trim();
+      if (!texto) return null;
+
+      const br = texto.match(/^(\d{1,2})\s*\/\s*(\d{1,2})(?:\s*\/\s*(\d{2,4}))?$/);
+      if (br) {
+        const dia = parseInt(br[1], 10);
+        const mes = parseInt(br[2], 10);
+        let ano = faturaAno || new Date().getFullYear();
+        if (br[3]) {
+          const parsedYear = parseInt(br[3], 10);
+          ano = parsedYear < 100 ? 2000 + parsedYear : parsedYear;
+        }
+
+        const parsed = new Date(Date.UTC(ano, mes - 1, dia));
+        if (
+          !Number.isNaN(parsed.getTime()) &&
+          parsed.getUTCDate() === dia &&
+          parsed.getUTCMonth() === (mes - 1)
+        ) {
+          return { dateObj: parsed, isoDate: toIsoDate(parsed) };
+        }
+      }
+
+      const iso = texto.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+      if (iso) {
+        const ano = parseInt(iso[1], 10);
+        const mes = parseInt(iso[2], 10);
+        const dia = parseInt(iso[3], 10);
+        const parsed = new Date(Date.UTC(ano, mes - 1, dia));
+        if (
+          !Number.isNaN(parsed.getTime()) &&
+          parsed.getUTCDate() === dia &&
+          parsed.getUTCMonth() === (mes - 1)
+        ) {
+          return { dateObj: parsed, isoDate: toIsoDate(parsed) };
+        }
+      }
+
+      const parsedNative = new Date(texto);
+      if (!Number.isNaN(parsedNative.getTime())) {
+        const normalized = new Date(Date.UTC(
+          parsedNative.getUTCFullYear(),
+          parsedNative.getUTCMonth(),
+          parsedNative.getUTCDate()
+        ));
+        return { dateObj: normalized, isoDate: toIsoDate(normalized) };
+      }
+
+      return null;
+    };
+
+    const categoriaCache: Record<string, string> = {};
+    async function getOrCreateCategoriaId(nomeCategoria: string, tipoCategoria: 'despesa' | 'receita'): Promise<string | null> {
+      if (!nomeCategoria || nomeCategoria.trim() === '') return null;
+      const nome = nomeCategoria.trim();
+      const cacheKey = `${tipoCategoria}:${nome.toLowerCase()}`;
+      if (categoriaCache[cacheKey]) return categoriaCache[cacheKey];
+
+      const { data: existingRows } = await supabase
+        .from('categorias')
+        .select('id, nome')
+        .eq('user_id', user?.id)
+        .eq('tipo', tipoCategoria)
+        .ilike('nome', nome);
+
+      const existing =
+        (existingRows || []).find(
+          (c) => String(c.nome || '').trim().toLowerCase() === nome.toLowerCase()
+        ) || existingRows?.[0];
+
+      if (existing?.id) {
+        categoriaCache[cacheKey] = existing.id;
+        return existing.id;
+      }
+
+      const { data: created } = await supabase
+        .from('categorias')
+        .insert({ user_id: user?.id, nome, tipo: tipoCategoria })
+        .select('id')
+        .maybeSingle();
+      if (created?.id) {
+        categoriaCache[cacheKey] = created.id;
+        return created.id;
+      }
+      return null;
+    }
+
+    const toInsert: any[] = [];
+
+    const parseParcela = (t: any) => {
+      if (t.parcela_atual && t.total_parcelas) {
+        return { atual: Number(t.parcela_atual), total: Number(t.total_parcelas) };
+      }
+      const desc = (t.estabelecimento || '').trim();
+      const match = desc.match(/(\d{1,2})\s*\/\s*(\d{1,2})\s*$/);
+      if (!match) return null;
+      const atual = parseInt(match[1], 10);
+      const total = parseInt(match[2], 10);
+      if (Number.isNaN(atual) || Number.isNaN(total) || total <= 1 || atual < 1 || atual > total) return null;
+      return { atual, total };
+    };
+
+    const updateDescricaoParcela = (descricao: string, parcelaAtual: number, totalParcelas: number) => {
+      const base = (descricao || '').trim();
+      if (/(\d{1,2})\s*\/\s*(\d{1,2})\s*$/.test(base)) {
+        return base.replace(/(\d{1,2})\s*\/\s*(\d{1,2})\s*$/, `${parcelaAtual}/${totalParcelas}`);
+      }
+      return `${base} ${parcelaAtual}/${totalParcelas}`.trim();
+    };
+
+    const datasInvalidas: string[] = [];
+    for (const t of transacoesImportadas) {
+      const parcelaInfo = parseParcela(t);
+      const tipoTransacao = (t.tipo === 'pagamento' || t.tipo === 'estorno') ? 'receita' : 'despesa';
+      const tipoCategoria = tipoTransacao === 'despesa' ? 'despesa' : 'receita';
+      const categoriaPorRegra = (t.tipo === 'pagamento' || t.tipo === 'estorno')
+        ? CATEGORIA_PAGAMENTO_FATURA
+        : categorizar(t.estabelecimento || '', regrasTexto || '');
+      const nomeCategoriaFinal = (categoriaPorRegra || String(t.categoria || '').trim()).trim();
+      const categoriaId = await getOrCreateCategoriaId(nomeCategoriaFinal, tipoCategoria);
+      const parsedData = parseDataParaBanco(t.quando);
+      if (!parsedData) {
+        datasInvalidas.push(String(t.estabelecimento || t.quando || 'Lançamento sem descrição'));
+        continue;
+      }
+      const { dateObj: baseData, isoDate: baseDataIso } = parsedData;
+
+      toInsert.push({
+        data: baseDataIso,
+        descricao: t.estabelecimento,
+        valor: t.valor,
+        tipo: tipoTransacao,
+        cartao_id: cartaoId,
+        user_id: user?.id,
+        pago: false,
+        ...(categoriaId ? { categoria_id: categoriaId } : {}),
+        ...(refFatura ? { observacao: `Fatura ${refFatura}` } : {}),
+        ...(suportaCamposParcela && parcelaInfo ? { parcela_atual: parcelaInfo.atual, total_parcelas: parcelaInfo.total } : {}),
+        ...(faturaMes ? { fatura_mes: faturaMes } : {}),
+        ...(faturaAno ? { fatura_ano: faturaAno } : {}),
+      });
+
+      if (
+        criarParcelasFuturas &&
+        tipoTransacao === 'despesa' &&
+        parcelaInfo &&
+        parcelaInfo.total > parcelaInfo.atual
+      ) {
+        const baseMes = faturaMes ?? (baseData.getUTCMonth() + 1);
+        const baseAno = faturaAno ?? baseData.getUTCFullYear();
+        const parcelasRestantes = parcelaInfo.total - parcelaInfo.atual;
+
+        for (let offset = 1; offset <= parcelasRestantes; offset++) {
+          const proxParcela = parcelaInfo.atual + offset;
+          const dataFutura = new Date(Date.UTC(baseAno, baseMes - 1 + offset, 1));
+          const faturaMesFutura = dataFutura.getUTCMonth() + 1;
+          const faturaAnoFutura = dataFutura.getUTCFullYear();
+
+          toInsert.push({
+            data: toIsoDate(dataFutura),
+            descricao: updateDescricaoParcela(t.estabelecimento, proxParcela, parcelaInfo.total),
+            valor: t.valor,
+            tipo: 'despesa',
+            cartao_id: cartaoId,
+            user_id: user?.id,
+            pago: false,
+            ...(categoriaId ? { categoria_id: categoriaId } : {}),
+            observacao: `Parcela ${proxParcela}/${parcelaInfo.total}`,
+            ...(suportaCamposParcela ? { parcela_atual: proxParcela, total_parcelas: parcelaInfo.total } : {}),
+            fatura_mes: faturaMesFutura,
+            fatura_ano: faturaAnoFutura,
+          });
+          totalParcelasFuturasCriadas += 1;
+        }
+      }
+    }
+
+    if (datasInvalidas.length > 0) {
+      return {
+        success: false,
+        message: `${datasInvalidas.length} lançamento(s) com data inválida. Ex.: ${datasInvalidas.slice(0, 3).join(', ')}. Revise a coluna de data no CSV.`,
+      };
+    }
+
+    const payloadSemCamposParcela = toInsert.map((item) => {
+      const { parcela_atual, total_parcelas, ...rest } = item as any;
+      return rest;
+    });
+    const payloadFinal = suportaCamposParcela ? toInsert : payloadSemCamposParcela;
+
+    let { error } = await supabase.from('transacoes').insert(payloadFinal);
+    if (error?.code === 'PGRST204' && suportaCamposParcela) {
+      const retry = await supabase.from('transacoes').insert(payloadSemCamposParcela);
+      error = retry.error;
+      if (!error) suportaCamposParcela = false;
+    }
+
+    if (error) {
+      return {
+        success: false,
+        message: `Erro ao importar: ${error.message} (code: ${error.code}, details: ${error.details})`
+      };
+    }
+
+    let totalRecategorizadas = 0;
+    const { data: transacoesCartaoExistentes } = await supabase
+      .from('transacoes')
+      .select('id, descricao, tipo, categoria_id')
+      .eq('user_id', user?.id)
+      .not('cartao_id', 'is', null);
+
+    if (Array.isArray(transacoesCartaoExistentes) && transacoesCartaoExistentes.length > 0) {
+      const atualizacoes: Array<{ id: string; categoria_id: string }> = [];
+      for (const row of transacoesCartaoExistentes) {
+        const descricao = String(row?.descricao || '').trim();
+        if (!descricao) continue;
+        const categoriaPorRegra = categorizar(descricao, regrasTexto || '');
+        if (!categoriaPorRegra) continue;
+        const tipoCategoria = row?.tipo === 'receita' ? 'receita' : 'despesa';
+        const categoriaId = await getOrCreateCategoriaId(categoriaPorRegra, tipoCategoria);
+        if (categoriaId && categoriaId !== row?.categoria_id) {
+          atualizacoes.push({ id: row.id, categoria_id: categoriaId });
+        }
+      }
+
+      for (const updateRow of atualizacoes) {
+        const { error: updateError } = await supabase
+          .from('transacoes')
+          .update({ categoria_id: updateRow.categoria_id })
+          .eq('id', updateRow.id)
+          .eq('user_id', user?.id);
+        if (!updateError) totalRecategorizadas += 1;
+      }
+    }
+
+    fetchTransacoes();
+    return {
+      success: true,
+      message: `Importação realizada com sucesso! ${transacoesImportadas.length} transações importadas${totalParcelasFuturasCriadas > 0 ? ` e ${totalParcelasFuturasCriadas} parcelas futuras criadas` : ''}${totalRecategorizadas > 0 ? `. ${totalRecategorizadas} transações recategorizadas pelas regras` : ''}.`
+    };
   };
 
   const handleImportLancamentos = async (lancamentos: any[], contaId: string, regras: string) => {
@@ -486,7 +770,7 @@ const Transacoes: React.FC = () => {
 
       const lancamentosComCategoriaId = [];
       const contaSelecionadaObj = contas.find(c => c.id === contaId);
-      if (!contaSelecionadaObj || (contaSelecionadaObj.tipo || '').toLowerCase() !== 'bank') {
+      if (!contaSelecionadaObj || !isContaImportavel(contaSelecionadaObj)) {
         return { success: false, message: 'Selecione uma conta bancária válida para importar.' };
       }
 
@@ -510,13 +794,7 @@ const Transacoes: React.FC = () => {
         const tipo: 'receita' | 'despesa' = valorNum >= 0 ? 'receita' : 'despesa';
         const descricao = l.estabelecimento || l.descricao || '';
         const categoriaPorRegra = categorizar(descricao, regras || '');
-        const nomeCategoria = (categoriaPorRegra || (
-          l.categoria && l.categoria.trim() !== ''
-            ? l.categoria.trim()
-            : tipo === 'receita'
-              ? 'Renda Extra'
-              : 'Compras'
-        )).trim();
+        const nomeCategoria = String(categoriaPorRegra || l.categoria || '').trim();
         const categoriaId = await getOrCreateCategoriaId(nomeCategoria, tipo);
 
         lancamentosComCategoriaId.push({
@@ -598,9 +876,13 @@ const Transacoes: React.FC = () => {
     }, 0)
 
     // SALDO: usa 'transacoes' (GLOBAL), não 'filteredTransacoes' — filtros visuais não devem afetar o saldo
-    const transacoesConta = transacoes.filter(t => !t.cartao_id)
-    const receitasGlobais = transacoesConta.filter(t => t.tipo === 'receita').reduce((acc, t) => acc + Math.abs(Number(t.valor) || 0), 0)
-    const despesasGlobais = transacoesConta.filter(t => t.tipo === 'despesa').reduce((acc, t) => acc + Math.abs(Number(t.valor) || 0), 0)
+    const transacoesContaPagas = transacoes.filter(t => !t.cartao_id && isTransacaoPaga(t))
+    const receitasGlobais = transacoesContaPagas
+      .filter(t => t.tipo === 'receita')
+      .reduce((acc, t) => acc + Math.abs(Number(t.valor) || 0), 0)
+    const despesasGlobais = transacoesContaPagas
+      .filter(t => t.tipo === 'despesa')
+      .reduce((acc, t) => acc + Math.abs(Number(t.valor) || 0), 0)
 
     // Saldo = saldo inicial + receitas - despesas (apenas de contas, cartão não afeta, sem filtros)
     const saldo = totalSaldoInicial + receitasGlobais - despesasGlobais
@@ -608,11 +890,11 @@ const Transacoes: React.FC = () => {
       contas: contas.map(c => ({ id: c.id, nome: c.nome, saldo_inicial: c.saldo_inicial, saldoInicial: c.saldoInicial, saldo: c.saldo, TODOS_CAMPOS: Object.keys(c) })),
       totalSaldoInicial,
       totalTransacoes: transacoes.length,
-      transacoesConta: transacoesConta.length,
+      transacoesContaPagas: transacoesContaPagas.length,
       receitasGlobais,
       despesasGlobais,
       saldo,
-      amostraTransacoes: transacoesConta.slice(0, 5).map(t => ({ id: t.id, desc: t.descricao, valor: t.valor, tipo: t.tipo, cartao_id: t.cartao_id }))
+      amostraTransacoes: transacoesContaPagas.slice(0, 5).map(t => ({ id: t.id, desc: t.descricao, valor: t.valor, tipo: t.tipo, cartao_id: t.cartao_id, pago: t.pago }))
     })
     return saldo
   }, [transacoes, contas])
@@ -636,18 +918,24 @@ const Transacoes: React.FC = () => {
     
     const baseDoMes = hideCardTransactions ? todasDoMes.filter(t => !t.cartao_id) : todasDoMes
     const contaDoMes = baseDoMes.filter(t => !t.cartao_id)
+    const contaDoMesPagas = contaDoMes.filter(t => isTransacaoPaga(t))
+    const baseDoMesPagas = baseDoMes.filter(t => isTransacaoPaga(t))
 
-    // Receitas do mês: mantém apenas contas (receitas de cartão são estornos/pgto fatura)
-    const receitasMes = contaDoMes.filter(t => t.tipo === 'receita').reduce((acc, t) => acc + Math.abs(Number(t.valor) || 0), 0)
-    const countReceitasMes = contaDoMes.filter(t => t.tipo === 'receita').length
+    // Receitas do mês: apenas lançamentos pagos de conta.
+    const receitasMes = contaDoMesPagas
+      .filter(t => t.tipo === 'receita')
+      .reduce((acc, t) => acc + Math.abs(Number(t.valor) || 0), 0)
+    const countReceitasMes = contaDoMesPagas.filter(t => t.tipo === 'receita').length
 
-    // Despesas do mês: incluir cartão + conta (respeitando toggle de ocultar cartão)
-    const despesasMes = baseDoMes.filter(t => t.tipo === 'despesa').reduce((acc, t) => acc + Math.abs(Number(t.valor) || 0), 0)
-    const countDespesasMes = baseDoMes.filter(t => t.tipo === 'despesa').length
+    // Despesas do mês: apenas lançamentos pagos; pendentes seguem em "Faturas em Aberto".
+    const despesasMes = baseDoMesPagas
+      .filter(t => t.tipo === 'despesa')
+      .reduce((acc, t) => acc + Math.abs(Number(t.valor) || 0), 0)
+    const countDespesasMes = baseDoMesPagas.filter(t => t.tipo === 'despesa').length
 
     // Despesas pendentes: transações de cartão NÃO pagas + pendentes de conta (na base atual)
     const despesasPendentes = baseDoMes
-      .filter(t => t.tipo === 'despesa' && !t.pago && (t.cartao_id || t.status === 'pendente' || t.status === 'pendente_fatura'))
+      .filter(t => t.tipo === 'despesa' && !isTransacaoPaga(t) && (t.cartao_id || t.status === 'pendente' || t.status === 'pendente_fatura'))
       .reduce((acc, t) => acc + Math.abs(Number(t.valor) || 0), 0)
 
     return { receitasMes, despesasMes, despesasPendentes, transacoesCountMes: baseDoMes.length, countReceitasMes, countDespesasMes }
@@ -827,6 +1115,7 @@ const Transacoes: React.FC = () => {
         tipo: formData.tipo || null,
         categoria_id: normalizeUuid(formData.category_id),
         pago: formData.isPago !== undefined ? formData.isPago : true,
+        status: getTransactionStatus(Boolean(formData.isPago), formData.metodo),
         conta_id: formData.metodo === 'cartao_credito' ? null : normalizeUuid(formData.account_id),
         cartao_id: formData.metodo === 'cartao_credito' ? normalizeUuid(formData.account_id) : null,
         user_id: user?.id || null,
@@ -971,10 +1260,10 @@ const Transacoes: React.FC = () => {
       tipo: transacao.tipo || '',
       category_id: transacao.categoria_id || '',
       metodo: transacao.cartao_id ? 'cartao_credito' : transacao.tipo || '',
-      status: transacao.pago ? 'pago' : 'pendente',
+      status: getTransactionStatus(Boolean(transacao.pago), transacao.cartao_id ? 'cartao_credito' : transacao.tipo || ''),
       account_id: accountId,
       fatura_id: transacao.fatura_id || '',
-      isPago: transacao.status !== 'pendente' && transacao.status !== 'pendente_fatura',
+      isPago: Boolean(transacao.pago),
       isParcelado: false,
       numeroParcelas: 1,
       isRecorrente: false,
@@ -1921,38 +2210,9 @@ const Transacoes: React.FC = () => {
           <>
             {filteredTransacoes.slice(0, displayCount).map((transacao) => {
             const dataFormatada = (() => {
-              const dateStr = viewMode === 'ultimos'
-                ? (transacao.created_at || transacao.data)
-                : (transacao.data || transacao.created_at);
+              const dateStr = transacao.data || transacao.created_at;
               if (!dateStr) return '-';
-              
-              try {
-                // Se for string em formato yyyy-mm-dd, adiciona T00:00:00
-                if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
-                  const date = new Date(dateStr + 'T00:00:00');
-                  if (!isNaN(date.getTime())) {
-                    return date.toLocaleDateString('pt-BR');
-                  }
-                }
-                
-                // Se for string com timestamp ISO
-                if (/^\d{4}-\d{2}-\d{2}T/.test(dateStr)) {
-                  const date = new Date(dateStr);
-                  if (!isNaN(date.getTime())) {
-                    return date.toLocaleDateString('pt-BR');
-                  }
-                }
-                
-                // Tentar parse direto
-                const date = new Date(dateStr);
-                if (!isNaN(date.getTime())) {
-                  return date.toLocaleDateString('pt-BR');
-                }
-                
-                return dateStr; // Retorna a string original se tudo falhar
-              } catch {
-                return dateStr || '-';
-              }
+              return formatDate(dateStr);
             })()
             
             const isReceita = transacao.tipo === 'receita' || (transacao.tipo === null && Number(transacao.valor || 0) > 0)
@@ -2291,7 +2551,11 @@ const Transacoes: React.FC = () => {
                     id="isPago"
                     type="checkbox"
                     checked={formData.isPago}
-                    onChange={e => setFormData({ ...formData, isPago: e.target.checked, status: e.target.checked ? 'pago' : 'pendente' })}
+                    onChange={e => setFormData({
+                      ...formData,
+                      isPago: e.target.checked,
+                      status: getTransactionStatus(e.target.checked, formData.metodo),
+                    })}
                     className="w-4 h-4 cursor-pointer accent-primary rounded opacity-0 absolute"
                   />
                   {formData.isPago && (
@@ -2778,14 +3042,16 @@ const Transacoes: React.FC = () => {
       />
 
       {/* Modal Importar Fatura */}
-      <ImportarFaturaModal
+      <ImportarFaturaModalNovo
         open={importarFaturaOpen}
         onClose={() => {
           setImportarFaturaOpen(false);
           setCartaoParaImportar(undefined);
-          fetchTransacoes(); // Recarrega para mostrar novas transações
+          fetchTransacoes();
         }}
-        cardId={cartaoParaImportar}
+        onImport={handleImportFatura}
+        cartoes={cartoes}
+        initialCardId={cartaoParaImportar}
       />
 
       {/* Modal Importar Extrato */}

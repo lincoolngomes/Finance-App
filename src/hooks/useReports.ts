@@ -15,6 +15,8 @@ export interface ReportTransaction {
   categoria_id: string
   conta_id?: string | null
   cartao_id?: string | null
+  pago?: boolean | null
+  status?: string | null
   metodo?: string | null
   categorias?: {
     id: string
@@ -37,6 +39,7 @@ export interface ReportFilters {
 
 export function useReports() {
   const { user } = useAuth()
+  const isTransacaoPaga = (transaction: { pago?: boolean | null }) => transaction.pago === true
   
   // Inicializar com as datas do mês atual
   const now = new Date()
@@ -144,8 +147,9 @@ export function useReports() {
       filtered = filtered.filter(t => t.categoria_id === filters.categoryId)
     }
 
-    console.log(`✅ Transações filtradas finais: ${filtered.length}`)
-    return filtered
+    const paidOnly = filtered.filter(isTransacaoPaga)
+    console.log(`✅ Transações filtradas finais: ${filtered.length} | pagas: ${paidOnly.length}`)
+    return paidOnly
   }, [allTransactions, filters])
 
   // Calculate summary data

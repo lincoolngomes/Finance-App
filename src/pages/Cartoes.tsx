@@ -541,17 +541,10 @@ export default function Cartoes({ isModal = false }) {
       return `${y}-${m}-${d}`;
     };
 
-    const parseDataParaBanco = (value: unknown): { dateObj: Date; isoDate: string } => {
-      const fallbackBase = new Date();
-      const fallbackDate = new Date(Date.UTC(
-        fallbackBase.getFullYear(),
-        fallbackBase.getMonth(),
-        fallbackBase.getDate()
-      ));
-
+    const parseDataParaBanco = (value: unknown): { dateObj: Date; isoDate: string } | null => {
       const texto = String(value || '').trim();
       if (!texto) {
-        return { dateObj: fallbackDate, isoDate: toIsoDate(fallbackDate) };
+        return null;
       }
 
       // Formato BR: dd/mm/yyyy ou dd/mm/yy (com ano opcional)
@@ -602,7 +595,7 @@ export default function Cartoes({ isModal = false }) {
         return { dateObj: normalized, isoDate: toIsoDate(normalized) };
       }
 
-      return { dateObj: fallbackDate, isoDate: toIsoDate(fallbackDate) };
+      return null;
     };
 
     // Buscar/criar categorias para associar categoria_id
@@ -667,6 +660,7 @@ export default function Cartoes({ isModal = false }) {
       }
       return `${base} ${parcelaAtual}/${totalParcelas}`.trim();
     };
+    const datasInvalidas: string[] = [];
     for (const t of transacoes) {
       const parcelaInfo = parseParcela(t);
       const tipoTransacao = (t.tipo === 'pagamento' || t.tipo === 'estorno') ? 'receita' : 'despesa';
@@ -676,7 +670,12 @@ export default function Cartoes({ isModal = false }) {
         : categorizar(t.estabelecimento || '', regrasTexto || '');
       const nomeCategoriaFinal = (categoriaPorRegra || String(t.categoria || '').trim()).trim();
       const categoriaId = await getOrCreateCategoriaId(nomeCategoriaFinal, tipoCategoria);
-      const { dateObj: baseData, isoDate: baseDataIso } = parseDataParaBanco(t.quando);
+      const parsedData = parseDataParaBanco(t.quando);
+      if (!parsedData) {
+        datasInvalidas.push(String(t.estabelecimento || t.quando || 'Lançamento sem descrição'));
+        continue;
+      }
+      const { dateObj: baseData, isoDate: baseDataIso } = parsedData;
 
       toInsert.push({
         data: baseDataIso,
@@ -726,6 +725,13 @@ export default function Cartoes({ isModal = false }) {
           totalParcelasFuturasCriadas += 1;
         }
       }
+    }
+
+    if (datasInvalidas.length > 0) {
+      return {
+        success: false,
+        message: `${datasInvalidas.length} lançamento(s) com data inválida. Ex.: ${datasInvalidas.slice(0, 3).join(', ')}. Revise a coluna de data no CSV.`,
+      };
     }
 
     const payloadSemCamposParcela = toInsert.map((item) => {

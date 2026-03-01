@@ -1,45 +1,10 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
 import Papa from 'papaparse';
-
-// Função utilitária para normalizar strings (remove acentos, espaços extras, caixa baixa)
-function normalizar(str: string): string {
-  return (str || "")
-    .normalize("NFD")
-    .replace(/\p{Diacritic}/gu, "")
-    .replace(/\s+/g, " ")
-    .trim()
-    .toLowerCase();
-}
-
-function categorizar(descricao: string, regrasTexto: string, tipo: string = ''): string {
-  if (!descricao) return '';
-  const descNorm = normalizar(descricao);
-  const regras = (regrasTexto || '')
-    .split('\n')
-    .map((l) => l.trim())
-    .filter((l) => l && !l.startsWith('#') && l.includes('='));
-  let melhorCategoria = '';
-  let melhorTamanhoTermo = -1;
-  for (const regra of regras) {
-    const idx = regra.indexOf('=');
-    if (idx <= 0 || idx >= regra.length - 1) continue;
-    const termo = regra.slice(0, idx).trim();
-    const categoria = regra.slice(idx + 1).trim();
-    if (!termo || !categoria) continue;
-    const termoNormalizado = normalizar(termo);
-    if (termoNormalizado.length < 2) continue;
-    if (descNorm.includes(termoNormalizado)) {
-      const catNorm = categoria.trim();
-      if (termoNormalizado.length > melhorTamanhoTermo) {
-        melhorTamanhoTermo = termoNormalizado.length;
-        melhorCategoria = catNorm.charAt(0).toUpperCase() + catNorm.slice(1);
-      }
-    }
-  }
-  return melhorCategoria;
-}
+import { ImportCategoryCombobox, type ImportCategoryOption } from '@/components/importers/ImportCategoryCombobox';
+import { categorizar, normalizar, REGRAS_PADRAO } from '@/utils/categorizacao';
+import { isDefaultCategory } from '@/constants/defaultCategories';
 
 interface Lancamento {
   uid: string;
@@ -59,23 +24,81 @@ interface ImportarExtratoModalProps {
 }
 
 export function ImportarExtratoModal({ open, onClose, onImport, contas }: ImportarExtratoModalProps) {
+  const REGRAS_STORAGE_KEY = 'regrasImportacaoCategorias';
   const { user } = useAuth();
 
   // Estados principais do modal de importação
   const [step, setStep] = useState(1);
-  const [regrasTexto, setRegrasTexto] = useState(`# ===== DESPESAS =====\n\n# Academia\nsmart fit = Academia\nbluefit = Academia\nselfit = Academia\nbodytech = Academia\njust fit = Academia\ngympass = Academia\nacademia = Academia\n\n# Água\nsabesp = Água\nsanepar = Água\ncopasa = Água\ncaesb = Água\ncasan = Água\ndmae = Água\nembasa = Água\nsaae = Água\n\n# Alimentação\nifood = Alimentação\nubereats = Alimentação\nrestaurante = Alimentação\nlanchonete = Alimentação\npadaria = Alimentação\npizzaria = Alimentação\nhamburgueria = Alimentação\nhabibs = Alimentação\noutback = Alimentação\nmcdonalds = Alimentação\nburger king = Alimentação\nbk = Alimentação\ngiraffas = Alimentação\nsubway = Alimentação\nspoleto = Alimentação\n\n# Aluguel\naluguel = Aluguel\nlocacao residencial = Aluguel\nimobiliaria = Aluguel\nquinto andar = Aluguel\nquintoandar = Aluguel\n\n# Aplicação Investimento\naplicacao cdb = Aplicação Investimento\naplicacao cdb cofrinhos = Aplicação Investimento\naplicacao cdb di = Aplicação Investimento\ncof aplicacao cdb = Aplicação Investimento\ndi aplicacao cdb = Aplicação Investimento\npix transf avenue = Aplicação Investimento\naporte = Aplicação Investimento\nenvio corretora = Aplicação Investimento\ncompra tesouro = Aplicação Investimento\ncompra fundos = Aplicação Investimento\n\n# Assinaturas\nseguro cartao = Assinaturas\nnetflix = Assinaturas\nspotify = Assinaturas\nprime video = Assinaturas\ndisney = Assinaturas\ngloboplay = Assinaturas\nmax = Assinaturas\nhbo = Assinaturas\nyoutube premium = Assinaturas\napple tv = Assinaturas\napple music = Assinaturas\nicloud = Assinaturas\ngoogle one = Assinaturas\nmicrosoft 365 = Assinaturas\nadobe = Assinaturas\nchatgpt = Assinaturas\nnotion = Assinaturas\nonepassword = Assinaturas\ndeezer = Assinaturas\nparamount = Assinaturas\ncanva = Assinaturas\n\n# Carro\nipva = Carro\nlicenciamento = Carro\npag licenciamento de vei = Carro\necovias = Carro\nsem parar = Carro\nrscss ecovias = Carro\nposto = Carro\ngasolina = Carro\netanol = Carro\ndiesel = Carro\nestacionamento = Carro\nmanutencao veiculo = Carro\n\n# Celular\nvivo recarga = Celular\nclaro recarga = Celular\ntim recarga = Celular\noi recarga = Celular\nvivo pos = Celular\nclaro pos = Celular\ntim pos = Celular\noi pos = Celular\nvivo controle = Celular\nclaro controle = Celular\ntim controle = Celular\nrecarga celular = Celular\n\n# Compras\nmercado livre = Compras\nmagalu = Compras\namericanas = Compras\nsubmarino = Compras\ncasas bahia = Compras\nshopee = Compras\namazon = Compras\nkabum = Compras\nfast shop = Compras\ncentauro = Compras\nkalunga = Compras\nshein = Compras\naliexpress = Compras\npaypal = Compras\npagseguro = Compras\nstone = Compras\nsumup = Compras\ngetnet = Compras\ncielo = Compras\nrede = Compras\nsafetopay = Compras\npay shopp = Compras\nreceita fed = Compras\nint pre-pago = Compras\npix qrs = Compras\npix whats = Compras\nmagazine lu = Compras\nnetshoes = Compras\n\n# Educação\nescola = Educação\nfaculdade = Educação\nuniversidade = Educação\ncurso = Educação\nead = Educação\nalura = Educação\nrocketseat = Educação\nudemy = Educação\ncoursera = Educação\nsenai = Educação\netec = Educação\npix transf thamire = Educação\n\n# Energia\nenel = Energia\nlight = Energia\ncemig = Energia\ncopel = Energia\nequatorial = Energia\nrge = Energia\ncelesc = Energia\ncpfl = Energia\nenergisa = Energia\n\n# Farmácia\ndrogaraia = Farmácia\ndroga raia = Farmácia\ndrogasil = Farmácia\npacheco = Farmácia\ndrogaria sao paulo = Farmácia\npanvel = Farmácia\nnissei = Farmácia\naraujo = Farmácia\nfarmaconde = Farmácia\nfarmacia = Farmácia\n\n# Fatura do Cartão\nint mc black = Fatura do Cartão\nint itau black = Fatura do Cartão\npix qrs mercado pag = Fatura do Cartão\npix qrs portoseg = Fatura do Cartão\nportoseg sa = Fatura do Cartão\npagamento fatura = Fatura do Cartão\nfatura cartao = Fatura do Cartão\n\n# Internet\nvivo fibra = Internet\nclaro net = Internet\ntim live = Internet\noi fibra = Internet\ngvt = Internet\nalgar = Internet\nbrisanet = Internet\ndesktop = Internet\nvogel = Internet\nprovedor = Internet\ninternet = Internet\n\n# Lazer\ncinema = Lazer\ncinemark = Lazer\ncinepolis = Lazer\nteatro = Lazer\nshow = Lazer\ningresso = Lazer\nparque = Lazer\nmuseu = Lazer\nthermas = Lazer\nhotel = Lazer\nbooking = Lazer\ndecolar = Lazer\nairbnb = Lazer\nresort = Lazer\nsympla = Lazer\ningresso.com = Lazer\n\n# Mercado\ncarrefour = Mercado\nextra = Mercado\npao de acucar = Mercado\nassai = Mercado\natacadao = Mercado\ndia = Mercado\nsonda = Mercado\ntenda = Mercado\nbig = Mercado\noba = Mercado\nhortifruti = Mercado\nsupermerc = Mercado\nsuper mercado = Mercado\n\n# Moradia\ncondominio = Moradia\niptu = Moradia\nmanutencao residencial = Moradia\nleroy merlin = Moradia\ntelha norte = Moradia\ntok stok = Moradia\ncamicado = Moradia\nmobly = Moradia\n\n# Necessidades\nsaque banco24h = Necessidades\nsaque din atm = Necessidades\natm banco24h = Necessidades\nloterica = Necessidades\ncaixa eletronico = Necessidades\n\n# Pet\npetz = Pet\ncobasi = Pet\npetlove = Pet\npet shop = Pet\nseres = Pet\nvet = Pet\nclinica veterinaria = Pet\ndrogavet = Pet\n\n# Salão/Barbearia\nbarbearia = Salão\nsalao = Salão\ncabeleireiro = Salão\nesmalteria = Salão\nmanicure = Salão\nbarber = Salão\npix transf sergio = Salão\n\n# Saúde\nhospital = Saúde\nclinica = Saúde\nlaboratorio = Saúde\nexame = Saúde\nvacina = Saúde\ndasa = Saúde\nfleury = Saúde\nsabin = Saúde\neinstein = Saúde\nsirio = Saúde\nunimed = Saúde\namil = Saúde\nhapvida = Saúde\nprevent = Saúde\npix transf tania = Saúde\n\n# Transferência (Despesa)\npix transf lincoln = Transferência\npix transf conta itau = Transferência\nted transf conta = Transferência\ndoc transferencia = Transferência\ntransferencia entre contas = Transferência\npix transf minha conta = Transferência\n\n# Uber\nuber = Uber\n99 app = Uber\n99pop = Uber\ncabify = Uber\nindriver = Uber\n\n# Vestuário\nrenner = Vestuário\nriachuelo = Vestuário\ncea = Vestuário\nc&a = Vestuário\nzara = Vestuário\nhering = Vestuário\nmarisa = Vestuário\nyoucom = Vestuário\nnetshoes = Vestuário\ndafiti = Vestuário\n\n# ===== RECEITAS =====\n\n# Aluguel Recebido\naluguel recebido = Aluguel\nrepasse aluguel = Aluguel\ninquilino = Aluguel\nairbnb repasse = Aluguel\n\n# Benefícios/Ajuda\npgto itau itau-k = Benefícios\nsispag fund saude itau = Benefícios\nbeneficio = Benefícios\nreembolso = Benefícios\najuda = Benefícios\n\n# Investimentos\ndividendos = Investimentos\nproventos = Investimentos\njcp = Investimentos\naluguel de acoes = Investimentos\nrendimento fundos = Investimentos\nrendimento fii = Investimentos\nprovento fii = Investimentos\n\n# Juros Investimentos\ncor juros rf = Juros Investimentos\njuros cdb = Juros Investimentos\njuros = Juros Investimentos\nrend pago aplic aut mais = Juros Investimentos\n\n# Recompensas\ncashback = Recompensas\nrecompensa = Recompensas\nbonus = Recompensas\nted 104.0000caixa econ f = Recompensas\nmeliuz = Recompensas\name digital = Recompensas\n\n# Renda Extra\nfreela = Renda Extra\nfreelancer = Renda Extra\nconsultoria = Renda Extra\naula = Renda Extra\nbico = Renda Extra\nrevenda = Renda Extra\ncomissao = Renda Extra\npix cliente = Renda Extra\npagamento servico = Renda Extra\n\n# Resgate Investimentos\nresgate cdb = Resgate Investimentos\nresgate cdb di = Resgate Investimentos\nresgate cdb cofrinhos = Resgate Investimentos\ndi resgate cdb = Resgate Investimentos\ncor tes direto - venda = Resgate Investimentos\ncor amortizacao - rf = Resgate Investimentos\ncor irrf = Resgate Investimentos\nresgate fundo = Resgate Investimentos\nvenda tesouro = Resgate Investimentos\n\n# Salário\nfolha pagamento mensal = Salário\nfolha de ferias = Salário\n13. salario = Salário\nholerite = Salário\npagamento salario = Salário\nproventos folha = Salário\n\n# Transferência (Receita)\npix transf lincoln = Transferência\npix transf conta itau = Transferência\nted transf conta = Transferência\ndoc transferencia = Transferência\ntransferencia entre contas = Transferência\npix transf minha conta = Transferência\n\n# Vendas\nmercado pago receb = Vendas\npagseguro receb = Vendas\nstone receb = Vendas\ngetnet receb = Vendas\nsumup receb = Vendas\nifood repasse = Vendas\nshopee repasse = Vendas\nshopify payout = Vendas\nvenda = Vendas\npagamento cliente = Vendas`);
+  const [regrasTexto, setRegrasTexto] = useState(REGRAS_PADRAO);
   const [csvFile, setCsvFile] = useState<File | null>(null);
   const [lancamentos, setLancamentos] = useState<Lancamento[]>([]);
   const [parseError, setParseError] = useState("");
-  
+  const [regrasHydrated, setRegrasHydrated] = useState(false);
+  const normalizarTipoConta = (conta: any) => normalizar(String(conta?.tipo || conta?.type || ''));
+  const isContaImportavel = (conta: any) => {
+    const tipo = normalizarTipoConta(conta);
+    if (!tipo) return true;
+    if (tipo.includes('credit') || tipo.includes('cartao') || tipo.includes('card')) return false;
+    return true;
+  };
+  const getContasImportaveis = (contasArr: any[]) => {
+    if (!Array.isArray(contasArr)) return [];
+    const importaveis = contasArr.filter(isContaImportavel);
+    return importaveis.length > 0 ? importaveis : contasArr;
+  };
   const getPrimeiraContaBancariaId = (contasArr: any[]) => {
-    if (!contasArr || contasArr.length === 0) return '';
-    const contaBank = contasArr.find(c => (c.tipo || '').toLowerCase() === 'bank');
-    return contaBank ? contaBank.id : '';
+    const contasImportaveis = getContasImportaveis(contasArr);
+    return contasImportaveis[0]?.id || '';
   };
   
   const [contaSelecionada, setContaSelecionada] = useState(getPrimeiraContaBancariaId(contas));
   const [categorias, setCategorias] = useState<any[]>([]);
+
+  const normalizarListaCategorias = (lista: ImportCategoryOption[]) => {
+    const map = new Map<string, ImportCategoryOption>();
+    for (const item of lista || []) {
+      const nome = String(item?.value || '').trim();
+      if (!nome) continue;
+      const key = `${normalizar(item?.tipo || '')}::${normalizar(nome)}`;
+      if (!map.has(key)) {
+        map.set(key, {
+          value: nome,
+          label: item?.label || nome,
+          tipo: item?.tipo || null,
+          isDefault: Boolean(item?.isDefault),
+        });
+      }
+    }
+    return Array.from(map.values()).sort((a, b) =>
+      (a.label || a.value).localeCompare(b.label || b.value, 'pt-BR', { sensitivity: 'base' })
+    );
+  };
+
+  const categoriasDespesaDropdown = useMemo(() => {
+    const categoriasBanco: ImportCategoryOption[] = (categorias || [])
+      .filter((c: any) => !c?.tipo || c.tipo === 'despesa')
+      .map((c: any) => ({
+        value: String(c?.nome || '').trim(),
+        label: String(c?.nome || '').trim(),
+        tipo: 'despesa',
+        isDefault: isDefaultCategory({ nome: c?.nome, tipo: 'despesa' }),
+      }))
+      .filter((c) => c.value);
+    return normalizarListaCategorias(categoriasBanco);
+  }, [categorias]);
+
+  const categoriasReceitaDropdown = useMemo(() => {
+    const categoriasBanco: ImportCategoryOption[] = (categorias || [])
+      .filter((c: any) => c?.tipo === 'receita')
+      .map((c: any) => ({
+        value: String(c?.nome || '').trim(),
+        label: String(c?.nome || '').trim(),
+        tipo: 'receita',
+        isDefault: isDefaultCategory({ nome: c?.nome, tipo: 'receita' }),
+      }))
+      .filter((c) => c.value);
+    return normalizarListaCategorias(categoriasBanco);
+  }, [categorias]);
   
   const categoriasPadrao = [
     { nome: 'Aluguel', tipo: 'receita' },
@@ -141,7 +164,7 @@ export function ImportarExtratoModal({ open, onClose, onImport, contas }: Import
   useEffect(() => {
     if (step === 2 && lancamentos.length > 0) {
       setLancamentos(lancs => lancs.map(l => {
-        const categoriaRegra = categorizar(l.estabelecimento, regrasTexto, l.tipo);
+        const categoriaRegra = categorizar(l.estabelecimento, regrasTexto);
         if (categoriaRegra) {
           return {
             ...l,
@@ -157,16 +180,19 @@ export function ImportarExtratoModal({ open, onClose, onImport, contas }: Import
     }
   }, [regrasTexto, step]);
 
-  // Carregar regras do localStorage
+  // Carregar regras salvas sempre que o modal abrir
   useEffect(() => {
-    const saved = localStorage.getItem('regrasTexto');
-    if (saved) setRegrasTexto(saved);
-  }, []);
+    if (!open) return;
+    const saved = localStorage.getItem(REGRAS_STORAGE_KEY) || localStorage.getItem('regrasFatura');
+    setRegrasTexto(saved || REGRAS_PADRAO);
+    setRegrasHydrated(true);
+  }, [open]);
 
   // Salvar regras no localStorage
   useEffect(() => {
-    localStorage.setItem('regrasTexto', regrasTexto);
-  }, [regrasTexto]);
+    if (!open || !regrasHydrated) return;
+    localStorage.setItem(REGRAS_STORAGE_KEY, regrasTexto);
+  }, [open, regrasHydrated, regrasTexto]);
 
   useEffect(() => {
     if (open) {
@@ -236,7 +262,7 @@ export function ImportarExtratoModal({ open, onClose, onImport, contas }: Import
               estabelecimento: descricao,
               valor: valor,
               tipo: tipo,
-              categoria: categorizar(descricao, regrasTexto, tipo),
+              categoria: categorizar(descricao, regrasTexto),
             };
           });
         if (parsed.length === 0) {
@@ -265,6 +291,53 @@ export function ImportarExtratoModal({ open, onClose, onImport, contas }: Import
       }
       return novos;
     });
+  };
+
+  const handleAddNovaCategoria = async (lancamento: Lancamento, suggestedName?: string) => {
+    const nome = window.prompt('Digite o nome da nova categoria:', suggestedName || '');
+    if (!nome || !nome.trim()) return;
+    const nomeLimpo = nome.trim();
+    const tipoCategoria = lancamento.tipo === 'receita' ? 'receita' : 'despesa';
+
+    if (user?.id) {
+      const { data: existente } = await supabase
+        .from('categorias')
+        .select('id, nome, tipo')
+        .eq('user_id', user.id)
+        .eq('tipo', tipoCategoria)
+        .ilike('nome', nomeLimpo);
+
+      const categoriaExistente = (existente || []).find(
+        (c: any) => normalizar(String(c?.nome || '')) === normalizar(nomeLimpo)
+      );
+
+      if (!categoriaExistente) {
+        await supabase.from('categorias').insert({
+          user_id: user.id,
+          nome: nomeLimpo,
+          tipo: tipoCategoria,
+        });
+      }
+    }
+
+    setCategorias((prev) => {
+      const existe = (prev || []).some(
+        (c: any) =>
+          normalizar(String(c?.nome || '')) === normalizar(nomeLimpo)
+          && (c?.tipo || 'despesa') === tipoCategoria
+      );
+      if (existe) return prev;
+      return [
+        ...prev,
+        { id: `local-${Date.now()}`, nome: nomeLimpo, tipo: tipoCategoria },
+      ];
+    });
+
+    handleEditLancamento(lancamento, 'categoria', nomeLimpo);
+  };
+
+  const handleCategoriaChange = (lancamento: Lancamento, value: string) => {
+    handleEditLancamento(lancamento, 'categoria', value);
   };
 
   const handleSort = (key: string) => {
@@ -372,10 +445,11 @@ export function ImportarExtratoModal({ open, onClose, onImport, contas }: Import
                     onChange={e => setContaSelecionada(e.target.value)}
                   >
                     {(contas && Array.isArray(contas) && contas.length > 0) ? (
-                      contas.filter(conta => (conta.tipo || '').toLowerCase() === 'bank')
-                        .map((conta) => (
-                          <option key={conta.id} value={conta.id}>{conta.nome} ({conta.tipo})</option>
-                        ))
+                      getContasImportaveis(contas).map((conta) => (
+                        <option key={conta.id} value={conta.id}>
+                          {conta.nome} {conta.tipo ? `(${conta.tipo})` : ''}
+                        </option>
+                      ))
                     ) : (
                       <option value="">Nenhuma conta cadastrada</option>
                     )}
@@ -502,15 +576,25 @@ export function ImportarExtratoModal({ open, onClose, onImport, contas }: Import
                             </select>
                           </td>
                           <td className="px-1 py-2">
-                            <input
-                              type="text"
-                              className={`w-full px-1 py-1 rounded-lg bg-slate-700/30 border text-slate-100 text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition ${
-                                !String(l.categoria || '').trim() ? 'border-red-500/70' : 'border-slate-600/50'
-                              }`}
-                              value={l.categoria && l.categoria.trim() !== '' ? l.categoria : ''}
-                              placeholder="Preencha categoria"
-                              onChange={e => handleEditLancamento(l, 'categoria', e.target.value)}
-                            />
+                              {(() => {
+                                const opcoes = l.tipo === 'receita'
+                                  ? categoriasReceitaDropdown
+                                  : categoriasDespesaDropdown;
+                                const categoriaAtual = String(l.categoria || '');
+                                const valueAtual = opcoes.some((option) => normalizar(option.value) === normalizar(categoriaAtual))
+                                  ? categoriaAtual
+                                  : '';
+                                return (
+                                  <ImportCategoryCombobox
+                                    value={valueAtual}
+                                    options={opcoes}
+                                    placeholder="Selecione categoria..."
+                                    invalid={!String(valueAtual || '').trim()}
+                                    onValueChange={(value) => handleCategoriaChange(l, value)}
+                                    onCreateCategory={(suggestedName) => handleAddNovaCategoria(l, suggestedName)}
+                                  />
+                                );
+                              })()}
                           </td>
                         </tr>
                       ))}
