@@ -2,7 +2,7 @@
 import { SidebarProvider, SidebarInset, useSidebar } from '@/components/ui/sidebar'
 import { AppSidebar } from './AppSidebar'
 import { ThemeToggle } from '@/components/ui/theme-toggle'
-import { Menu, X, Bell, Settings, User, LogOut, CreditCard, Wallet, Tag, Mail, Plus } from 'lucide-react'
+import { Menu, X, Bell, User, LogOut, Tag, Plus } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { useAuth } from '@/hooks/useAuth'
@@ -37,7 +37,6 @@ function MenuTrigger() {
 
 export function AppLayout({ children, userName }: AppLayoutProps) {
   const [categoriasOpen, setCategoriasOpen] = useState(false)
-  const [settingsDropdownOpen, setSettingsDropdownOpen] = useState(false)
   const [userDropdownOpen, setUserDropdownOpen] = useState(false)
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
   const { user, logout } = useAuth()
@@ -119,52 +118,6 @@ export function AppLayout({ children, userName }: AppLayoutProps) {
                     <p className="text-sm text-muted-foreground">Nenhuma notificação</p>
                   </div>
                 </div>
-              </div>
-
-              {/* Botão Configurações */}
-              <div className="relative">
-                <Button 
-                  variant="ghost" 
-                  size="icon" 
-                  className="h-9 w-9 rounded-full hover:bg-accent"
-                  onClick={() => setSettingsDropdownOpen(!settingsDropdownOpen)}
-                >
-                  <Settings className="h-5 w-5 text-muted-foreground" />
-                </Button>
-                {settingsDropdownOpen && (
-                  <div className="absolute right-0 top-full mt-2 bg-popover border border-border rounded-lg shadow-lg z-50 w-56">
-                    <button 
-                      className="w-full flex items-center gap-3 px-4 py-3 text-sm text-foreground hover:bg-accent first:rounded-t-lg"
-                      onClick={() => {
-                        setCategoriasOpen(true)
-                        setSettingsDropdownOpen(false)
-                      }}
-                    >
-                      <Tag className="h-4 w-4" />
-                      Categorias
-                    </button>
-                    <button 
-                      className="w-full flex items-center gap-3 px-4 py-3 text-sm text-foreground hover:bg-accent"
-                      onClick={() => {
-                        navigate('/contas')
-                        setSettingsDropdownOpen(false)
-                      }}
-                    >
-                      <Wallet className="h-4 w-4" />
-                      Contas
-                    </button>
-                    <button 
-                      className="w-full flex items-center gap-3 px-4 py-3 text-sm text-foreground hover:bg-accent last:rounded-b-lg"
-                      onClick={() => {
-                        navigate('/cartoes')
-                        setSettingsDropdownOpen(false)
-                      }}
-                    >
-                      <CreditCard className="h-4 w-4" />
-                      Cartões
-                    </button>
-                  </div>
-                )}
               </div>
 
               {/* Botão Usuário */}

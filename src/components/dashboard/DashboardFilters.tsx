@@ -9,7 +9,6 @@ interface DashboardFiltersProps {
   filterYear: string
   setFilterMonth: (month: string) => void
   setFilterYear: (year: string) => void
-  transactionCount: number
   hideValues?: boolean
   setHideValues?: (hide: boolean) => void
   showCardTransactions?: boolean
@@ -27,7 +26,6 @@ export function DashboardFilters({
   filterYear, 
   setFilterMonth, 
   setFilterYear, 
-  transactionCount,
   hideValues = false,
   setHideValues,
   showCardTransactions = false,
@@ -68,8 +66,7 @@ export function DashboardFilters({
         <div>
           <h2 className="text-3xl font-bold tracking-tight">Dashboard</h2>
           <p className="text-muted-foreground">
-            Visão geral das suas finanças pessoais
-            {transactionCount > 0 && ` • ${transactionCount} transações encontradas`}
+            Acompanhe saldos, fluxo e compromissos do período
           </p>
         </div>
         

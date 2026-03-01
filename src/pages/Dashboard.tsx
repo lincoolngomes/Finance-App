@@ -429,7 +429,6 @@ export default function Dashboard() {
         filterYear={filterYear}
         setFilterMonth={setFilterMonth}
         setFilterYear={setFilterYear}
-        transactionCount={dashboardViewTransacoes.length}
         hideValues={hideValues}
         setHideValues={setHideValues}
         showCardTransactions={showCardTransactions}

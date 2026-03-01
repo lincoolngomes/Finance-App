@@ -9,10 +9,11 @@ import { Label } from '@/components/ui/label'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { formatCurrency } from '@/utils/currency'
-import { Plus, Trash2, TrendingUp, TrendingDown, Target, DollarSign, Copy, Eye, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react'
+import { Plus, Trash2, TrendingUp, TrendingDown, Target, DollarSign, Copy, Eye, ArrowUpDown, ArrowUp, ArrowDown, Settings2, FileText } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import { Progress } from '@/components/ui/progress'
 import { calcularMesFatura, parseToDateUTC } from '@/utils/dateParser'
+import { isCardInvoiceCategoryName, shouldIncludeTransactionByCardExpenseMode } from '@/utils/dashboard-classification'
 
 type OrdenacaoColuna = 'categoria' | 'tipo' | 'planejado' | 'realizado' | 'diferenca' | 'progresso' | 'status'
 type OrdenacaoDirecao = 'asc' | 'desc'
@@ -66,6 +67,14 @@ const shouldIncludeInOrcamentoRealizado = (transacao: {
   return false
 }
 
+const shouldShowOrcamentoCategoria = (
+  categoryName: string | null | undefined,
+  useCardInvoicePayments: boolean
+) => {
+  if (useCardInvoicePayments) return true
+  return !isCardInvoiceCategoryName(categoryName)
+}
+
 export default function Orcamentos() {
   const { user } = useAuth()
   const { toast } = useToast()
@@ -77,6 +86,17 @@ export default function Orcamentos() {
   const currentDate = new Date()
   const [mesSelecionado, setMesSelecionado] = useState(currentDate.getMonth())
   const [anoSelecionado, setAnoSelecionado] = useState(currentDate.getFullYear())
+  const [configuracoesOpen, setConfiguracoesOpen] = useState(false)
+  const [useCardInvoicePayments, setUseCardInvoicePayments] = useState(() => {
+    try {
+      const raw = localStorage.getItem('orcamentos:filters:v1')
+      if (!raw) return false
+      const parsed = JSON.parse(raw)
+      return typeof parsed?.useCardInvoicePayments === 'boolean' ? parsed.useCardInvoicePayments : false
+    } catch {
+      return false
+    }
+  })
   
   const [modalOpen, setModalOpen] = useState(false)
   const [categoriaSelecionada, setCategoriaSelecionada] = useState('')
@@ -154,7 +174,13 @@ export default function Orcamentos() {
     if (user) {
       carregarDados()
     }
-  }, [user, mesSelecionado, anoSelecionado])
+  }, [user, mesSelecionado, anoSelecionado, useCardInvoicePayments])
+
+  useEffect(() => {
+    localStorage.setItem('orcamentos:filters:v1', JSON.stringify({
+      useCardInvoicePayments,
+    }))
+  }, [useCardInvoicePayments])
 
   const carregarDados = async () => {
     setLoading(true)
@@ -216,7 +242,7 @@ export default function Orcamentos() {
 
     const { data, error } = await supabase
       .from('transacoes')
-      .select('categoria_id, valor, data, created_at, tipo, cartao_id, fatura_mes, fatura_ano, observacao, pago')
+      .select('categoria_id, valor, data, created_at, descricao, tipo, cartao_id, fatura_mes, fatura_ano, observacao, pago')
       .eq('user_id', user?.id)
 
     console.log('🔍 DEBUG Orcamentos:', {
@@ -237,6 +263,7 @@ export default function Orcamentos() {
       // Filtrar transações do mês/ano selecionado.
       // Para cartão de crédito, sempre usa o mês/ano de vencimento da fatura.
       const transacoesFiltradas = data.filter(t => {
+        if (!shouldIncludeTransactionByCardExpenseMode(t as any, true, useCardInvoicePayments)) return false
         if (!shouldIncludeInOrcamentoRealizado(t as any)) return false
 
         const tm = getMesAnoReferenciaOrcamento(t as any, cartaoFechamentoMap)
@@ -591,6 +618,7 @@ export default function Orcamentos() {
     const despesasOrçadas = orcamentos
       .filter(o => {
         const categoria = categorias.find(c => c.id === o.categoria_id)
+        if (!shouldShowOrcamentoCategoria(categoria?.nome || o.categorias?.nome, useCardInvoicePayments)) return false
         return categoria?.tipo === 'despesa'
       })
       .reduce((sum, o) => sum + (o.valor || 0), 0)
@@ -598,6 +626,7 @@ export default function Orcamentos() {
     const receitasOrçadas = orcamentos
       .filter(o => {
         const categoria = categorias.find(c => c.id === o.categoria_id)
+        if (!shouldShowOrcamentoCategoria(categoria?.nome || o.categorias?.nome, useCardInvoicePayments)) return false
         return categoria?.tipo === 'receita'
       })
       .reduce((sum, o) => sum + (o.valor || 0), 0)
@@ -619,7 +648,7 @@ export default function Orcamentos() {
       percentualDespesas: despesasOrçadas > 0 ? (despesasRealizadas / despesasOrçadas) * 100 : 0,
       percentualReceitas: receitasOrçadas > 0 ? (receitasRealizadas / receitasOrçadas) * 100 : 0
     }
-  }, [orcamentos, transacoesRealizadas, categorias])
+  }, [orcamentos, transacoesRealizadas, categorias, useCardInvoicePayments])
 
   // Função auxiliar para obter valor realizado de uma categoria
   const getValorRealizado = (categoriaId: string) => {
@@ -634,6 +663,7 @@ export default function Orcamentos() {
     // Adicionar todas as categorias do orçamento
     orcamentos.forEach(orc => {
       const categoria = categorias.find(c => c.id === orc.categoria_id)
+      if (!shouldShowOrcamentoCategoria(categoria?.nome || orc.categorias?.nome, useCardInvoicePayments)) return
       categoriasMap.set(orc.categoria_id, {
         id: orc.id,
         categoria_id: orc.categoria_id,
@@ -649,6 +679,7 @@ export default function Orcamentos() {
       if (!categoriasMap.has(trans.categoria_id)) {
         // Buscar nome da categoria
         const categoria = categorias.find(c => c.id === trans.categoria_id)
+        if (!shouldShowOrcamentoCategoria(categoria?.nome, useCardInvoicePayments)) return
         categoriasMap.set(trans.categoria_id, {
           id: null,
           categoria_id: trans.categoria_id,
@@ -707,7 +738,7 @@ export default function Orcamentos() {
     }
     
     return resultado
-  }, [orcamentos, transacoesRealizadas, categorias, ordenacoes, getValorRealizado])
+  }, [orcamentos, transacoesRealizadas, categorias, ordenacoes, getValorRealizado, useCardInvoicePayments])
 
   const visualizarTransacoesCategoria = async (categoriaId: string, categoriaNome: string) => {
     console.log('👁️ Visualizar transações - Categoria:', categoriaNome, 'ID:', categoriaId)
@@ -743,6 +774,7 @@ export default function Orcamentos() {
 
       // Filtrar pelo mês e ano selecionados
       const transacoesFiltradas = (data || []).filter(t => {
+        if (!shouldIncludeTransactionByCardExpenseMode(t as any, true, useCardInvoicePayments)) return false
         if (!shouldIncludeInOrcamentoRealizado(t as any)) return false
 
         const tm = getMesAnoReferenciaOrcamento(t as any, cartaoFechamentoMap)
@@ -821,6 +853,25 @@ export default function Orcamentos() {
     )
   }
 
+  const renderToggle = (
+    checked: boolean,
+    onToggle: (next: boolean) => void,
+  ) => (
+    <button
+      type="button"
+      onClick={() => onToggle(!checked)}
+      className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors focus:outline-none ${
+        checked ? 'bg-blue-600' : 'bg-slate-600'
+      }`}
+    >
+      <span
+        className={`inline-block h-4 w-4 rounded-full bg-white transition-transform ${
+          checked ? 'translate-x-[22px]' : 'translate-x-[3px]'
+        }`}
+      />
+    </button>
+  )
+
   return (
     <div className="container mx-auto p-6 space-y-6">
       {/* Header */}
@@ -828,11 +879,16 @@ export default function Orcamentos() {
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Orçamento Mensal</h1>
           <p className="text-muted-foreground">
-            Acompanhe seu planejamento financeiro e compare com a realização
+            Planeje o mês e compare o orçado com o realizado
           </p>
         </div>
         
         <div className="flex gap-2 items-center">
+          <Button variant="outline" onClick={() => setConfiguracoesOpen(true)} className="gap-2">
+            <Settings2 className="h-4 w-4" />
+            Configurações
+          </Button>
+
           <Select value={mesSelecionado.toString()} onValueChange={(v) => setMesSelecionado(parseInt(v))}>
             <SelectTrigger className="w-32">
               <SelectValue />
@@ -978,6 +1034,37 @@ export default function Orcamentos() {
           </Dialog>
         </div>
       </div>
+
+      <Dialog open={configuracoesOpen} onOpenChange={setConfiguracoesOpen}>
+        <DialogContent className="max-w-xl border-border/60 bg-slate-950/95 p-0 text-slate-100">
+          <DialogHeader className="border-b border-border/60 bg-gradient-to-r from-blue-500/10 via-slate-900 to-transparent px-6 py-5">
+            <DialogTitle className="flex items-center gap-2 text-xl">
+              <Settings2 className="h-5 w-5 text-blue-400" />
+              Configurações do Orçamento
+            </DialogTitle>
+            <DialogDescription className="text-slate-400">
+              Escolha como os gastos de cartão entram no orçamento realizado.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="px-6 py-5">
+            <div className="rounded-xl border border-border/50 bg-slate-900/70 p-4">
+              <div className="flex items-start justify-between gap-4">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2 text-sm font-semibold text-slate-100">
+                    <FileText className="h-4 w-4 text-blue-400" />
+                    Usar lançamentos do cartão
+                  </div>
+                  <p className="text-sm text-slate-400">
+                    Ligado usa as compras do cartão nas categorias do orçamento. Desligado usa o pagamento da fatura e ignora os itens individuais do cartão.
+                  </p>
+                </div>
+                {renderToggle(!useCardInvoicePayments, (nextChecked) => setUseCardInvoicePayments(!nextChecked))}
+              </div>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Cards de Resumo */}
       <div className="grid gap-6 grid-cols-1 md:grid-cols-4 mb-8">
