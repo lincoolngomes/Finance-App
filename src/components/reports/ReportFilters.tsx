@@ -117,22 +117,22 @@ export function ReportFiltersComponent({ filters, onFiltersChange, onClearFilter
   }
 
   return (
-    <Card className="border-slate-800 bg-[linear-gradient(180deg,rgba(15,23,42,0.92),rgba(2,6,23,0.96))]">
-      <CardContent className="space-y-5 p-5">
-        <div className="space-y-3">
+    <Card className="border-slate-800 bg-[linear-gradient(180deg,rgba(15,23,42,0.9),rgba(2,6,23,0.96))]">
+      <CardContent className="space-y-4 p-4 lg:p-5">
+        <div className="space-y-2.5">
           <div className="flex items-center gap-2 text-slate-200">
             <Calendar className="h-4 w-4 text-cyan-300" />
             <span className="text-sm font-semibold">Período de análise</span>
           </div>
 
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <div className="grid grid-cols-2 gap-2 xl:grid-cols-4">
             {PERIOD_OPTIONS.map((option) => (
               <Button
                 key={option.value}
                 type="button"
                 variant="outline"
                 onClick={() => handlePeriodChange(option.value)}
-                className={`justify-start border-slate-700 text-sm ${
+                className={`h-10 justify-start border-slate-700 px-3 text-sm ${
                   filters.period === option.value
                     ? 'bg-blue-600 text-white hover:bg-blue-600'
                     : 'bg-slate-950/70 text-slate-300 hover:bg-slate-900'
@@ -145,7 +145,7 @@ export function ReportFiltersComponent({ filters, onFiltersChange, onClearFilter
         </div>
 
         {filters.period === 'month' && (
-          <div className="grid gap-4 rounded-2xl border border-slate-800 bg-slate-950/60 p-4 lg:grid-cols-[1fr,220px]">
+          <div className="grid gap-3 rounded-xl border border-slate-800 bg-slate-950/55 p-3.5 lg:grid-cols-[1fr,180px]">
             <div className="space-y-2">
               <Label className="text-sm text-slate-300">Mês</Label>
               <Select value={filters.month} onValueChange={handleMonthChange}>
@@ -184,7 +184,7 @@ export function ReportFiltersComponent({ filters, onFiltersChange, onClearFilter
         )}
 
         {filters.period === 'year' && (
-          <div className="grid gap-4 rounded-2xl border border-slate-800 bg-slate-950/60 p-4 lg:grid-cols-[220px,1fr]">
+          <div className="grid gap-3 rounded-xl border border-slate-800 bg-slate-950/55 p-3.5 lg:grid-cols-[180px,1fr]">
             <div className="space-y-2">
               <Label className="text-sm text-slate-300">Ano</Label>
               <Select value={filters.year} onValueChange={handleYearChange}>
@@ -204,7 +204,7 @@ export function ReportFiltersComponent({ filters, onFiltersChange, onClearFilter
               </Select>
             </div>
 
-            <div className="flex items-end">
+            <div className="flex items-center">
               <p className="text-sm text-slate-400">
                 Visão agregada de janeiro a dezembro do ano selecionado.
               </p>
@@ -213,7 +213,7 @@ export function ReportFiltersComponent({ filters, onFiltersChange, onClearFilter
         )}
 
         {filters.period === 'custom' && (
-          <div className="grid gap-4 rounded-2xl border border-slate-800 bg-slate-950/60 p-4 lg:grid-cols-[1fr,1fr,auto] lg:items-end">
+          <div className="grid gap-3 rounded-xl border border-slate-800 bg-slate-950/55 p-3.5 lg:grid-cols-[1fr,1fr,auto] lg:items-end">
             <div className="space-y-2">
               <Label htmlFor="startDate" className="text-sm text-slate-300">Data inicial</Label>
               <Input

@@ -4,8 +4,6 @@ import {
   ArrowUpRight,
   BadgeDollarSign,
   Brain,
-  Calendar,
-  Download,
   LineChart as LineChartIcon,
   PiggyBank,
   Sparkles,
@@ -24,7 +22,6 @@ import {
   YAxis,
 } from 'recharts'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { useReports } from '@/hooks/useReports'
 import { useAuth } from '@/hooks/useAuth'
@@ -340,6 +337,45 @@ export default function Relatorios() {
     topCategory,
   })
 
+  const summaryMetrics = [
+    {
+      label: 'Receitas',
+      value: receitas,
+      note: 'Entradas operacionais',
+      icon: ArrowUpRight,
+      tone: 'text-emerald-300',
+      bg: 'bg-emerald-500/10',
+      formatter: (value: number) => formatCurrency(value),
+    },
+    {
+      label: 'Despesas',
+      value: despesas,
+      note: 'Saídas operacionais',
+      icon: ArrowDownRight,
+      tone: 'text-red-300',
+      bg: 'bg-red-500/10',
+      formatter: (value: number) => formatCurrency(value),
+    },
+    {
+      label: 'Comprometimento',
+      value: commitmentRate,
+      note: 'Consumo da receita',
+      icon: BadgeDollarSign,
+      tone: commitmentRate <= 80 ? 'text-cyan-300' : 'text-amber-300',
+      bg: 'bg-cyan-500/10',
+      formatter: (value: number) => `${value.toFixed(1)}%`,
+    },
+    {
+      label: 'Investimentos',
+      value: investmentNet,
+      note: 'Aportes e resgates',
+      icon: PiggyBank,
+      tone: investmentNet >= 0 ? 'text-blue-300' : 'text-amber-300',
+      bg: 'bg-blue-500/10',
+      formatter: (value: number) => formatCurrency(value),
+    },
+  ] as const
+
   const exportSummary = useMemo(() => {
     const byCategory = coreTransactions.reduce((acc, transaction) => {
       const categoryName = transaction.categorias?.nome || 'Sem categoria'
@@ -438,21 +474,21 @@ export default function Relatorios() {
   }
 
   return (
-    <div className="space-y-6 p-6">
-      <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
-        <div className="space-y-3">
-          <Badge className="w-fit border border-cyan-500/20 bg-cyan-500/10 px-3 py-1 text-cyan-200">
+    <div className="mx-auto max-w-[1480px] space-y-5 p-5 lg:space-y-6 lg:p-6">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <div className="space-y-2.5">
+          <Badge className="w-fit border border-cyan-500/20 bg-cyan-500/10 px-2.5 py-0.5 text-[11px] text-cyan-200">
             Relatório enxuto
           </Badge>
           <div>
-            <h1 className="text-4xl font-semibold tracking-tight text-slate-50">Relatórios</h1>
-            <p className="mt-2 max-w-3xl text-base text-slate-400">
+            <h1 className="text-3xl font-semibold tracking-tight text-slate-50 lg:text-[2.2rem]">Relatórios</h1>
+            <p className="mt-1.5 max-w-2xl text-sm leading-6 text-slate-400">
               Uma leitura executiva do período, com foco em caixa do dia a dia, concentração de gastos e principais movimentos.
             </p>
           </div>
         </div>
 
-        <div className="w-full xl:w-auto">
+        <div className="w-full lg:w-auto">
           <PDFExportOptions
             onExport={generatePDF}
             isGenerating={isGeneratingPDF}
@@ -483,89 +519,78 @@ export default function Relatorios() {
         </Card>
       ) : (
         <>
-          <section className="grid gap-4 xl:grid-cols-[1.75fr,0.95fr]">
+          <section className="grid gap-4 xl:items-start xl:grid-cols-[minmax(0,1.45fr)_minmax(320px,0.88fr)]">
             <Card className="overflow-hidden border-slate-800 bg-[radial-gradient(circle_at_top_left,_rgba(59,130,246,0.18),_transparent_35%),linear-gradient(180deg,rgba(15,23,42,0.96),rgba(2,6,23,0.98))]">
-              <CardContent className="p-0">
-                <div className="border-b border-slate-800/80 px-6 py-6">
-                  <div className="flex flex-wrap items-start justify-between gap-4">
+              <CardContent className="p-5 lg:p-6">
+                <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+                  <div className="min-w-0 space-y-4">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge className="border border-cyan-500/20 bg-cyan-500/10 px-2.5 py-0.5 text-[11px] text-cyan-200">
+                        {periodLabel}
+                      </Badge>
+                      <Badge className="border border-slate-700 bg-slate-900/70 px-2.5 py-0.5 text-[11px] text-slate-300">
+                        Operacional
+                      </Badge>
+                      {investmentNet !== 0 && (
+                        <Badge className="border border-blue-500/20 bg-blue-500/10 px-2.5 py-0.5 text-[11px] text-blue-200">
+                          Investimentos separados
+                        </Badge>
+                      )}
+                    </div>
+
                     <div>
-                      <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Resumo do período</p>
-                      <h2 className="mt-2 text-3xl font-semibold text-slate-50">{periodLabel}</h2>
-                      <p className="mt-2 text-sm text-slate-400">
-                        {coreTransactions.length} lançamentos pagos considerados, sem duplicar pagamento de fatura.
+                      <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Painel do período</p>
+                      <h2 className="mt-1.5 text-[2rem] font-semibold tracking-tight text-slate-50 lg:text-[2.35rem]">
+                        {resultado >= 0 ? 'Resultado no azul' : 'Resultado pressionado'}
+                      </h2>
+                      <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400">
+                        Receita, despesa operacional e investimentos organizados para mostrar o que de fato sobrou no período.
                       </p>
                     </div>
-                    <div className="rounded-2xl border border-slate-700/70 bg-slate-900/70 px-4 py-3">
-                      <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Resultado do período</p>
-                      <p className={`mt-2 text-2xl font-semibold ${resultado >= 0 ? 'text-emerald-300' : 'text-red-300'}`}>
-                        {formatCurrency(resultado)}
-                      </p>
+
+                    <div className="grid gap-2 sm:grid-cols-3">
+                      <div className="rounded-xl border border-slate-800 bg-slate-950/55 px-3 py-2.5">
+                        <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Leitura</p>
+                        <p className="mt-1 text-sm font-medium text-slate-100">
+                          {coreTransactions.length} lançamentos pagos
+                        </p>
+                      </div>
+                      <div className="rounded-xl border border-slate-800 bg-slate-950/55 px-3 py-2.5">
+                        <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Maior pressão</p>
+                        <p className="mt-1 truncate text-sm font-medium text-slate-100">
+                          {topCategory ? topCategory.name : 'Sem destaque'}
+                        </p>
+                      </div>
+                      <div className="rounded-xl border border-slate-800 bg-slate-950/55 px-3 py-2.5">
+                        <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">Folga</p>
+                        <p className="mt-1 text-sm font-medium text-slate-100">
+                          {receitas > 0 ? `${savingsRate.toFixed(1)}%` : 'Sem receita'}
+                        </p>
+                      </div>
                     </div>
                   </div>
-                </div>
 
-                <div className="grid gap-px bg-slate-800/70 sm:grid-cols-2 2xl:grid-cols-4">
-                  {[
-                    {
-                      label: 'Receitas',
-                      value: receitas,
-                      note: 'Entradas operacionais',
-                      icon: ArrowUpRight,
-                      tone: 'text-emerald-300',
-                      bg: 'bg-emerald-500/10',
-                      formatter: (value: number) => formatCurrency(value),
-                    },
-                    {
-                      label: 'Despesas',
-                      value: despesas,
-                      note: 'Saídas operacionais',
-                      icon: ArrowDownRight,
-                      tone: 'text-red-300',
-                      bg: 'bg-red-500/10',
-                      formatter: (value: number) => formatCurrency(value),
-                    },
-                    {
-                      label: 'Comprometimento',
-                      value: commitmentRate,
-                      note: 'Quanto da receita foi consumido',
-                      icon: BadgeDollarSign,
-                      tone: commitmentRate <= 80 ? 'text-cyan-300' : 'text-amber-300',
-                      bg: 'bg-cyan-500/10',
-                      formatter: (value: number) => `${value.toFixed(1)}%`,
-                    },
-                    {
-                      label: 'Investimentos líquidos',
-                      value: investmentNet,
-                      note: 'Aportes, resgates e rendimentos',
-                      icon: PiggyBank,
-                      tone: investmentNet >= 0 ? 'text-blue-300' : 'text-amber-300',
-                      bg: 'bg-blue-500/10',
-                      formatter: (value: number) => formatCurrency(value),
-                    },
-                  ].map((item) => {
-                    const Icon = item.icon
-
-                    return (
-                      <div key={item.label} className="min-w-0 bg-slate-950/60 p-5">
-                        <div className={`mb-4 flex h-11 w-11 items-center justify-center rounded-2xl ${item.bg}`}>
-                          <Icon className={`h-5 w-5 ${item.tone}`} />
-                        </div>
-                        <p className="text-sm text-slate-400">{item.label}</p>
-                        <p
-                          className={`mt-1 text-[clamp(2rem,2.2vw,2.75rem)] font-semibold leading-none tracking-tight tabular-nums [overflow-wrap:anywhere] ${item.tone}`}
-                        >
-                          {item.formatter(item.value)}
-                        </p>
-                        <p className="mt-2 text-xs text-slate-500">{item.note}</p>
-                      </div>
-                    )
-                  })}
+                  <div className="w-full max-w-[280px] rounded-2xl border border-slate-700/70 bg-slate-900/75 p-4">
+                    <p className="text-[11px] uppercase tracking-[0.22em] text-slate-500">Saldo operacional</p>
+                    <p
+                      className={`mt-2 text-[clamp(2rem,2vw,2.75rem)] font-semibold leading-none tracking-tight tabular-nums ${
+                        resultado >= 0 ? 'text-emerald-300' : 'text-red-300'
+                      }`}
+                    >
+                      {formatCurrency(resultado)}
+                    </p>
+                    <p className="mt-3 text-sm leading-6 text-slate-400">
+                      {resultado >= 0
+                        ? 'As entradas cobriram o custo do período com sobra.'
+                        : 'As despesas operacionais passaram das entradas no recorte.'}
+                    </p>
+                  </div>
                 </div>
               </CardContent>
             </Card>
 
-            <Card className="border-slate-800 bg-[linear-gradient(180deg,rgba(8,15,30,0.96),rgba(3,7,18,0.98))]">
-              <CardHeader className="pb-3">
+            <Card className="self-start border-slate-800 bg-[linear-gradient(180deg,rgba(8,15,30,0.96),rgba(3,7,18,0.98))]">
+              <CardHeader className="px-5 pb-2 pt-5">
                 <CardTitle className="flex items-center gap-2 text-slate-50">
                   <Brain className="h-5 w-5 text-cyan-300" />
                   Leitura rápida
@@ -574,11 +599,11 @@ export default function Relatorios() {
                   O que vale atenção primeiro.
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-3">
+              <CardContent className="space-y-2.5 px-5 pb-5 pt-1">
                 {decisionItems.map((item) => (
                   <div
                     key={item.title}
-                    className={`rounded-2xl border p-4 ${
+                    className={`rounded-xl border p-3.5 ${
                       item.tone === 'good'
                         ? 'border-emerald-500/20 bg-emerald-500/10'
                         : item.tone === 'warn'
@@ -603,16 +628,42 @@ export default function Relatorios() {
             </Card>
           </section>
 
-          <section className="grid gap-4 xl:grid-cols-[1.45fr,0.95fr]">
+          <section className="grid gap-3 sm:grid-cols-2 2xl:grid-cols-4">
+            {summaryMetrics.map((item) => {
+              const Icon = item.icon
+
+              return (
+                <Card
+                  key={item.label}
+                  className="border-slate-800 bg-[linear-gradient(180deg,rgba(10,18,34,0.96),rgba(2,6,23,0.98))]"
+                >
+                  <CardContent className="p-4">
+                    <div className={`mb-3 flex h-10 w-10 items-center justify-center rounded-xl ${item.bg}`}>
+                      <Icon className={`h-[18px] w-[18px] ${item.tone}`} />
+                    </div>
+                    <p className="text-[13px] text-slate-400">{item.label}</p>
+                    <p
+                      className={`mt-1.5 text-[clamp(1.7rem,1.5vw,2.2rem)] font-semibold leading-none tracking-tight tabular-nums [overflow-wrap:anywhere] ${item.tone}`}
+                    >
+                      {item.formatter(item.value)}
+                    </p>
+                    <p className="mt-2 text-[11px] leading-5 text-slate-500">{item.note}</p>
+                  </CardContent>
+                </Card>
+              )
+            })}
+          </section>
+
+          <section className="grid gap-4 xl:items-start xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.92fr)]">
             <Card className="border-slate-800 bg-[linear-gradient(180deg,rgba(15,23,42,0.94),rgba(2,6,23,0.98))]">
-              <CardHeader className="pb-2">
+              <CardHeader className="px-5 pb-2 pt-5">
                 <CardTitle className="text-slate-50">Fluxo operacional</CardTitle>
                 <CardDescription className="text-slate-400">
                   Entradas, saídas e saldo do dia a dia. Investimentos ficaram separados.
                 </CardDescription>
               </CardHeader>
-              <CardContent className="pt-4">
-                <div className="h-[340px]">
+              <CardContent className="px-5 pb-5 pt-3">
+                <div className="h-[290px] lg:h-[320px]">
                   <ResponsiveContainer width="100%" height="100%">
                     <ComposedChart data={flowData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                       <CartesianGrid stroke="rgba(148,163,184,0.12)" vertical={false} />
@@ -647,14 +698,14 @@ export default function Relatorios() {
               </CardContent>
             </Card>
 
-            <Card className="border-slate-800 bg-[linear-gradient(180deg,rgba(8,15,30,0.96),rgba(3,7,18,0.98))]">
-              <CardHeader className="pb-3">
+            <Card className="self-start border-slate-800 bg-[linear-gradient(180deg,rgba(8,15,30,0.96),rgba(3,7,18,0.98))]">
+              <CardHeader className="px-5 pb-2 pt-5">
                 <CardTitle className="text-slate-50">Onde o dinheiro saiu</CardTitle>
                 <CardDescription className="text-slate-400">
                   Categorias de despesa do dia a dia com maior peso.
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="space-y-3.5 px-5 pb-5 pt-1">
                 {expenseCategories.length === 0 ? (
                   <div className="rounded-2xl border border-slate-800 bg-slate-950/60 p-5 text-sm text-slate-400">
                     Não há despesas operacionais neste recorte.
@@ -687,19 +738,19 @@ export default function Relatorios() {
 
           <section className="grid gap-4 xl:grid-cols-2">
             <Card className="border-slate-800 bg-[linear-gradient(180deg,rgba(15,23,42,0.94),rgba(2,6,23,0.98))]">
-              <CardHeader className="pb-3">
+              <CardHeader className="px-5 pb-2 pt-5">
                 <CardTitle className="text-slate-50">Maiores gastos reais</CardTitle>
                 <CardDescription className="text-slate-400">
                   Despesas operacionais com maior impacto no período.
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-3">
+              <CardContent className="space-y-2.5 px-5 pb-5 pt-1">
                 {topExpenses.map((transaction) => {
                   const date = parseTransactionDate(transaction.data || transaction.created_at)
                   return (
                     <div
                       key={transaction.id}
-                      className="flex items-center justify-between gap-4 rounded-2xl border border-slate-800 bg-slate-950/60 px-4 py-3"
+                      className="flex items-center justify-between gap-4 rounded-xl border border-slate-800 bg-slate-950/60 px-4 py-3"
                     >
                       <div className="min-w-0">
                         <p className="truncate text-sm font-medium text-slate-100">{transaction.descricao || 'Sem descrição'}</p>
@@ -716,19 +767,19 @@ export default function Relatorios() {
             </Card>
 
             <Card className="border-slate-800 bg-[linear-gradient(180deg,rgba(8,15,30,0.96),rgba(3,7,18,0.98))]">
-              <CardHeader className="pb-3">
+              <CardHeader className="px-5 pb-2 pt-5">
                 <CardTitle className="text-slate-50">Principais entradas</CardTitle>
                 <CardDescription className="text-slate-400">
                   Receitas que mais sustentaram o período.
                 </CardDescription>
               </CardHeader>
-              <CardContent className="space-y-3">
+              <CardContent className="space-y-2.5 px-5 pb-5 pt-1">
                 {topIncomes.map((transaction) => {
                   const date = parseTransactionDate(transaction.data || transaction.created_at)
                   return (
                     <div
                       key={transaction.id}
-                      className="flex items-center justify-between gap-4 rounded-2xl border border-slate-800 bg-slate-950/60 px-4 py-3"
+                      className="flex items-center justify-between gap-4 rounded-xl border border-slate-800 bg-slate-950/60 px-4 py-3"
                     >
                       <div className="min-w-0">
                         <p className="truncate text-sm font-medium text-slate-100">{transaction.descricao || 'Sem descrição'}</p>
@@ -744,33 +795,6 @@ export default function Relatorios() {
               </CardContent>
             </Card>
           </section>
-
-          <Card className="border-slate-800 bg-[radial-gradient(circle_at_top_right,_rgba(56,189,248,0.16),_transparent_30%),linear-gradient(180deg,rgba(8,15,30,0.96),rgba(3,7,18,0.98))]">
-            <CardContent className="flex flex-col gap-4 p-5 lg:flex-row lg:items-center lg:justify-between">
-              <div className="space-y-1">
-                <p className="text-sm font-semibold text-slate-100">Leitura exportável</p>
-                <p className="text-sm text-slate-400">
-                  O PDF segue esta mesma lógica: despesas do dia a dia sem duplicar pagamento de fatura, com investimentos separados.
-                </p>
-              </div>
-              <Button
-                variant="outline"
-                disabled={isGeneratingPDF || coreTransactions.length === 0}
-                onClick={() =>
-                  generatePDF({
-                    transactionType: 'all',
-                    includeSummary: true,
-                    includeDetails: true,
-                    includeAnalytics: true,
-                  })
-                }
-                className="border-slate-700 bg-slate-900/70 text-slate-100 hover:bg-slate-800"
-              >
-                <Download className="mr-2 h-4 w-4" />
-                Exportar esta leitura em PDF
-              </Button>
-            </CardContent>
-          </Card>
         </>
       )}
     </div>
