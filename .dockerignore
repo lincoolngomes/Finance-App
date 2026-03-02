@@ -11,6 +11,10 @@ README.md
 coverage
 .DS_Store
 .vscode
-build
-dist
 bun.lockb
+src
+public
+*.md
+*.sql
+*.ts
+!dist
