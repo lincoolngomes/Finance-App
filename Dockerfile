@@ -2,11 +2,14 @@ FROM node:20-alpine AS build
 
 WORKDIR /app
 
-# Copiar arquivos de dependências
-COPY package*.json ./
+# Aumentar memória para Node
+ENV NODE_OPTIONS="--max-old-space-size=4096"
 
-# Instalar dependências com fallback
-RUN npm ci --legacy-peer-deps || npm install --legacy-peer-deps
+# Copiar arquivos de dependências
+COPY package.json package-lock.json ./
+
+# Instalar dependências
+RUN npm install --legacy-peer-deps --no-audit --no-fund
 
 # Copiar código fonte
 COPY . .
@@ -14,7 +17,7 @@ COPY . .
 # Build da aplicação
 RUN npm run build
 
-# Production stage
+# Production stage - Nginx Alpine
 FROM nginx:alpine
 
 # Copiar arquivos buildados
