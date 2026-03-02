@@ -6,31 +6,43 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/hooks/useAuth";
 import { ThemeProvider } from "@/hooks/useTheme";
 import { AppLayout } from "@/components/layout/AppLayout";
-import { useState, useEffect } from "react";
+import { useState, useEffect, lazy, Suspense } from "react";
 import { supabase } from "@/lib/supabase";
-import Auth from "./pages/Auth";
-import Dashboard from "./pages/Dashboard";
-import Transacoes from "./pages/Transacoes";
-import Calendario from "./pages/Calendario";
-import Lembretes from "./pages/Lembretes";
-import Categorias from "./pages/Categorias";
-import Relatorios from "./pages/Relatorios";
-import Perfil from "./pages/Perfil";
-import NotFound from "./pages/NotFound";
-import Plano from "./pages/Plano";
-import Admin from "./pages/Admin";
-import Teste from "./pages/Teste";
-import Contas from "./pages/Contas";
-import Cartoes from "./pages/Cartoes";
-import Investimentos from "./pages/Investimentos";
-import ConfigCategorias from "./pages/ConfigCategorias";
-import Feedback from "./pages/Feedback";
-import WhatsApp from "./pages/WhatsApp";
-import Orcamentos from "./pages/Orcamentos";
-import Diagnostico from "./pages/Diagnostico";
-import Patrimonio from "./pages/Patrimonio";
+
+const Auth = lazy(() => import("./pages/Auth"));
+const Dashboard = lazy(() => import("./pages/Dashboard"));
+const Transacoes = lazy(() => import("./pages/Transacoes"));
+const Calendario = lazy(() => import("./pages/Calendario"));
+const Lembretes = lazy(() => import("./pages/Lembretes"));
+const Categorias = lazy(() => import("./pages/Categorias"));
+const Relatorios = lazy(() => import("./pages/Relatorios"));
+const Perfil = lazy(() => import("./pages/Perfil"));
+const NotFound = lazy(() => import("./pages/NotFound"));
+const Plano = lazy(() => import("./pages/Plano"));
+const Admin = lazy(() => import("./pages/Admin"));
+const Teste = lazy(() => import("./pages/Teste"));
+const Contas = lazy(() => import("./pages/Contas"));
+const Cartoes = lazy(() => import("./pages/Cartoes"));
+const Investimentos = lazy(() => import("./pages/Investimentos"));
+const ConfigCategorias = lazy(() => import("./pages/ConfigCategorias"));
+const Feedback = lazy(() => import("./pages/Feedback"));
+const WhatsApp = lazy(() => import("./pages/WhatsApp"));
+const Orcamentos = lazy(() => import("./pages/Orcamentos"));
+const Diagnostico = lazy(() => import("./pages/Diagnostico"));
+const Patrimonio = lazy(() => import("./pages/Patrimonio"));
 
 const queryClient = new QueryClient();
+
+function LoadingScreen() {
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-background">
+      <div className="text-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+        <p className="text-muted-foreground">Carregando...</p>
+      </div>
+    </div>
+  );
+}
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -62,14 +74,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   }, [user]);
 
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-muted-foreground">Carregando...</p>
-        </div>
-      </div>
-    );
+    return <LoadingScreen />;
   }
 
   if (!user) {
@@ -87,184 +92,179 @@ function AppRoutes() {
   const { user, loading } = useAuth();
 
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-muted-foreground">Carregando...</p>
-        </div>
-      </div>
-    );
+    return <LoadingScreen />;
   }
 
   return (
-    <Routes>
-      <Route 
-        path="/auth" 
-        element={user ? <Navigate to="/dashboard" replace /> : <Auth />} 
-      />
-      <Route 
-        path="/plano" 
-        element={<Plano />} 
-      />
-      <Route 
-        path="/" 
-        element={user ? <Navigate to="/dashboard" replace /> : <Navigate to="/auth" replace />} 
-      />
-      <Route
-        path="/dashboard"
-        element={
-          <ProtectedRoute>
-            <Dashboard />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/transacoes"
-        element={
-          <ProtectedRoute>
-            <Transacoes />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/calendario"
-        element={
-          <ProtectedRoute>
-            <Calendario />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/categorias"
-        element={
-          <ProtectedRoute>
-            <Categorias />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/relatorios"
-        element={
-          <ProtectedRoute>
-            <Relatorios />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/lembretes"
-        element={
-          <ProtectedRoute>
-            <Lembretes />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/perfil"
-        element={
-          <ProtectedRoute>
-            <Perfil />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/admin"
-        element={
-          <ProtectedRoute>
-            <Admin />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/teste"
-        element={
-          <ProtectedRoute>
-            <Teste />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/contas"
-        element={
-          <ProtectedRoute>
-            <Contas />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/cartoes"
-        element={
-          <ProtectedRoute>
-            <Cartoes />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/investimentos"
-        element={
-          <ProtectedRoute>
-            <Investimentos />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/orcamentos"
-        element={
-          <ProtectedRoute>
-            <Orcamentos />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/patrimonio"
-        element={
-          <ProtectedRoute>
-            <Patrimonio />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/config-categorias"
-        element={
-          <ProtectedRoute>
-            <ConfigCategorias />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/feedback"
-        element={
-          <ProtectedRoute>
-            <Feedback />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/whatsapp"
-        element={
-          <ProtectedRoute>
-            <WhatsApp />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/diagnostico"
-        element={
-          <ProtectedRoute>
-            <Diagnostico />
-          </ProtectedRoute>
-        }
-      />
-      {/* <Route
-        path="/relatorio-novo"
-        element={
-          <ProtectedRoute>
-            <RelatorioNovo />
-          </ProtectedRoute>
-        }
-      /> */}
-      <Route path="*" element={<NotFound />} />
-    </Routes>
+    <Suspense fallback={<LoadingScreen />}>
+      <Routes>
+        <Route
+          path="/auth"
+          element={user ? <Navigate to="/dashboard" replace /> : <Auth />}
+        />
+        <Route
+          path="/plano"
+          element={<Plano />}
+        />
+        <Route
+          path="/"
+          element={user ? <Navigate to="/dashboard" replace /> : <Navigate to="/auth" replace />}
+        />
+        <Route
+          path="/dashboard"
+          element={
+            <ProtectedRoute>
+              <Dashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/transacoes"
+          element={
+            <ProtectedRoute>
+              <Transacoes />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/calendario"
+          element={
+            <ProtectedRoute>
+              <Calendario />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/categorias"
+          element={
+            <ProtectedRoute>
+              <Categorias />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/relatorios"
+          element={
+            <ProtectedRoute>
+              <Relatorios />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/lembretes"
+          element={
+            <ProtectedRoute>
+              <Lembretes />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/perfil"
+          element={
+            <ProtectedRoute>
+              <Perfil />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin"
+          element={
+            <ProtectedRoute>
+              <Admin />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/teste"
+          element={
+            <ProtectedRoute>
+              <Teste />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/contas"
+          element={
+            <ProtectedRoute>
+              <Contas />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/cartoes"
+          element={
+            <ProtectedRoute>
+              <Cartoes />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/investimentos"
+          element={
+            <ProtectedRoute>
+              <Investimentos />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/orcamentos"
+          element={
+            <ProtectedRoute>
+              <Orcamentos />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/patrimonio"
+          element={
+            <ProtectedRoute>
+              <Patrimonio />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/config-categorias"
+          element={
+            <ProtectedRoute>
+              <ConfigCategorias />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/feedback"
+          element={
+            <ProtectedRoute>
+              <Feedback />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/whatsapp"
+          element={
+            <ProtectedRoute>
+              <WhatsApp />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/diagnostico"
+          element={
+            <ProtectedRoute>
+              <Diagnostico />
+            </ProtectedRoute>
+          }
+        />
+        {/* <Route
+          path="/relatorio-novo"
+          element={
+            <ProtectedRoute>
+              <RelatorioNovo />
+            </ProtectedRoute>
+          }
+        /> */}
+        <Route path="*" element={<NotFound />} />
+      </Routes>
+    </Suspense>
   );
 }
 
