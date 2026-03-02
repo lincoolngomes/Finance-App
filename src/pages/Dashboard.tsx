@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
 import { toast } from '@/hooks/use-toast'
+import { useDashboardPreferences } from '@/hooks/useDashboardPreferences'
 import { DashboardStats } from '@/components/dashboard/DashboardStats'
 import { DashboardFilters } from '@/components/dashboard/DashboardFilters'
 import { DashboardCharts } from '@/components/dashboard/DashboardCharts'
@@ -71,17 +72,23 @@ export default function Dashboard() {
     if (Number.isNaN(monthNumber)) return new Date().getMonth()
     return monthNumber > 11 ? monthNumber - 1 : monthNumber
   }
+  
+  // Usar hook para preferências persistentes
+  const {
+    preferences,
+    setShowCardTransactions,
+    setUseCardInvoicePayments,
+    setShowPendingInMonthlyChart,
+    setShowInvestmentsSeparately,
+    setHideValues,
+  } = useDashboardPreferences()
+
   const DASHBOARD_FILTERS_KEY = 'dashboard:filters:v1'
-  const getInitialDashboardFilters = () => {
+  const getInitialMonthYear = () => {
     const now = new Date()
     const fallback = {
       month: now.getMonth().toString(),
       year: now.getFullYear().toString(),
-      showCardTransactions: true,
-      useCardInvoicePayments: false,
-      showPendingInMonthlyChart: false,
-      showInvestmentsSeparately: false,
-      hideValues: false,
     }
     try {
       const raw = localStorage.getItem(DASHBOARD_FILTERS_KEY)
@@ -92,28 +99,19 @@ export default function Dashboard() {
       return {
         month: Number.isInteger(monthNum) && monthNum >= 0 && monthNum <= 11 ? String(monthNum) : fallback.month,
         year: Number.isInteger(yearNum) && yearNum >= 2000 && yearNum <= 2100 ? String(yearNum) : fallback.year,
-        showCardTransactions: typeof parsed?.showCardTransactions === 'boolean' ? parsed.showCardTransactions : fallback.showCardTransactions,
-        useCardInvoicePayments: typeof parsed?.useCardInvoicePayments === 'boolean' ? parsed.useCardInvoicePayments : fallback.useCardInvoicePayments,
-        showPendingInMonthlyChart: typeof parsed?.showPendingInMonthlyChart === 'boolean' ? parsed.showPendingInMonthlyChart : fallback.showPendingInMonthlyChart,
-        showInvestmentsSeparately: typeof parsed?.showInvestmentsSeparately === 'boolean' ? parsed.showInvestmentsSeparately : fallback.showInvestmentsSeparately,
-        hideValues: typeof parsed?.hideValues === 'boolean' ? parsed.hideValues : fallback.hideValues,
       }
     } catch {
       return fallback
     }
   }
 
-  const initialFilters = getInitialDashboardFilters()
+  const initialMonthYear = getInitialMonthYear()
   const { user } = useAuth()
   const [transacoes, setTransacoes] = useState<Transacao[]>([])
   const [lembretes, setLembretes] = useState<Lembrete[]>([])
   const [contas, setContas] = useState<Conta[]>([])
   const [cartoes, setCartoes] = useState<Cartao[]>([])
   const [loading, setLoading] = useState(true)
-  const [showCardTransactions, setShowCardTransactions] = useState(initialFilters.showCardTransactions)
-  const [useCardInvoicePayments, setUseCardInvoicePayments] = useState(initialFilters.useCardInvoicePayments)
-  const [showPendingInMonthlyChart, setShowPendingInMonthlyChart] = useState(initialFilters.showPendingInMonthlyChart)
-  const [showInvestmentsSeparately, setShowInvestmentsSeparately] = useState(initialFilters.showInvestmentsSeparately)
   const [faturasOpen, setFaturasOpen] = useState(false)
   const [faturaInitialCardId, setFaturaInitialCardId] = useState<string | null>(null)
   const [faturaInitialMonth, setFaturaInitialMonth] = useState<string>('')
@@ -124,6 +122,9 @@ export default function Dashboard() {
     filter: DashboardMonthDetailFilter
     requestId: number
   } | null>(null)
+
+  // Extrair valores das preferências
+  const { showCardTransactions, useCardInvoicePayments, showPendingInMonthlyChart, showInvestmentsSeparately, hideValues } = preferences
 
   // DEBUG: Logar transacoes carregadas
   useEffect(() => {
@@ -141,22 +142,17 @@ export default function Dashboard() {
     }
   }, [transacoes])
   
-  // Estados dos filtros
-  const [filterMonth, setFilterMonth] = useState(initialFilters.month)
-  const [filterYear, setFilterYear] = useState(initialFilters.year)
-  const [hideValues, setHideValues] = useState(initialFilters.hideValues)
+  // Estados dos filtros de mês/ano
+  const [filterMonth, setFilterMonth] = useState(initialMonthYear.month)
+  const [filterYear, setFilterYear] = useState(initialMonthYear.year)
 
+  // Salvar mês/ano no localStorage
   useEffect(() => {
     localStorage.setItem(DASHBOARD_FILTERS_KEY, JSON.stringify({
       month: filterMonth,
       year: filterYear,
-      showCardTransactions,
-      useCardInvoicePayments,
-      showPendingInMonthlyChart,
-      showInvestmentsSeparately,
-      hideValues,
     }))
-  }, [filterMonth, filterYear, showCardTransactions, useCardInvoicePayments, showPendingInMonthlyChart, showInvestmentsSeparately, hideValues])
+  }, [filterMonth, filterYear])
 
   useEffect(() => {
     if (!user) return
