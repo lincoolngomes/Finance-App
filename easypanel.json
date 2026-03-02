@@ -6,19 +6,9 @@
     "url": "https://github.com/lincoolngomes/Finance-App.git",
     "branch": "main"
   },
-  "build": {
-    "commands": [
-      "npm ci --legacy-peer-deps",
-      "npm run build"
-    ],
-    "output": "dist"
-  },
   "deploy": {
     "dockerfile": "Dockerfile",
-    "port": 80,
-    "environment": {
-      "NODE_ENV": "production"
-    }
+    "port": 80
   },
   "healthcheck": {
     "path": "/",
