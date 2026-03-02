@@ -595,27 +595,27 @@ export default function Patrimonio() {
   }
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+    <div className="container mx-auto space-y-5 p-4 sm:space-y-6 sm:p-6">
+      <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Bens e Dívidas</h1>
+          <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Bens e Dívidas</h1>
           <p className="text-muted-foreground">
             Controle completo do seu patrimônio, com visão de ativos e obrigações.
           </p>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={() => setModalDividaOpen(true)}>
+        <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+          <Button variant="outline" onClick={() => setModalDividaOpen(true)} className="w-full sm:w-auto">
             <TrendingDown className="h-4 w-4 mr-2" />
             Nova Dívida
           </Button>
-          <Button onClick={() => setModalBemOpen(true)}>
+          <Button onClick={() => setModalBemOpen(true)} className="w-full sm:w-auto">
             <TrendingUp className="h-4 w-4 mr-2" />
             Novo Bem
           </Button>
         </div>
       </div>
 
-      <div className="grid gap-6 grid-cols-1 md:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Card className="border-0 shadow-md">
           <CardContent className="pt-6">
             <div className="flex items-start justify-between">
@@ -685,15 +685,15 @@ export default function Patrimonio() {
               <CardDescription>Acompanhe saldos, parcelas e status de cada dívida.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="flex flex-col md:flex-row gap-3 md:items-center">
+              <div className="flex flex-col gap-3 md:flex-row md:items-center">
                 <Input
                   placeholder="Buscar por nome ou credor..."
                   value={filtroDivida}
                   onChange={(e) => setFiltroDivida(e.target.value)}
-                  className="md:max-w-sm"
+                  className="w-full md:max-w-sm"
                 />
                 <Select value={statusDividaFiltro} onValueChange={(v) => setStatusDividaFiltro(v as any)}>
-                  <SelectTrigger className="w-44">
+                  <SelectTrigger className="w-full md:w-44">
                     <SelectValue placeholder="Status" />
                   </SelectTrigger>
                   <SelectContent>
@@ -710,6 +710,73 @@ export default function Patrimonio() {
                 </div>
               </div>
 
+              <div className="space-y-3 md:hidden">
+                {dividasFiltradas.length === 0 ? (
+                  <div className="rounded-xl border border-border/60 bg-card/60 p-4 text-sm text-muted-foreground">
+                    Nenhuma dívida encontrada.
+                  </div>
+                ) : (
+                  dividasFiltradas.map((divida) => {
+                    const isDividaAutomaticaCartao = isDividaAutomatica(divida.id)
+                    const pago = Math.max(divida.valor_total - divida.saldo_atual, 0)
+                    const progresso = divida.valor_total > 0 ? (pago / divida.valor_total) * 100 : 0
+                    return (
+                      <div
+                        key={divida.id}
+                        className={`rounded-xl border p-4 ${isDividaAutomaticaCartao ? 'border-blue-500/40 bg-blue-500/5' : 'border-border/60 bg-card/60'}`}
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="font-medium">{divida.nome}</p>
+                            <p className="mt-1 text-xs text-muted-foreground">{divida.tipo} • {divida.credor || 'Sem credor'}</p>
+                          </div>
+                          {isDividaAutomaticaCartao ? (
+                            <Badge variant="outline" className="border-blue-500/40 text-blue-300">Automática</Badge>
+                          ) : (
+                            <Badge variant="secondary">Manual</Badge>
+                          )}
+                        </div>
+
+                        <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
+                          <div>
+                            <p className="text-xs text-muted-foreground">Total</p>
+                            <p className="mt-1 font-medium">{formatCurrency(divida.valor_total)}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-muted-foreground">Saldo</p>
+                            <p className="mt-1 font-medium text-red-600">{formatCurrency(divida.saldo_atual)}</p>
+                          </div>
+                        </div>
+
+                        <div className="mt-4 flex items-center gap-2">
+                          <Progress value={Math.min(progresso, 100)} className="h-2 flex-1" />
+                          <span className="min-w-[42px] text-right text-xs font-medium">{progresso.toFixed(0)}%</span>
+                        </div>
+
+                        <div className="mt-4 flex items-center justify-between gap-3">
+                          <div>{renderStatusDivida(divida.status)}</div>
+                          <div className="flex items-center gap-1">
+                            {isDividaAutomaticaCartao ? (
+                              <span className="text-xs text-muted-foreground">Automática</span>
+                            ) : (
+                              <>
+                                <Button variant="ghost" size="icon" onClick={() => editarDivida(divida)}>
+                                  <Pencil className="h-4 w-4 text-blue-600" />
+                                </Button>
+                                <Button variant="ghost" size="icon" onClick={() => removerDivida(divida.id)}>
+                                  <Trash2 className="h-4 w-4 text-red-600" />
+                                </Button>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })
+                )}
+              </div>
+
+              <div className="hidden md:block">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -783,6 +850,7 @@ export default function Patrimonio() {
                   )}
                 </TableBody>
               </Table>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
@@ -794,15 +862,15 @@ export default function Patrimonio() {
               <CardDescription>Registre ativos, valores e evolução do patrimônio.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="flex flex-col md:flex-row gap-3 md:items-center">
+              <div className="flex flex-col gap-3 md:flex-row md:items-center">
                 <Input
                   placeholder="Buscar por nome ou localização..."
                   value={filtroBem}
                   onChange={(e) => setFiltroBem(e.target.value)}
-                  className="md:max-w-sm"
+                  className="w-full md:max-w-sm"
                 />
                 <Select value={statusBemFiltro} onValueChange={(v) => setStatusBemFiltro(v as any)}>
-                  <SelectTrigger className="w-44">
+                  <SelectTrigger className="w-full md:w-44">
                     <SelectValue placeholder="Status" />
                   </SelectTrigger>
                   <SelectContent>
@@ -819,6 +887,69 @@ export default function Patrimonio() {
                 </div>
               </div>
 
+              <div className="space-y-3 md:hidden">
+                {bensFiltrados.length === 0 ? (
+                  <div className="rounded-xl border border-border/60 bg-card/60 p-4 text-sm text-muted-foreground">
+                    Nenhum bem encontrado.
+                  </div>
+                ) : (
+                  bensFiltrados.map((bem) => {
+                    const isBemAutomaticoInvestimento = isBemAutomatico(bem.id)
+                    const variacao = bem.valor_atual - bem.valor_compra
+                    return (
+                      <div
+                        key={bem.id}
+                        className={`rounded-xl border p-4 ${isBemAutomaticoInvestimento ? 'border-blue-500/40 bg-blue-500/5' : 'border-border/60 bg-card/60'}`}
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="font-medium">{bem.nome}</p>
+                            <p className="mt-1 text-xs text-muted-foreground">{bem.tipo}{bem.localizacao ? ` • ${bem.localizacao}` : ''}</p>
+                          </div>
+                          {isBemAutomaticoInvestimento ? (
+                            <Badge variant="outline" className="border-blue-500/40 text-blue-300">Automática</Badge>
+                          ) : (
+                            <Badge variant="secondary">Manual</Badge>
+                          )}
+                        </div>
+
+                        <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
+                          <div>
+                            <p className="text-xs text-muted-foreground">Compra</p>
+                            <p className="mt-1 font-medium">{formatCurrency(bem.valor_compra)}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-muted-foreground">Atual</p>
+                            <p className={`mt-1 font-medium ${variacao >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                              {formatCurrency(bem.valor_atual)}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="mt-4 flex items-center justify-between gap-3">
+                          <div>{renderStatusBem(bem.status)}</div>
+                          <div className="flex items-center gap-1">
+                            {isBemAutomaticoInvestimento ? (
+                              <span className="text-xs text-muted-foreground">Automática</span>
+                            ) : (
+                              <>
+                                <Button variant="ghost" size="icon" onClick={() => editarBem(bem)}>
+                                  <Pencil className="h-4 w-4 text-blue-600" />
+                                </Button>
+                                <Button variant="ghost" size="icon" onClick={() => removerBem(bem.id)}>
+                                  <Trash2 className="h-4 w-4 text-red-600" />
+                                </Button>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })
+                )}
+              </div>
+
+              <div className="hidden md:block">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -891,6 +1022,7 @@ export default function Patrimonio() {
                   )}
                 </TableBody>
               </Table>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>

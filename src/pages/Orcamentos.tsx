@@ -873,24 +873,24 @@ export default function Orcamentos() {
   )
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
+    <div className="container mx-auto space-y-5 p-4 sm:space-y-6 sm:p-6">
       {/* Header */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+      <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Orçamento Mensal</h1>
+          <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Orçamento Mensal</h1>
           <p className="text-muted-foreground">
             Planeje o mês e compare o orçado com o realizado
           </p>
         </div>
         
-        <div className="flex gap-2 items-center">
-          <Button variant="outline" onClick={() => setConfiguracoesOpen(true)} className="gap-2">
+        <div className="flex w-full flex-wrap gap-2 items-center md:w-auto">
+          <Button variant="outline" onClick={() => setConfiguracoesOpen(true)} className="gap-2 flex-1 sm:flex-none">
             <Settings2 className="h-4 w-4" />
             Configurações
           </Button>
 
           <Select value={mesSelecionado.toString()} onValueChange={(v) => setMesSelecionado(parseInt(v))}>
-            <SelectTrigger className="w-32">
+            <SelectTrigger className="flex-1 sm:w-32 sm:flex-none">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -903,7 +903,7 @@ export default function Orcamentos() {
           </Select>
           
           <Select value={anoSelecionado.toString()} onValueChange={(v) => setAnoSelecionado(parseInt(v))}>
-            <SelectTrigger className="w-24">
+            <SelectTrigger className="w-[112px]">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -918,14 +918,14 @@ export default function Orcamentos() {
             </SelectContent>
           </Select>
 
-          <Button variant="outline" onClick={duplicarMesAnterior}>
+          <Button variant="outline" onClick={duplicarMesAnterior} className="w-full sm:w-auto">
             <Copy className="h-4 w-4 mr-2" />
             Duplicar Mês Anterior
           </Button>
 
           <Dialog open={modalOpen} onOpenChange={setModalOpen}>
             <DialogTrigger asChild>
-              <Button>
+              <Button className="w-full sm:w-auto">
                 <Plus className="h-4 w-4 mr-2" />
                 Adicionar Categoria
               </Button>
@@ -1067,7 +1067,7 @@ export default function Orcamentos() {
       </Dialog>
 
       {/* Cards de Resumo */}
-      <div className="grid gap-6 grid-cols-1 md:grid-cols-4 mb-8">
+      <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {/* Despesa Planejada */}
         <Card className="border-0 shadow-md">
           <CardContent className="pt-6">
@@ -1134,14 +1134,14 @@ export default function Orcamentos() {
       </div>
 
       {/* Tabela de Orçamento por Categoria */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Orçamento por Categoria</CardTitle>
-          <CardDescription>
-            Acompanhe o planejamento e a realização de cada categoria
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
+        <Card>
+          <CardHeader>
+            <CardTitle>Orçamento por Categoria</CardTitle>
+            <CardDescription>
+              Acompanhe o planejamento e a realização de cada categoria
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
           {linhasTabela.length === 0 ? (
             <div className="text-center py-12">
               <Target className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
@@ -1153,6 +1153,190 @@ export default function Orcamentos() {
               </p>
             </div>
           ) : (
+            <>
+            <div className="space-y-3 md:hidden">
+              {linhasTabela.map((linha) => {
+                const realizado = getValorRealizado(linha.categoria_id)
+                const realizadoAbs = Math.abs(realizado)
+                const diferenca = linha.valor - realizadoAbs
+                const percentual = linha.valor > 0 ? (realizadoAbs / linha.valor) * 100 : 0
+                const isReceita = linha.tipo === 'receita'
+                const isDespesa = linha.tipo === 'despesa'
+
+                return (
+                  <div key={linha.categoria_id} className="rounded-xl border border-border bg-card/60 p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="font-medium">{linha.categoria_nome}</p>
+                        {!linha.tem_orcamento && (
+                          <p className="mt-1 text-xs text-muted-foreground">(sem orçamento)</p>
+                        )}
+                      </div>
+                      <div className="shrink-0">
+                        {linha.tipo === 'receita' ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                            <TrendingUp className="h-3 w-3" />
+                            Receita
+                          </span>
+                        ) : linha.tipo === 'despesa' ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-red-500/10 text-red-400 border border-red-500/20">
+                            <TrendingDown className="h-3 w-3" />
+                            Despesa
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-xs font-medium bg-muted/40 text-muted-foreground border border-border">
+                            -
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
+                      <div>
+                        <p className="text-xs text-muted-foreground">Planejado</p>
+                        <Input
+                          type="text"
+                          placeholder="0,00"
+                          value={
+                            valoresEditandoTabela[linha.categoria_id] !== undefined
+                              ? valoresEditandoTabela[linha.categoria_id]
+                              : (linha.valor > 0 ? linha.valor.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '')
+                          }
+                          onChange={(e) => {
+                            const novoValor = e.target.value
+                            setValoresEditandoTabela(prev => ({
+                              ...prev,
+                              [linha.categoria_id]: novoValor
+                            }))
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault()
+                              const inputValue = (e.target as HTMLInputElement).value
+                              if (inputValue.trim() === '') return
+                              const valorLimpo = inputValue.trim().replace(/\./g, '').replace(',', '.')
+                              const valorNumerico = parseFloat(valorLimpo)
+                              if (!isNaN(valorNumerico) && valorNumerico >= 0) {
+                                atualizarOrcamento(linha.categoria_id, valorNumerico)
+                                setTimeout(() => {
+                                  setValoresEditandoTabela(prev => {
+                                    const novoState = { ...prev }
+                                    delete novoState[linha.categoria_id]
+                                    return novoState
+                                  })
+                                }, 100)
+                              }
+                            }
+                          }}
+                          onBlur={() => {
+                            setValoresEditandoTabela(prev => {
+                              const novoState = { ...prev }
+                              delete novoState[linha.categoria_id]
+                              return novoState
+                            })
+                          }}
+                          onFocus={(e) => e.target.select()}
+                          className="mt-1 text-right"
+                        />
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">Realizado</p>
+                        <p className={`mt-2 font-semibold ${
+                          realizadoAbs === 0
+                            ? 'text-muted-foreground'
+                            : isReceita
+                              ? 'text-emerald-400'
+                              : isDespesa
+                                ? 'text-red-400'
+                                : 'text-foreground'
+                        }`}>
+                          {formatCurrency(Math.abs(realizado))}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">Diferença</p>
+                        <p className={`mt-2 font-semibold ${
+                          linha.valor > 0
+                            ? isReceita
+                              ? (diferenca >= 0 ? 'text-emerald-400' : 'text-red-400')
+                              : isDespesa
+                                ? '!text-red-400'
+                                : 'text-muted-foreground'
+                            : 'text-muted-foreground'
+                        }`}>
+                          {linha.valor > 0 ? formatCurrency(Math.abs(diferenca)) : '-'}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">Status</p>
+                        <div className="mt-2">
+                          {linha.valor > 0 ? (
+                            percentual <= 80 ? (
+                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                                Dentro
+                              </span>
+                            ) : percentual <= 100 ? (
+                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                                Atenção
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-500/10 text-red-400 border border-red-500/20">
+                                Excedido
+                              </span>
+                            )
+                          ) : (
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-muted/40 text-muted-foreground border border-border">
+                              Sem meta
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="mt-4">
+                      {linha.valor > 0 ? (
+                        <div className="flex items-center gap-2">
+                          <Progress
+                            value={Math.min(percentual, 100)}
+                            className={`h-2 flex-1 ${percentual > 100 ? '[&>div]:bg-red-500' : percentual > 80 ? '[&>div]:bg-yellow-500' : '[&>div]:bg-green-500'}`}
+                          />
+                          <span className="min-w-[44px] text-right text-sm font-medium">{percentual.toFixed(0)}%</span>
+                        </div>
+                      ) : (
+                        <span className="text-sm text-muted-foreground">Sem progresso</span>
+                      )}
+                    </div>
+
+                    <div className="mt-4 flex items-center justify-end gap-2">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => visualizarTransacoesCategoria(linha.categoria_id, linha.categoria_nome)}
+                        className="h-8 px-3"
+                        title="Ver lançamentos"
+                      >
+                        <Eye className="mr-1.5 h-4 w-4 text-muted-foreground" />
+                        Ver
+                      </Button>
+                      {linha.tem_orcamento && linha.id && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => removerOrcamento(linha.categoria_id)}
+                          className="h-8 px-3 text-red-600"
+                          title="Remover orçamento"
+                        >
+                          <Trash2 className="mr-1.5 h-4 w-4" />
+                          Remover
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+
+            <div className="hidden md:block">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -1383,6 +1567,8 @@ export default function Orcamentos() {
                 })}
               </TableBody>
             </Table>
+            </div>
+            </>
           )}
         </CardContent>
       </Card>

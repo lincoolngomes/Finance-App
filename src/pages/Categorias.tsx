@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
-import { Plus, Trash2, TrendingUp, TrendingDown, PiggyBank, List } from 'lucide-react';
+import { Plus, Trash2, TrendingUp, TrendingDown, PiggyBank } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
@@ -76,20 +76,16 @@ export default function Categorias() {
         const todos = categories
           .filter((c) => !isDefaultCategory(c))
           .map((c) => c.id);
-        console.log('[DEBUG] handleSelectAll - selecionando editáveis:', todos);
         setSelectedIds(todos);
       } else {
-        console.log('[DEBUG] handleSelectAll - limpando seleção');
         setSelectedIds([]);
       }
     };
-  console.log('[DEBUG] Renderizando Categorias');
   // ...outros useStates...
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState<any>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [isChangeTypeModalOpen, setIsChangeTypeModalOpen] = useState(false);
-  console.log('[DEBUG] selectedIds no render:', selectedIds);
   // Modal de lançamentos
   const [modalOpen, setModalOpen] = useState(false);
   const [modalCategoria, setModalCategoria] = useState<any>(null);
@@ -275,7 +271,6 @@ export default function Categorias() {
 
     setSelectedIds((prev) => {
       const novo = prev.includes(id) ? prev.filter((sid) => sid !== id) : [...prev, id];
-      console.log('[DEBUG] handleToggleSelect - novo selectedIds:', novo);
       return novo;
     });
   };
@@ -482,31 +477,28 @@ export default function Categorias() {
     try {
       for (const id of idsParaAlterar) {
         const cat = categories.find(c => c.id === id);
-        console.log('[DEBUG] Tentando atualizar tipo das transações', { id, newType, cat });
         if (cat) {
           // Atualiza categoria
           await updateCategory({ id, updates: { nome: cat.nome, tags: cat.tags, tipo: newType } });
           // Atualiza todas as transações vinculadas
-          const { data, error } = await supabase
+          const { error } = await supabase
             .from('transacoes')
             .update({ tipo: newType })
             .eq('categoria_id', id)
             .select();
-          // Log para debug
-          console.log('[DEBUG] Update transacoes:', { id, newType, data, error });
           if (error) {
             toast({ title: 'Erro ao atualizar transações', description: error.message, variant: 'destructive' });
             throw error;
           }
         } else {
-          console.warn('[DEBUG] Categoria não encontrada para id:', id);
+          console.warn('Categoria não encontrada para id:', id);
         }
       }
       setSelectedIds([]);
       toast({ title: `Tipo alterado para ${newType} em ${idsParaAlterar.length} categoria(s) e transações vinculadas!` });
       window.location.reload();
     } catch (error: any) {
-      console.error('[DEBUG] Erro ao alterar tipo:', error);
+      console.error('Erro ao alterar tipo:', error);
       toast({ title: 'Erro ao alterar tipo', description: error.message, variant: 'destructive' });
     } finally {
       setChangingType(false);
@@ -546,13 +538,11 @@ export default function Categorias() {
   };
 
 
-  // Debug visual
   if (isLoading) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center gap-4">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
         <div className="text-zinc-400 text-sm">Carregando categorias...</div>
-        <div className="text-xs text-zinc-500">Usuário: {user?.id || 'NÃO AUTENTICADO'}</div>
       </div>
     );
   }
@@ -562,7 +552,6 @@ export default function Categorias() {
       <div className="min-h-screen flex flex-col items-center justify-center gap-4">
         <div className="text-red-500 font-bold">Erro ao buscar categorias</div>
         <div className="text-xs text-zinc-400">{error.message || String(error)}</div>
-        <div className="text-xs text-zinc-500">Usuário: {user?.id || 'NÃO AUTENTICADO'}</div>
       </div>
     );
   }
@@ -608,21 +597,21 @@ export default function Categorias() {
           )}
         </DialogContent>
       </Dialog>
-      <div className="text-xs text-zinc-400 mb-2">Usuário: {user?.id || 'NÃO AUTENTICADO'} | Categorias carregadas: {categories.length}</div>
-      
       {/* Header e Controles */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Categorias</h1>
-          <p className="text-sm text-muted-foreground mt-1">Organize suas transações com categorias personalizadas</p>
+          <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Categorias</h1>
+          <p className="mt-1 max-w-xl text-sm leading-relaxed text-muted-foreground">
+            Organize suas transações com categorias personalizadas.
+          </p>
         </div>
-        <div className="flex gap-2 w-full sm:w-auto">
+        <div className="flex w-full flex-wrap gap-2 sm:w-auto">
           {selectedIds.length > 0 && (
             <>
               <Button 
                 onClick={() => setIsChangeTypeModalOpen(true)}
                 variant="outline"
-                className="gap-2 px-4"
+                className="min-h-10 flex-1 gap-2 px-4 sm:flex-initial"
               >
                 <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16V4m0 0L3 8m4-4l4 4" />
@@ -632,14 +621,14 @@ export default function Categorias() {
               <Button 
                 onClick={handleDeleteSelected}
                 variant="destructive"
-                className="gap-2 px-4"
+                className="min-h-10 flex-1 gap-2 px-4 sm:flex-initial"
               >
                 <Trash2 className="h-4 w-4" />
                 Excluir ({selectedIds.length})
               </Button>
             </>
           )}
-          <Button onClick={() => setIsFormOpen(true)} className="gap-2 flex-1 sm:flex-initial">
+          <Button onClick={() => setIsFormOpen(true)} className="min-h-10 flex-1 gap-2 sm:flex-initial">
             <Plus className="h-4 w-4" />
             Nova Categoria
           </Button>
@@ -649,7 +638,7 @@ export default function Categorias() {
       {/* Select Ordenação */}
       <div className="mb-4">
         <Select value={sortOption} onValueChange={setSortOption}>
-          <SelectTrigger className="w-full sm:w-[260px]">
+          <SelectTrigger className="min-h-11 w-full sm:w-[260px]">
             <SelectValue placeholder="Ordenar por" />
           </SelectTrigger>
           <SelectContent>
@@ -666,14 +655,14 @@ export default function Categorias() {
 
       {/* Checkbox Selecionar Tudo */}
       {categories.length > 0 && (
-        <div className="flex items-center gap-2 mb-6">
+        <div className="mb-6 flex items-center gap-2">
           <Checkbox
             checked={isAllSelected}
             disabled={selectableCategoryIds.length === 0}
             onCheckedChange={handleSelectAll}
             id="select-all"
           />
-          <Label htmlFor="select-all" className="text-sm font-medium cursor-pointer">
+          <Label htmlFor="select-all" className="cursor-pointer text-sm font-medium leading-snug">
             Selecionar todas ({categories.length})
           </Label>
         </div>

@@ -1861,20 +1861,20 @@ const Transacoes: React.FC = () => {
 
   // ...hooks, funções e lógica acima...
   return (
-    <div className="space-y-6 p-6">
+    <div className="space-y-5 p-4 sm:space-y-6 sm:p-6">
       {/* Header: Título, Descrição e Botão Nova Transação */}
-      <div className="flex flex-row items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-white">Transações</h1>
+          <h1 className="text-2xl font-bold text-white sm:text-3xl">Transações</h1>
           <p className="text-slate-400 text-sm mt-1">Gerencie todas as suas transações financeiras</p>
         </div>
-        <Button className="bg-primary hover:bg-primary/90 h-9 text-sm rounded-lg px-4 whitespace-nowrap font-semibold" onClick={openNewTransactionDialog}>
+        <Button className="bg-primary hover:bg-primary/90 h-10 w-full text-sm rounded-lg px-4 whitespace-nowrap font-semibold sm:h-9 sm:w-auto" onClick={openNewTransactionDialog}>
           + Nova Transação
         </Button>
       </div>
 
       {/* Cards de Resumo */}
-      <div className="grid gap-3 grid-cols-4">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {/* Card Saldo */}
         <Card className="border-border/40 bg-card/50 backdrop-blur">
           <CardHeader className="pb-2 pt-4">
@@ -1884,7 +1884,7 @@ const Transacoes: React.FC = () => {
             </div>
           </CardHeader>
           <CardContent className="pb-4">
-            <div className="text-3xl font-bold text-primary">
+            <div className="break-words text-2xl font-bold text-primary sm:text-3xl">
               {formatCurrency(saldoReal)}
             </div>
             <p className="text-xs text-muted-foreground mt-1">Saldo atualizado até hoje</p>
@@ -1900,7 +1900,7 @@ const Transacoes: React.FC = () => {
             </div>
           </CardHeader>
           <CardContent className="pb-4">
-            <div className="text-3xl font-bold text-green-500">
+            <div className="break-words text-2xl font-bold text-green-500 sm:text-3xl">
               {formatCurrency(receitasMes)}
             </div>
             <p className="text-xs text-muted-foreground mt-1">{countReceitasMes} {countReceitasMes === 1 ? 'transação' : 'transações'}</p>
@@ -1916,7 +1916,7 @@ const Transacoes: React.FC = () => {
             </div>
           </CardHeader>
           <CardContent className="pb-4">
-            <div className="text-3xl font-bold text-red-500">
+            <div className="break-words text-2xl font-bold text-red-500 sm:text-3xl">
               {formatCurrency(despesasMes)}
             </div>
             <p className="text-xs text-muted-foreground mt-1">{countDespesasMes} {countDespesasMes === 1 ? 'transação' : 'transações'}</p>
@@ -1932,7 +1932,7 @@ const Transacoes: React.FC = () => {
             </div>
           </CardHeader>
           <CardContent className="pb-4">
-            <div className="text-3xl font-bold text-foreground">
+            <div className="break-words text-2xl font-bold text-foreground sm:text-3xl">
               {formatCurrency(despesasPendentes)}
             </div>
             <p className="text-xs text-muted-foreground mt-1">A pagar</p>
@@ -1941,12 +1941,12 @@ const Transacoes: React.FC = () => {
       </div>
 
       {/* Filtros Superiores */}
-      <div className="flex flex-wrap items-start justify-between gap-4 py-4">
-        <div className="flex flex-wrap items-center gap-3 min-w-0 flex-1">
-          <div className="flex items-center gap-2">
+      <div className="flex flex-col gap-4 py-3 lg:flex-row lg:items-start lg:justify-between">
+        <div className="min-w-0 flex-1 space-y-3">
+          <div className="flex flex-wrap items-center gap-2">
             <Button
               variant={viewMode === 'mes' ? 'default' : 'ghost'}
-              className={`h-8 text-xs rounded px-3 ${
+              className={`h-9 flex-1 text-xs rounded px-3 sm:flex-none ${
                 viewMode === 'mes'
                   ? 'bg-primary hover:bg-primary/90 text-primary-foreground'
                   : 'bg-slate-800/50 hover:bg-slate-800 text-slate-400'
@@ -1957,7 +1957,7 @@ const Transacoes: React.FC = () => {
             </Button>
             <Button
               variant={viewMode === 'ultimos' ? 'default' : 'ghost'}
-              className={`h-8 text-xs rounded px-3 ${
+              className={`h-9 flex-1 text-xs rounded px-3 sm:flex-none ${
                 viewMode === 'ultimos'
                   ? 'bg-primary hover:bg-primary/90 text-primary-foreground'
                   : 'bg-slate-800/50 hover:bg-slate-800 text-slate-400'
@@ -1972,52 +1972,52 @@ const Transacoes: React.FC = () => {
           </div>
 
           {viewMode === 'mes' ? (
-            <>
-              {/* Ano */}
-              <Select value={filterYear} onValueChange={setFilterYear}>
-                <SelectTrigger className="w-20 h-9 text-sm bg-slate-900/50 border-slate-700/50">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="bg-slate-900 border-slate-700">
-                  <SelectItem value="2024">2024</SelectItem>
-                  <SelectItem value="2025">2025</SelectItem>
-                  <SelectItem value="2026">2026</SelectItem>
-                </SelectContent>
-              </Select>
-
-              {/* Período */}
-              <span className="text-xs text-slate-400">Período:</span>
-
-              {/* Botões de Mês */}
-              <div className="flex flex-wrap gap-1">
-                {['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'].map((m, i) => (
-                  <Button
-                    key={i}
-                    variant={parseInt(filterMonth) === i ? 'default' : 'ghost'}
-                    className={`h-8 w-10 text-xs rounded px-1 ${
-                      parseInt(filterMonth) === i 
-                        ? 'bg-primary hover:bg-primary/90 text-primary-foreground' 
-                        : 'bg-slate-800/50 hover:bg-slate-800 text-slate-400'
-                    }`}
-                    onClick={() => setFilterMonth(i.toString())}
-                  >
-                    {m}
-                  </Button>
-                ))}
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-slate-400">Ano</span>
+                <Select value={filterYear} onValueChange={setFilterYear}>
+                  <SelectTrigger className="h-9 w-[110px] text-sm bg-slate-900/50 border-slate-700/50">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-slate-900 border-slate-700">
+                    <SelectItem value="2024">2024</SelectItem>
+                    <SelectItem value="2025">2025</SelectItem>
+                    <SelectItem value="2026">2026</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
-            </>
+
+              <div className="overflow-x-auto pb-1">
+                <div className="flex min-w-max gap-1">
+                  {['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'].map((m, i) => (
+                    <Button
+                      key={i}
+                      variant={parseInt(filterMonth) === i ? 'default' : 'ghost'}
+                      className={`h-8 w-10 shrink-0 text-xs rounded px-1 ${
+                        parseInt(filterMonth) === i 
+                          ? 'bg-primary hover:bg-primary/90 text-primary-foreground' 
+                          : 'bg-slate-800/50 hover:bg-slate-800 text-slate-400'
+                      }`}
+                      onClick={() => setFilterMonth(i.toString())}
+                    >
+                      {m}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+            </div>
           ) : (
-            <span className="text-xs text-slate-400">
+            <span className="block max-w-2xl text-xs leading-5 text-slate-400">
               Mostrando os lançamentos mais recentes já incluídos. Parcelas futuras ficam no modo por mês.
             </span>
           )}
         </div>
 
         {/* Ações Direita */}
-        <div className="flex gap-2 flex-wrap justify-end">
+        <div className="flex w-full flex-wrap gap-2 lg:w-auto lg:justify-end">
           <Button 
             variant="ghost" 
-            className="h-9 text-sm rounded-lg px-3 bg-slate-800/50 hover:bg-slate-800 text-slate-300"
+            className="h-9 flex-1 text-sm rounded-lg px-3 bg-slate-800/50 hover:bg-slate-800 text-slate-300 sm:flex-none"
             onClick={() => setInvoicesOpen(true)}
           >
             📋 Faturas
@@ -2025,7 +2025,7 @@ const Transacoes: React.FC = () => {
           <div className="relative">
             <Button 
               variant="ghost" 
-              className="h-9 text-sm rounded-lg px-3 bg-slate-800/50 hover:bg-slate-800 text-slate-300"
+              className="h-9 flex-1 text-sm rounded-lg px-3 bg-slate-800/50 hover:bg-slate-800 text-slate-300 sm:flex-none"
               onClick={() => setOpenDropdown(openDropdown === 'importar' ? null : 'importar')}
             >
               ↑ Importar
@@ -2056,7 +2056,7 @@ const Transacoes: React.FC = () => {
           <div className="relative">
             <Button 
               variant="ghost" 
-              className="h-9 text-sm rounded-lg px-3 bg-slate-800/50 hover:bg-slate-800 text-slate-300"
+              className="h-9 flex-1 text-sm rounded-lg px-3 bg-slate-800/50 hover:bg-slate-800 text-slate-300 sm:flex-none"
               onClick={() => setOpenDropdown(openDropdown === 'exportar' ? null : 'exportar')}
             >
               ↓ Exportar
@@ -2116,24 +2116,24 @@ const Transacoes: React.FC = () => {
       </div>
 
       {/* Filtros Secundários */}
-      <div className="flex items-center gap-4 py-2">
+      <div className="flex flex-col gap-3 py-2 md:flex-row md:items-center">
         <Button variant="ghost" className={`h-8 text-xs rounded-lg px-3 ${(() => {
           const count = [advFilters.tipo && advFilters.tipo !== 'all', advFilters.period, advFilters.categories.length > 0, advFilters.accounts.length > 0, advFilters.cards.length > 0, advFilters.status && advFilters.status !== 'all', advFilters.minValue, advFilters.maxValue, advFilters.onlyRecorrentes, advFilters.onlyParceladas].filter(Boolean).length;
           return count > 0 ? 'bg-primary/10 hover:bg-primary/15 text-primary border border-primary/30' : 'bg-slate-800/50 hover:bg-slate-800 text-slate-300';
-        })()}`} onClick={() => setAdvancedFiltersOpen(true)}>
+        })()} w-full justify-center md:w-auto`} onClick={() => setAdvancedFiltersOpen(true)}>
           🔍 Filtros Avançados
           {(() => {
             const count = [advFilters.tipo && advFilters.tipo !== 'all', advFilters.period, advFilters.categories.length > 0, advFilters.accounts.length > 0, advFilters.cards.length > 0, advFilters.status && advFilters.status !== 'all', advFilters.minValue, advFilters.maxValue, advFilters.onlyRecorrentes, advFilters.onlyParceladas].filter(Boolean).length;
             return count > 0 ? <span className="ml-1.5 inline-flex items-center justify-center w-4 h-4 text-[10px] font-bold bg-primary text-primary-foreground rounded-full">{count}</span> : null;
           })()}
         </Button>
-        <div className="flex items-center gap-2 bg-slate-800/50 hover:bg-slate-800/75 transition-colors rounded-lg px-3 py-1.5 cursor-pointer">
+        <div className="flex items-center gap-2 bg-slate-800/50 hover:bg-slate-800/75 transition-colors rounded-lg px-3 py-2 cursor-pointer md:py-1.5">
           <input type="checkbox" className="w-4 h-4" checked={hideCardTransactions} onChange={(e) => setHideCardTransactions(e.target.checked)} />
           <span className="text-xs text-slate-400">Ocultar Cartões de Crédito</span>
         </div>
         <Input
           placeholder="Buscar transações..."
-          className="flex-1 h-9 rounded-lg bg-slate-900/50 border-slate-700/50 text-slate-300 placeholder:text-slate-500"
+          className="h-9 w-full rounded-lg bg-slate-900/50 border-slate-700/50 text-slate-300 placeholder:text-slate-500 md:flex-1"
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
         />
@@ -2143,11 +2143,11 @@ const Transacoes: React.FC = () => {
       {selectedIds.length > 0 && (
         <Card className="mb-4 border-2 border-primary bg-primary/5">
           <CardContent className="p-4">
-            <div className="flex flex-wrap items-center gap-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-4">
               <span className="text-sm font-semibold text-primary">
                 ✓ {selectedIds.length} {selectedIds.length === 1 ? 'transação selecionada' : 'transações selecionadas'}
               </span>
-              <div className="h-6 w-px bg-slate-700"></div>
+              <div className="hidden h-6 w-px bg-slate-700 sm:block"></div>
               <div className="flex gap-2 flex-wrap">
                 <Button size="sm" variant="outline" onClick={() => setMassCategoryDialogOpen(true)}>
                   📁 Alterar Categoria
@@ -2188,8 +2188,148 @@ const Transacoes: React.FC = () => {
         </Card>
       )}
 
+      {/* Lista Mobile */}
+      <div className="space-y-3 md:hidden">
+        {filteredTransacoes.length === 0 ? (
+          <div className="text-center py-12 text-slate-500">
+            {viewMode === 'ultimos' ? 'Nenhum lançamento encontrado' : 'Nenhuma transação encontrada'}
+          </div>
+        ) : (
+          <>
+            {filteredTransacoes.slice(0, displayCount).map((transacao) => {
+              const dataFormatada = (() => {
+                const dateStr = viewMode === 'ultimos'
+                  ? (transacao.created_at || transacao.data)
+                  : (transacao.data || transacao.created_at);
+                if (!dateStr) return '-';
+                return formatDate(dateStr);
+              })()
+
+              const isReceita = transacao.tipo === 'receita' || (transacao.tipo === null && Number(transacao.valor || 0) > 0)
+              const isPendente = transacao.status === 'pendente' || transacao.status === 'pendente_fatura'
+              const origemLabel = transacao.cartao_id
+                ? (transacao.cartao_nome || 'Cartão')
+                : (transacao.conta_id && transacao.contas ? transacao.contas.nome : 'Sem conta')
+
+              return (
+                <Card
+                  key={transacao.id}
+                  className={`border-l-4 ${
+                    isReceita
+                      ? 'border-l-green-500 bg-green-500/5'
+                      : isPendente
+                        ? 'border-l-slate-500 bg-slate-500/5'
+                        : 'border-l-red-500 bg-red-500/5'
+                  }`}
+                >
+                  <CardContent className="space-y-3 p-4">
+                    <div className="flex items-start gap-3">
+                      <input
+                        type="checkbox"
+                        className="mt-1 h-4 w-4 cursor-pointer"
+                        checked={selectedIds.includes(transacao.id)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedIds([...selectedIds, transacao.id]);
+                          } else {
+                            setSelectedIds(selectedIds.filter(id => id !== transacao.id));
+                          }
+                        }}
+                      />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="line-clamp-2 break-words text-sm font-semibold text-slate-100">
+                              {(() => {
+                                const desc = transacao.descricao || transacao.observacao
+                                return desc ? String(desc) : '-'
+                              })()}
+                            </p>
+                            <p className="mt-1 text-xs text-slate-400">{dataFormatada}</p>
+                          </div>
+                          <p className={`shrink-0 text-sm font-bold ${isReceita ? 'text-green-400' : 'text-red-400'}`}>
+                            {isReceita ? '+' : '-'}{formatCurrency(Math.abs(transacao.valor || 0))}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap gap-2">
+                      <Badge className="border border-slate-700/50 bg-slate-800/60 text-slate-200">
+                        {transacao.categorias?.nome || 'Sem categoria'}
+                      </Badge>
+                      <Badge className="border border-slate-700/50 bg-slate-800/60 text-slate-300">
+                        {origemLabel}
+                      </Badge>
+                      <Badge
+                        className={`text-xs px-2 py-1 rounded font-semibold ${
+                          transacao.status === 'pendente' || transacao.status === 'pendente_fatura'
+                            ? 'bg-yellow-900/60 text-yellow-300 border border-yellow-700/50'
+                            : 'bg-slate-700/50 text-slate-300 border border-slate-600/50'
+                        }`}
+                      >
+                        {transacao.status === 'pendente_fatura' ? 'Fatura' : transacao.status === 'pendente' ? 'Pendente' : 'Pago'}
+                      </Badge>
+                    </div>
+
+                    <div className="flex items-center justify-end gap-2 border-t border-slate-800/70 pt-2">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => handleEdit(transacao)}
+                        className="h-8 px-3 text-slate-300 hover:text-slate-100 hover:bg-slate-500/10"
+                        title="Editar"
+                      >
+                        <Edit className="mr-1.5 h-3.5 w-3.5" />
+                        Editar
+                      </Button>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-8 px-3 text-red-400 hover:text-red-300 hover:bg-red-500/10"
+                            title="Excluir"
+                          >
+                            <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+                            Excluir
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Excluir transação</AlertDialogTitle>
+                            <AlertDialogDescription>Tem certeza que deseja remover esta transação? Esta ação não pode ser desfeita.</AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                            <AlertDialogAction onClick={() => handleDelete(transacao.id)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Excluir</AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </div>
+                  </CardContent>
+                </Card>
+              )
+            })}
+
+            {displayCount < filteredTransacoes.length && (
+              <div className="flex justify-center py-4">
+                <Button 
+                  onClick={() => setDisplayCount(displayCount + 30)}
+                  variant="outline"
+                  className="gap-2 hover:bg-primary/10 border-primary/30 text-primary hover:text-primary"
+                >
+                  <span>Carregar mais</span>
+                  <span className="text-xs text-muted-foreground">({displayCount} de {filteredTransacoes.length})</span>
+                </Button>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+
       {/* Cabeçalho da Tabela */}
-      <div className="grid gap-3 grid-cols-[44px_96px_minmax(260px,2.7fr)_minmax(110px,0.95fr)_minmax(90px,0.8fr)_minmax(130px,1fr)_110px_120px] items-center px-5 py-3 bg-slate-800/50 rounded-lg font-semibold text-xs text-slate-400 border border-slate-700/50 sticky top-0">
+      <div className="hidden md:grid gap-3 grid-cols-[44px_96px_minmax(260px,2.7fr)_minmax(110px,0.95fr)_minmax(90px,0.8fr)_minmax(130px,1fr)_110px_120px] items-center px-5 py-3 bg-slate-800/50 rounded-lg font-semibold text-xs text-slate-400 border border-slate-700/50 sticky top-0">
         <div className="flex items-center justify-center">
           <input type="checkbox" className="w-4 h-4 cursor-pointer" onChange={(e) => handleSelectAll(e.target.checked)} checked={isAllSelected} />
         </div>
@@ -2215,7 +2355,7 @@ const Transacoes: React.FC = () => {
       </div>
 
       {/* Lista de Transações */}
-      <div className="space-y-2">
+      <div className="hidden space-y-2 md:block">
         {filteredTransacoes.length === 0 ? (
           <div className="text-center py-12 text-slate-500">
             {viewMode === 'ultimos' ? 'Nenhum lançamento encontrado' : 'Nenhuma transação encontrada'}

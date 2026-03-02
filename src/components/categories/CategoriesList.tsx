@@ -64,6 +64,9 @@ export function CategoriesList({
     return 'from-zinc-500/20 to-zinc-500/5 border-l-zinc-500';
   }
 
+  const actionButtonClass =
+    'h-9 justify-center gap-2 rounded-lg border border-border/70 bg-background/40 px-3 text-xs font-medium text-foreground transition-colors hover:bg-secondary/70 md:h-8 md:w-9 md:px-0';
+
   return (
     <div className="space-y-3">
       {categories.map((category) => {
@@ -79,109 +82,126 @@ export function CategoriesList({
         return (
           <div 
             key={category.id}
-            className={`flex items-center gap-4 p-4 border rounded-lg transition-colors ${
+            className={`rounded-xl border p-4 transition-colors ${
               isSelected && !isLocked
                 ? 'bg-primary/10 border-primary' 
                 : 'bg-secondary/30 border-border hover:bg-secondary/50'
             }`}
           >
-            <Checkbox
-              checked={isSelected}
-              disabled={isLocked}
-              onCheckedChange={() => !isLocked && onToggleSelect(category.id)}
-            />
-            
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 mb-1">
-                <h3 className="font-semibold text-foreground">{category.nome}</h3>
-                <Badge 
-                  variant="secondary" 
-                  className={`text-xs ${typeColor} ${!category.tipo ? 'bg-slate-700/50' : ''}`}
-                >
-                  {category.tipo || 'sem tipo'}
-                </Badge>
-                {isLocked && (
-                  <Badge variant="outline" className="text-xs border-primary/50 text-primary">
-                    padrão
-                  </Badge>
-                )}
-              </div>
-              {category.tags && (
-                <p className="text-xs text-muted-foreground">
-                  {category.tags}
-                </p>
-              )}
-              <p className="text-xs text-muted-foreground mt-1">
-                {stats.lancamentos} lançamentos •{' '}
-                {Number(stats.valor || 0).toLocaleString('pt-BR', {
-                  style: 'currency',
-                  currency: 'BRL',
-                })}
-              </p>
-            </div>
-
-            <div className="flex gap-2 flex-shrink-0">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => onOpenLancamentos && onOpenLancamentos(category)}
-                className="h-8 gap-2 text-primary hover:bg-primary/10"
-                title="Ver lançamentos"
-              >
-                <List className="h-4 w-4" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => onEdit(category)}
+            <div className="flex items-start gap-3">
+              <Checkbox
+                checked={isSelected}
                 disabled={isLocked}
-                className="h-8 px-3"
-                title={isLocked ? 'Categoria padrão não pode ser editada' : 'Editar categoria'}
-              >
-                <Edit className="h-4 w-4" />
-              </Button>
-              {isLocked ? (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  disabled
-                  className="h-8 px-3 text-red-500/50"
-                  title="Categoria padrão não pode ser excluída"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              ) : (
-                <AlertDialog>
-                  <AlertDialogTrigger asChild>
-                    <Button 
-                      variant="ghost" 
-                      size="sm" 
-                      className="h-8 px-3 text-red-500 hover:text-red-600 hover:bg-red-500/10"
-                      title="Excluir categoria"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </AlertDialogTrigger>
-                  <AlertDialogContent>
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>Excluir categoria</AlertDialogTitle>
-                      <AlertDialogDescription>
-                        Tem certeza que deseja excluir a categoria "{category.nome}"? 
-                        Esta ação não pode ser desfeita.
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                      <AlertDialogAction
-                        onClick={() => deleteCategory(category.id)}
-                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                onCheckedChange={() => !isLocked && onToggleSelect(category.id)}
+                className="mt-1 shrink-0"
+              />
+
+              <div className="min-w-0 flex-1">
+                <div className="space-y-3">
+                  <div className="space-y-2">
+                    <div className="flex flex-wrap items-start gap-2">
+                      <h3 className="min-w-0 flex-1 break-words text-sm font-semibold leading-tight text-foreground sm:text-base">
+                        {category.nome}
+                      </h3>
+                      <Badge 
+                        variant="secondary" 
+                        className={`shrink-0 text-[11px] ${typeColor} ${!category.tipo ? 'bg-slate-700/50' : ''}`}
                       >
-                        Excluir
-                      </AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
-              )}
+                        {category.tipo || 'sem tipo'}
+                      </Badge>
+                      {isLocked && (
+                        <Badge variant="outline" className="shrink-0 text-[11px] border-primary/50 text-primary">
+                          padrão
+                        </Badge>
+                      )}
+                    </div>
+
+                    {category.tags && (
+                      <p className="break-words text-xs leading-relaxed text-muted-foreground">
+                        {category.tags}
+                      </p>
+                    )}
+
+                    <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                      <span>{stats.lancamentos} lançamentos</span>
+                      <span className="font-medium text-foreground/80">
+                        {Number(stats.valor || 0).toLocaleString('pt-BR', {
+                          style: 'currency',
+                          currency: 'BRL',
+                        })}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-2 border-t border-border/60 pt-3 md:flex md:items-center md:justify-end md:border-t-0 md:pt-0">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => onOpenLancamentos && onOpenLancamentos(category)}
+                      className={`${actionButtonClass} text-primary hover:bg-primary/10 hover:text-primary`}
+                      title="Ver lançamentos"
+                    >
+                      <List className="h-4 w-4 shrink-0" />
+                      <span className="truncate md:hidden">Lanç.</span>
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => onEdit(category)}
+                      disabled={isLocked}
+                      className={actionButtonClass}
+                      title={isLocked ? 'Categoria padrão não pode ser editada' : 'Editar categoria'}
+                    >
+                      <Edit className="h-4 w-4 shrink-0" />
+                      <span className="truncate md:hidden">Editar</span>
+                    </Button>
+                    {isLocked ? (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        disabled
+                        className={`${actionButtonClass} text-muted-foreground`}
+                      >
+                        <Trash2 className="h-4 w-4 shrink-0" />
+                        <span className="truncate md:hidden">Padrão</span>
+                      </Button>
+                    ) : (
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button 
+                            variant="ghost" 
+                            size="sm" 
+                            className={`${actionButtonClass} text-red-500 hover:bg-red-500/10 hover:text-red-600`}
+                            title="Excluir categoria"
+                          >
+                            <Trash2 className="h-4 w-4 shrink-0" />
+                            <span className="truncate md:hidden">Excluir</span>
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Excluir categoria</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              Tem certeza que deseja excluir a categoria "{category.nome}"? 
+                              Esta ação não pode ser desfeita.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={() => deleteCategory(category.id)}
+                              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                            >
+                              Excluir
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    )}
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         );

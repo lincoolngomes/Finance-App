@@ -99,19 +99,19 @@ export function AppLayout({ children, userName }: AppLayoutProps) {
         <AppSidebar />
         <SidebarInset className="w-full">
           <header className="h-16 flex items-center justify-between px-3 sm:px-6 bg-card border-b shadow-sm sticky top-0 z-40">
-            <div className="flex items-center gap-2 sm:gap-4">
+            <div className="min-w-0 flex items-center gap-2 sm:gap-4">
               <MenuTrigger />
-              <h1 className="text-sm sm:text-lg font-semibold title-color">
+              <h1 className="max-w-[52vw] truncate text-sm font-semibold title-color sm:max-w-none sm:text-lg">
                 {getGreeting()}
               </h1>
             </div>
-            <div className="flex items-center gap-2 sm:gap-4">
+            <div className="flex shrink-0 items-center gap-2 sm:gap-4">
               {/* Botão Notificações */}
               <div className="relative group">
                 <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full hover:bg-accent">
                   <Bell className="h-5 w-5 text-muted-foreground" />
                 </Button>
-                <div className="absolute right-0 top-full mt-2 hidden group-hover:block bg-popover border border-border rounded-lg shadow-lg z-50 w-80 p-4">
+                  <div className="absolute right-0 top-full mt-2 hidden w-72 sm:w-80 group-hover:block bg-popover border border-border rounded-lg shadow-lg z-50 p-4">
                   <h3 className="font-semibold text-foreground mb-3">Notificações</h3>
                   <div className="flex flex-col items-center justify-center py-8 text-center">
                     <Bell className="h-12 w-12 text-muted-foreground mb-2 opacity-50" />
@@ -177,7 +177,7 @@ export function AppLayout({ children, userName }: AppLayoutProps) {
               <ThemeToggle />
             </div>
           </header>
-          <div className="flex-1 p-3 sm:p-4 md:p-6 bg-background overflow-x-hidden">
+          <div className="flex-1 overflow-x-hidden bg-background p-3 pb-24 sm:p-4 sm:pb-24 md:p-6 md:pb-6">
             <div className="max-w-full">
               {children}
             </div>
@@ -188,7 +188,7 @@ export function AppLayout({ children, userName }: AppLayoutProps) {
       <Button
         type="button"
         onClick={handleOpenNovaTransacao}
-        className="fixed bottom-5 right-5 z-40 h-12 w-12 rounded-full shadow-lg sm:h-11 sm:w-auto sm:px-4"
+        className="fixed bottom-4 right-4 z-40 h-12 w-12 rounded-full shadow-lg sm:bottom-5 sm:right-5 sm:h-11 sm:w-auto sm:px-4"
         aria-label="Adicionar transação"
       >
         <Plus className="h-5 w-5 sm:mr-2" />

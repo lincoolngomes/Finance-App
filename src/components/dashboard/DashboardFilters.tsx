@@ -62,15 +62,15 @@ export function DashboardFilters({
 
   return (
     <>
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+      <div className="flex flex-col justify-between gap-4 md:flex-row md:items-center">
         <div>
-          <h2 className="text-3xl font-bold tracking-tight">Dashboard</h2>
+          <h2 className="text-2xl font-bold tracking-tight sm:text-3xl">Dashboard</h2>
           <p className="text-muted-foreground">
             Acompanhe saldos, fluxo e compromissos do período
           </p>
         </div>
         
-        <div className="flex gap-2 items-center">
+        <div className="flex w-full flex-wrap items-center gap-2 md:w-auto md:justify-end">
           {setHideValues && (
             <Button
               variant="outline"
@@ -85,15 +85,15 @@ export function DashboardFilters({
           <Button
             variant="outline"
             onClick={() => setSettingsOpen(true)}
-            className="h-10 gap-2"
+            className="h-10 flex-1 gap-2 sm:flex-none"
             title="Configurações de exibição do dashboard"
           >
             <Settings2 className="h-4 w-4" />
             <span>Configurações</span>
           </Button>
-          <Filter className="h-4 w-4 text-muted-foreground" />
+          <Filter className="hidden h-4 w-4 text-muted-foreground sm:block" />
           <Select value={filterMonth} onValueChange={setFilterMonth}>
-            <SelectTrigger className="w-32">
+            <SelectTrigger className="h-10 flex-1 sm:w-32 sm:flex-none">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -105,7 +105,7 @@ export function DashboardFilters({
             </SelectContent>
           </Select>
           <Select value={filterYear} onValueChange={setFilterYear}>
-            <SelectTrigger className="w-24">
+            <SelectTrigger className="h-10 w-[112px]">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
