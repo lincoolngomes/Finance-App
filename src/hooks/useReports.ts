@@ -1,8 +1,9 @@
 
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuth } from '@/hooks/useAuth'
+import { getTransactionAbsoluteAmount, shouldIncludeTransactionByCardExpenseMode } from '@/utils/dashboard-classification'
 
 export interface ReportTransaction {
   id: string
@@ -35,7 +36,25 @@ export interface ReportFilters {
   type: string
   categoryId: string
   period: 'day' | 'month' | 'year' | 'custom'
+  month: string
+  year: string
 }
+
+const padNumber = (value: number) => String(value).padStart(2, '0')
+
+const buildMonthRange = (year: number, month: number) => {
+  const daysInMonth = new Date(year, month, 0).getDate()
+
+  return {
+    startDate: `${year}-${padNumber(month)}-01`,
+    endDate: `${year}-${padNumber(month)}-${padNumber(daysInMonth)}`,
+  }
+}
+
+const buildYearRange = (year: number) => ({
+  startDate: `${year}-01-01`,
+  endDate: `${year}-12-31`,
+})
 
 export function useReports() {
   const { user } = useAuth()
@@ -43,15 +62,18 @@ export function useReports() {
   
   // Inicializar com as datas do mês atual
   const now = new Date()
-  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0]
-  const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split('T')[0]
+  const currentYear = now.getFullYear()
+  const currentMonth = now.getMonth() + 1
+  const { startDate: startOfMonth, endDate: endOfMonth } = buildMonthRange(currentYear, currentMonth)
   
   const [filters, setFilters] = useState<ReportFilters>({
     startDate: startOfMonth,
     endDate: endOfMonth,
     type: '',
     categoryId: '',
-    period: 'month'
+    period: 'month',
+    month: padNumber(currentMonth),
+    year: String(currentYear),
   })
 
   const { data: allTransactions = [], isLoading } = useQuery({
@@ -148,26 +170,32 @@ export function useReports() {
     }
 
     const paidOnly = filtered.filter(isTransacaoPaga)
-    console.log(`✅ Transações filtradas finais: ${filtered.length} | pagas: ${paidOnly.length}`)
-    return paidOnly
+    const withoutInvoicePaymentDuplication = paidOnly.filter((transaction) =>
+      shouldIncludeTransactionByCardExpenseMode(transaction, true, false)
+    )
+
+    console.log(
+      `✅ Transações filtradas finais: ${filtered.length} | pagas: ${paidOnly.length} | visão relatório: ${withoutInvoicePaymentDuplication.length}`
+    )
+    return withoutInvoicePaymentDuplication
   }, [allTransactions, filters])
 
   // Calculate summary data
   const summaryData = useMemo(() => {
     const receitas = transactions
       .filter(t => t.tipo === 'receita')
-      .reduce((acc, t) => acc + (t.valor || 0), 0)
+      .reduce((acc, t) => acc + getTransactionAbsoluteAmount(t), 0)
     
     const despesas = transactions
       .filter(t => t.tipo === 'despesa')
-      .reduce((acc, t) => acc + (t.valor || 0), 0)
+      .reduce((acc, t) => acc + getTransactionAbsoluteAmount(t), 0)
     
     const saldo = receitas - despesas
 
     // Group by category
     const byCategory = transactions.reduce((acc, transaction) => {
       const categoryName = transaction.categorias?.nome || 'Sem categoria'
-      const valor = transaction.valor || 0
+      const valor = getTransactionAbsoluteAmount(transaction)
       
       if (!acc[categoryName]) {
         acc[categoryName] = { receitas: 0, despesas: 0, total: 0 }
