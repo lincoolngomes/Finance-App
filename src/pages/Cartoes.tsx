@@ -1124,17 +1124,17 @@ export default function Cartoes({ isModal = false }) {
                   {(() => {
                     // Detecta parcelas pelo padrão XX/XX na descrição (ex: "Netflix 3/12")
                     const parcelaRegex = /(\d{1,2})\/(\d{1,2})\s*$/;
-                    const transacoesParceladas = transacoesCartao.filter(t => {
+                    const transacoesParceladasPendentes = transacoesCartao.filter(t => {
                       const desc = (t.descricao || '').trim();
-                      return parcelaRegex.test(desc);
+                      return parcelaRegex.test(desc) && t.pago !== true;
                     });
                     
-                    if (transacoesParceladas.length === 0) return null;
+                    if (transacoesParceladasPendentes.length === 0) return null;
                     
                     const nomesMeses = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
-                    const gruposPorFatura = new Map<string, { label: string; ordem: number; transacoes: any[] }>();
+                    const gruposPorFatura = new Map<string, { label: string; ordem: number; transacoes: typeof transacoesCartao }>();
                     
-                    transacoesParceladas.forEach(t => {
+                    transacoesParceladasPendentes.forEach(t => {
                       const mes = Number(t.fatura_mes || 0);
                       const ano = Number(t.fatura_ano || 0);
                       const temFatura = mes >= 1 && mes <= 12 && ano > 0;
@@ -1151,7 +1151,7 @@ export default function Cartoes({ isModal = false }) {
                     });
                     
                     const faturasOrdenadas = Array.from(gruposPorFatura.values()).sort((a, b) => a.ordem - b.ordem);
-                    const totalParcelado = transacoesParceladas.reduce((acc, t) => acc + Math.abs(t.valor || 0), 0);
+                    const totalParceladoPendente = transacoesParceladasPendentes.reduce((acc, t) => acc + Math.abs(t.valor || 0), 0);
                     const isOpen = parcelamentosAbertos[cartao.id] || false;
                     
                     return (
@@ -1177,8 +1177,8 @@ export default function Cartoes({ isModal = false }) {
                         {isOpen && (
                           <div className="mt-2 p-3 rounded-lg bg-blue-500/5 border border-blue-500/20 animate-in slide-in-from-top-2 duration-200">
                             <div className="flex items-center justify-between mb-2">
-                              <p className="text-xs text-slate-500">{transacoesParceladas.length} parcelas ativas</p>
-                              <p className="text-sm font-bold text-blue-400">{formatCurrency(totalParcelado)}</p>
+                              <p className="text-xs text-slate-500">{transacoesParceladasPendentes.length} parcelas pendentes</p>
+                              <p className="text-sm font-bold text-blue-400">{formatCurrency(totalParceladoPendente)}</p>
                             </div>
                             <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
                               {faturasOrdenadas.map((fatura, i) => {
