@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '/src/components/ui/dialog'
 import { Button } from '/src/components/ui/button'
 import { Label } from '/src/components/ui/label'
@@ -14,6 +14,7 @@ import { addMonths, format, startOfMonth, endOfMonth, parseISO, isWithinInterval
 import { ptBR } from 'date-fns/locale'
 import { categorizar, normalizar, REGRAS_PADRAO } from '/src/utils/categorizacao'
 import { Input } from '/src/components/ui/input'
+import { PieChart as RechartsPieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip } from 'recharts'
 
 interface Cartao {
   id: string
@@ -65,11 +66,14 @@ interface Fatura {
   totalEmAberto: number
   totalParceladas: number
   qtdParceladas: number
+  qtdComprasParceladas: number
   paga: boolean
   vencida: boolean
 }
 
 type DeleteInvoiceMode = 'current' | 'current_and_future'
+
+const CATEGORY_PIE_COLORS = ['#34d399', '#38bdf8', '#f59e0b', '#a78bfa', '#fb7185', '#2dd4bf']
 
 export function GerenciarFaturasModal({ 
   open, 
@@ -110,9 +114,11 @@ export function GerenciarFaturasModal({
   const [contaPagamentoId, setContaPagamentoId] = useState<string>('')
   const [showDeleteInvoiceDialog, setShowDeleteInvoiceDialog] = useState(false)
   const [deleteInvoiceMode, setDeleteInvoiceMode] = useState<DeleteInvoiceMode>('current')
+  const [categoriaEmFoco, setCategoriaEmFoco] = useState<string | null>(null)
 
   // Flag para forçar cálculo da fatura após setar estados
   const shouldForceCalcularFatura = useRef(false)
+  const transactionRowRefs = useRef<Record<string, HTMLDivElement | null>>({})
 
   const meses = [
     { value: '01', label: 'Janeiro' },
@@ -269,6 +275,7 @@ export function GerenciarFaturasModal({
   useEffect(() => {
     setSelectedIds(new Set())
     setFiltroParceladas(false) // Reset filtro ao mudar de fatura
+    setCategoriaEmFoco(null)
   }, [selectedCard, selectedMonth, selectedYear, open])
 
   async function fetchCartoes() {
@@ -642,25 +649,11 @@ export function GerenciarFaturasModal({
         return acc + (t.valor || 0) // Despesas somam
       }, 0)
 
-    // Calcular total de compras parceladas nesta fatura
-    // Detecta parcelas pelo campo total_parcelas OU pelo padrão XX/XX na descrição
-    const extrairParcela = (t: any): { atual: number; total: number } | null => {
-      if (t.total_parcelas && t.total_parcelas > 1) {
-        return { atual: t.parcela_atual || 1, total: t.total_parcelas }
-      }
-      const desc = t.descricao || t.estabelecimento || ''
-      const match = desc.match(/(\d{2})\/(\d{2})\s*$/)
-      if (match) {
-        const atual = parseInt(match[1])
-        const total = parseInt(match[2])
-        if (total > 1 && atual >= 1 && atual <= total) {
-          return { atual, total }
-        }
-      }
-      return null
-    }
     const transacoesParceladas = (transacoes || []).filter(t => 
-      t.tipo === 'despesa' && extrairParcela(t) !== null
+      t.tipo === 'despesa' && Boolean(getParcelaInfo(t))
+    )
+    const comprasParceladas = new Set(
+      transacoesParceladas.map(t => getParcelaSerieKey(t) || `tx:${String(t.id)}`)
     )
     const totalParceladas = transacoesParceladas.reduce((acc, t) => acc + (t.valor || 0), 0)
 
@@ -690,6 +683,7 @@ export function GerenciarFaturasModal({
       totalEmAberto: Math.max(0, totalEmAberto),
       totalParceladas,
       qtdParceladas: transacoesParceladas.length,
+      qtdComprasParceladas: comprasParceladas.size,
       paga: todasPagas,
       vencida
     })
@@ -806,21 +800,95 @@ export function GerenciarFaturasModal({
     : null
   const nomeBancoVinculado = contaVinculada?.banco || contaVinculada?.nome || null
 
+  function getCategoriaTransacao(transacao?: Partial<Transacao> | null) {
+    if (!transacao) return 'Sem categoria'
+    if (transacao.categorias?.nome) return transacao.categorias.nome
+
+    const categoriaRegra = categorizar(
+      transacao.descricao || transacao.estabelecimento || '',
+      regrasTexto
+    )
+
+    return categoriaRegra || transacao.categoria || 'Sem categoria'
+  }
+
+  function toggleCategoriaFoco(categoria: string) {
+    setCategoriaEmFoco(prev => prev === categoria ? null : categoria)
+  }
+
   const isTransacaoParcelada = (transacao: Transacao) => {
-    if (transacao.total_parcelas && transacao.total_parcelas > 1) return true
-    const desc = transacao.descricao || transacao.estabelecimento || ''
-    const match = desc.match(/(\d{2})\/(\d{2})\s*$/)
-    if (match) {
-      const atual = parseInt(match[1])
-      const total = parseInt(match[2])
-      if (total > 1 && atual >= 1 && atual <= total) return true
-    }
-    return false
+    return Boolean(getParcelaInfo(transacao))
   }
 
   const transacoesExibidas = fatura
     ? fatura.transacoes.filter(transacao => (filtroParceladas ? isTransacaoParcelada(transacao) : true))
     : []
+  const despesasPorCategoria = useMemo(() => {
+    const categoriasMap = new Map<string, number>()
+
+    transacoesExibidas.forEach((transacao) => {
+      if (transacao.tipo !== 'despesa') return
+
+      const categoria = getCategoriaTransacao(transacao)
+      categoriasMap.set(categoria, (categoriasMap.get(categoria) || 0) + Math.abs(Number(transacao.valor || 0)))
+    })
+
+    const categoriasOrdenadas = Array.from(categoriasMap.entries())
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value)
+
+    const total = categoriasOrdenadas.reduce((acc, item) => acc + item.value, 0)
+
+    return categoriasOrdenadas.map((item, index) => ({
+      ...item,
+      color: CATEGORY_PIE_COLORS[index % CATEGORY_PIE_COLORS.length],
+      percentage: total > 0 ? (item.value / total) * 100 : 0,
+    }))
+  }, [transacoesExibidas, regrasTexto])
+  const totalDespesasGrafico = despesasPorCategoria.reduce((acc, item) => acc + item.value, 0)
+  const resumoCategoriaEmFoco = useMemo(() => {
+    if (!categoriaEmFoco) return null
+
+    const transacoes = transacoesExibidas.filter(
+      transacao => transacao.tipo === 'despesa' && getCategoriaTransacao(transacao) === categoriaEmFoco
+    )
+
+    return {
+      quantidade: transacoes.length,
+      total: transacoes.reduce((acc, transacao) => acc + Math.abs(Number(transacao.valor || 0)), 0),
+    }
+  }, [categoriaEmFoco, transacoesExibidas, regrasTexto])
+  const transacoesOrdenadas = categoriaEmFoco
+    ? [...transacoesExibidas].sort((a, b) => {
+        const aMatch = getCategoriaTransacao(a) === categoriaEmFoco ? 1 : 0
+        const bMatch = getCategoriaTransacao(b) === categoriaEmFoco ? 1 : 0
+        return bMatch - aMatch
+      })
+    : transacoesExibidas
+
+  useEffect(() => {
+    if (!categoriaEmFoco || typeof window === 'undefined') return
+
+    const primeiraTransacao = transacoesOrdenadas.find(
+      transacao => transacao.tipo === 'despesa' && getCategoriaTransacao(transacao) === categoriaEmFoco
+    )
+
+    if (!primeiraTransacao?.id) return
+
+    const animationFrame = window.requestAnimationFrame(() => {
+      transactionRowRefs.current[String(primeiraTransacao.id)]?.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center',
+      })
+    })
+
+    return () => window.cancelAnimationFrame(animationFrame)
+  }, [categoriaEmFoco, transacoesOrdenadas, regrasTexto])
+
+  function toggleFiltroParceladas() {
+    setSelectedIds(new Set())
+    setFiltroParceladas(prev => !prev)
+  }
 
   function toggleSelect(id: number | string) {
     setSelectedIds(prev => {
@@ -1093,376 +1161,266 @@ export function GerenciarFaturasModal({
     })
   )
 
+  const mesSelecionadoLabel = meses.find((mes) => mes.value === (fatura?.mes || selectedMonth))?.label
+  const periodoSelecionadoLabel = mesSelecionadoLabel && (fatura?.ano || selectedYear)
+    ? `${mesSelecionadoLabel} ${fatura?.ano || selectedYear}`
+    : null
+  const valorPrincipalFatura = fatura
+    ? (fatura.paga ? fatura.total : (fatura.totalEmAberto ?? fatura.total))
+    : 0
+  const limiteDisponivel = Math.max(
+    0,
+    (cartaoSelecionado?.limite || 0) - (fatura ? (fatura.totalEmAberto ?? fatura.total) : 0)
+  )
+  const allTransacoesSelecionadas = transacoesExibidas.length > 0 && selectedIds.size === transacoesExibidas.length
+  const statusFaturaLabel = fatura ? (fatura.paga ? 'Paga' : fatura.vencida ? 'Vencida' : 'Em aberto') : null
+  const statusFaturaClassName = !fatura
+    ? ''
+    : fatura.paga
+      ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-400'
+      : fatura.vencida
+        ? 'border-red-500/30 bg-red-500/10 text-red-400'
+        : 'border-amber-500/30 bg-amber-500/10 text-amber-300'
+  const descricaoParceladasResumo = !fatura || fatura.qtdParceladas === 0
+    ? 'Nenhuma parcela neste período'
+    : fatura.qtdComprasParceladas === fatura.qtdParceladas
+      ? `${fatura.qtdParceladas} parcela${fatura.qtdParceladas > 1 ? 's' : ''} nesta fatura`
+      : `${fatura.qtdParceladas} parcelas de ${fatura.qtdComprasParceladas} compra${fatura.qtdComprasParceladas > 1 ? 's' : ''}`
+  const bancoResumo = nomeBancoVinculado || cartaoSelecionado?.banco || 'Não vinculado'
+  const contextoSelecionado = cartaoSelecionado
+    ? [cartaoSelecionado.nome, periodoSelecionadoLabel, bancoResumo].filter(Boolean).join(' • ')
+    : 'Selecione o cartão e o período para visualizar a fatura'
+  const labelValorResumo = fatura
+    ? (fatura.paga ? 'Total liquidado' : 'Saldo atual da fatura')
+    : ''
+  const descricaoValorResumo = !fatura
+    ? ''
+    : fatura.paga
+      ? 'Todos os lançamentos foram conciliados e o período foi encerrado.'
+      : fatura.vencida
+        ? 'A fatura venceu e ainda possui saldo pendente.'
+        : 'Use a lista ao lado para ajustar os lançamentos e acompanhar o fechamento.'
+
   return (
     <>
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <CreditCard className="h-5 w-5" />
-            Gerenciar Faturas dos Cartões
-          </DialogTitle>
-          <div className="flex items-center justify-between gap-2">
-            <DialogDescription>
-              Visualize e pague as faturas do seu cartão de crédito
-            </DialogDescription>
-            <div className="flex gap-2 flex-shrink-0">
-              {fatura && (
-                fatura.paga ? (
-                  <Button
-                    disabled
-                    size="sm"
-                    className="font-semibold gap-1.5 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
-                  >
-                    <CheckCircle2 className="h-4 w-4" />
-                    Paga
-                  </Button>
-                ) : (
-                  <Button
-                    disabled
-                    size="sm"
-                    className={`font-semibold gap-1.5 ${
-                      fatura.vencida 
-                        ? 'bg-red-600 text-white border border-red-500/40' 
-                        : 'bg-muted text-muted-foreground border border-border'
-                    }`}
-                  >
-                    <Clock className="h-4 w-4" />
-                    {fatura.vencida ? 'Vencida' : 'Em Aberto'}
-                  </Button>
-                )
-              )}
-              {selectedCard && onImportClick && (
-                <Button
-                  onClick={() => onImportClick(selectedCard)}
-                  variant="outline"
-                  className="text-muted-foreground hover:text-foreground"
-                  size="sm"
-                >
-                  <Upload className="h-4 w-4 mr-2" />
-                  Importar Fatura
-                </Button>
-              )}
-              {fatura && fatura.transacoes.length > 0 && (
-                fatura.paga ? (
-                  <Button 
-                    onClick={reverterPagamento} 
-                    variant="outline"
-                    className="text-muted-foreground hover:text-foreground"
-                    size="sm"
-                  >
-                    <svg className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" /></svg>
-                    Reverter Pagamento
-                  </Button>
-                ) : (
-                  <Button 
-                    onClick={() => {
-                      setContaPagamentoId('')
-                      setDataPagamento(format(new Date(), 'yyyy-MM-dd'))
-                      setShowPagarDialog(true)
-                    }} 
-                    className="bg-emerald-600 hover:bg-emerald-700"
-                    size="sm"
-                  >
-                    <CheckCircle2 className="h-4 w-4 mr-2" />
-                    Pagar Fatura
-                  </Button>
-                )
-              )}
-            </div>
-          </div>
-        </DialogHeader>
-
-        <div className="space-y-6 py-4">
-          {/* Seleção de Cartão e Período */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div>
-              <Label className="text-sm font-medium mb-2 block">Cartão de crédito *</Label>
-              <Select value={selectedCard} onValueChange={setSelectedCard}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione o cartão" />
-                </SelectTrigger>
-                <SelectContent>
-                  {cartoes.map(cartao => {
-                    const linked = contas.find(c => c.id === cartao.linked_account_id)
-                    const linkedName = linked?.nome || linked?.name || cartao.banco || ''
-                    return (
-                      <SelectItem key={cartao.id} value={cartao.id}>
-                        <div className="flex items-center gap-2">
-                          <div
-                            className="w-3 h-3 rounded-full"
-                            style={{ backgroundColor: cartao.cor || '#3b82f6' }}
-                          />
-                          <div className="flex items-baseline gap-2">
-                            <span>{cartao.nome}</span>
-                            {linkedName && (
-                              <span className="text-xs text-muted-foreground">• {linkedName}</span>
-                            )}
-                          </div>
-                        </div>
-                      </SelectItem>
-                    )
-                  })}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div>
-              <Label className="text-sm font-medium mb-2 block">Mês *</Label>
-              <Select value={selectedMonth} onValueChange={setSelectedMonth}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {meses.map(mes => (
-                    <SelectItem key={mes.value} value={mes.value}>
-                      {mes.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div>
-              <Label className="text-sm font-medium mb-2 block">Ano *</Label>
-              <Select value={selectedYear} onValueChange={setSelectedYear}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {anos.map(ano => (
-                    <SelectItem key={ano.value} value={ano.value}>
-                      {ano.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          {/* Informações do Cartão Selecionado */}
-          {cartaoSelecionado && (
-            <Card className="border-l-4" style={{ borderLeftColor: cartaoSelecionado.cor || '#3b82f6' }}>
-              <CardContent className="p-4">
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <div>
-                    <p className="text-xs text-muted-foreground mb-1">Banco</p>
-                    {nomeBancoVinculado ? (
-                      <p className="font-semibold">{nomeBancoVinculado}</p>
-                    ) : (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="h-7 text-xs"
-                        onClick={() => {
-                          onClose()
-                          window.location.href = '/cartoes'
-                        }}
-                      >
-                        Vincular banco
-                      </Button>
-                    )}
+      <DialogContent className="w-[min(96vw,1220px)] max-h-[94vh] max-w-none gap-0 overflow-hidden border border-slate-800 bg-[#06111f] p-0 text-slate-50 shadow-[0_32px_120px_rgba(2,6,23,0.78)]">
+        <div className="flex h-[min(90vh,860px)] min-h-0 flex-col">
+          <DialogHeader className="border-b border-white/10 bg-[linear-gradient(135deg,rgba(15,23,42,0.96),rgba(8,47,73,0.92))] px-5 py-4 pr-12 text-left sm:pr-14">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04]">
+                    <CreditCard className="h-[18px] w-[18px] text-emerald-300" />
                   </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground mb-1">Limite</p>
-                    <p className="font-semibold">{formatCurrency(cartaoSelecionado.limite || 0)}</p>
+                  <div className="min-w-0">
+                    <DialogTitle className="text-[clamp(1.2rem,1.7vw,1.75rem)] font-semibold tracking-tight text-white">
+                      Gerenciar Faturas dos Cartões
+                    </DialogTitle>
+                    <DialogDescription className="mt-1 text-[13px] text-slate-300/80">
+                      {contextoSelecionado}
+                    </DialogDescription>
                   </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground mb-1">Fechamento</p>
-                    <p className="font-semibold">Dia {cartaoSelecionado.dia_fechamento || '1'}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs text-muted-foreground mb-1">Vencimento</p>
-                    <p className="font-semibold">Dia {cartaoSelecionado.dia_vencimento || '10'}</p>
-                  </div>
+                  {statusFaturaLabel && (
+                    <Badge variant="outline" className={`h-9 rounded-full px-3 text-xs ${statusFaturaClassName}`}>
+                      {fatura?.paga ? <CheckCircle2 className="mr-1 h-3.5 w-3.5" /> : <Clock className="mr-1 h-3.5 w-3.5" />}
+                      {statusFaturaLabel}
+                    </Badge>
+                  )}
                 </div>
-                <div className="mt-3 pt-3 border-t border-border flex justify-end">
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    onClick={openDeleteInvoiceOptions}
-                    disabled={deleting || !fatura || fatura.transacoes.length === 0}
-                    className="gap-1.5 text-xs"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                    {deleting ? 'Excluindo...' : 'Excluir Lançamentos da Fatura'}
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Resumo da Fatura */}
-          {loading ? (
-            <div className="text-center py-8">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
-              <p className="text-sm text-muted-foreground mt-2">Calculando fatura...</p>
-            </div>
-          ) : fatura ? (
-            <>
-              <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-                <Card>
-                  <CardContent className="p-3">
-                    <div className="flex items-center gap-1.5 mb-1">
-                      <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
-                      <p className="text-xs text-muted-foreground">Fechamento</p>
-                    </div>
-                    <p className="text-base font-bold">
-                      {format(fatura.dataFechamento, "dd/MM/yyyy", { locale: ptBR })}
-                    </p>
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardContent className="p-3">
-                    <div className="flex items-center gap-1.5 mb-1">
-                      <Clock className="h-3.5 w-3.5 text-muted-foreground" />
-                      <p className="text-xs text-muted-foreground">Vencimento</p>
-                    </div>
-                    <p className={`text-base font-bold ${fatura.vencida ? 'text-red-500' : 'text-foreground'}`}>
-                      {format(fatura.dataVencimento, "dd/MM/yyyy", { locale: ptBR })}
-                    </p>
-                    {fatura.vencida && (
-                      <Badge variant="destructive" className="mt-1 text-[10px]">Vencida</Badge>
-                    )}
-                  </CardContent>
-                </Card>
-
-                <Card className={fatura.paga ? 'border-green-500/30' : 'border-red-500/30'}>
-                  <CardContent className="p-3">
-                    <div className="flex items-center gap-1.5 mb-1">
-                      <DollarSign className={`h-3.5 w-3.5 ${fatura.paga ? 'text-green-500' : 'text-red-500'}`} />
-                      <p className="text-xs text-muted-foreground">{fatura.paga ? 'Total da Fatura' : 'Saldo em Aberto'}</p>
-                    </div>
-                    <p className={`text-xl font-bold ${fatura.paga ? 'text-green-500' : 'text-red-500'}`}>
-                      {formatCurrency(fatura.paga ? fatura.total : (fatura.totalEmAberto ?? fatura.total))}
-                    </p>
-                    {fatura.paga && (
-                      <Badge className="mt-1 text-[10px] bg-green-500/10 text-green-500 border-green-500/30">✅ Paga</Badge>
-                    )}
-                  </CardContent>
-                </Card>
-
-                <Card 
-                  className={`cursor-pointer transition-all hover:border-border ${filtroParceladas ? 'border-primary/40 bg-primary/5' : ''}`}
-                  onClick={() => setFiltroParceladas(!filtroParceladas)}
-                >
-                  <CardContent className="p-3">
-                    <div className="flex items-center gap-1.5 mb-1">
-                      <CreditCard className="h-3.5 w-3.5 text-primary" />
-                      <p className="text-xs text-muted-foreground">Parceladas</p>
-                      {filtroParceladas && (
-                        <Badge variant="outline" className="text-[9px] px-1 py-0 border-primary/30 text-primary ml-auto">Filtro ativo</Badge>
-                      )}
-                    </div>
-                    <p className="text-base font-bold text-primary">
-                      {formatCurrency(fatura.totalParceladas)}
-                    </p>
-                    {fatura.qtdParceladas > 0 && (
-                      <p className="text-[10px] text-muted-foreground mt-0.5">
-                        {fatura.qtdParceladas} compra{fatura.qtdParceladas > 1 ? 's' : ''} parcelada{fatura.qtdParceladas > 1 ? 's' : ''}
-                      </p>
-                    )}
-                  </CardContent>
-                </Card>
-
-                <Card>
-                  <CardContent className="p-3">
-                    <div className="flex items-center gap-1.5 mb-1">
-                      <CreditCard className="h-3.5 w-3.5 text-green-500" />
-                      <p className="text-xs text-muted-foreground">Limite Disponível</p>
-                    </div>
-                    <p className="text-base font-bold text-green-500">
-                      {formatCurrency(Math.max(0, (cartaoSelecionado?.limite || 0) - (fatura.totalEmAberto ?? fatura.total)))}
-                    </p>
-                  </CardContent>
-                </Card>
               </div>
 
-              {/* Lista de Transações */}
-              <div>
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-2">
-                    <h3 className="font-semibold">
-                      Transações ({transacoesExibidas.length})
-                    </h3>
-                    <Button
-                      variant={filtroParceladas ? 'secondary' : 'outline'}
-                      size="sm"
-                      onClick={() => setFiltroParceladas(!filtroParceladas)}
-                      className={`gap-1.5 text-xs h-7 px-2.5 ${
-                        filtroParceladas ? 'text-foreground' : 'text-muted-foreground hover:text-foreground'
-                      }`}
-                    >
-                      <CreditCard className="h-3 w-3" />
-                      Parceladas
-                      {filtroParceladas && fatura.qtdParceladas > 0 && (
-                        <span className="bg-foreground/10 rounded-full px-1.5 text-[10px]">{fatura.qtdParceladas}</span>
-                      )}
-                    </Button>
-                  </div>
+              <div className="flex flex-wrap gap-2">
+                {selectedCard && onImportClick && (
                   <Button
+                    onClick={() => onImportClick(selectedCard)}
                     variant="outline"
                     size="sm"
-                    onClick={() => setShowRegras(!showRegras)}
-                    className="gap-1.5 text-xs"
+                    className="h-10 rounded-xl border-white/10 bg-white/[0.04] px-4 text-slate-100 hover:bg-white/[0.08]"
                   >
-                    <Tags className="h-3.5 w-3.5" />
-                    Regras de Categorização
-                    {showRegras ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                    <Upload className="mr-2 h-4 w-4" />
+                    Importar Fatura
                   </Button>
-                </div>
-
-                {showRegras && (
-                  <Card className="mb-4">
-                    <CardContent className="p-4">
-                      <p className="text-xs text-muted-foreground mb-2">
-                        Defina regras no formato: <code className="bg-muted px-1 rounded">termo = Categoria</code> (uma por linha)
-                      </p>
-                      <textarea
-                        className="w-full px-3 py-2 rounded-lg bg-background border text-sm font-mono focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20 transition"
-                        style={{ minHeight: 120, maxHeight: 200, overflow: 'auto' }}
-                        value={regrasTexto}
-                        onChange={e => {
-                          setRegrasTexto(e.target.value)
-                          localStorage.setItem('regrasImportacaoCategorias', e.target.value)
-                          localStorage.setItem('regrasFatura', e.target.value)
-                        }}
-                        placeholder="burger king = Alimentação&#10;netflix = Assinaturas&#10;uber = Transporte"
-                      />
-                    </CardContent>
-                  </Card>
                 )}
+                {fatura && fatura.transacoes.length > 0 && (
+                  fatura.paga ? (
+                    <Button
+                      onClick={reverterPagamento}
+                      variant="outline"
+                      size="sm"
+                      className="h-10 rounded-xl border-white/10 bg-white/[0.04] px-4 text-slate-100 hover:bg-white/[0.08]"
+                    >
+                      <svg className="mr-2 h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" /></svg>
+                      Reverter Pagamento
+                    </Button>
+                  ) : (
+                    <Button
+                      onClick={() => {
+                        setContaPagamentoId('')
+                        setDataPagamento(format(new Date(), 'yyyy-MM-dd'))
+                        setShowPagarDialog(true)
+                      }}
+                      size="sm"
+                      className="h-10 rounded-xl bg-emerald-500 px-4 text-slate-950 hover:bg-emerald-400"
+                    >
+                      <CheckCircle2 className="mr-2 h-4 w-4" />
+                      Pagar Fatura
+                    </Button>
+                  )
+                )}
+              </div>
+            </div>
+          </DialogHeader>
 
-                {fatura.transacoes.length === 0 ? (
-                  <Card>
-                    <CardContent className="p-8 text-center">
-                      <AlertCircle className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
-                      <p className="text-muted-foreground">Nenhuma transação neste período</p>
-                    </CardContent>
-                  </Card>
-                ) : (
-                  <>
-                    {/* Barra de ações em lote */}
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-2">
+          <div className="border-b border-white/8 bg-[#091827] px-5 py-3">
+            <div className="grid grid-cols-1 gap-3 lg:grid-cols-[minmax(0,1.45fr)_170px_130px]">
+              <div>
+                <Label className="mb-1.5 block text-[13px] font-medium text-slate-200">Cartão de crédito *</Label>
+                <Select value={selectedCard} onValueChange={setSelectedCard}>
+                  <SelectTrigger className="h-10 rounded-xl border-white/10 bg-slate-950 text-slate-100">
+                    <SelectValue placeholder="Selecione o cartão" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {cartoes.map(cartao => {
+                      const linked = contas.find(c => c.id === cartao.linked_account_id)
+                      const linkedName = linked?.nome || linked?.name || cartao.banco || ''
+                      return (
+                        <SelectItem key={cartao.id} value={cartao.id}>
+                          <div className="flex items-center gap-2">
+                            <div
+                              className="h-3 w-3 rounded-full"
+                              style={{ backgroundColor: cartao.cor || '#3b82f6' }}
+                            />
+                            <div className="flex items-baseline gap-2">
+                              <span>{cartao.nome}</span>
+                              {linkedName && (
+                                <span className="text-xs text-muted-foreground">• {linkedName}</span>
+                              )}
+                            </div>
+                          </div>
+                        </SelectItem>
+                      )
+                    })}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label className="mb-1.5 block text-[13px] font-medium text-slate-200">Mês *</Label>
+                <Select value={selectedMonth} onValueChange={setSelectedMonth}>
+                  <SelectTrigger className="h-10 rounded-xl border-white/10 bg-slate-950 text-slate-100">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {meses.map(mes => (
+                      <SelectItem key={mes.value} value={mes.value}>
+                        {mes.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label className="mb-1.5 block text-[13px] font-medium text-slate-200">Ano *</Label>
+                <Select value={selectedYear} onValueChange={setSelectedYear}>
+                  <SelectTrigger className="h-10 rounded-xl border-white/10 bg-slate-950 text-slate-100">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {anos.map(ano => (
+                      <SelectItem key={ano.value} value={ano.value}>
+                        {ano.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </div>
+
+          {loading ? (
+            <div className="flex flex-1 items-center justify-center">
+              <div className="text-center">
+                <div className="mx-auto h-8 w-8 animate-spin rounded-full border-b-2 border-emerald-400"></div>
+                <p className="mt-3 text-sm text-slate-400">Calculando fatura...</p>
+              </div>
+            </div>
+          ) : fatura ? (
+            <div className="grid min-h-0 flex-1 gap-3 overflow-y-auto p-3 lg:grid-cols-[minmax(0,1fr)_300px]">
+              <section className="overflow-hidden rounded-[24px] border border-white/10 bg-[#081423]">
+                <div className="border-b border-white/10 px-4 py-3.5">
+                  <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-start">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h3 className="text-[1.35rem] font-semibold tracking-tight text-white">Transações</h3>
+                        <Badge variant="outline" className="rounded-full border-white/10 bg-white/[0.04] text-slate-300">
+                          {transacoesExibidas.length} itens
+                        </Badge>
+                        {filtroParceladas && (
+                          <Badge variant="outline" className="rounded-full border-emerald-400/20 bg-emerald-400/10 text-emerald-300">
+                            Somente parceladas
+                          </Badge>
+                        )}
+                      </div>
+                      <p className="mt-1.5 text-[13px] text-slate-400">
+                        Operação rápida: selecione, categorize, edite ou exclua sem sair desta tela.
+                      </p>
+                    </div>
+
+                    <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-2 xl:min-w-[370px]">
+                      <p className="mb-2 hidden text-[10px] uppercase tracking-[0.22em] text-slate-500 xl:block">
+                        Ações rápidas
+                      </p>
+                      <div className="flex flex-wrap gap-1.5">
                         <Button
                           variant="ghost"
                           size="sm"
                           onClick={toggleSelectAll}
-                          className="gap-1.5 text-xs h-8 px-2"
+                          className="h-9 rounded-lg border border-white/10 bg-white/[0.03] px-3 text-slate-200 hover:bg-white/[0.08] hover:text-white"
                         >
-                          {selectedIds.size === transacoesExibidas.length && transacoesExibidas.length > 0
-                            ? <CheckSquare className="h-4 w-4 text-blue-500" />
+                          {allTransacoesSelecionadas
+                            ? <CheckSquare className="h-4 w-4 text-emerald-300" />
                             : <Square className="h-4 w-4" />
                           }
                           {selectedIds.size > 0 ? `${selectedIds.size} selecionada(s)` : 'Selecionar tudo'}
                         </Button>
+                        <Button
+                          variant={filtroParceladas ? 'secondary' : 'outline'}
+                          size="sm"
+                          onClick={toggleFiltroParceladas}
+                          className={`h-9 rounded-lg px-3 text-xs ${
+                            filtroParceladas
+                              ? 'border-emerald-400/20 bg-emerald-400/10 text-emerald-200 hover:bg-emerald-400/15'
+                              : 'border-white/10 bg-white/[0.03] text-slate-200 hover:bg-white/[0.08] hover:text-white'
+                          }`}
+                        >
+                          <CreditCard className="h-3.5 w-3.5" />
+                          Parceladas
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setShowRegras(!showRegras)}
+                          className="h-9 rounded-lg border-white/10 bg-white/[0.03] px-3 text-slate-200 hover:bg-white/[0.08] hover:text-white"
+                        >
+                          <Tags className="h-3.5 w-3.5" />
+                          Regras
+                          {showRegras ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                        </Button>
                       </div>
-                      {selectedIds.size > 0 && (
-                        <div className="flex items-center gap-2">
+                    </div>
+                  </div>
+
+                  {selectedIds.size > 0 && (
+                    <div className="mt-3 rounded-xl border border-emerald-400/15 bg-emerald-400/10 p-2.5">
+                      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                        <p className="text-sm text-emerald-100">
+                          {selectedIds.size} lançamento{selectedIds.size > 1 ? 's' : ''} selecionado{selectedIds.size > 1 ? 's' : ''}.
+                        </p>
+                        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                           <Select onValueChange={changeCategoriaSelected}>
-                            <SelectTrigger className="h-8 text-xs w-[180px] gap-1">
+                            <SelectTrigger className="h-10 w-full rounded-xl border-emerald-300/20 bg-slate-950 text-xs text-slate-100 sm:w-[220px]">
                               <Tags className="h-3.5 w-3.5" />
                               <SelectValue placeholder="Alterar categoria" />
                             </SelectTrigger>
@@ -1471,7 +1429,7 @@ export function GerenciarFaturasModal({
                               {categorias.map(cat => (
                                 <SelectItem key={cat.id} value={cat.id}>
                                   <span className="flex items-center gap-2">
-                                    <span className={`inline-block w-2 h-2 rounded-full flex-shrink-0 ${
+                                    <span className={`inline-block h-2 w-2 flex-shrink-0 rounded-full ${
                                       cat.tipo === 'receita' ? 'bg-green-500' : cat.tipo === 'despesa' ? 'bg-red-500' : 'bg-gray-400'
                                     }`} />
                                     {cat.nome}
@@ -1485,204 +1443,500 @@ export function GerenciarFaturasModal({
                             size="sm"
                             onClick={deleteSelected}
                             disabled={deleting}
-                            className="gap-1.5 text-xs h-8"
+                            className="h-10 rounded-xl gap-1.5 text-xs"
                           >
                             <Trash2 className="h-3.5 w-3.5" />
                             Excluir ({selectedIds.size})
                           </Button>
                         </div>
-                      )}
+                      </div>
                     </div>
+                  )}
 
-                    <div className="space-y-2 max-h-[400px] overflow-y-auto">
-                      {transacoesExibidas.map((transacao) => {
+                  {categoriaEmFoco && resumoCategoriaEmFoco && (
+                    <div className="mt-3 rounded-xl border border-cyan-400/20 bg-cyan-400/10 p-2.5">
+                      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                          <p className="text-sm font-medium text-cyan-100">
+                            Foco em {categoriaEmFoco}
+                          </p>
+                          <p className="text-[12px] text-cyan-100/75">
+                            {resumoCategoriaEmFoco.quantidade} transação(ões) • {formatCurrency(resumoCategoriaEmFoco.total)}
+                          </p>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setCategoriaEmFoco(null)}
+                          className="h-8 rounded-lg border border-cyan-300/20 bg-slate-950/40 px-3 text-cyan-100 hover:bg-slate-950/70 hover:text-white"
+                        >
+                          Limpar foco
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {showRegras && (
+                  <div className="border-b border-white/10 bg-[#0b1a2d] px-4 py-3.5">
+                    <p className="mb-2 text-xs text-slate-400">
+                      Formato: <code className="rounded bg-slate-950 px-1 py-0.5 text-slate-200">termo = Categoria</code>
+                    </p>
+                    <textarea
+                      className="w-full rounded-2xl border border-white/10 bg-slate-950 px-3 py-3 text-sm font-mono text-slate-100 transition focus:border-emerald-400/40 focus:ring-1 focus:ring-emerald-400/20"
+                      style={{ minHeight: 96, maxHeight: 160, overflow: 'auto' }}
+                      value={regrasTexto}
+                      onChange={e => {
+                        setRegrasTexto(e.target.value)
+                        localStorage.setItem('regrasImportacaoCategorias', e.target.value)
+                        localStorage.setItem('regrasFatura', e.target.value)
+                      }}
+                      placeholder="burger king = Alimentação&#10;netflix = Assinaturas"
+                    />
+                  </div>
+                )}
+
+                {transacoesExibidas.length === 0 ? (
+                  <div className="flex min-h-[280px] items-center justify-center px-4 py-10 text-center">
+                    <div>
+                      <AlertCircle className="mx-auto mb-3 h-8 w-8 text-slate-500" />
+                      <p className="text-sm text-slate-400">
+                        {filtroParceladas ? 'Nenhuma transação parcelada nesta fatura.' : 'Nenhuma transação neste período.'}
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="px-2.5 py-2.5 sm:px-3.5">
+                    <div className="space-y-2">
+                      {transacoesOrdenadas.map((transacao) => {
                         const categoriaRegra = categorizar(transacao.descricao || transacao.estabelecimento || '', regrasTexto)
-                        const categoriaFinal = transacao.categorias?.nome || categoriaRegra || transacao.categoria
+                        const categoriaFinal = getCategoriaTransacao(transacao)
+                        const categoriaVisivel = transacao.categorias?.nome || categoriaRegra || transacao.categoria
                         const isSelected = selectedIds.has(transacao.id)
                         const isEditing = editingId === transacao.id
+                        const parcelaInfo = getParcelaInfo(transacao)
+                        const isDespesa = transacao.tipo === 'despesa'
+                        const isCategoriaFocada = categoriaEmFoco
+                          ? categoriaFinal === categoriaEmFoco
+                          : false
 
                         return (
-                          <Card key={transacao.id} className={`transition-colors ${isSelected ? 'border-blue-500 bg-blue-500/5' : ''}`}>
-                            <CardContent className="p-3">
-                              {isEditing ? (
-                                <div className="space-y-2">
-                                  <div className="flex gap-2">
-                                    <Input
-                                      value={editForm.descricao}
-                                      onChange={e => setEditForm(f => ({ ...f, descricao: e.target.value }))}
-                                      placeholder="Descrição"
-                                      className="flex-1 h-8 text-sm"
-                                    />
-                                    <Input
-                                      type="number"
-                                      step="0.01"
-                                      value={editForm.valor}
-                                      onChange={e => setEditForm(f => ({ ...f, valor: e.target.value }))}
-                                      placeholder="Valor"
-                                      className="w-28 h-8 text-sm"
-                                    />
-                                  </div>
-                                  <div className="flex items-center gap-2">
-                                    <Input
-                                      type="date"
-                                      value={editForm.data?.split('T')[0] || ''}
-                                      onChange={e => setEditForm(f => ({ ...f, data: e.target.value }))}
-                                      className="w-36 h-8 text-sm"
-                                    />
-                                    <Select
-                                      value={editForm.categoria_id}
-                                      onValueChange={v => setEditForm(f => ({ ...f, categoria_id: v }))}
-                                    >
-                                      <SelectTrigger className="flex-1 h-8 text-sm">
-                                        <SelectValue placeholder="Categoria" />
-                                      </SelectTrigger>
-                                      <SelectContent>
-                                        <SelectItem value="none">Sem categoria</SelectItem>
-                                        {categorias.map(cat => (
-                                          <SelectItem key={cat.id} value={cat.id}>
-                                            <span className="flex items-center gap-2">
-                                              <span className={`inline-block w-2 h-2 rounded-full flex-shrink-0 ${
-                                                cat.tipo === 'receita' ? 'bg-green-500' : cat.tipo === 'despesa' ? 'bg-red-500' : 'bg-gray-400'
-                                              }`} />
-                                              {cat.nome}
-                                              <span className={`text-[10px] ${
-                                                cat.tipo === 'receita' ? 'text-green-400' : cat.tipo === 'despesa' ? 'text-red-400' : 'text-gray-400'
-                                              }`}>
-                                                {cat.tipo === 'receita' ? 'R' : cat.tipo === 'despesa' ? 'D' : '?'}
-                                              </span>
+                          <div
+                            key={transacao.id}
+                            ref={(element) => {
+                              transactionRowRefs.current[String(transacao.id)] = element
+                            }}
+                            className={`rounded-[22px] border transition-all ${
+                              categoriaEmFoco
+                                ? isCategoriaFocada
+                                  ? 'border-cyan-400/30 bg-cyan-400/10 shadow-[0_0_0_1px_rgba(34,211,238,0.1)]'
+                                  : 'border-white/6 bg-slate-950/60 opacity-45'
+                                : isSelected
+                                ? 'border-emerald-400/30 bg-emerald-400/10'
+                                : 'border-white/8 bg-slate-950 hover:border-white/15 hover:bg-[#0b1b2d]'
+                            }`}
+                          >
+                            {isEditing ? (
+                              <div className="space-y-3 p-3.5">
+                                <div className="flex flex-col gap-2 sm:flex-row">
+                                  <Input
+                                    value={editForm.descricao}
+                                    onChange={e => setEditForm(f => ({ ...f, descricao: e.target.value }))}
+                                    placeholder="Descrição"
+                                    className="h-10 flex-1 rounded-xl border-white/10 bg-[#07111c] text-sm text-slate-100"
+                                  />
+                                  <Input
+                                    type="number"
+                                    step="0.01"
+                                    value={editForm.valor}
+                                    onChange={e => setEditForm(f => ({ ...f, valor: e.target.value }))}
+                                    placeholder="Valor"
+                                    className="h-10 w-full rounded-xl border-white/10 bg-[#07111c] text-sm text-slate-100 sm:w-32"
+                                  />
+                                </div>
+                                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                                  <Input
+                                    type="date"
+                                    value={editForm.data?.split('T')[0] || ''}
+                                    onChange={e => setEditForm(f => ({ ...f, data: e.target.value }))}
+                                    className="h-10 w-full rounded-xl border-white/10 bg-[#07111c] text-sm text-slate-100 sm:w-40"
+                                  />
+                                  <Select
+                                    value={editForm.categoria_id}
+                                    onValueChange={v => setEditForm(f => ({ ...f, categoria_id: v }))}
+                                  >
+                                    <SelectTrigger className="h-10 flex-1 rounded-xl border-white/10 bg-[#07111c] text-sm text-slate-100">
+                                      <SelectValue placeholder="Categoria" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="none">Sem categoria</SelectItem>
+                                      {categorias.map(cat => (
+                                        <SelectItem key={cat.id} value={cat.id}>
+                                          <span className="flex items-center gap-2">
+                                            <span className={`inline-block h-2 w-2 flex-shrink-0 rounded-full ${
+                                              cat.tipo === 'receita' ? 'bg-green-500' : cat.tipo === 'despesa' ? 'bg-red-500' : 'bg-gray-400'
+                                            }`} />
+                                            {cat.nome}
+                                            <span className={`text-[10px] ${
+                                              cat.tipo === 'receita' ? 'text-green-400' : cat.tipo === 'despesa' ? 'text-red-400' : 'text-gray-400'
+                                            }`}>
+                                              {cat.tipo === 'receita' ? 'R' : cat.tipo === 'despesa' ? 'D' : '?'}
                                             </span>
-                                          </SelectItem>
-                                        ))}
-                                      </SelectContent>
-                                    </Select>
-                                    <Button size="sm" variant="ghost" onClick={() => setEditingId(null)} className="h-8 w-8 p-0 flex-shrink-0">
+                                          </span>
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                  <div className="flex items-center gap-2 sm:flex-shrink-0">
+                                    <Button size="sm" variant="ghost" onClick={() => setEditingId(null)} className="h-10 w-10 rounded-xl p-0 text-slate-300 hover:bg-white/[0.06] hover:text-white">
                                       <X className="h-4 w-4" />
                                     </Button>
-                                    <Button size="sm" onClick={saveEdit} className="h-8 w-8 p-0 bg-green-600 hover:bg-green-700 flex-shrink-0">
+                                    <Button size="sm" onClick={saveEdit} className="h-10 w-10 rounded-xl bg-emerald-500 p-0 text-slate-950 hover:bg-emerald-400">
                                       <Check className="h-4 w-4" />
                                     </Button>
                                   </div>
                                 </div>
-                              ) : (
-                                <div className="flex items-center gap-2">
-                                  {/* Checkbox */}
-                                  <button
-                                    onClick={() => toggleSelect(transacao.id)}
-                                    className="flex-shrink-0 p-0.5 rounded hover:bg-muted transition"
-                                  >
-                                    {isSelected
-                                      ? <CheckSquare className="h-4 w-4 text-blue-500" />
-                                      : <Square className="h-4 w-4 text-muted-foreground" />
-                                    }
-                                  </button>
+                              </div>
+                            ) : (
+                              <div className="px-3.5 py-3.5">
+                                <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                                  <div className="flex min-w-0 items-start gap-3">
+                                    <button
+                                      onClick={() => toggleSelect(transacao.id)}
+                                      className="mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/[0.03] transition hover:bg-white/[0.08]"
+                                    >
+                                      {isSelected
+                                        ? <CheckSquare className="h-4 w-4 text-emerald-300" />
+                                        : <Square className="h-4 w-4 text-slate-500" />
+                                      }
+                                    </button>
 
-                                  {/* Conteúdo */}
-                                  <div className="flex-1 min-w-0">
-                                    <div className="flex items-center gap-1.5">
-                                      <p className="font-medium text-sm truncate">{transacao.descricao || transacao.estabelecimento || 'Sem descrição'}</p>
-                                      <Badge 
-                                        variant="outline" 
-                                        className={`text-[10px] px-1 py-0 flex-shrink-0 ${
-                                          transacao.tipo === 'despesa' 
-                                            ? 'border-red-500/40 text-red-400' 
-                                            : 'border-green-500/40 text-green-400'
-                                        }`}
-                                      >
-                                        {transacao.tipo === 'despesa' ? 'D' : 'C'}
-                                      </Badge>
-                                    </div>
-                                    <div className="flex items-center gap-2 mt-1">
-                                      <p className="text-xs text-muted-foreground">
-                                        {format(parseISO(transacao.data || transacao.quando), "dd/MM/yyyy", { locale: ptBR })}
-                                      </p>
-                                      {categoriaFinal ? (
-                                        <Badge 
-                                          variant="secondary" 
-                                          className="text-xs cursor-pointer hover:bg-primary/20 transition"
-                                          onClick={(e) => { e.stopPropagation(); startEdit(transacao); }}
-                                          title="Clique para editar categoria"
+                                    <div className="min-w-0 flex-1">
+                                      <div className="flex flex-wrap items-center gap-2">
+                                        <p className="truncate text-[15px] font-semibold text-white">
+                                          {transacao.descricao || transacao.estabelecimento || 'Sem descrição'}
+                                        </p>
+                                        {isCategoriaFocada && (
+                                          <Badge variant="outline" className="rounded-full border-cyan-400/25 bg-cyan-400/10 px-2 text-[10px] text-cyan-200">
+                                            Em foco
+                                          </Badge>
+                                        )}
+                                        <Badge
+                                          variant="outline"
+                                          className={`rounded-full px-2 text-[10px] ${
+                                            isDespesa
+                                              ? 'border-red-400/25 bg-red-400/10 text-red-300'
+                                              : 'border-emerald-400/25 bg-emerald-400/10 text-emerald-300'
+                                          }`}
                                         >
-                                          {categoriaFinal}
+                                          {isDespesa ? 'Despesa' : 'Crédito'}
                                         </Badge>
-                                      ) : (
-                                        <Badge 
-                                          variant="outline" 
-                                          className="text-xs cursor-pointer opacity-50 hover:opacity-100 transition"
-                                          onClick={(e) => { e.stopPropagation(); startEdit(transacao); }}
-                                          title="Clique para adicionar categoria"
-                                        >
-                                          + Categoria
-                                        </Badge>
-                                      )}
-                                      {(() => {
-                                        // Detectar parcela pelo campo ou pela descrição
-                                        if (transacao.total_parcelas && transacao.total_parcelas > 1) {
-                                          return (
-                                            <Badge variant="outline" className="text-xs text-amber-400 border-amber-500/40">
-                                              {transacao.parcela_atual}/{transacao.total_parcelas}
-                                            </Badge>
-                                          )
-                                        }
-                                        const desc = transacao.descricao || transacao.estabelecimento || ''
-                                        const match = desc.match(/(\d{2})\/(\d{2})\s*$/)
-                                        if (match) {
-                                          const atual = parseInt(match[1])
-                                          const total = parseInt(match[2])
-                                          if (total > 1 && atual >= 1 && atual <= total) {
-                                            return (
-                                              <Badge variant="outline" className="text-xs text-amber-400 border-amber-500/40">
-                                                {atual}/{total}
-                                              </Badge>
-                                            )
-                                          }
-                                        }
-                                        return null
-                                      })()}
+                                      </div>
+
+                                      <div className="mt-2 flex flex-wrap items-center gap-2">
+                                        <span className="rounded-full border border-white/10 bg-white/[0.03] px-2 py-1 text-[11px] text-slate-400">
+                                          {format(parseISO(transacao.data || transacao.quando), 'dd/MM/yyyy', { locale: ptBR })}
+                                        </span>
+                                        {categoriaVisivel ? (
+                                          <Badge
+                                            variant="secondary"
+                                            className="cursor-pointer rounded-full bg-white/[0.08] px-2 py-1 text-[11px] text-slate-100 hover:bg-emerald-400/15"
+                                            onClick={(e) => { e.stopPropagation(); startEdit(transacao) }}
+                                            title="Clique para editar categoria"
+                                          >
+                                            {categoriaVisivel}
+                                          </Badge>
+                                        ) : (
+                                          <Badge
+                                            variant="outline"
+                                            className="cursor-pointer rounded-full border-dashed border-white/15 px-2 py-1 text-[11px] text-slate-400 transition hover:border-emerald-400/30 hover:text-emerald-200"
+                                            onClick={(e) => { e.stopPropagation(); startEdit(transacao) }}
+                                            title="Clique para adicionar categoria"
+                                          >
+                                            + Categoria
+                                          </Badge>
+                                        )}
+                                        {parcelaInfo && (
+                                          <Badge variant="outline" className="rounded-full border-amber-400/25 bg-amber-400/10 px-2 py-1 text-[11px] text-amber-300">
+                                            {parcelaInfo.atual}/{parcelaInfo.total}
+                                          </Badge>
+                                        )}
+                                      </div>
                                     </div>
                                   </div>
 
-                                  {/* Valor */}
-                                  <p className={`font-bold text-sm flex-shrink-0 ${transacao.tipo === 'despesa' ? 'text-red-500' : 'text-green-500'}`}>
-                                    {transacao.tipo === 'despesa' ? '-' : '+'}{formatCurrency(transacao.valor)}
-                                  </p>
-
-                                  {/* Botões de ação */}
-                                  <div className="flex gap-1 flex-shrink-0 ml-1">
-                                    <button
-                                      onClick={() => startEdit(transacao)}
-                                      className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-blue-500 transition"
-                                      title="Editar"
-                                    >
-                                      <Pencil className="h-3.5 w-3.5" />
-                                    </button>
-                                    <button
-                                      onClick={() => deleteSingle(transacao.id)}
-                                      className="p-1.5 rounded-md hover:bg-muted text-muted-foreground hover:text-red-500 transition"
-                                      title="Excluir"
-                                    >
-                                      <Trash2 className="h-3.5 w-3.5" />
-                                    </button>
+                                  <div className="flex items-center justify-between gap-3 rounded-xl border border-white/8 bg-white/[0.02] px-3 py-2 lg:min-w-[200px] lg:justify-end">
+                                    <p className={`text-[0.98rem] font-semibold tracking-tight tabular-nums whitespace-nowrap ${isDespesa ? 'text-red-400' : 'text-emerald-300'}`}>
+                                      {isDespesa ? '-' : '+'}{formatCurrency(transacao.valor)}
+                                    </p>
+                                    <div className="h-5 w-px bg-white/10" />
+                                    <div className="flex items-center gap-1">
+                                      <button
+                                        onClick={() => startEdit(transacao)}
+                                        className="rounded-lg p-1.5 text-slate-400 transition hover:bg-white/[0.06] hover:text-emerald-200"
+                                        title="Editar"
+                                      >
+                                        <Pencil className="h-3.5 w-3.5" />
+                                      </button>
+                                      <button
+                                        onClick={() => deleteSingle(transacao.id)}
+                                        className="rounded-lg p-1.5 text-slate-400 transition hover:bg-white/[0.06] hover:text-red-300"
+                                        title="Excluir"
+                                      >
+                                        <Trash2 className="h-3.5 w-3.5" />
+                                      </button>
+                                    </div>
                                   </div>
                                 </div>
-                              )}
-                            </CardContent>
-                          </Card>
+                              </div>
+                            )}
+                          </div>
                         )
                       })}
                     </div>
-                  </>
+                  </div>
                 )}
-              </div>
-            </>
+              </section>
+
+              <aside className="space-y-3 lg:sticky lg:top-0 lg:self-start">
+                {cartaoSelecionado && (
+                  <Card className="overflow-hidden rounded-[24px] border-white/10 bg-[linear-gradient(180deg,#0f1f30_0%,#0a1724_100%)] shadow-none">
+                    <CardContent className="p-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="text-[10px] uppercase tracking-[0.24em] text-slate-400">Resumo da Fatura</p>
+                          <h3 className="mt-2 text-lg font-semibold text-white">{cartaoSelecionado.nome}</h3>
+                          <p className="mt-1 text-[13px] text-slate-400">{periodoSelecionadoLabel || 'Período não definido'}</p>
+                        </div>
+                        {statusFaturaLabel && (
+                          <Badge variant="outline" className={`rounded-full px-3 text-[11px] ${statusFaturaClassName}`}>
+                            {statusFaturaLabel}
+                          </Badge>
+                        )}
+                      </div>
+
+                      <div className="mt-4 rounded-[20px] border border-white/10 bg-[#081423] p-4">
+                        <p className="text-[11px] text-slate-400">{labelValorResumo}</p>
+                        <p className={`mt-2.5 text-[1.4rem] font-semibold leading-none tracking-tight tabular-nums ${
+                          fatura.paga ? 'text-emerald-300' : fatura.vencida ? 'text-red-300' : 'text-white'
+                        }`}>
+                          {formatCurrency(valorPrincipalFatura)}
+                        </p>
+                        <p className="mt-2.5 text-[13px] leading-relaxed text-slate-400">
+                          {descricaoValorResumo}
+                        </p>
+                      </div>
+
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-[11px] text-slate-300">
+                          Banco: {bancoResumo}
+                        </span>
+                        <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-[11px] text-slate-300">
+                          Limite: {formatCurrency(cartaoSelecionado.limite || 0)}
+                        </span>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {despesasPorCategoria.length > 0 && (
+                  <Card className="rounded-[22px] border-white/10 bg-[#081423] shadow-none">
+                    <CardContent className="p-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="text-[10px] uppercase tracking-[0.24em] text-slate-400">
+                            {filtroParceladas ? 'Parceladas por categoria' : 'Despesas por categoria'}
+                          </p>
+                          <p className="mt-1 text-[12px] text-slate-400">
+                            Clique para focar os lançamentos na lista
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-[10px] uppercase tracking-[0.18em] text-slate-500">Total</p>
+                          <p className="mt-1 text-sm font-semibold tabular-nums text-white">
+                            {formatCurrency(totalDespesasGrafico)}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="mt-4">
+                        <div className="mx-auto h-[190px] w-full max-w-[220px]">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <RechartsPieChart>
+                              <Pie
+                                data={despesasPorCategoria}
+                                dataKey="value"
+                                nameKey="name"
+                                innerRadius={46}
+                                outerRadius={76}
+                                paddingAngle={2}
+                                stroke="none"
+                                onClick={(data: any) => {
+                                  if (data?.name) toggleCategoriaFoco(String(data.name))
+                                }}
+                              >
+                                {despesasPorCategoria.map((entry) => (
+                                  <Cell
+                                    key={entry.name}
+                                    fill={entry.color}
+                                    cursor="pointer"
+                                    opacity={categoriaEmFoco && categoriaEmFoco !== entry.name ? 0.45 : 1}
+                                    stroke={categoriaEmFoco === entry.name ? '#e2e8f0' : 'transparent'}
+                                    strokeWidth={categoriaEmFoco === entry.name ? 2 : 0}
+                                  />
+                                ))}
+                              </Pie>
+                              <RechartsTooltip
+                                formatter={(value: number) => formatCurrency(Number(value))}
+                                content={({ active, payload }) => {
+                                  if (!active || !payload?.length) return null
+
+                                  const item = payload[0]?.payload
+                                  if (!item) return null
+
+                                  return (
+                                    <div className="rounded-xl border border-white/10 bg-slate-950/95 px-3 py-2 text-xs text-slate-100 shadow-xl">
+                                      <p className="font-medium text-white">{item.name}</p>
+                                      <p className="mt-1 tabular-nums text-slate-200">{formatCurrency(item.value)}</p>
+                                      <p className="text-slate-400">{item.percentage.toFixed(1)}% do total</p>
+                                    </div>
+                                  )
+                                }}
+                              />
+                            </RechartsPieChart>
+                          </ResponsiveContainer>
+                        </div>
+
+                        <div className="mt-3 max-h-[220px] space-y-2 overflow-y-auto pr-1">
+                          {despesasPorCategoria.map((item) => (
+                            <button
+                              key={item.name}
+                              type="button"
+                              onClick={() => toggleCategoriaFoco(item.name)}
+                              className={`flex w-full items-center justify-between rounded-xl border px-3 py-2 text-left transition ${
+                                categoriaEmFoco === item.name
+                                  ? 'border-cyan-400/30 bg-cyan-400/10'
+                                  : 'border-white/8 bg-white/[0.02] hover:bg-white/[0.05]'
+                              }`}
+                            >
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-2">
+                                  <span
+                                    className="h-2.5 w-2.5 rounded-full"
+                                    style={{ backgroundColor: item.color }}
+                                  />
+                                  <span className="truncate text-[12px] font-medium text-slate-100">
+                                    {item.name}
+                                  </span>
+                                </div>
+                                <p className="mt-1 text-[11px] text-slate-400">
+                                  {item.percentage.toFixed(1)}% da lista atual
+                                </p>
+                              </div>
+                              <span className="pl-3 text-[12px] font-semibold tabular-nums text-white">
+                                {formatCurrency(item.value)}
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
+                <div className="grid grid-cols-2 gap-3">
+                  <Card className="rounded-[20px] border-white/10 bg-[#081423] shadow-none">
+                    <CardContent className="p-3.5">
+                      <p className="text-[11px] text-slate-400">Fechamento</p>
+                      <p className="mt-2 text-[0.95rem] font-semibold tabular-nums text-white">
+                        {format(fatura.dataFechamento, 'dd/MM/yyyy', { locale: ptBR })}
+                      </p>
+                    </CardContent>
+                  </Card>
+
+                  <Card className="rounded-[20px] border-white/10 bg-[#081423] shadow-none">
+                    <CardContent className="p-3.5">
+                      <p className="text-[11px] text-slate-400">Vencimento</p>
+                      <p className={`mt-2 text-[0.95rem] font-semibold tabular-nums ${fatura.vencida ? 'text-red-300' : 'text-white'}`}>
+                        {format(fatura.dataVencimento, 'dd/MM/yyyy', { locale: ptBR })}
+                      </p>
+                    </CardContent>
+                  </Card>
+
+                  <button
+                    type="button"
+                    onClick={toggleFiltroParceladas}
+                    className={`rounded-[20px] border p-3.5 text-left transition ${
+                      filtroParceladas
+                        ? 'border-emerald-400/25 bg-emerald-400/10'
+                        : 'border-white/10 bg-[#081423] hover:bg-[#0d2033]'
+                    }`}
+                  >
+                    <p className="text-[11px] text-slate-400">Parceladas no período</p>
+                    <p className="mt-2 text-[0.95rem] font-semibold tabular-nums text-white">
+                      {formatCurrency(fatura.totalParceladas)}
+                    </p>
+                    <p className="mt-1 text-[11px] text-slate-400">
+                      {descricaoParceladasResumo}
+                    </p>
+                  </button>
+
+                  <Card className="rounded-[20px] border-white/10 bg-[#081423] shadow-none">
+                    <CardContent className="p-3.5">
+                      <p className="text-[11px] text-slate-400">Limite disponível</p>
+                      <p className="mt-2 text-[0.95rem] font-semibold tabular-nums text-emerald-300">
+                        {formatCurrency(limiteDisponivel)}
+                      </p>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                <Card className="rounded-[22px] border-white/10 bg-[#081423] shadow-none">
+                  <CardContent className="p-4">
+                    <p className="text-[10px] uppercase tracking-[0.24em] text-slate-400">Ações desta Fatura</p>
+                    <div className="mt-3 space-y-2.5">
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        onClick={openDeleteInvoiceOptions}
+                        disabled={deleting || !fatura || fatura.transacoes.length === 0}
+                        className="h-10 w-full justify-center gap-1.5 rounded-xl"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        {deleting ? 'Excluindo...' : 'Excluir todos os lançamentos'}
+                      </Button>
+                      {!nomeBancoVinculado && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-10 w-full rounded-xl border-white/10 bg-white/[0.03] text-slate-200 hover:bg-white/[0.08] hover:text-white"
+                          onClick={() => {
+                            onClose()
+                            window.location.href = '/cartoes'
+                          }}
+                        >
+                          Vincular banco ao cartão
+                        </Button>
+                      )}
+                    </div>
+                    <p className="mt-3 text-[11px] leading-relaxed text-slate-400">
+                      Exclua a fatura inteira apenas quando quiser refazer a importação ou limpar completamente o período.
+                    </p>
+                  </CardContent>
+                </Card>
+              </aside>
+            </div>
           ) : (
-            <Card>
-              <CardContent className="p-8 text-center">
-                <CreditCard className="h-12 w-12 text-muted-foreground mx-auto mb-3" />
-                <p className="text-muted-foreground">
-                  Selecione um cartão e período para visualizar a fatura
-                </p>
-              </CardContent>
-            </Card>
+            <div className="flex flex-1 items-center justify-center p-6">
+              <Card className="w-full max-w-xl rounded-[28px] border-dashed border-white/10 bg-[#081423] shadow-none">
+                <CardContent className="p-10 text-center">
+                  <CreditCard className="mx-auto mb-3 h-10 w-10 text-slate-500" />
+                  <p className="text-sm text-slate-400">
+                    Selecione um cartão e período para visualizar a fatura.
+                  </p>
+                </CardContent>
+              </Card>
+            </div>
           )}
         </div>
       </DialogContent>
