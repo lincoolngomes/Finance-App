@@ -4,7 +4,7 @@ import { supabase } from '/src/lib/supabase';
 import Papa from 'papaparse';
 import { ImportCategoryCombobox, type ImportCategoryOption } from '/src/components/importers/ImportCategoryCombobox';
 import { categorizar, normalizar, REGRAS_PADRAO } from '/src/utils/categorizacao';
-import { isDefaultCategory } from '/src/constants/defaultCategories';
+import { isDefaultCategory, resolveCategoryType } from '/src/constants/defaultCategories';
 
 interface Lancamento {
   uid: string;
@@ -32,6 +32,7 @@ export function ImportarExtratoModal({ open, onClose, onImport, contas }: Import
   const [regrasTexto, setRegrasTexto] = useState(REGRAS_PADRAO);
   const [csvFile, setCsvFile] = useState<File | null>(null);
   const [lancamentos, setLancamentos] = useState<Lancamento[]>([]);
+  const [selecoesLancamentos, setSelecoesLancamentos] = useState<Record<string, boolean>>({});
   const [parseError, setParseError] = useState("");
   const [regrasHydrated, setRegrasHydrated] = useState(false);
   const normalizarTipoConta = (conta: any) => normalizar(String(conta?.tipo || conta?.type || ''));
@@ -74,9 +75,23 @@ export function ImportarExtratoModal({ open, onClose, onImport, contas }: Import
     );
   };
 
+  const getTipoEfetivoCategoria = (categoria: { nome?: string | null; tipo?: string | null }) =>
+    resolveCategoryType(categoria) || 'despesa';
+
+  const sanitizarCategoriaPorTipo = (
+    categoria: string,
+    tipoLancamento: 'receita' | 'despesa'
+  ) => {
+    const nome = String(categoria || '').trim();
+    if (!nome) return '';
+    const tipoCategoria = resolveCategoryType({ nome, tipo: null });
+    if (tipoCategoria && tipoCategoria !== tipoLancamento) return '';
+    return nome;
+  };
+
   const categoriasDespesaDropdown = useMemo(() => {
     const categoriasBanco: ImportCategoryOption[] = (categorias || [])
-      .filter((c: any) => !c?.tipo || c.tipo === 'despesa')
+      .filter((c: any) => getTipoEfetivoCategoria({ nome: c?.nome, tipo: c?.tipo }) === 'despesa')
       .map((c: any) => ({
         value: String(c?.nome || '').trim(),
         label: String(c?.nome || '').trim(),
@@ -89,7 +104,7 @@ export function ImportarExtratoModal({ open, onClose, onImport, contas }: Import
 
   const categoriasReceitaDropdown = useMemo(() => {
     const categoriasBanco: ImportCategoryOption[] = (categorias || [])
-      .filter((c: any) => c?.tipo === 'receita')
+      .filter((c: any) => getTipoEfetivoCategoria({ nome: c?.nome, tipo: c?.tipo }) === 'receita')
       .map((c: any) => ({
         value: String(c?.nome || '').trim(),
         label: String(c?.nome || '').trim(),
@@ -168,7 +183,7 @@ export function ImportarExtratoModal({ open, onClose, onImport, contas }: Import
         if (categoriaRegra) {
           return {
             ...l,
-            categoria: categoriaRegra,
+            categoria: sanitizarCategoriaPorTipo(categoriaRegra, l.tipo),
           };
         }
         if (l.categoriaManual) return l;
@@ -206,7 +221,22 @@ export function ImportarExtratoModal({ open, onClose, onImport, contas }: Import
   const [loading, setLoading] = useState(false);
   const [scrollPosition, setScrollPosition] = useState(0);
   const scrollableRef = useRef<HTMLDivElement>(null);
+  const selectAllRef = useRef<HTMLInputElement>(null);
   const [importFeedback, setImportFeedback] = useState<any>(null);
+
+  const lancamentosSelecionados = useMemo(
+    () => lancamentos.filter((l) => selecoesLancamentos[l.uid] !== false),
+    [lancamentos, selecoesLancamentos]
+  );
+  const totalSelecionados = lancamentosSelecionados.length;
+  const todosSelecionados = lancamentos.length > 0 && totalSelecionados === lancamentos.length;
+  const algunsSelecionados = totalSelecionados > 0 && totalSelecionados < lancamentos.length;
+
+  useEffect(() => {
+    if (selectAllRef.current) {
+      selectAllRef.current.indeterminate = algunsSelecionados;
+    }
+  }, [algunsSelecionados]);
 
   function formatarValorBR(valor: number): string {
     return (typeof valor === 'number') ? valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : '';
@@ -262,14 +292,18 @@ export function ImportarExtratoModal({ open, onClose, onImport, contas }: Import
               estabelecimento: descricao,
               valor: valor,
               tipo: tipo,
-              categoria: categorizar(descricao, regrasTexto),
+              categoria: sanitizarCategoriaPorTipo(categorizar(descricao, regrasTexto), tipo),
             };
           });
         if (parsed.length === 0) {
           setParseError("Nenhum lançamento encontrado no arquivo CSV.");
+          setSelecoesLancamentos({});
           return;
         }
         setLancamentos(parsed);
+        setSelecoesLancamentos(
+          Object.fromEntries(parsed.map((lancamento) => [lancamento.uid, true]))
+        );
         setStep(2);
       },
       error: (err: any) => {
@@ -287,6 +321,14 @@ export function ImportarExtratoModal({ open, onClose, onImport, contas }: Import
         novos[idx] = { ...novos[idx], [campo]: valor };
         if (campo === 'categoria') {
           novos[idx].categoriaManual = true;
+        }
+        if (campo === 'tipo') {
+          const novoTipo = valor as 'receita' | 'despesa';
+          const categoriaAtual = String(novos[idx].categoria || '').trim();
+          if (categoriaAtual && !sanitizarCategoriaPorTipo(categoriaAtual, novoTipo)) {
+            novos[idx].categoria = '';
+            novos[idx].categoriaManual = false;
+          }
         }
       }
       return novos;
@@ -340,6 +382,19 @@ export function ImportarExtratoModal({ open, onClose, onImport, contas }: Import
     handleEditLancamento(lancamento, 'categoria', value);
   };
 
+  const handleToggleLancamento = (uid: string, checked: boolean) => {
+    setSelecoesLancamentos((prev) => ({
+      ...prev,
+      [uid]: checked,
+    }));
+  };
+
+  const handleToggleTodosLancamentos = (checked: boolean) => {
+    setSelecoesLancamentos(
+      Object.fromEntries(lancamentos.map((lancamento) => [lancamento.uid, checked]))
+    );
+  };
+
   const handleSort = (key: string) => {
     setSortConfig((prev) => ({
       key,
@@ -368,7 +423,15 @@ export function ImportarExtratoModal({ open, onClose, onImport, contas }: Import
   };
 
   const handleImportar = async () => {
-    const pendentesCategoria = lancamentos.filter((l) => !String(l.categoria || '').trim());
+    if (totalSelecionados === 0) {
+      setImportFeedback({
+        success: false,
+        message: 'Selecione ao menos um lançamento para importar.',
+      });
+      return;
+    }
+
+    const pendentesCategoria = lancamentosSelecionados.filter((l) => !String(l.categoria || '').trim());
     if (pendentesCategoria.length > 0) {
       setImportFeedback({
         success: false,
@@ -378,17 +441,18 @@ export function ImportarExtratoModal({ open, onClose, onImport, contas }: Import
     }
     setLoading(true);
     try {
-      const result = await onImport(lancamentos, contaSelecionada, regrasTexto);
+      const result = await onImport(lancamentosSelecionados, contaSelecionada, regrasTexto);
       if (result && typeof result === 'object' && ('success' in result)) {
         setImportFeedback(result);
       } else {
         setImportFeedback({
           success: true,
-          message: `Importação realizada com sucesso! ${lancamentos.length} lançamentos importados.`
+          message: `Importação realizada com sucesso! ${lancamentosSelecionados.length} lançamentos importados.`
         });
       }
       setStep(1);
       setLancamentos([]);
+      setSelecoesLancamentos({});
       setCsvFile(null);
     } catch (e: any) {
       setImportFeedback({
@@ -514,7 +578,32 @@ export function ImportarExtratoModal({ open, onClose, onImport, contas }: Import
               </div>
 
               <div className="mb-24">
-                <h3 className="text-sm font-semibold mb-4 text-slate-200">Prévia dos lançamentos</h3>
+                <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <h3 className="text-sm font-semibold text-slate-200">Prévia dos lançamentos</h3>
+                    <p className="mt-1 text-xs text-slate-400">
+                      {totalSelecionados} de {lancamentos.length} lançamento(s) selecionado(s) para importar
+                    </p>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      className="px-3 py-1.5 rounded-lg border border-slate-700 text-xs font-medium text-slate-200 hover:bg-slate-800/60 transition disabled:opacity-50"
+                      onClick={() => handleToggleTodosLancamentos(true)}
+                      disabled={todosSelecionados || lancamentos.length === 0}
+                    >
+                      Selecionar todos
+                    </button>
+                    <button
+                      type="button"
+                      className="px-3 py-1.5 rounded-lg border border-slate-700 text-xs font-medium text-slate-300 hover:bg-slate-800/60 transition disabled:opacity-50"
+                      onClick={() => handleToggleTodosLancamentos(false)}
+                      disabled={totalSelecionados === 0}
+                    >
+                      Limpar seleção
+                    </button>
+                  </div>
+                </div>
                 <div
                   className="overflow-y-auto border border-slate-700/50 rounded-xl shadow-lg"
                   style={{ maxHeight: '450px' }}
@@ -524,6 +613,16 @@ export function ImportarExtratoModal({ open, onClose, onImport, contas }: Import
                   <table className="w-full text-sm">
                     <thead className="sticky top-0">
                       <tr className="bg-gradient-to-r from-slate-800/80 to-slate-900/80 border-b border-slate-700/50">
+                        <th className="px-2 py-2 text-center font-semibold text-slate-300 w-12">
+                          <input
+                            ref={selectAllRef}
+                            type="checkbox"
+                            className="h-4 w-4 rounded border-slate-500 bg-slate-800 text-blue-500 focus:ring-2 focus:ring-blue-500/30"
+                            checked={todosSelecionados}
+                            onChange={(e) => handleToggleTodosLancamentos(e.target.checked)}
+                            aria-label="Selecionar todos os lançamentos"
+                          />
+                        </th>
                         <th className="px-1 py-2 text-left font-semibold text-slate-300 w-32 cursor-pointer hover:bg-slate-700/50 transition" onClick={() => handleSort('quando')}>Data{renderSortIndicator('quando')}</th>
                         <th className="px-1 py-2 text-left font-semibold text-slate-300 flex-1 min-w-80 cursor-pointer hover:bg-slate-700/50 transition" onClick={() => handleSort('estabelecimento')}>Descrição{renderSortIndicator('estabelecimento')}</th>
                         <th className="px-1 py-2 text-left font-semibold text-slate-300 w-32 cursor-pointer hover:bg-slate-700/50 transition" onClick={() => handleSort('valor')}>Valor{renderSortIndicator('valor')}</th>
@@ -533,7 +632,23 @@ export function ImportarExtratoModal({ open, onClose, onImport, contas }: Import
                     </thead>
                     <tbody className="divide-y divide-slate-700/50">
                       {getSortedLancamentos().map((l, idx) => (
-                        <tr key={idx} className={`border-b border-slate-700/30 hover:bg-slate-800/40 transition ${idx % 2 === 0 ? 'bg-slate-900/20' : ''}`}>
+                        <tr
+                          key={idx}
+                          className={`border-b border-slate-700/30 transition ${
+                            selecoesLancamentos[l.uid] === false
+                              ? 'opacity-60 bg-slate-950/40'
+                              : `hover:bg-slate-800/40 ${idx % 2 === 0 ? 'bg-slate-900/20' : ''}`
+                          }`}
+                        >
+                          <td className="px-2 py-2 text-center align-top">
+                            <input
+                              type="checkbox"
+                              className="mt-2 h-4 w-4 rounded border-slate-500 bg-slate-800 text-blue-500 focus:ring-2 focus:ring-blue-500/30"
+                              checked={selecoesLancamentos[l.uid] !== false}
+                              onChange={(e) => handleToggleLancamento(l.uid, e.target.checked)}
+                              aria-label={`Selecionar lançamento ${l.estabelecimento}`}
+                            />
+                          </td>
                           <td className="px-1 py-2">
                             <input
                               type="text"
@@ -618,9 +733,9 @@ export function ImportarExtratoModal({ open, onClose, onImport, contas }: Import
               <button
                 className="px-6 py-2.5 rounded-lg bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600 text-white font-semibold transition disabled:opacity-50"
                 onClick={handleImportar}
-                disabled={lancamentos.length === 0 || loading}
+                disabled={totalSelecionados === 0 || loading}
               >
-                {loading ? 'Importando...' : 'Importar'}
+                {loading ? 'Importando...' : `Importar (${totalSelecionados})`}
               </button>
             </>
           )}

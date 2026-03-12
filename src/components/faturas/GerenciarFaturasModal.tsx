@@ -12,7 +12,7 @@ import { Calendar, CreditCard, DollarSign, Clock, CheckCircle2, AlertCircle, Upl
 import { toast } from '/src/hooks/use-toast'
 import { addMonths, format, startOfMonth, endOfMonth, parseISO, isWithinInterval } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
-import { categorizar, REGRAS_PADRAO } from '/src/utils/categorizacao'
+import { categorizar, normalizar, REGRAS_PADRAO } from '/src/utils/categorizacao'
 import { Input } from '/src/components/ui/input'
 
 interface Cartao {
@@ -69,6 +69,8 @@ interface Fatura {
   vencida: boolean
 }
 
+type DeleteInvoiceMode = 'current' | 'current_and_future'
+
 export function GerenciarFaturasModal({ 
   open, 
   onClose, 
@@ -106,6 +108,8 @@ export function GerenciarFaturasModal({
   const [showPagarDialog, setShowPagarDialog] = useState(false)
   const [dataPagamento, setDataPagamento] = useState(format(new Date(), 'yyyy-MM-dd'))
   const [contaPagamentoId, setContaPagamentoId] = useState<string>('')
+  const [showDeleteInvoiceDialog, setShowDeleteInvoiceDialog] = useState(false)
+  const [deleteInvoiceMode, setDeleteInvoiceMode] = useState<DeleteInvoiceMode>('current')
 
   // Flag para forçar cálculo da fatura após setar estados
   const shouldForceCalcularFatura = useRef(false)
@@ -396,6 +400,125 @@ export function GerenciarFaturasModal({
 
   async function refreshViews() {
     await Promise.all([calcularFatura(), notifyDataChange()])
+  }
+
+  const PARCELA_REGEX = /(?:\(|\b)?(?:parcela\s*)?(\d{1,2})\s*\/\s*(\d{1,2})(?:\))?\s*$/i
+
+  function getDescricaoTransacao(transacao?: Partial<Transacao> | null) {
+    return String(transacao?.descricao || transacao?.estabelecimento || '').trim()
+  }
+
+  function stripParcelaSuffix(descricao: string) {
+    return descricao
+      .replace(/\s*\(?parcela\s*\d{1,2}\s*\/\s*\d{1,2}\)?\s*$/i, '')
+      .replace(/\s+\d{1,2}\s*\/\s*\d{1,2}\s*$/i, '')
+      .trim()
+  }
+
+  function getParcelaInfo(transacao?: Partial<Transacao> | null): { atual: number; total: number } | null {
+    const atualCampo = Number(transacao?.parcela_atual || 0)
+    const totalCampo = Number(transacao?.total_parcelas || 0)
+
+    if (totalCampo > 1 && atualCampo >= 1 && atualCampo <= totalCampo) {
+      return { atual: atualCampo, total: totalCampo }
+    }
+
+    const match = getDescricaoTransacao(transacao).match(PARCELA_REGEX)
+    if (!match) return null
+
+    const atual = parseInt(match[1], 10)
+    const total = parseInt(match[2], 10)
+    if (Number.isNaN(atual) || Number.isNaN(total) || total <= 1 || atual < 1 || atual > total) {
+      return null
+    }
+
+    return { atual, total }
+  }
+
+  function getTransacaoReference(transacao?: Partial<Transacao> | null): { mes: number; ano: number } | null {
+    const mes = Number(transacao?.fatura_mes || 0)
+    const ano = Number(transacao?.fatura_ano || 0)
+    if (mes >= 1 && mes <= 12 && ano >= 1900) {
+      return { mes, ano }
+    }
+
+    const referenciaImportada = extrairReferenciaImportada(transacao?.observacao)
+    if (referenciaImportada) return referenciaImportada
+
+    const rawDate = String(transacao?.data || transacao?.quando || '').trim()
+    if (!rawDate) return null
+
+    const parsed = new Date(rawDate)
+    if (Number.isNaN(parsed.getTime())) return null
+
+    return {
+      mes: parsed.getUTCMonth() + 1,
+      ano: parsed.getUTCFullYear(),
+    }
+  }
+
+  function addMonthsToReference(reference: { mes: number; ano: number }, offset: number) {
+    const next = new Date(Date.UTC(reference.ano, reference.mes - 1 + offset, 1))
+    return {
+      mes: next.getUTCMonth() + 1,
+      ano: next.getUTCFullYear(),
+    }
+  }
+
+  function compareFaturaReference(
+    left?: { mes: number; ano: number } | null,
+    right?: { mes: number; ano: number } | null
+  ) {
+    if (!left || !right) return Number.NaN
+    if (left.ano !== right.ano) return left.ano - right.ano
+    return left.mes - right.mes
+  }
+
+  function getParcelaSerieKey(transacao?: Partial<Transacao> | null) {
+    const parcelaInfo = getParcelaInfo(transacao)
+    if (!parcelaInfo) return null
+
+    const descricaoBase = stripParcelaSuffix(getDescricaoTransacao(transacao))
+    const valorCentavos = Math.round(Math.abs(Number(transacao?.valor || 0)) * 100)
+
+    return [
+      String(transacao?.cartao_id || ''),
+      normalizar(descricaoBase),
+      String(valorCentavos),
+      String(parcelaInfo.total),
+    ].join('::')
+  }
+
+  async function deleteTransactionIds(ids: Array<number | string>) {
+    const uniqueIds = Array.from(new Set(ids.filter(Boolean)))
+    let deleted = 0
+    const failed: Array<number | string> = []
+
+    const chunkSize = 100
+    for (let i = 0; i < uniqueIds.length; i += chunkSize) {
+      const chunk = uniqueIds.slice(i, i + chunkSize)
+      const { error } = await supabase
+        .from('transacoes')
+        .delete()
+        .in('id', chunk as any[])
+
+      if (!error) {
+        deleted += chunk.length
+        continue
+      }
+
+      for (const id of chunk) {
+        const { error: singleError } = await supabase
+          .from('transacoes')
+          .delete()
+          .eq('id', id)
+
+        if (singleError) failed.push(id)
+        else deleted += 1
+      }
+    }
+
+    return { deleted, failed }
   }
 
   async function calcularFatura(overrideCardId?: string, overrideMonth?: string, overrideYear?: string) {
@@ -756,34 +879,7 @@ export function GerenciarFaturasModal({
 
     setDeleting(true)
     try {
-      const ids = Array.from(selectedIds).filter(Boolean)
-      let deleted = 0
-      const failed: Array<number | string> = []
-
-      const chunkSize = 100
-      for (let i = 0; i < ids.length; i += chunkSize) {
-        const chunk = ids.slice(i, i + chunkSize)
-        const { error } = await supabase
-          .from('transacoes')
-          .delete()
-          .in('id', chunk as any[])
-
-        if (!error) {
-          deleted += chunk.length
-          continue
-        }
-
-        // Fallback robusto: exclui item a item para evitar falha total do lote
-        for (const id of chunk) {
-          const { error: singleError } = await supabase
-            .from('transacoes')
-            .delete()
-            .eq('id', id)
-
-          if (singleError) failed.push(id)
-          else deleted += 1
-        }
-      }
+      const { deleted, failed } = await deleteTransactionIds(Array.from(selectedIds))
 
       if (deleted === 0) {
         throw new Error('Não foi possível excluir as transações selecionadas')
@@ -831,15 +927,11 @@ export function GerenciarFaturasModal({
     }
   }
 
-  async function deleteSingle(id: number) {
+  async function deleteSingle(id: number | string) {
     if (!window.confirm('Excluir esta transação?')) return
     try {
-      const { error } = await supabase
-        .from('transacoes')
-        .delete()
-        .eq('id', id)
-
-      if (error) throw error
+      const { deleted } = await deleteTransactionIds([id])
+      if (deleted === 0) throw new Error('Não foi possível excluir esta transação')
 
       toast({ title: 'Transação excluída ✅' })
       await refreshViews()
@@ -848,40 +940,143 @@ export function GerenciarFaturasModal({
     }
   }
 
-  async function deleteAllFromCard() {
-    if (!selectedCard) {
-      toast({ title: 'Selecione um cartão', variant: 'destructive' })
+  function openDeleteInvoiceOptions() {
+    if (!selectedCard || !fatura) {
+      toast({ title: 'Selecione uma fatura válida', variant: 'destructive' })
       return
     }
 
-    const cartaoNome = cartoes.find(c => c.id === selectedCard)?.nome || 'este cartão'
+    if (!fatura.transacoes.length) {
+      toast({ title: 'Nenhum lançamento encontrado para esta fatura' })
+      return
+    }
 
-    if (!window.confirm(`⚠️ ATENÇÃO: Isso irá EXCLUIR PERMANENTEMENTE TODOS os lançamentos do cartão "${cartaoNome}".\n\nEssa ação NÃO pode ser desfeita!\n\nDeseja continuar?`)) return
+    setDeleteInvoiceMode('current')
+    setShowDeleteInvoiceDialog(true)
+  }
+
+  async function deleteAllFromCard(mode: DeleteInvoiceMode = deleteInvoiceMode) {
+    if (!selectedCard || !fatura) {
+      toast({ title: 'Selecione uma fatura válida', variant: 'destructive' })
+      return
+    }
+
+    const cartao = cartoes.find(c => c.id === selectedCard)
+    const cartaoNome = cartao?.nome || 'este cartão'
+    const currentIds = fatura.transacoes.map(t => t.id).filter(Boolean)
+
+    if (currentIds.length === 0) {
+      toast({ title: 'Nenhum lançamento encontrado para esta fatura' })
+      return
+    }
 
     setDeleting(true)
     try {
-      const { data: transacoes, error: fetchError } = await supabase
-        .from('transacoes')
-        .select('id')
-        .eq('cartao_id', selectedCard)
-        .eq('user_id', user?.id)
+      const idsToDelete = new Set<number | string>(currentIds)
 
-      if (fetchError) throw fetchError
+      if (mode === 'current_and_future') {
+        const currentReference = {
+          mes: parseInt(fatura.mes, 10),
+          ano: parseInt(fatura.ano, 10),
+        }
 
-      if (!transacoes || transacoes.length === 0) {
-        toast({ title: 'Nenhum lançamento encontrado para este cartão' })
-        return
+        const seriesToExpand = fatura.transacoes
+          .filter((transacao) => transacao.tipo === 'despesa')
+          .map((transacao) => {
+            const parcelaInfo = getParcelaInfo(transacao)
+            const serieKey = getParcelaSerieKey(transacao)
+            const reference = getTransacaoReference(transacao) || currentReference
+
+            if (!parcelaInfo || !serieKey || parcelaInfo.atual >= parcelaInfo.total) {
+              return null
+            }
+
+            return {
+              transacaoId: transacao.id,
+              serieKey,
+              parcelaInfo,
+              reference,
+            }
+          })
+          .filter((item): item is NonNullable<typeof item> => Boolean(item))
+
+        if (seriesToExpand.length > 0) {
+          const { data: allCardTransactions, error: fetchError } = await supabase
+            .from('transacoes')
+            .select('id, data, descricao, valor, tipo, cartao_id, fatura_mes, fatura_ano, observacao')
+            .eq('cartao_id', selectedCard)
+            .eq('user_id', user?.id)
+
+          if (fetchError) throw fetchError
+
+          for (const serie of seriesToExpand) {
+            for (let offset = 1; offset <= serie.parcelaInfo.total - serie.parcelaInfo.atual; offset += 1) {
+              const expectedReference = addMonthsToReference(serie.reference, offset)
+              const expectedParcela = serie.parcelaInfo.atual + offset
+
+              const candidate = (allCardTransactions || []).find((transacao) => {
+                if (!transacao?.id || idsToDelete.has(transacao.id) || transacao.id === serie.transacaoId) {
+                  return false
+                }
+
+                if (transacao.tipo !== 'despesa') return false
+
+                const parcelaInfo = getParcelaInfo(transacao)
+                if (!parcelaInfo) return false
+                if (parcelaInfo.total !== serie.parcelaInfo.total || parcelaInfo.atual !== expectedParcela) {
+                  return false
+                }
+
+                if (getParcelaSerieKey(transacao) !== serie.serieKey) return false
+
+                const reference = getTransacaoReference(transacao)
+                return compareFaturaReference(reference, expectedReference) === 0
+              })
+
+              if (candidate?.id) {
+                idsToDelete.add(candidate.id)
+              }
+            }
+          }
+        }
       }
 
-      const { error } = await supabase
+      const { data: pagamentosRelacionados, error: paymentFetchError } = await supabase
         .from('transacoes')
-        .delete()
-        .eq('cartao_id', selectedCard)
+        .select('id')
         .eq('user_id', user?.id)
+        .eq('descricao', `Pagamento Fatura ${cartaoNome} - ${fatura.mes}/${fatura.ano}`)
 
-      if (error) throw error
+      if (paymentFetchError) throw paymentFetchError
 
-      toast({ title: `${transacoes.length} lançamentos excluídos ✅`, description: `Todos os lançamentos do cartão "${cartaoNome}" foram removidos.` })
+      for (const pagamento of pagamentosRelacionados || []) {
+        if (pagamento?.id) idsToDelete.add(pagamento.id)
+      }
+
+      const { deleted, failed } = await deleteTransactionIds(Array.from(idsToDelete))
+
+      if (deleted === 0) {
+        throw new Error('Não foi possível excluir os lançamentos desta fatura')
+      }
+
+      if (failed.length > 0) {
+        toast({
+          title: 'Exclusão parcial',
+          description: `${deleted} lançamento(s) excluído(s) e ${failed.length} com falha.`,
+          variant: 'destructive',
+        })
+      } else {
+        toast({
+          title: `${deleted} lançamento(s) excluído(s) ✅`,
+          description:
+            mode === 'current_and_future'
+              ? `A fatura ${fatura.mes}/${fatura.ano} e as parcelas futuras relacionadas foram removidas.`
+              : `Os lançamentos da fatura ${fatura.mes}/${fatura.ano} foram removidos.`,
+        })
+      }
+
+      setShowDeleteInvoiceDialog(false)
+      setSelectedIds(new Set())
       await refreshViews()
     } catch (err: any) {
       toast({ title: 'Erro ao excluir', description: err.message, variant: 'destructive' })
@@ -889,6 +1084,14 @@ export function GerenciarFaturasModal({
       setDeleting(false)
     }
   }
+
+  const hasParceladasFuturasNaFatura = Boolean(
+    fatura?.transacoes.some((transacao) => {
+      if (transacao.tipo !== 'despesa') return false
+      const parcelaInfo = getParcelaInfo(transacao)
+      return Boolean(parcelaInfo && parcelaInfo.total > parcelaInfo.atual)
+    })
+  )
 
   return (
     <>
@@ -1077,12 +1280,12 @@ export function GerenciarFaturasModal({
                   <Button
                     variant="destructive"
                     size="sm"
-                    onClick={deleteAllFromCard}
-                    disabled={deleting}
+                    onClick={openDeleteInvoiceOptions}
+                    disabled={deleting || !fatura || fatura.transacoes.length === 0}
                     className="gap-1.5 text-xs"
                   >
                     <Trash2 className="h-3.5 w-3.5" />
-                    {deleting ? 'Excluindo...' : 'Excluir Todos os Lançamentos'}
+                    {deleting ? 'Excluindo...' : 'Excluir Lançamentos da Fatura'}
                   </Button>
                 </div>
               </CardContent>
@@ -1481,6 +1684,81 @@ export function GerenciarFaturasModal({
               </CardContent>
             </Card>
           )}
+        </div>
+      </DialogContent>
+    </Dialog>
+
+    <Dialog open={showDeleteInvoiceDialog} onOpenChange={setShowDeleteInvoiceDialog}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Trash2 className="h-5 w-5 text-red-500" />
+            Excluir Lançamentos da Fatura
+          </DialogTitle>
+          <DialogDescription>
+            {fatura
+              ? `Escolha como excluir os lançamentos da fatura ${fatura.mes}/${fatura.ano}.`
+              : 'Escolha como excluir os lançamentos desta fatura.'}
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-3 py-2">
+          <button
+            type="button"
+            onClick={() => setDeleteInvoiceMode('current')}
+            className={`w-full rounded-lg border p-3 text-left transition ${
+              deleteInvoiceMode === 'current'
+                ? 'border-primary bg-primary/10'
+                : 'border-border hover:border-primary/40'
+            }`}
+          >
+            <p className="font-medium">Somente a fatura atual</p>
+            <p className="text-sm text-muted-foreground">
+              Remove apenas os lançamentos que aparecem na fatura aberta.
+            </p>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => hasParceladasFuturasNaFatura && setDeleteInvoiceMode('current_and_future')}
+            disabled={!hasParceladasFuturasNaFatura}
+            className={`w-full rounded-lg border p-3 text-left transition ${
+              deleteInvoiceMode === 'current_and_future'
+                ? 'border-primary bg-primary/10'
+                : 'border-border hover:border-primary/40'
+            } ${!hasParceladasFuturasNaFatura ? 'cursor-not-allowed opacity-50 hover:border-border' : ''}`}
+          >
+            <p className="font-medium">Fatura atual + parcelas futuras</p>
+            <p className="text-sm text-muted-foreground">
+              Remove a fatura aberta e também as próximas parcelas dos lançamentos parcelados dela.
+            </p>
+          </button>
+
+          {!hasParceladasFuturasNaFatura && (
+            <p className="text-xs text-muted-foreground">
+              Esta fatura não possui parcelas futuras vinculadas.
+            </p>
+          )}
+        </div>
+
+        <div className="flex justify-end gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowDeleteInvoiceDialog(false)}
+            disabled={deleting}
+          >
+            Cancelar
+          </Button>
+          <Button
+            variant="destructive"
+            size="sm"
+            onClick={() => deleteAllFromCard(deleteInvoiceMode)}
+            disabled={deleting}
+          >
+            <Trash2 className="mr-1 h-4 w-4" />
+            {deleting ? 'Excluindo...' : 'Confirmar exclusão'}
+          </Button>
         </div>
       </DialogContent>
     </Dialog>

@@ -51,8 +51,39 @@ export const getDefaultCategoryKey = (category: {
 }) => `${normalizeText(category.tipo || '')}::${normalizeText(category.nome || '')}`;
 
 const defaultCategoryKeys = new Set(DEFAULT_CATEGORIES.map(getDefaultCategoryKey));
+const defaultCategoryTypesByName = DEFAULT_CATEGORIES.reduce((acc, category) => {
+  const key = normalizeText(category.nome || '');
+  const current = acc.get(key) || new Set<DefaultCategoryType>();
+  current.add(category.tipo);
+  acc.set(key, current);
+  return acc;
+}, new Map<string, Set<DefaultCategoryType>>());
 
 export const isDefaultCategory = (category: {
   nome?: string | null;
   tipo?: string | null;
 }) => defaultCategoryKeys.has(getDefaultCategoryKey(category));
+
+export const normalizeCategoryType = (tipo?: string | null): DefaultCategoryType | null => {
+  const normalized = normalizeText(tipo || '');
+  if (normalized === 'receita') return 'receita';
+  if (normalized === 'despesa') return 'despesa';
+  return null;
+};
+
+export const getDefaultCategoryTypeByName = (nome?: string | null): DefaultCategoryType | null => {
+  const key = normalizeText(nome || '');
+  if (!key) return null;
+  const types = defaultCategoryTypesByName.get(key);
+  if (!types || types.size !== 1) return null;
+  return Array.from(types)[0] || null;
+};
+
+export const resolveCategoryType = (category: {
+  nome?: string | null;
+  tipo?: string | null;
+}): DefaultCategoryType | null => {
+  const defaultType = getDefaultCategoryTypeByName(category.nome);
+  if (defaultType) return defaultType;
+  return normalizeCategoryType(category.tipo);
+};

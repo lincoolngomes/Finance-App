@@ -7,7 +7,7 @@ import { toast } from '/src/hooks/use-toast';
 import { ImportCategoryCombobox, type ImportCategoryOption } from '/src/components/importers/ImportCategoryCombobox';
 import { normalizar, categorizar, REGRAS_PADRAO } from '/src/utils/categorizacao';
 import { formatCurrency } from '/src/utils/currency';
-import { isDefaultCategory } from '/src/constants/defaultCategories';
+import { isDefaultCategory, resolveCategoryType } from '/src/constants/defaultCategories';
 
 interface Transacao {
   uid: string;
@@ -91,6 +91,9 @@ export function ImportarFaturaModalNovo({ open, onClose, onImport, cartoes, init
       (a.label || a.value).localeCompare(b.label || b.value, 'pt-BR', { sensitivity: 'base' })
     );
   };
+
+  const getTipoEfetivoCategoria = (categoria: { nome?: string | null; tipo?: string | null }) =>
+    resolveCategoryType(categoria) || 'despesa';
 
   // Extrai categorias únicas das regras para adicionar ao dropdown
   const categoriasExtraidasDasRegras = useMemo(() => {
@@ -259,12 +262,12 @@ export function ImportarFaturaModalNovo({ open, onClose, onImport, cartoes, init
       if (!data || data.length === 0) return;
 
       const despesas = data
-        .filter((c: any) => !c?.tipo || c.tipo === 'despesa')
+        .filter((c: any) => getTipoEfetivoCategoria({ nome: c?.nome, tipo: c?.tipo }) === 'despesa')
         .map((c: any) => (c.nome || '').trim())
         .filter(Boolean);
 
       const receitas = data
-        .filter((c: any) => c?.tipo === 'receita')
+        .filter((c: any) => getTipoEfetivoCategoria({ nome: c?.nome, tipo: c?.tipo }) === 'receita')
         .map((c: any) => (c.nome || '').trim())
         .filter(Boolean);
 
