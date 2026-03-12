@@ -1,16 +1,16 @@
 
-import { SidebarProvider, SidebarInset, useSidebar } from '@/components/ui/sidebar'
+import { SidebarProvider, SidebarInset, useSidebar } from '../ui/sidebar'
 import { AppSidebar } from './AppSidebar'
-import { ThemeToggle } from '@/components/ui/theme-toggle'
+import { ThemeToggle } from '../ui/theme-toggle'
 import { Menu, X, Bell, User, LogOut, Tag, Plus } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import { useAuth } from '@/hooks/useAuth'
+import { Button } from '../ui/button'
+import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar'
+import { useAuth } from '../../hooks/useAuth'
 import { useNavigate } from 'react-router-dom'
 import { useState, useEffect } from 'react'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
-import { supabase } from '@/lib/supabase'
-import Categorias from '@/pages/Categorias'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../ui/dialog'
+import { supabase } from '../../lib/supabase'
+import Categorias from '../../pages/Categorias'
 
 interface AppLayoutProps {
   children: React.ReactNode

@@ -1,8 +1,8 @@
 import { createContext, useContext, useState, useEffect, ReactNode, useCallback, useRef } from 'react'
-import { supabase } from '@/lib/supabase'
-import { useAuth } from '@/hooks/useAuth'
-import { useToast } from '@/hooks/use-toast'
-import type { Investimento } from '@/hooks/useInvestments'
+import { supabase } from '/src/lib/supabase'
+import { useAuth } from '/src/hooks/useAuth'
+import { useToast } from '/src/hooks/use-toast'
+import type { Investimento } from '/src/hooks/useInvestments'
 
 interface InvestmentContextType {
   investimentos: Investimento[]

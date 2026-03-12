@@ -1,11 +1,11 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
-import { supabase } from '@/lib/supabase'
+import { supabase } from '../lib/supabase'
 import { useAuth } from './useAuth'
 import { useToast } from './use-toast'
-import { buscarCDIAcumulado } from '@/utils/cdi'
-import { buscarIPCAAcumulado } from '@/utils/ipca'
-import { calcularMarcacaoMercadoTesouro } from '@/utils/tesouroDireto'
-import { calcularMarcacaoMercadoPorVU } from '@/utils/marcacaoMercado'
+import { buscarCDIAcumulado } from '../utils/cdi'
+import { buscarIPCAAcumulado } from '../utils/ipca'
+import { calcularMarcacaoMercadoTesouro } from '../utils/tesouroDireto'
+import { calcularMarcacaoMercadoPorVU } from '../utils/marcacaoMercado'
 
 export interface Investimento {
   id: string

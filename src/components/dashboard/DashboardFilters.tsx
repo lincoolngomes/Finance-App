@@ -1,7 +1,7 @@
 import { useState } from 'react'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Button } from '@/components/ui/button'
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '/src/components/ui/select'
+import { Button } from '/src/components/ui/button'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '/src/components/ui/dialog'
 import { Filter, Eye, EyeOff, Clock3, Landmark, FileText, Settings2, CreditCard } from 'lucide-react'
 
 interface DashboardFiltersProps {

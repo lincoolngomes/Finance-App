@@ -2,8 +2,8 @@
 import jsPDF from 'jspdf'
 import 'jspdf-autotable'
 import { formatCurrency } from './currency'
-import { ReportTransaction } from '@/hooks/useReports'
-import { PDFExportOptions } from '@/components/reports/PDFExportOptions'
+import { ReportTransaction } from '/src/hooks/useReports'
+import { PDFExportOptions } from '/src/components/reports/PDFExportOptions'
 
 // Estendendo o tipo jsPDF para incluir autoTable
 declare module 'jspdf' {

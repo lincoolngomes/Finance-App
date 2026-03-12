@@ -1,9 +1,9 @@
 
 import { useState, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { supabase } from '@/lib/supabase'
-import { useAuth } from '@/hooks/useAuth'
-import { getTransactionAbsoluteAmount, shouldIncludeTransactionByCardExpenseMode } from '@/utils/dashboard-classification'
+import { supabase } from '../lib/supabase'
+import { useAuth } from './useAuth'
+import { getTransactionAbsoluteAmount, shouldIncludeTransactionByCardExpenseMode } from '../utils/dashboard-classification'
 
 export interface ReportTransaction {
   id: string

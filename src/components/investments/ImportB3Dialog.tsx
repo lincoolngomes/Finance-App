@@ -1,15 +1,15 @@
 import { useMemo, useState } from 'react'
 import Papa from 'papaparse'
 import * as XLSX from 'xlsx'
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Alert, AlertDescription } from '@/components/ui/alert'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '/src/components/ui/dialog'
+import { Button } from '/src/components/ui/button'
+import { Input } from '/src/components/ui/input'
+import { Label } from '/src/components/ui/label'
+import { Alert, AlertDescription } from '/src/components/ui/alert'
 import { Download, AlertCircle, CheckCircle, Loader2, FileSpreadsheet, ExternalLink, ShieldCheck, Upload, PencilLine, Trash2 } from 'lucide-react'
-import { supabase } from '@/lib/supabase'
-import { useAuth } from '@/hooks/useAuth'
-import { useToast } from '@/hooks/use-toast'
+import { supabase } from '/src/lib/supabase'
+import { useAuth } from '/src/hooks/useAuth'
+import { useToast } from '/src/hooks/use-toast'
 
 interface ImportB3DialogProps {
   open: boolean

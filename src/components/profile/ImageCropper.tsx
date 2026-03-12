@@ -1,8 +1,8 @@
 import { useState, useRef, useEffect } from 'react'
-import { Button } from '@/components/ui/button'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
-import { Slider } from '@/components/ui/slider'
-import { Label } from '@/components/ui/label'
+import { Button } from '/src/components/ui/button'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '/src/components/ui/dialog'
+import { Slider } from '/src/components/ui/slider'
+import { Label } from '/src/components/ui/label'
 import { RotateCcw, ZoomIn, ZoomOut } from 'lucide-react'
 
 interface ImageCropperProps {

@@ -1,10 +1,10 @@
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
+import { Input } from '/src/components/ui/input'
+import { Label } from '/src/components/ui/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '/src/components/ui/select'
+import { Button } from '/src/components/ui/button'
+import { Card, CardContent } from '/src/components/ui/card'
 import { Calendar } from 'lucide-react'
-import { ReportFilters } from '@/hooks/useReports'
+import { ReportFilters } from '/src/hooks/useReports'
 
 interface ReportFiltersProps {
   filters: ReportFilters

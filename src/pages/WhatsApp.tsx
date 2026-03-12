@@ -1,5 +1,5 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '/src/components/ui/card'
+import { Button } from '/src/components/ui/button'
 import { Bot, CheckCircle2, ListChecks, MessageCircle, ShieldCheck, Sparkles } from 'lucide-react'
 
 const WHATSAPP_NUMBER = '+5511919570594'

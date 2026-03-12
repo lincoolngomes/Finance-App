@@ -1,16 +1,17 @@
 import React, { useState, useEffect } from 'react'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import { PhoneInput } from '@/components/ui/phone-input'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { ImageCropper } from '@/components/profile/ImageCropper'
-import { supabase } from '@/lib/supabase'
-import { useAuth } from '@/hooks/useAuth'
-import { toast } from '@/hooks/use-toast'
+import { Card, CardContent, CardHeader, CardTitle } from '/src/components/ui/card'
+import { Button } from '/src/components/ui/button'
+import { Input } from '/src/components/ui/input'
+import { Label } from '/src/components/ui/label'
+import { Avatar, AvatarFallback, AvatarImage } from '/src/components/ui/avatar'
+import { PhoneInput } from '/src/components/ui/phone-input'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '/src/components/ui/tabs'
+import { ImageCropper } from '/src/components/profile/ImageCropper'
+import { supabase } from '/src/lib/supabase'
+import { useAuth } from '/src/hooks/useAuth'
+import { toast } from '/src/hooks/use-toast'
 import { Camera, User, Save } from 'lucide-react'
+import { deriveDisplayName, deriveInitials } from '/src/utils/profile-display'
 
 interface Profile {
   nome: string
@@ -51,10 +52,17 @@ export default function ProfilePage() {
 
       if (data) {
         setProfile({
-          nome: data.nome || '',
+          nome: deriveDisplayName({ profile: data, user }),
           phone: data.phone || '',
           whatsapp: data.whatsapp || '',
           avatar_url: data.avatar_url || '',
+        })
+      } else {
+        setProfile({
+          nome: deriveDisplayName({ user }),
+          phone: '',
+          whatsapp: '',
+          avatar_url: '',
         })
       }
     } catch (error: any) {
@@ -184,12 +192,7 @@ export default function ProfilePage() {
   }
 
   const getInitials = (name: string) => {
-    return name
-      .split(' ')
-      .map(n => n[0])
-      .join('')
-      .toUpperCase()
-      .substring(0, 2)
+    return deriveInitials(name)
   }
 
   if (loading) {

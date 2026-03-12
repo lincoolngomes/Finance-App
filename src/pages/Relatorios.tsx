@@ -21,16 +21,16 @@ import {
   XAxis,
   YAxis,
 } from 'recharts'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
-import { useReports } from '@/hooks/useReports'
-import { useAuth } from '@/hooks/useAuth'
-import { ReportFiltersComponent } from '@/components/reports/ReportFilters'
-import { PDFExportOptions as PDFOptions, PDFExportOptions } from '@/components/reports/PDFExportOptions'
-import { toast } from '@/hooks/use-toast'
-import { generatePDFReport } from '@/utils/pdfGenerator'
-import { formatCurrency } from '@/utils/currency'
-import { getInvestmentImpact, getTransactionAbsoluteAmount, isInvestmentTransaction } from '@/utils/dashboard-classification'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '/src/components/ui/card'
+import { Badge } from '/src/components/ui/badge'
+import { useReports } from '/src/hooks/useReports'
+import { useAuth } from '/src/hooks/useAuth'
+import { ReportFiltersComponent } from '/src/components/reports/ReportFilters'
+import { PDFExportOptions as PDFOptions, PDFExportOptions } from '/src/components/reports/PDFExportOptions'
+import { toast } from '/src/hooks/use-toast'
+import { generatePDFReport } from '/src/utils/pdfGenerator'
+import { formatCurrency } from '/src/utils/currency'
+import { getInvestmentImpact, getTransactionAbsoluteAmount, isInvestmentTransaction } from '/src/utils/dashboard-classification'
 
 type FlowPoint = {
   label: string

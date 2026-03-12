@@ -1,13 +1,14 @@
-import { Toaster } from "@/components/ui/toaster";
-import { Toaster as Sonner } from "@/components/ui/sonner";
-import { TooltipProvider } from "@/components/ui/tooltip";
+import { Toaster } from "./components/ui/toaster";
+import { Toaster as Sonner } from "./components/ui/sonner";
+import { TooltipProvider } from "./components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import { AuthProvider, useAuth } from "@/hooks/useAuth";
-import { ThemeProvider } from "@/hooks/useTheme";
-import { AppLayout } from "@/components/layout/AppLayout";
+import { AuthProvider, useAuth } from "./hooks/useAuth";
+import { ThemeProvider } from "./hooks/useTheme";
+import { AppLayout } from "./components/layout/AppLayout";
 import { useState, useEffect, lazy, Suspense } from "react";
-import { supabase } from "@/lib/supabase";
+import { supabase } from "./lib/supabase";
+import { deriveDisplayName, deriveFirstName } from "./utils/profile-display";
 
 const Auth = lazy(() => import("./pages/Auth"));
 const Dashboard = lazy(() => import("./pages/Dashboard"));
@@ -60,10 +61,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
           .single();
         
         if (!error && profile) {
-          console.log('Perfil carregado:', profile); // Debug
           setUserProfile(profile);
-        } else {
-          console.log('Erro ou perfil não encontrado:', error); // Debug
         }
       } catch (error) {
         console.error('Erro ao carregar perfil:', error);
@@ -81,10 +79,8 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
     return <Navigate to="/auth" replace />;
   }
 
-  const fullName = userProfile?.nome || userProfile?.name || userProfile?.full_name || user?.email?.split('@')[0] || 'Lincoln Cesar Gomes';
-  const firstName = fullName?.split(' ')[0] || 'Lincoln';
-  console.log('Nome completo:', fullName); // Debug
-  console.log('Primeiro nome:', firstName); // Debug
+  const fullName = deriveDisplayName({ profile: userProfile, user });
+  const firstName = deriveFirstName(fullName);
   return <AppLayout userName={firstName}>{children}</AppLayout>;
 }
 

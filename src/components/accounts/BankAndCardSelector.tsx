@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
-import { supabase } from "@/lib/supabase";
-import { useAuth } from "@/hooks/useAuth";
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
+import { supabase } from "/src/lib/supabase";
+import { useAuth } from "/src/hooks/useAuth";
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "/src/components/ui/select";
 
 export type Account = {
   id: string;

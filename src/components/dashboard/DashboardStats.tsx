@@ -1,7 +1,7 @@
 import type { KeyboardEvent } from 'react'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '/src/components/ui/card'
 import { TrendingUp, TrendingDown, DollarSign, Calendar, Landmark } from 'lucide-react'
-import { formatCurrency } from '@/utils/currency'
+import { formatCurrency } from '/src/utils/currency'
 
 interface DashboardStatsProps {
   stats: {

@@ -1,8 +1,8 @@
 
 import React, { forwardRef } from 'react'
-import { Input } from '@/components/ui/input'
-import { formatCurrencyInput, parseCurrency } from '@/utils/currency'
-import { cn } from '@/lib/utils'
+import { Input } from '/src/components/ui/input'
+import { formatCurrencyInput, parseCurrency } from '/src/utils/currency'
+import { cn } from '/src/lib/utils'
 
 interface CurrencyInputProps extends Omit<React.ComponentProps<"input">, "onChange" | "value"> {
   value?: string | number

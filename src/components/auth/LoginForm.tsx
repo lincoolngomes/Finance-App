@@ -1,10 +1,10 @@
 import { useState } from 'react'
-import { supabase } from '@/lib/supabase'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { useAuth } from '@/hooks/useAuth'
-import { toast } from '@/hooks/use-toast'
+import { supabase, SUPABASE_RUNTIME_MODE, SUPABASE_URL } from '/src/lib/supabase'
+import { Button } from '/src/components/ui/button'
+import { Input } from '/src/components/ui/input'
+import { Label } from '/src/components/ui/label'
+import { useAuth } from '/src/hooks/useAuth'
+import { toast } from '/src/hooks/use-toast'
 import { Loader2 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 
@@ -90,36 +90,52 @@ export function LoginForm({ onForgotPassword }: LoginFormProps) {
       const { error } = await signIn(email, password)
 
       if (error) {
-        // Verificar se é erro de CORS
-        if (error.message.includes('fetch') || error.message.includes('CORS')) {
+        const errorMessage = error?.message || ''
+        const isConnectionError =
+          errorMessage.includes('fetch') ||
+          errorMessage.includes('CORS') ||
+          errorMessage.includes('Failed to fetch') ||
+          errorMessage.includes('NetworkError')
+
+        if (isConnectionError) {
           toast({
-            title: "⚠️ Erro de Conexão (CORS)",
-            description: "O servidor Supabase não está configurado para aceitar conexões do localhost. Configure as variáveis de ambiente no Easypanel conforme o arquivo CORRECAO-CORS-SUPABASE.md",
-            variant: "destructive",
+            title: '⚠️ Erro de Conexão com Supabase',
+            description:
+              `Falha ao conectar (${SUPABASE_RUNTIME_MODE}). URL ativa: ${SUPABASE_URL}. ` +
+              'Reinicie o Vite após alterar o .env.local.',
+            variant: 'destructive',
             duration: 10000,
           })
         } else {
           toast({
-            title: "Erro no login",
+            title: 'Erro no login',
             description: error.message,
-            variant: "destructive",
+            variant: 'destructive',
           })
         }
       }
     } catch (error: any) {
-      // Verificar se é erro de CORS
-      if (error.message?.includes('fetch') || error.message?.includes('CORS') || error.message?.includes('Failed to fetch')) {
+      const message = error?.message || ''
+      const isConnectionError =
+        message.includes('fetch') ||
+        message.includes('CORS') ||
+        message.includes('Failed to fetch') ||
+        message.includes('NetworkError')
+
+      if (isConnectionError) {
         toast({
-          title: "⚠️ Erro de Conexão (CORS)",
-          description: "O servidor Supabase não está configurado para aceitar conexões do localhost. Solução: Configure CORS no Easypanel ou use um proxy local.",
-          variant: "destructive",
+          title: '⚠️ Erro de Conexão com Supabase',
+          description:
+            `Falha ao conectar (${SUPABASE_RUNTIME_MODE}). URL ativa: ${SUPABASE_URL}. ` +
+            'Reinicie o Vite após alterar o .env.local.',
+          variant: 'destructive',
           duration: 10000,
         })
       } else {
         toast({
-          title: "Erro no login",
-          description: error.message || "Ocorreu um erro ao fazer login",
-          variant: "destructive",
+          title: 'Erro no login',
+          description: error.message || 'Ocorreu um erro ao fazer login',
+          variant: 'destructive',
         })
       }
     }

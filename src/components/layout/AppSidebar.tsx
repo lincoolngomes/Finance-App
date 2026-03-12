@@ -12,12 +12,12 @@ import {
   SidebarHeader,
   SidebarFooter,
   useSidebar,
-} from '@/components/ui/sidebar'
-import { useAuth } from '@/hooks/useAuth'
-import { useAdmin } from '@/hooks/useAdmin'
-import { Button } from '@/components/ui/button'
+} from '../ui/sidebar'
+import { useAuth } from '../../hooks/useAuth'
+import { useAdmin } from '../../hooks/useAdmin'
+import { Button } from '../ui/button'
 import { UserProfile } from './UserProfile'
-import { useTheme } from '@/hooks/useTheme'
+import { useTheme } from '../../hooks/useTheme'
 
 
 

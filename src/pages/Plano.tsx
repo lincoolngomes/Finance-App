@@ -1,8 +1,8 @@
 
-import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
-import { ThemeToggle } from '@/components/ui/theme-toggle'
-import { useTheme } from '@/hooks/useTheme'
+import { Button } from '/src/components/ui/button'
+import { Card, CardContent } from '/src/components/ui/card'
+import { ThemeToggle } from '/src/components/ui/theme-toggle'
+import { useTheme } from '/src/hooks/useTheme'
 import { Check } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 

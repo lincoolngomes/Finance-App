@@ -1,13 +1,14 @@
 import { useState, useEffect } from 'react'
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import { supabase } from '@/lib/supabase'
-import { useAuth } from '@/hooks/useAuth'
-import { toast } from '@/hooks/use-toast'
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '/src/components/ui/card'
+import { Button } from '/src/components/ui/button'
+import { Input } from '/src/components/ui/input'
+import { Label } from '/src/components/ui/label'
+import { Avatar, AvatarFallback, AvatarImage } from '/src/components/ui/avatar'
+import { supabase } from '/src/lib/supabase'
+import { useAuth } from '/src/hooks/useAuth'
+import { toast } from '/src/hooks/use-toast'
 import { Camera, Mail, MapPin, Briefcase, DollarSign } from 'lucide-react'
+import { deriveDisplayName, deriveInitials } from '/src/utils/profile-display'
 
 interface Profile {
   nome: string
@@ -61,7 +62,7 @@ export default function Perfil() {
       
       if (data) {
         setProfile({
-          nome: data.nome || '',
+          nome: deriveDisplayName({ profile: data, user }),
           email: user?.email || '',
           phone: data.phone || '',
           avatar_url: data.avatar_url,
@@ -72,7 +73,7 @@ export default function Perfil() {
       } else {
         // Se não existe perfil, usar dados do user
         setProfile({
-          nome: user?.user_metadata?.nome || user?.email?.split('@')[0] || '',
+          nome: deriveDisplayName({ user }),
           email: user?.email || '',
           phone: '',
           avatar_url: undefined,
@@ -206,13 +207,7 @@ export default function Perfil() {
   }
 
   const getInitials = (name: string) => {
-    if (!name) return 'U'
-    return name
-      .split(' ')
-      .map(n => n[0])
-      .join('')
-      .toUpperCase()
-      .slice(0, 2)
+    return deriveInitials(name)
   }
 
   if (loading) {

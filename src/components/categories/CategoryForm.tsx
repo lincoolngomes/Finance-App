@@ -1,24 +1,24 @@
 
 import { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
+import { Button } from '/src/components/ui/button';
+import { Input } from '/src/components/ui/input';
+import { Label } from '/src/components/ui/label';
+import { Textarea } from '/src/components/ui/textarea';
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog';
+} from '/src/components/ui/dialog';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select';
-import { useCategories, Category } from '@/hooks/useCategories';
+} from '/src/components/ui/select';
+import { useCategories, Category } from '/src/hooks/useCategories';
 
 interface CategoryFormProps {
   category?: Category | null;

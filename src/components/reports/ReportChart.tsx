@@ -1,6 +1,6 @@
 
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart'
+import { Card, CardContent, CardHeader, CardTitle } from '/src/components/ui/card'
+import { ChartContainer, ChartTooltip, ChartTooltipContent } from '/src/components/ui/chart'
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis } from 'recharts'
 import { useState, useEffect } from 'react'
 

@@ -1,9 +1,9 @@
 
 import { useState } from 'react'
-import { LoginForm } from '@/components/auth/LoginForm'
-import { ForgotPasswordForm } from '@/components/auth/ForgotPasswordForm'
-import { ThemeToggle } from '@/components/ui/theme-toggle'
-import { useTheme } from '@/hooks/useTheme'
+import { LoginForm } from '/src/components/auth/LoginForm'
+import { ForgotPasswordForm } from '/src/components/auth/ForgotPasswordForm'
+import { ThemeToggle } from '/src/components/ui/theme-toggle'
+import { useTheme } from '/src/hooks/useTheme'
 
 type AuthMode = 'login' | 'forgot'
 

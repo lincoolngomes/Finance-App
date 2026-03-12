@@ -1,5 +1,5 @@
-import { useAuth } from '@/hooks/useAuth'
-import { supabase } from '@/lib/supabase'
+import { useAuth } from '/src/hooks/useAuth'
+import { supabase } from '/src/lib/supabase'
 import { useState, useEffect } from 'react'
 
 export default function Diagnostico() {

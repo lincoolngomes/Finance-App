@@ -1,10 +1,10 @@
 
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '/src/components/ui/table'
+import { Card, CardContent, CardHeader, CardTitle } from '/src/components/ui/card'
+import { Badge } from '/src/components/ui/badge'
 import { TrendingUp, TrendingDown } from 'lucide-react'
-import { formatCurrency } from '@/utils/currency'
-import { ReportTransaction } from '@/hooks/useReports'
+import { formatCurrency } from '/src/utils/currency'
+import { ReportTransaction } from '/src/hooks/useReports'
 
 interface ReportTableProps {
   transactions: ReportTransaction[]

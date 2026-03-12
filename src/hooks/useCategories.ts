@@ -1,7 +1,7 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/lib/supabase';
-import { useAuth } from '@/hooks/useAuth';
+import { supabase } from '../lib/supabase';
+import { useAuth } from './useAuth';
 import { toast } from 'sonner';
 
 const normalizeCategoryName = (value: string) =>

@@ -1,16 +1,16 @@
 import { useState, useMemo, useEffect, useRef } from 'react'
-import { useInvestments, Investimento } from '@/hooks/useInvestments'
-import { useSincronizacaoFundos } from '@/hooks/useSincronizacaoFundos'
-import { formatCurrency } from '@/utils/currency'
-import { buscarIndicesEconomicos, IndicesEconomicos } from '@/utils/indices-economicos'
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
-import { Input } from '@/components/ui/input'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Progress } from '@/components/ui/progress'
-import { Skeleton } from '@/components/ui/skeleton'
+import { useInvestments, Investimento } from '/src/hooks/useInvestments'
+import { useSincronizacaoFundos } from '/src/hooks/useSincronizacaoFundos'
+import { formatCurrency } from '/src/utils/currency'
+import { buscarIndicesEconomicos, IndicesEconomicos } from '/src/utils/indices-economicos'
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '/src/components/ui/card'
+import { Button } from '/src/components/ui/button'
+import { Badge } from '/src/components/ui/badge'
+import { Input } from '/src/components/ui/input'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '/src/components/ui/select'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '/src/components/ui/tabs'
+import { Progress } from '/src/components/ui/progress'
+import { Skeleton } from '/src/components/ui/skeleton'
 import { 
   TrendingUp, 
   TrendingDown, 
@@ -41,10 +41,10 @@ import {
   Circle,
   Download
 } from 'lucide-react'
-import { AddTransactionDialog } from '@/components/investments/AddTransactionDialog'
-import { EditInvestmentDialog } from '@/components/investments/EditInvestmentDialog'
-import { ResgateDialog } from '@/components/investments/ResgateDialog'
-import { ImportB3Dialog } from '@/components/investments/ImportB3Dialog'
+import { AddTransactionDialog } from '/src/components/investments/AddTransactionDialog'
+import { EditInvestmentDialog } from '/src/components/investments/EditInvestmentDialog'
+import { ResgateDialog } from '/src/components/investments/ResgateDialog'
+import { ImportB3Dialog } from '/src/components/investments/ImportB3Dialog'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -54,13 +54,13 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from "@/components/ui/alert-dialog"
+} from "/src/components/ui/alert-dialog"
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from "@/components/ui/tooltip"
+} from "/src/components/ui/tooltip"
 import { PieChart as RechartsPie, Pie, Cell, ResponsiveContainer, Legend, Tooltip as RechartsTooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts'
 import { format, differenceInDays, addDays, isPast, isWithinInterval, parseISO } from 'date-fns'
 import { ptBR } from 'date-fns/locale'

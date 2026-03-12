@@ -1,17 +1,17 @@
 
 import React, { useEffect, useState } from 'react';
-import { supabase } from '@/lib/supabase';
-import { useAuth } from '@/hooks/useAuth';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Dialog, DialogContent } from '@/components/ui/dialog';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { GerenciarFaturasModal } from '@/components/faturas/GerenciarFaturasModal';
-import { ImportarFaturaModalNovo } from '@/components/faturas/ImportarFaturaModalNovo';
-import { HistoricoImportacoesModal } from '@/components/faturas/HistoricoImportacoesModal';
-import { formatCurrency, formatarValorBR, parseValorBR } from '@/utils/currency';
-import { categorizar } from '@/utils/categorizacao';
-import { Card, CardContent } from '@/components/ui/card';
+import { supabase } from '/src/lib/supabase';
+import { useAuth } from '/src/hooks/useAuth';
+import { Button } from '/src/components/ui/button';
+import { Input } from '/src/components/ui/input';
+import { Dialog, DialogContent } from '/src/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '/src/components/ui/select';
+import { GerenciarFaturasModal } from '/src/components/faturas/GerenciarFaturasModal';
+import { ImportarFaturaModalNovo } from '/src/components/faturas/ImportarFaturaModalNovo';
+import { HistoricoImportacoesModal } from '/src/components/faturas/HistoricoImportacoesModal';
+import { formatCurrency, formatarValorBR, parseValorBR } from '/src/utils/currency';
+import { categorizar } from '/src/utils/categorizacao';
+import { Card, CardContent } from '/src/components/ui/card';
 
 // Modal simplificado para importar extrato (antigo - manter para compatibilidade)
 function ImportarExtratoModal({ open, onClose, onImport }) {

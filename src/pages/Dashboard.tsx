@@ -1,19 +1,19 @@
 import { useState, useEffect, useMemo } from 'react'
-import { supabase } from '@/lib/supabase'
-import { useAuth } from '@/hooks/useAuth'
-import { toast } from '@/hooks/use-toast'
-import { useDashboardPreferences } from '@/hooks/useDashboardPreferences'
-import { DashboardStats } from '@/components/dashboard/DashboardStats'
-import { DashboardFilters } from '@/components/dashboard/DashboardFilters'
-import { DashboardCharts } from '@/components/dashboard/DashboardCharts'
-import { GerenciarFaturasModal } from '@/components/faturas/GerenciarFaturasModal'
-import { getTransactionMonth, enrichCardTransactions } from '@/utils/dateParser'
+import { supabase } from '/src/lib/supabase'
+import { useAuth } from '/src/hooks/useAuth'
+import { toast } from '/src/hooks/use-toast'
+import { useDashboardPreferences } from '/src/hooks/useDashboardPreferences'
+import { DashboardStats } from '/src/components/dashboard/DashboardStats'
+import { DashboardFilters } from '/src/components/dashboard/DashboardFilters'
+import { DashboardCharts } from '/src/components/dashboard/DashboardCharts'
+import { GerenciarFaturasModal } from '/src/components/faturas/GerenciarFaturasModal'
+import { getTransactionMonth, enrichCardTransactions } from '/src/utils/dateParser'
 import {
   getInvestmentImpact,
   isInvestmentTransaction,
   shouldIncludeTransactionByCardExpenseMode,
   shouldIncludeTransactionInDashboardView,
-} from '@/utils/dashboard-classification'
+} from '/src/utils/dashboard-classification'
 
 interface Transacao {
   id: number
@@ -209,7 +209,7 @@ export default function Dashboard() {
 
         // Aplicar categorização retroativa para transações sem categoria
         if (transacoesData) {
-          const { categorizar, REGRAS_PADRAO } = await import('@/utils/categorizacao');
+          const { categorizar, REGRAS_PADRAO } = await import('/src/utils/categorizacao');
           const regrasTexto = localStorage.getItem('regrasFatura') || REGRAS_PADRAO;
           
           const categoriasMap = new Map((categoriasData || []).map(c => [c.nome?.toLowerCase(), c]));

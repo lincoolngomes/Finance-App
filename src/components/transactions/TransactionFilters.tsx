@@ -1,9 +1,9 @@
 
-import { Input } from '@/components/ui/input'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Button } from '@/components/ui/button'
+import { Input } from '/src/components/ui/input'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '/src/components/ui/select'
+import { Button } from '/src/components/ui/button'
 import { Search, Filter, X, ArrowUpDown } from 'lucide-react'
-import { useCategories } from '@/hooks/useCategories'
+import { useCategories } from '/src/hooks/useCategories'
 
 interface TransactionFiltersProps {
   searchTerm: string

@@ -1,17 +1,17 @@
 import { useState, useMemo, useEffect } from 'react';
 import { Plus, Trash2, TrendingUp, TrendingDown, PiggyBank } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Label } from '@/components/ui/label';
-import { CategoriesList } from '@/components/categories/CategoriesList';
-import { CategoryForm } from '@/components/categories/CategoryForm';
-import { useCategories } from '@/hooks/useCategories';
-import { supabase } from '@/lib/supabase';
-import { toast } from '@/hooks/use-toast';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { useAuth } from '@/hooks/useAuth';
-import { isDefaultCategory } from '@/constants/defaultCategories';
+import { Button } from '/src/components/ui/button';
+import { Checkbox } from '/src/components/ui/checkbox';
+import { Label } from '/src/components/ui/label';
+import { CategoriesList } from '/src/components/categories/CategoriesList';
+import { CategoryForm } from '/src/components/categories/CategoryForm';
+import { useCategories } from '/src/hooks/useCategories';
+import { supabase } from '/src/lib/supabase';
+import { toast } from '/src/hooks/use-toast';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '/src/components/ui/select';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '/src/components/ui/dialog';
+import { useAuth } from '/src/hooks/useAuth';
+import { isDefaultCategory } from '/src/constants/defaultCategories';
 
 type CategoryStats = Record<string, { lancamentos: number; valor: number }>;
 

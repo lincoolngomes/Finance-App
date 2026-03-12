@@ -1,13 +1,13 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { useAuth } from '@/hooks/useAuth';
-import { supabase } from '@/lib/supabase';
+import { useAuth } from '/src/hooks/useAuth';
+import { supabase } from '/src/lib/supabase';
 import Papa from 'papaparse';
 import pdfWorkerUrl from 'pdfjs-dist/legacy/build/pdf.worker.min.mjs?url';
-import { toast } from '@/hooks/use-toast';
-import { ImportCategoryCombobox, type ImportCategoryOption } from '@/components/importers/ImportCategoryCombobox';
-import { normalizar, categorizar, REGRAS_PADRAO } from '@/utils/categorizacao';
-import { formatCurrency } from '@/utils/currency';
-import { isDefaultCategory } from '@/constants/defaultCategories';
+import { toast } from '/src/hooks/use-toast';
+import { ImportCategoryCombobox, type ImportCategoryOption } from '/src/components/importers/ImportCategoryCombobox';
+import { normalizar, categorizar, REGRAS_PADRAO } from '/src/utils/categorizacao';
+import { formatCurrency } from '/src/utils/currency';
+import { isDefaultCategory } from '/src/constants/defaultCategories';
 
 interface Transacao {
   uid: string;

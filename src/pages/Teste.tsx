@@ -1,13 +1,13 @@
 import { useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Badge } from '@/components/ui/badge';
-import { Separator } from '@/components/ui/separator';
-import { useSubscription } from '@/hooks/useSubscription';
-import { fetchSubscriptionInfo } from '@/utils/subscription';
-import { toast } from '@/hooks/use-toast';
+import { Card, CardContent, CardHeader, CardTitle } from '/src/components/ui/card';
+import { Button } from '/src/components/ui/button';
+import { Input } from '/src/components/ui/input';
+import { Label } from '/src/components/ui/label';
+import { Badge } from '/src/components/ui/badge';
+import { Separator } from '/src/components/ui/separator';
+import { useSubscription } from '/src/hooks/useSubscription';
+import { fetchSubscriptionInfo } from '/src/utils/subscription';
+import { toast } from '/src/hooks/use-toast';
 import { CreditCard, TestTube, RefreshCw, Calendar, DollarSign, Clock, CheckCircle, XCircle } from 'lucide-react';
 
 export default function TestePage() {

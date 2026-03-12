@@ -1,9 +1,9 @@
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { formatCurrency } from '@/utils/currency'
-import { getTransactionMonth, parseToDateUTC } from '@/utils/dateParser'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '/src/components/ui/card'
+import { Button } from '/src/components/ui/button'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '/src/components/ui/dialog'
+import { formatCurrency } from '/src/utils/currency'
+import { getTransactionMonth, parseToDateUTC } from '/src/utils/dateParser'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line, Legend, ReferenceLine } from 'recharts'
 import { Calendar, CreditCard, Landmark, TrendingDown, TrendingUp } from 'lucide-react'
 import { useEffect, useState, useMemo } from 'react'
@@ -12,7 +12,7 @@ import {
   isInvestmentTransaction,
   shouldIncludeTransactionByCardExpenseMode,
   shouldIncludeTransactionInDashboardView,
-} from '@/utils/dashboard-classification'
+} from '/src/utils/dashboard-classification'
 
 // (Removido bloco duplicado da função DashboardCharts)
 

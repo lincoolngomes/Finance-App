@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from './useAuth';
-import { supabase } from '@/lib/supabase';
-import { fetchSubscriptionInfo, SubscriptionData, isSubscriptionActive } from '@/utils/subscription';
+import { supabase } from '../lib/supabase';
+import { fetchSubscriptionInfo, SubscriptionData, isSubscriptionActive } from '../utils/subscription';
 import { toast } from './use-toast';
 
 interface UseSubscriptionReturn {

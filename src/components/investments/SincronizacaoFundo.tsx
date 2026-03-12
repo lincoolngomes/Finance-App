@@ -1,5 +1,5 @@
-import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
+import { Badge } from '/src/components/ui/badge'
+import { Button } from '/src/components/ui/button'
 import { RefreshCcw, AlertCircle, CheckCircle2 } from 'lucide-react'
 import { formatDistanceToNow } from 'date-fns'
 import { ptBR } from 'date-fns/locale'

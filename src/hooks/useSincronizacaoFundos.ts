@@ -4,7 +4,7 @@ import {
   buscarCotaAtualizadaFundo,
   calcularValorAtualFundo,
   ConfiguracaoSincronizacaoFundo,
-} from '@/utils/cvm'
+} from '../utils/cvm'
 
 interface StatusSincronizacao {
   fundoId: string

@@ -1,15 +1,15 @@
 import { useState, useEffect } from 'react'
-import { useAdmin } from '@/hooks/useAdmin'
-import { supabase } from '@/lib/supabase'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
-import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar'
-import { Input } from '@/components/ui/input'
-import { Badge } from '@/components/ui/badge'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Label } from '@/components/ui/label'
+import { useAdmin } from '/src/hooks/useAdmin'
+import { supabase } from '/src/lib/supabase'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '/src/components/ui/card'
+import { Button } from '/src/components/ui/button'
+import { Avatar, AvatarImage, AvatarFallback } from '/src/components/ui/avatar'
+import { Input } from '/src/components/ui/input'
+import { Badge } from '/src/components/ui/badge'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '/src/components/ui/select'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '/src/components/ui/table'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '/src/components/ui/dialog'
+import { Label } from '/src/components/ui/label'
 import { 
   User, 
   Users,
@@ -24,7 +24,7 @@ import {
   EyeOff,
   UserPlus
 } from "lucide-react"
-import { useToast } from '@/hooks/use-toast'
+import { useToast } from '/src/hooks/use-toast'
 import { Navigate } from 'react-router-dom'
 
 interface User {

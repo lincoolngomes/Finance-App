@@ -1,10 +1,10 @@
 import * as React from 'react';
 import { Check, ChevronDown, PlusCircle } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { normalizar } from '@/utils/categorizacao';
-import { cn } from '@/lib/utils';
+import { Button } from '/src/components/ui/button';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '/src/components/ui/dialog';
+import { Input } from '/src/components/ui/input';
+import { normalizar } from '/src/utils/categorizacao';
+import { cn } from '/src/lib/utils';
 
 export interface ImportCategoryOption {
   value: string;

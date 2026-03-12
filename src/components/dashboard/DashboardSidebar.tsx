@@ -1,7 +1,7 @@
 
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from '/src/components/ui/card'
 import { Calendar, Lightbulb } from 'lucide-react'
-import { formatCurrency } from '@/utils/currency'
+import { formatCurrency } from '/src/utils/currency'
 
 interface Lembrete {
   id: number

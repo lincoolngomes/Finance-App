@@ -1,9 +1,9 @@
 
 import React, { forwardRef } from 'react'
-import { Input } from '@/components/ui/input'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { useCountries, Country } from '@/hooks/useCountries'
-import { cn } from '@/lib/utils'
+import { Input } from '/src/components/ui/input'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '/src/components/ui/select'
+import { useCountries, Country } from '/src/hooks/useCountries'
+import { cn } from '/src/lib/utils'
 
 interface PhoneInputProps extends Omit<React.ComponentProps<"input">, "onChange" | "value"> {
   value?: string

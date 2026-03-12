@@ -56,9 +56,9 @@ import React, { useEffect, useState } from 'react';
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../hooks/useAuth";
 import Papa from 'papaparse';
-import { ImportCategoryCombobox, type ImportCategoryOption } from '@/components/importers/ImportCategoryCombobox';
+import { ImportCategoryCombobox, type ImportCategoryOption } from '/src/components/importers/ImportCategoryCombobox';
 import { REGRAS_PADRAO } from "../utils/categorizacao";
-import { isDefaultCategory } from '@/constants/defaultCategories';
+import { isDefaultCategory } from '/src/constants/defaultCategories';
 // Modal de importação de extrato bancário
 
 

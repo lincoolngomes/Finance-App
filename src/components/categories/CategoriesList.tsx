@@ -1,9 +1,9 @@
 import { Edit, Trash2, Tag, List } from 'lucide-react';
 import { useMemo } from 'react';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Card, CardContent } from '@/components/ui/card';
-import { Checkbox } from '@/components/ui/checkbox';
+import { Button } from '/src/components/ui/button';
+import { Badge } from '/src/components/ui/badge';
+import { Card, CardContent } from '/src/components/ui/card';
+import { Checkbox } from '/src/components/ui/checkbox';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -14,8 +14,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
   AlertDialogTrigger,
-} from '@/components/ui/alert-dialog';
-import { useCategories, Category } from '@/hooks/useCategories';
+} from '/src/components/ui/alert-dialog';
+import { useCategories, Category } from '/src/hooks/useCategories';
 
 interface CategoriesListProps {
   categories: Category[];

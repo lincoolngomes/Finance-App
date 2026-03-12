@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react'
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Textarea } from '@/components/ui/textarea'
-import { useInvestments, Investimento } from '@/hooks/useInvestments'
-import { formatCurrency, parseValorBR, formatarValorBR } from '@/utils/currency'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '/src/components/ui/dialog'
+import { Button } from '/src/components/ui/button'
+import { Input } from '/src/components/ui/input'
+import { Label } from '/src/components/ui/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '/src/components/ui/select'
+import { Textarea } from '/src/components/ui/textarea'
+import { useInvestments, Investimento } from '/src/hooks/useInvestments'
+import { formatCurrency, parseValorBR, formatarValorBR } from '/src/utils/currency'
 
 interface EditInvestmentDialogProps {
   open: boolean

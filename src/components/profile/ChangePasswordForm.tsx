@@ -1,11 +1,11 @@
 
 import { useState } from 'react'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { supabase } from '@/lib/supabase'
-import { toast } from '@/hooks/use-toast'
+import { Card, CardContent, CardHeader, CardTitle } from '/src/components/ui/card'
+import { Button } from '/src/components/ui/button'
+import { Input } from '/src/components/ui/input'
+import { Label } from '/src/components/ui/label'
+import { supabase } from '/src/lib/supabase'
+import { toast } from '/src/hooks/use-toast'
 import { Lock } from 'lucide-react'
 
 export function ChangePasswordForm() {

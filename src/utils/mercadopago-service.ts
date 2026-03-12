@@ -96,7 +96,7 @@ export async function createPaymentPreference(
  * Busca planos disponíveis no Supabase
  */
 export async function getAvailablePlans(): Promise<SubscriptionPlan[]> {
-  const { supabase } = await import('@/lib/supabase');
+  const { supabase } = await import('/src/lib/supabase');
   
   const { data, error } = await supabase
     .from('subscription_plans')

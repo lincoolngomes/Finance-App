@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
-import { useAuth } from '@/hooks/useAuth';
-import { supabase } from '@/lib/supabase';
+import { useAuth } from '/src/hooks/useAuth';
+import { supabase } from '/src/lib/supabase';
 import Papa from 'papaparse';
-import { ImportCategoryCombobox, type ImportCategoryOption } from '@/components/importers/ImportCategoryCombobox';
-import { categorizar, normalizar, REGRAS_PADRAO } from '@/utils/categorizacao';
-import { isDefaultCategory } from '@/constants/defaultCategories';
+import { ImportCategoryCombobox, type ImportCategoryOption } from '/src/components/importers/ImportCategoryCombobox';
+import { categorizar, normalizar, REGRAS_PADRAO } from '/src/utils/categorizacao';
+import { isDefaultCategory } from '/src/constants/defaultCategories';
 
 interface Lancamento {
   uid: string;

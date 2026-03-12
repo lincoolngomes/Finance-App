@@ -8,8 +8,8 @@ import {
   reactivateSubscription,
   type SubscriptionInfo,
   type Subscription,
-} from '@/utils/subscription-service';
-import { supabase } from '@/lib/supabase';
+} from '../utils/subscription-service';
+import { supabase } from '../lib/supabase';
 
 /**
  * Hook para verificar se usuário tem assinatura ativa
