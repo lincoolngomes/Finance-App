@@ -1119,12 +1119,14 @@ const Transacoes: React.FC = () => {
         return v
       }
 
+      const valorNormalizado = Math.abs(Number(formData.valor) || 0)
+
       const transacaoData = {
         data: formData.quando || null,
         descricao: formData.estabelecimento
           ? String(formData.estabelecimento).trim().toLocaleUpperCase('pt-BR')
           : null,
-        valor: formData.valor || null,
+        valor: valorNormalizado || null,
         observacao: formData.detalhes || null,
         tipo: formData.tipo || null,
         categoria_id: normalizeUuid(formData.category_id),
@@ -1269,7 +1271,7 @@ const Transacoes: React.FC = () => {
     setFormData({
       quando: dataNormalizada,
       estabelecimento: transacao.descricao || '',
-      valor: typeof transacao.valor === 'number' && !isNaN(transacao.valor) ? transacao.valor : 0,
+      valor: typeof transacao.valor === 'number' && !isNaN(transacao.valor) ? Math.abs(transacao.valor) : 0,
       detalhes: transacao.observacao || '',
       tipo: transacao.tipo || '',
       category_id: transacao.categoria_id || '',
@@ -2591,7 +2593,7 @@ const Transacoes: React.FC = () => {
                         placeholder="0,00"
                         className="h-12 text-sm border-primary/30 bg-background/50 focus:bg-background focus:border-primary/60 rounded-lg transition-all pl-12 font-bold text-base text-primary focus:ring-2 focus:ring-primary/20"
                         value={formData.valor || ''}
-                        onChange={e => setFormData({ ...formData, valor: Number(e.target.value) })}
+                        onChange={e => setFormData({ ...formData, valor: Math.abs(Number(e.target.value)) })}
                         required
                       />
                     </div>
