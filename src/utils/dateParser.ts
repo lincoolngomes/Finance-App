@@ -35,6 +35,22 @@ export function parseToDateUTC(dateStr?: string | null): Date | null {
   return new Date(Date.UTC(dt.getUTCFullYear(), dt.getUTCMonth(), dt.getUTCDate()))
 }
 
+export function extractImportedInvoiceReference(
+  observacao?: string | null,
+): { mes: number; ano: number } | null {
+  const match = String(observacao || '').match(/^\s*Fatura\s+(\d{1,2})\/(\d{4})\s*$/i)
+  if (!match) return null
+
+  const mes = Number(match[1])
+  const ano = Number(match[2])
+
+  if (!Number.isFinite(mes) || !Number.isFinite(ano) || mes < 1 || mes > 12 || ano < 1) {
+    return null
+  }
+
+  return { mes, ano }
+}
+
 /**
  * Determina o mês/ano de uma transação para fins de filtragem.
  * - Transações de cartão com fatura_mes/fatura_ano: usa esses campos
@@ -63,38 +79,47 @@ export function getTransactionMonth(t: {
 /**
  * Calcula o mês/ano da fatura para uma transação de cartão baseado no dia de fechamento.
  * 
- * Lógica (consistente com GerenciarFaturasModal):
- * A fatura de um mês M contém compras do dia_fechamento do mês M-2 até o dia_fechamento do mês M-1.
- * 
- * Regra simplificada:
- * - Se dia_compra < dia_fechamento → fatura do mês atual da compra
- * - Se dia_compra >= dia_fechamento → fatura do mês seguinte ao da compra
- * 
- * Exemplo: dia_fechamento = 7
- * - Compra em 05/01 (dia < 7) → fatura de Janeiro
- * - Compra em 07/01 (dia >= 7) → fatura de Fevereiro
- * - Compra em 08/01 (dia >= 7) → fatura de Fevereiro
- * - Compra em 15/02 (dia >= 7) → fatura de Março
+ * O mês/ano retornado representa a referência da fatura pelo VENCIMENTO,
+ * como já é tratado em GerenciarFaturasModal.
+ *
+ * Regras:
+ * - Se fechamento < vencimento: compras até o fechamento entram na fatura do mês atual;
+ *   compras após o fechamento entram na fatura do mês seguinte.
+ * - Se fechamento >= vencimento: a referência já anda um mês à frente;
+ *   compras até o fechamento entram na fatura do mês seguinte e compras após o fechamento
+ *   entram na fatura do mês subsequente.
  * 
  * @param dataCompra - Data da compra (UTC)
  * @param diaFechamento - Dia de fechamento do cartão (1-31)
+ * @param diaVencimento - Dia de vencimento do cartão (1-31)
  * @returns { fatura_mes: 1-12, fatura_ano: number }
  */
 export function calcularMesFatura(
   dataCompra: Date,
-  diaFechamento: number
+  diaFechamento: number,
+  diaVencimento?: number | null,
 ): { fatura_mes: number; fatura_ano: number } {
   const dia = dataCompra.getUTCDate()
   let mes = dataCompra.getUTCMonth() + 1 // 1-12
   let ano = dataCompra.getUTCFullYear()
+  const fechamento = Number.isFinite(Number(diaFechamento)) ? Number(diaFechamento) : 1
+  const vencimento = Number.isFinite(Number(diaVencimento)) ? Number(diaVencimento) : null
 
-  // Se dia da compra >= dia de fechamento, a compra vai para a fatura do mês seguinte
-  if (dia >= diaFechamento) {
+  let mesesParaSomar = 0
+
+  if (vencimento != null && fechamento >= vencimento) {
+    mesesParaSomar = dia > fechamento ? 2 : 1
+  } else {
+    mesesParaSomar = dia > fechamento ? 1 : 0
+  }
+
+  while (mesesParaSomar > 0) {
     mes += 1
     if (mes > 12) {
       mes = 1
       ano += 1
     }
+    mesesParaSomar -= 1
   }
 
   return { fatura_mes: mes, fatura_ano: ano }
@@ -115,30 +140,47 @@ export function enrichCardTransactions(
     fatura_ano?: number | null
     data?: string | null
     created_at?: string | null
+    observacao?: string | null
     [key: string]: any
   }>,
   cartoes: Array<{
     id: string
     dia_fechamento?: string | number | null
+    dia_vencimento?: string | number | null
     [key: string]: any
   }>
 ): void {
-  // Criar mapa de cartão_id → dia_fechamento
-  const cartaoMap = new Map<string, number>()
+  // Criar mapa de cartão_id → configuração de fechamento/vencimento
+  const cartaoMap = new Map<string, { fechamento: number; vencimento: number | null }>()
   for (const c of cartoes) {
-    const dia = parseInt(String(c.dia_fechamento || '1'))
-    cartaoMap.set(c.id, isNaN(dia) ? 1 : dia)
+    const fechamento = parseInt(String(c.dia_fechamento || '1'))
+    const vencimento = parseInt(String(c.dia_vencimento || ''))
+    cartaoMap.set(c.id, {
+      fechamento: Number.isNaN(fechamento) ? 1 : fechamento,
+      vencimento: Number.isNaN(vencimento) ? null : vencimento,
+    })
   }
 
   for (const t of transacoes) {
     // Só processar transações de cartão SEM fatura_mes/fatura_ano
     if (!t.cartao_id || (t.fatura_mes != null && t.fatura_ano != null)) continue
 
-    const diaFechamento = cartaoMap.get(t.cartao_id) ?? 1
+    const referenciaImportada = extractImportedInvoiceReference(t.observacao)
+    if (referenciaImportada) {
+      t.fatura_mes = referenciaImportada.mes
+      t.fatura_ano = referenciaImportada.ano
+      continue
+    }
+
+    const configCartao = cartaoMap.get(t.cartao_id) ?? { fechamento: 1, vencimento: null }
     const dt = parseToDateUTC(t.data || t.created_at)
     if (!dt) continue
 
-    const { fatura_mes, fatura_ano } = calcularMesFatura(dt, diaFechamento)
+    const { fatura_mes, fatura_ano } = calcularMesFatura(
+      dt,
+      configCartao.fechamento,
+      configCartao.vencimento,
+    )
     t.fatura_mes = fatura_mes
     t.fatura_ano = fatura_ano
   }

@@ -178,6 +178,54 @@ const Transacoes: React.FC = () => {
     return new Date(Date.UTC(dt.getUTCFullYear(), dt.getUTCMonth(), dt.getUTCDate()))
   }
 
+  const getLancamentoDateRaw = (transacao?: { data?: string | null; created_at?: string | null } | null) =>
+    transacao?.data || transacao?.created_at || null
+
+  const getParcelaInfo = (
+    transacao?: {
+      descricao?: string | null
+      observacao?: string | null
+      parcela_atual?: number | null
+      total_parcelas?: number | null
+    } | null
+  ) => {
+    const atual = Number(transacao?.parcela_atual)
+    const total = Number(transacao?.total_parcelas)
+    if (Number.isFinite(atual) && Number.isFinite(total) && total > 1 && atual >= 1 && atual <= total) {
+      return { atual, total }
+    }
+
+    const textos = [transacao?.descricao, transacao?.observacao]
+      .map((texto) => String(texto || '').trim())
+      .filter(Boolean)
+
+    const patterns = [
+      /parcela\s+(\d{1,2})\s+de\s+(\d{1,2})/i,
+      /(?:^|[\s(])parcela\s*(\d{1,2})\s*\/\s*(\d{1,2})\)?\s*$/i,
+      /(\d{1,2})\s*\/\s*(\d{1,2})\s*\)?\s*$/,
+    ]
+
+    for (const texto of textos) {
+      for (const pattern of patterns) {
+        const match = texto.match(pattern)
+        if (!match) continue
+        const atualDetectado = Number(match[1])
+        const totalDetectado = Number(match[2])
+        if (
+          Number.isFinite(atualDetectado) &&
+          Number.isFinite(totalDetectado) &&
+          totalDetectado > 1 &&
+          atualDetectado >= 1 &&
+          atualDetectado <= totalDetectado
+        ) {
+          return { atual: atualDetectado, total: totalDetectado }
+        }
+      }
+    }
+
+    return null
+  }
+
   const isContaImportavel = (conta: any) => {
     const tipo = normalizar(String(conta?.tipo || conta?.type || ''))
     if (!tipo) return true
@@ -276,9 +324,16 @@ const Transacoes: React.FC = () => {
         return dt.getUTCMonth() === monthIndex && dt.getUTCFullYear() === yearNum
       })
     } else {
-      // Em "Últimos lançamentos", não misturar parcelas futuras com lançamentos recentes.
+      // Em "Últimos lançamentos", manter compras normais de cartão visíveis,
+      // mas esconder parcelas futuras para não poluir a lista recente.
       filtered = filtered.filter(t => {
-        const dt = parseToDate(t.data || t.created_at)
+        const dt = parseToDate(getLancamentoDateRaw(t))
+        if (t.cartao_id) {
+          const parcelaInfo = getParcelaInfo(t)
+          if (!parcelaInfo) return true
+          if (!dt) return true
+          return dt.getTime() <= hojeNormalizado.getTime()
+        }
         if (!dt) return true
         return dt.getTime() <= hojeNormalizado.getTime()
       })
@@ -293,9 +348,7 @@ const Transacoes: React.FC = () => {
     const getSortValue = (t: any, field: SortField) => {
       switch (field) {
         case 'data':
-          return viewMode === 'ultimos'
-            ? parseDateToTime(t.created_at || t.data)
-            : parseDateToTime(t.data || t.created_at)
+          return parseDateToTime(getLancamentoDateRaw(t))
         case 'descricao':
           return (t.descricao || t.observacao || '').toString().toLowerCase()
         case 'categoria':
@@ -2010,7 +2063,7 @@ const Transacoes: React.FC = () => {
             </div>
           ) : (
             <span className="block max-w-2xl text-xs leading-5 text-slate-400">
-              Mostrando os lançamentos mais recentes já incluídos. Parcelas futuras ficam no modo por mês.
+              Mostrando os lançamentos mais recentes e as compras de cartão já registradas. Parcelas futuras continuam no modo por mês.
             </span>
           )}
         </div>
@@ -2200,9 +2253,7 @@ const Transacoes: React.FC = () => {
           <>
             {filteredTransacoes.slice(0, displayCount).map((transacao) => {
               const dataFormatada = (() => {
-                const dateStr = viewMode === 'ultimos'
-                  ? (transacao.created_at || transacao.data)
-                  : (transacao.data || transacao.created_at);
+                const dateStr = getLancamentoDateRaw(transacao);
                 if (!dateStr) return '-';
                 return formatDate(dateStr);
               })()
@@ -2366,9 +2417,7 @@ const Transacoes: React.FC = () => {
           <>
             {filteredTransacoes.slice(0, displayCount).map((transacao) => {
             const dataFormatada = (() => {
-              const dateStr = viewMode === 'ultimos'
-                ? (transacao.created_at || transacao.data)
-                : (transacao.data || transacao.created_at);
+              const dateStr = getLancamentoDateRaw(transacao);
               if (!dateStr) return '-';
               return formatDate(dateStr);
             })()
@@ -2543,11 +2592,13 @@ const Transacoes: React.FC = () => {
                       date={formData.quando ? parse(formData.quando, 'yyyy-MM-dd', new Date()) : undefined}
                       onDateChange={(date) => {
                         const newDate = date ? format(date, 'yyyy-MM-dd') : '';
+                        const isCartaoCredito = formData.metodo === 'cartao_credito';
+                        const isPago = isCartaoCredito ? false : Boolean(date && date <= new Date());
                         setFormData({ 
                           ...formData, 
                           quando: newDate,
-                          isPago: date && date <= new Date() ? true : false,
-                          status: date && date <= new Date() ? 'pago' : 'pendente'
+                          isPago,
+                          status: getTransactionStatus(isPago, formData.metodo),
                         });
                       }}
                       placeholder="Selecione a data"
@@ -2657,7 +2708,11 @@ const Transacoes: React.FC = () => {
                   onValueChange={value => setFormData(prev => ({
                     ...prev,
                     metodo: value,
-                    ...(value !== 'cartao_credito' ? { isParcelado: false, numeroParcelas: 1 } : {}),
+                    isPago: value === 'cartao_credito' ? false : prev.isPago,
+                    status: getTransactionStatus(value === 'cartao_credito' ? false : Boolean(prev.isPago), value),
+                    ...(value === 'cartao_credito'
+                      ? { isRecorrente: false, repetirMeses: 1 }
+                      : { isParcelado: false, numeroParcelas: 1 }),
                   }))}
                 >
                   <SelectTrigger className="h-11 text-sm border-border/40 bg-secondary/30 hover:bg-secondary/50 focus:bg-secondary/80 rounded-lg transition-colors">
@@ -2706,30 +2761,44 @@ const Transacoes: React.FC = () => {
               </div>
 
               {/* Status de Pagamento */}
-              <label className="flex items-center gap-4 p-4 rounded-xl border border-border/40 bg-secondary/40 hover:bg-secondary/60 hover:border-primary/30 cursor-pointer transition-all group">
-                <div className="flex items-center justify-center w-6 h-6 rounded-md border border-primary/40 bg-primary/10 group-hover:bg-primary/20 group-hover:border-primary/60">
-                  <input
-                    id="isPago"
-                    type="checkbox"
-                    checked={formData.isPago}
-                    onChange={e => setFormData({
-                      ...formData,
-                      isPago: e.target.checked,
-                      status: getTransactionStatus(e.target.checked, formData.metodo),
-                    })}
-                    className="w-4 h-4 cursor-pointer accent-primary rounded opacity-0 absolute"
-                  />
-                  {formData.isPago && (
-                    <svg className="w-4 h-4 text-primary" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+              {formData.metodo === 'cartao_credito' ? (
+                <div className="flex items-center gap-4 rounded-xl border border-amber-400/20 bg-amber-400/10 p-4">
+                  <div className="flex h-6 w-6 items-center justify-center rounded-md border border-amber-300/30 bg-amber-300/10">
+                    <svg className="h-4 w-4 text-amber-200" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
-                  )}
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm font-semibold text-amber-100">Lançamento de cartão entra na fatura</p>
+                    <p className="mt-0.5 text-xs text-amber-100/75">Esse tipo sempre fica como pendente de fatura no cadastro manual.</p>
+                  </div>
                 </div>
-                <div className="flex-1">
-                  <p className="text-sm font-semibold text-foreground">Marcar como Pago</p>
-                  <p className="text-xs text-muted-foreground/80 mt-0.5">{formData.isPago ? '✅ Pagamento confirmado' : '⏳ Pendente de confirmação'}</p>
-                </div>
-              </label>
+              ) : (
+                <label className="flex items-center gap-4 p-4 rounded-xl border border-border/40 bg-secondary/40 hover:bg-secondary/60 hover:border-primary/30 cursor-pointer transition-all group">
+                  <div className="flex items-center justify-center w-6 h-6 rounded-md border border-primary/40 bg-primary/10 group-hover:bg-primary/20 group-hover:border-primary/60">
+                    <input
+                      id="isPago"
+                      type="checkbox"
+                      checked={formData.isPago}
+                      onChange={e => setFormData({
+                        ...formData,
+                        isPago: e.target.checked,
+                        status: getTransactionStatus(e.target.checked, formData.metodo),
+                      })}
+                      className="w-4 h-4 cursor-pointer accent-primary rounded opacity-0 absolute"
+                    />
+                    {formData.isPago && (
+                      <svg className="w-4 h-4 text-primary" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                      </svg>
+                    )}
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm font-semibold text-foreground">Marcar como Pago</p>
+                    <p className="text-xs text-muted-foreground/80 mt-0.5">{formData.isPago ? '✅ Pagamento confirmado' : '⏳ Pendente de confirmação'}</p>
+                  </div>
+                </label>
+              )}
 
               {/* Parcelamento */}
               {formData.metodo === 'cartao_credito' && (
@@ -2781,48 +2850,52 @@ const Transacoes: React.FC = () => {
               )}
 
               {/* Recorrência */}
-              <label className="flex items-center gap-4 p-4 rounded-xl border border-border/40 bg-secondary/40 hover:bg-secondary/60 hover:border-primary/30 cursor-pointer transition-all group">
-                <div className="flex items-center justify-center w-6 h-6 rounded-md border border-primary/40 bg-primary/10 group-hover:bg-primary/20 group-hover:border-primary/60">
-                  <input
-                    id="isRecorrente"
-                    type="checkbox"
-                    checked={formData.isRecorrente}
-                    onChange={e => setFormData(prev => ({
-                      ...prev,
-                      isRecorrente: e.target.checked,
-                      repetirMeses: e.target.checked ? 3 : 1,
-                      ...(e.target.checked ? { isParcelado: false, numeroParcelas: 1 } : {}),
-                    }))}
-                    className="w-4 h-4 cursor-pointer accent-primary rounded opacity-0 absolute"
-                  />
-                  {formData.isRecorrente && (
-                    <svg className="w-4 h-4 text-primary" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                    </svg>
-                  )}
-                </div>
-                <div className="flex-1">
-                  <p className="text-sm font-semibold text-foreground">Repetir Mensalmente</p>
-                  <p className="text-xs text-muted-foreground/80 mt-0.5">{formData.isRecorrente ? '🔁 Transação automática' : '📅 Apenas uma vez'}</p>
-                </div>
-              </label>
+              {formData.metodo !== 'cartao_credito' && (
+                <>
+                  <label className="flex items-center gap-4 p-4 rounded-xl border border-border/40 bg-secondary/40 hover:bg-secondary/60 hover:border-primary/30 cursor-pointer transition-all group">
+                    <div className="flex items-center justify-center w-6 h-6 rounded-md border border-primary/40 bg-primary/10 group-hover:bg-primary/20 group-hover:border-primary/60">
+                      <input
+                        id="isRecorrente"
+                        type="checkbox"
+                        checked={formData.isRecorrente}
+                        onChange={e => setFormData(prev => ({
+                          ...prev,
+                          isRecorrente: e.target.checked,
+                          repetirMeses: e.target.checked ? 3 : 1,
+                          ...(e.target.checked ? { isParcelado: false, numeroParcelas: 1 } : {}),
+                        }))}
+                        className="w-4 h-4 cursor-pointer accent-primary rounded opacity-0 absolute"
+                      />
+                      {formData.isRecorrente && (
+                        <svg className="w-4 h-4 text-primary" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                        </svg>
+                      )}
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-sm font-semibold text-foreground">Repetir Mensalmente</p>
+                      <p className="text-xs text-muted-foreground/80 mt-0.5">{formData.isRecorrente ? '🔁 Transação automática' : '📅 Apenas uma vez'}</p>
+                    </div>
+                  </label>
 
-              {formData.isRecorrente && (
-                <div className="p-4 rounded-xl bg-gradient-to-r from-primary/10 to-primary/5 border border-primary/20 space-y-3 animate-in fade-in duration-200">
-                  <Label htmlFor="repetirMeses" className="text-xs font-bold text-foreground/90 uppercase tracking-wider">Por quantos meses?</Label>
-                  <div className="flex items-center gap-3">
-                    <Input
-                      id="repetirMeses"
-                      type="number"
-                      min="1"
-                      max="60"
-                      value={formData.repetirMeses}
-                      onChange={e => setFormData({ ...formData, repetirMeses: Math.max(1, parseInt(e.target.value) || 1) })}
-                      className="h-11 text-sm border-primary/40 bg-background/60"
-                    />
-                    <span className="text-xs font-semibold text-muted-foreground/80">máx 60</span>
-                  </div>
-                </div>
+                  {formData.isRecorrente && (
+                    <div className="p-4 rounded-xl bg-gradient-to-r from-primary/10 to-primary/5 border border-primary/20 space-y-3 animate-in fade-in duration-200">
+                      <Label htmlFor="repetirMeses" className="text-xs font-bold text-foreground/90 uppercase tracking-wider">Por quantos meses?</Label>
+                      <div className="flex items-center gap-3">
+                        <Input
+                          id="repetirMeses"
+                          type="number"
+                          min="1"
+                          max="60"
+                          value={formData.repetirMeses}
+                          onChange={e => setFormData({ ...formData, repetirMeses: Math.max(1, parseInt(e.target.value) || 1) })}
+                          className="h-11 text-sm border-primary/40 bg-background/60"
+                        />
+                        <span className="text-xs font-semibold text-muted-foreground/80">máx 60</span>
+                      </div>
+                    </div>
+                  )}
+                </>
               )}
             </div>
 

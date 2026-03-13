@@ -11,7 +11,8 @@ import { ImportarFaturaModalNovo } from '/src/components/faturas/ImportarFaturaM
 import { HistoricoImportacoesModal } from '/src/components/faturas/HistoricoImportacoesModal';
 import { formatCurrency, formatarValorBR, parseValorBR } from '/src/utils/currency';
 import { categorizar } from '/src/utils/categorizacao';
-import { Card, CardContent } from '/src/components/ui/card';
+import { calcularMesFatura, enrichCardTransactions, extractImportedInvoiceReference, parseToDateUTC } from '/src/utils/dateParser';
+import { useToast } from '/src/hooks/use-toast';
 
 // Modal simplificado para importar extrato (antigo - manter para compatibilidade)
 function ImportarExtratoModal({ open, onClose, onImport }) {
@@ -419,10 +420,173 @@ function adjustColor(color: string, percent: number) {
     .toString(16).slice(1);
 }
 
+const NOMES_MESES_ABREV = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
+
+function getFaturaKey(mes: number, ano: number) {
+  return `${ano}-${String(mes).padStart(2, '0')}`;
+}
+
+function getFaturaLabel(mes: number, ano: number) {
+  return `${NOMES_MESES_ABREV[mes - 1] || '--'}/${String(ano).slice(-2)}`;
+}
+
+function getFaturaOrdem(mes: number, ano: number) {
+  return ano * 100 + mes;
+}
+
+function shiftFaturaReferencia(mes: number, ano: number, offset: number) {
+  const totalMeses = (ano * 12) + (mes - 1) + offset;
+  const novoAno = Math.floor(totalMeses / 12);
+  const novoMes = (totalMeses % 12) + 1;
+  return { mes: novoMes, ano: novoAno };
+}
+
+function getParcelaInfo(transacao: {
+  descricao?: string | null
+  observacao?: string | null
+  parcela_atual?: number | null
+  total_parcelas?: number | null
+}) {
+  const atual = Number(transacao?.parcela_atual);
+  const total = Number(transacao?.total_parcelas);
+
+  if (Number.isFinite(atual) && Number.isFinite(total) && total > 1 && atual >= 1 && atual <= total) {
+    return { atual, total };
+  }
+
+  const textos = [transacao?.descricao, transacao?.observacao]
+    .map((texto) => String(texto || '').trim())
+    .filter(Boolean);
+
+  const patterns = [
+    /parcela\s+(\d{1,2})\s+de\s+(\d{1,2})/i,
+    /(?:^|[\s(])parcela\s*(\d{1,2})\s*\/\s*(\d{1,2})\)?\s*$/i,
+    /(\d{1,2})\s*\/\s*(\d{1,2})\s*\)?\s*$/,
+  ];
+
+  for (const texto of textos) {
+    for (const pattern of patterns) {
+      const match = texto.match(pattern);
+      if (!match) continue;
+      const atualDetectado = Number(match[1]);
+      const totalDetectado = Number(match[2]);
+      if (
+        Number.isFinite(atualDetectado) &&
+        Number.isFinite(totalDetectado) &&
+        totalDetectado > 1 &&
+        atualDetectado >= 1 &&
+        atualDetectado <= totalDetectado
+      ) {
+        return { atual: atualDetectado, total: totalDetectado };
+      }
+    }
+  }
+
+  return null;
+}
+
+function getReferenciaFaturaTransacao(
+  transacao: {
+    cartao_id?: string | null
+    fatura_mes?: number | null
+    fatura_ano?: number | null
+    data?: string | null
+    created_at?: string | null
+    observacao?: string | null
+  },
+  diaFechamento: number,
+  diaVencimento?: number | null
+) {
+  const referenciaObservacao = extractImportedInvoiceReference(transacao?.observacao);
+  if (referenciaObservacao) {
+    return referenciaObservacao;
+  }
+
+  const mes = Number(transacao?.fatura_mes);
+  const ano = Number(transacao?.fatura_ano);
+
+  if (Number.isFinite(mes) && Number.isFinite(ano) && mes >= 1 && mes <= 12 && ano > 0) {
+    return { mes, ano };
+  }
+
+  const dt = parseToDateUTC(transacao?.data || transacao?.created_at);
+  if (!dt) return null;
+
+  return calcularMesFatura(dt, diaFechamento, diaVencimento);
+}
+
+function calcularDatasFaturaResumo(
+  diaFechamento: number,
+  diaVencimento: number,
+  mes: number,
+  ano: number,
+) {
+  const dataVencimento = new Date(Date.UTC(ano, mes - 1, diaVencimento));
+  const dataFechamento = diaFechamento >= diaVencimento
+    ? new Date(Date.UTC(ano, mes - 2, diaFechamento))
+    : new Date(Date.UTC(ano, mes - 1, diaFechamento));
+
+  const dataFechamentoAnterior = new Date(
+    Date.UTC(
+      dataFechamento.getUTCFullYear(),
+      dataFechamento.getUTCMonth() - 1,
+      diaFechamento,
+    ),
+  );
+
+  return {
+    inicioPeriodo: dataFechamentoAnterior,
+    fimPeriodo: dataFechamento,
+    vencimento: dataVencimento,
+  };
+}
+
+function transacaoPertenceReferenciaResumo(
+  transacao: {
+    observacao?: string | null
+    fatura_mes?: number | null
+    fatura_ano?: number | null
+    data?: string | null
+    created_at?: string | null
+  },
+  diaFechamento: number,
+  diaVencimento: number,
+  mes: number,
+  ano: number,
+) {
+  const referenciaObservacao = extractImportedInvoiceReference(transacao?.observacao);
+  if (referenciaObservacao) {
+    return referenciaObservacao.mes === mes && referenciaObservacao.ano === ano;
+  }
+
+  const faturaMes = Number(transacao?.fatura_mes);
+  const faturaAno = Number(transacao?.fatura_ano);
+  if (Number.isFinite(faturaMes) && Number.isFinite(faturaAno) && faturaMes >= 1 && faturaMes <= 12 && faturaAno > 0) {
+    return faturaMes === mes && faturaAno === ano;
+  }
+
+  const dt = parseToDateUTC(transacao?.data || transacao?.created_at);
+  if (!dt) return false;
+
+  const { inicioPeriodo, fimPeriodo } = calcularDatasFaturaResumo(diaFechamento, diaVencimento, mes, ano);
+  const timestamp = dt.getTime();
+  return timestamp >= inicioPeriodo.getTime() && timestamp <= fimPeriodo.getTime();
+}
+
+function normalizeDateInput(value?: string | null) {
+  const dt = parseToDateUTC(value);
+  if (!dt) return '';
+  const year = dt.getUTCFullYear();
+  const month = String(dt.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(dt.getUTCDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 
 
 export default function Cartoes({ isModal = false }) {
   const { user } = useAuth();
+  const { toast } = useToast();
   const [importOpen, setImportOpen] = useState(false);
   const [cartoes, setCartoes] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -434,23 +598,152 @@ export default function Cartoes({ isModal = false }) {
   const [importarFaturaOpen, setImportarFaturaOpen] = useState(false);
   const [cartaoParaImportar, setCartaoParaImportar] = useState<string | undefined>(undefined);
   const [historicoOpen, setHistoricoOpen] = useState(false);
-  const [parcelamentosAbertos, setParcelamentosAbertos] = useState<Record<string, boolean>>({});
+  const [projecoesAbertas, setProjecoesAbertas] = useState<Record<string, boolean>>({});
+  const [cartaoDetalhesAberto, setCartaoDetalhesAberto] = useState<string | null>(null);
+  const [referenciasSelecionadas, setReferenciasSelecionadas] = useState<Record<string, string>>({});
+  const [editingLancamentoId, setEditingLancamentoId] = useState<number | string | null>(null);
+  const [editLancamentoForm, setEditLancamentoForm] = useState({ descricao: '', data: '', valor: '' });
+  const [savingLancamento, setSavingLancamento] = useState(false);
+  const [deletingLancamentoId, setDeletingLancamentoId] = useState<number | string | null>(null);
   const [deleteCartaoOpen, setDeleteCartaoOpen] = useState(false);
   const [deleteCartaoLoading, setDeleteCartaoLoading] = useState(false);
   const [deleteCartaoTarget, setDeleteCartaoTarget] = useState<any | null>(null);
   const [deleteCartaoTransacoesCount, setDeleteCartaoTransacoesCount] = useState(0);
 
-  async function fetchTransacoesCartao() {
+  function handleOpenCartaoDetalhes(cardId: string, defaultKey?: string) {
+    setCartaoDetalhesAberto(cardId);
+    if (!defaultKey) return;
+    setReferenciasSelecionadas((prev) => ({
+      ...prev,
+      [cardId]: defaultKey,
+    }));
+  }
+
+  function resetEdicaoLancamento() {
+    setEditingLancamentoId(null);
+    setEditLancamentoForm({ descricao: '', data: '', valor: '' });
+  }
+
+  function startEditLancamento(transacao: any) {
+    setEditingLancamentoId(transacao.id);
+    setEditLancamentoForm({
+      descricao: String(transacao.descricao || '').trim(),
+      data: normalizeDateInput(transacao.data || transacao.created_at),
+      valor: formatarValorBR(String(Math.abs(Number(transacao.valor) || 0))),
+    });
+  }
+
+  async function saveLancamentoEdit(transacao: any) {
+    if (!user?.id || editingLancamentoId === null) return;
+
+    setSavingLancamento(true);
+    try {
+      const valorNormalizado = Math.abs(parseValorBR(editLancamentoForm.valor || '0') || 0);
+      const payload = {
+        descricao: editLancamentoForm.descricao
+          ? String(editLancamentoForm.descricao).trim().toLocaleUpperCase('pt-BR')
+          : null,
+        data: editLancamentoForm.data || null,
+        valor: valorNormalizado,
+      };
+
+      const { error } = await supabase
+        .from('transacoes')
+        .update(payload)
+        .eq('id', transacao.id)
+        .eq('user_id', user.id);
+
+      if (error) throw error;
+
+      toast({ title: 'Transação atualizada com sucesso!' });
+      resetEdicaoLancamento();
+      await fetchCartoes();
+    } catch (error: any) {
+      toast({
+        title: 'Erro ao atualizar transação',
+        description: error.message,
+        variant: 'destructive',
+      });
+    } finally {
+      setSavingLancamento(false);
+    }
+  }
+
+  async function deleteLancamento(id: number | string) {
+    if (!user?.id) return;
+    if (!window.confirm('Excluir esta transação?')) return;
+
+    setDeletingLancamentoId(id);
+    try {
+      const { error } = await supabase
+        .from('transacoes')
+        .delete()
+        .eq('id', id)
+        .eq('user_id', user.id);
+
+      if (error) throw error;
+
+      toast({ title: 'Transação excluída com sucesso!' });
+      if (editingLancamentoId === id) {
+        resetEdicaoLancamento();
+      }
+      await fetchCartoes();
+    } catch (error: any) {
+      toast({
+        title: 'Erro ao excluir transação',
+        description: error.message,
+        variant: 'destructive',
+      });
+    } finally {
+      setDeletingLancamentoId(null);
+    }
+  }
+
+  async function fetchTransacoesCartao(cartoesBase: any[] = cartoes) {
     if (!user?.id) return;
 
-    const { data: transData, error: transError } = await supabase
+    const cardIds = Array.from(
+      new Set(
+        (cartoesBase || [])
+          .map((cartao) => cartao?.id)
+          .filter(Boolean)
+      )
+    );
+
+    if (cardIds.length === 0) {
+      setTransacoes([]);
+      return;
+    }
+
+    const selectBase = 'id, valor, tipo, cartao_id, data, created_at, descricao, observacao, fatura_mes, fatura_ano, pago, categoria_id, categorias(id, nome)';
+    const selectWithParcelas = `${selectBase}, parcela_atual, total_parcelas`;
+
+    let { data: transData, error: transError } = await supabase
       .from('transacoes')
-      .select('id, valor, tipo, cartao_id, data, descricao, fatura_mes, fatura_ano, pago')
-      .eq('user_id', user?.id);
+      .select(selectWithParcelas)
+      .in('cartao_id', cardIds);
+
+    const schemaSemParcelas =
+      transError?.code === '42703' ||
+      transError?.code === 'PGRST204' ||
+      /parcela_atual|total_parcelas|does not exist/i.test(String(transError?.message || ''));
+
+    if (schemaSemParcelas) {
+      console.warn('⚠️ Schema sem colunas de parcela em Cartões. Recarregando sem parcela_atual/total_parcelas.');
+      const retry = await supabase
+        .from('transacoes')
+        .select(selectBase)
+        .in('cartao_id', cardIds);
+
+      transData = retry.data;
+      transError = retry.error;
+    }
 
     console.log('📊 Transações carregadas:', transData?.length, 'Erro:', transError)
     if (!transError && transData) {
-      setTransacoes(transData);
+      const transacoesEnriquecidas = [...transData];
+      enrichCardTransactions(transacoesEnriquecidas, cartoesBase);
+      setTransacoes(transacoesEnriquecidas);
     } else {
       console.error('❌ Erro ao buscar transações:', transError)
       setTransacoes([]);
@@ -459,25 +752,39 @@ export default function Cartoes({ isModal = false }) {
 
   async function fetchCartoes() {
     setLoading(true);
-    const { data, error } = await supabase
-      .from('cartoes')
-      .select('*')
-      .eq('user_id', user?.id);
+    const [cartResult, accResult] = await Promise.all([
+      supabase
+        .from('cartoes')
+        .select('*')
+        .eq('user_id', user?.id),
+      supabase
+        .from('accounts')
+        .select('id, nome, banco')
+        .eq('user_id', user?.id),
+    ]);
+
+    const { data, error } = cartResult;
+    const { data: accounts, error: accountsError } = accResult;
     
     console.log('📋 Cartões carregados:', data)
     console.log('❌ Erro:', error)
+    if (accountsError) {
+      console.warn('⚠️ Erro ao buscar contas para enriquecer cartões:', accountsError);
+    }
     
     if (!error && data) {
+      const accMap = new Map((accounts || []).map((account: any) => [account.id, account]));
       // Mapear campos para manter compatibilidade com o componente
       const cartoesFormatados = data.map(c => ({
         ...c,
         name: c.nome, // alias para compatibilidade
+        banco: c.banco || accMap.get(c.linked_account_id)?.nome || accMap.get(c.linked_account_id)?.banco || null,
       }));
       console.log('✅ Cartões:', cartoesFormatados)
       setCartoes(cartoesFormatados);
+      await fetchTransacoesCartao(cartoesFormatados);
     }
     setLoading(false);
-    await fetchTransacoesCartao();
   }
 
   useEffect(() => {
@@ -976,264 +1283,639 @@ export default function Cartoes({ isModal = false }) {
           </Button>
         </div>
       ) : (
-        <div className={isModal ? "space-y-6" : "grid grid-cols-1 min-[1450px]:grid-cols-2 gap-6"}>
+        <div className="grid gap-6 lg:grid-cols-2">
           {cartoes.map((cartao) => {
             const transacoesCartao = transacoes.filter(t => t.cartao_id === cartao.id);
-            
-            // Helper para detectar pagamento de fatura
             const isPagamentoFatura = (descricao: string) => {
               if (!descricao) return false;
               const d = descricao.toUpperCase();
               return d.includes('PAGAMENTO') || d.includes('PAG FATURA') || d.includes('PGTO');
             };
 
-            // Próxima fatura com base no vencimento do cartão e na data atual
             const agora = new Date();
             const diaHoje = agora.getDate();
+            const diaFechamento = Number(cartao.dia_fechamento || 1);
             const diaVencimento = Number(cartao.dia_vencimento || 1);
             const baseMes = agora.getMonth() + 1;
             const baseAno = agora.getFullYear();
             const proximaFaturaMes = diaHoje <= diaVencimento ? baseMes : (baseMes === 12 ? 1 : baseMes + 1);
             const proximaFaturaAno = diaHoje <= diaVencimento ? baseAno : (baseMes === 12 ? baseAno + 1 : baseAno);
-            const isDaProximaFatura = (t: any) => t.fatura_mes === proximaFaturaMes && t.fatura_ano === proximaFaturaAno;
-            
-            // Calcular saldo em aberto da PRÓXIMA fatura (apenas transações NÃO pagas)
-            const totalDespesasProximaFatura = transacoesCartao
-              .filter(t => t.tipo === 'despesa' && t.pago !== true && isDaProximaFatura(t))
-              .reduce((acc, t) => acc + Math.abs(t.valor || 0), 0);
-            // Estornos = receitas que NÃO são pagamento de fatura e NÃO pagas (na próxima fatura)
-            const totalEstornosProximaFatura = transacoesCartao
-              .filter(t => t.tipo === 'receita' && !isPagamentoFatura(t.descricao) && t.pago !== true && isDaProximaFatura(t))
-              .reduce((acc, t) => acc + Math.abs(t.valor || 0), 0);
-            
-            // Saldo em aberto = despesas não pagas - estornos não pagos (somente próxima fatura)
-            const faturaAberta = Math.max(0, totalDespesasProximaFatura - totalEstornosProximaFatura);
-            const qtdDespesasProximaFatura = transacoesCartao.filter(t => t.tipo === 'despesa' && t.pago !== true && isDaProximaFatura(t)).length;
+            const proximaFaturaOrdem = getFaturaOrdem(proximaFaturaMes, proximaFaturaAno);
 
-            // Limite usado deve considerar TODO o saldo em aberto do cartão (não só próxima fatura)
-            const totalDespesasAbertas = transacoesCartao
-              .filter(t => t.tipo === 'despesa' && t.pago !== true)
-              .reduce((acc, t) => acc + Math.abs(t.valor || 0), 0);
-            const totalEstornosAbertos = transacoesCartao
-              .filter(t => t.tipo === 'receita' && !isPagamentoFatura(t.descricao) && t.pago !== true)
-              .reduce((acc, t) => acc + Math.abs(t.valor || 0), 0);
+            const transacoesCartaoComReferencia = transacoesCartao
+              .filter((transacao) => !isPagamentoFatura(transacao.descricao))
+              .map((transacao) => {
+                const referencia = getReferenciaFaturaTransacao(transacao, diaFechamento, diaVencimento);
+                if (!referencia) return null;
+
+                return {
+                  transacao,
+                  referencia,
+                  ordem: getFaturaOrdem(referencia.mes, referencia.ano),
+                };
+              })
+              .filter(Boolean);
+
+            const transacoesCartaoPendentes = transacoesCartaoComReferencia
+              .filter((item) => item.transacao.pago !== true)
+              .map((item) => item.transacao);
+
+            const transacoesCartaoProjetadas = transacoesCartaoComReferencia
+              .filter((item) => item.ordem >= proximaFaturaOrdem);
+
+            const totalDespesasAbertas = transacoesCartaoPendentes
+              .filter(t => t.tipo === 'despesa')
+              .reduce((acc, t) => acc + Math.abs(Number(t.valor) || 0), 0);
+            const totalEstornosAbertos = transacoesCartaoPendentes
+              .filter(t => t.tipo === 'receita' && !isPagamentoFatura(t.descricao))
+              .reduce((acc, t) => acc + Math.abs(Number(t.valor) || 0), 0);
             const limiteUsado = Math.max(0, totalDespesasAbertas - totalEstornosAbertos);
-            
-            // Disponível = limite total - limite usado
-            const limite = cartao.limite || 0;
+
+            const createFaturaBucket = (mes: number, ano: number, ordem: number) => ({
+              key: getFaturaKey(mes, ano),
+              label: getFaturaLabel(mes, ano),
+              mes,
+              ano,
+              ordem,
+              despesas: 0,
+              estornos: 0,
+              totalLiquido: 0,
+              comprasCount: 0,
+              parceladasCount: 0,
+              avulsasCount: 0,
+              totalParcelado: 0,
+              totalAvulso: 0,
+              itensCount: 0,
+            });
+
+            const faturasTodasMap = new Map<string, {
+              key: string
+              label: string
+              mes: number
+              ano: number
+              ordem: number
+              despesas: number
+              estornos: number
+              totalLiquido: number
+              comprasCount: number
+              parceladasCount: number
+              avulsasCount: number
+              totalParcelado: number
+              totalAvulso: number
+              itensCount: number
+            }>();
+
+            const referenciasCandidatasMap = new Map<string, { mes: number; ano: number; ordem: number }>();
+
+            transacoesCartaoComReferencia.forEach(({ referencia, ordem }) => {
+              const key = getFaturaKey(referencia.mes, referencia.ano);
+              if (!referenciasCandidatasMap.has(key)) {
+                referenciasCandidatasMap.set(key, { mes: referencia.mes, ano: referencia.ano, ordem });
+              }
+            });
+
+            for (let offset = -1; offset <= 6; offset += 1) {
+              const referenciaInfo = shiftFaturaReferencia(proximaFaturaMes, proximaFaturaAno, offset);
+              const key = getFaturaKey(referenciaInfo.mes, referenciaInfo.ano);
+              if (!referenciasCandidatasMap.has(key)) {
+                referenciasCandidatasMap.set(key, {
+                  mes: referenciaInfo.mes,
+                  ano: referenciaInfo.ano,
+                  ordem: getFaturaOrdem(referenciaInfo.mes, referenciaInfo.ano),
+                });
+              }
+            }
+
+            referenciasCandidatasMap.forEach(({ mes, ano, ordem }, key) => {
+              const bucket = createFaturaBucket(mes, ano, ordem);
+
+              transacoesCartao
+                .filter((transacao) => !isPagamentoFatura(transacao.descricao))
+                .forEach((transacao) => {
+                  if (!transacaoPertenceReferenciaResumo(transacao, diaFechamento, diaVencimento, mes, ano)) {
+                    return;
+                  }
+
+                  const parcelaInfo = getParcelaInfo(transacao);
+                  const valorAbs = Math.abs(Number(transacao.valor) || 0);
+
+                  bucket.itensCount += 1;
+
+                  if (transacao.tipo === 'receita') {
+                    bucket.estornos += valorAbs;
+                  } else {
+                    bucket.despesas += valorAbs;
+                    bucket.comprasCount += 1;
+                    if (parcelaInfo) {
+                      bucket.parceladasCount += 1;
+                      bucket.totalParcelado += valorAbs;
+                    } else {
+                      bucket.avulsasCount += 1;
+                      bucket.totalAvulso += valorAbs;
+                    }
+                  }
+                });
+
+              bucket.totalLiquido = Math.max(0, bucket.despesas - bucket.estornos);
+              if (bucket.itensCount > 0 || ordem >= proximaFaturaOrdem) {
+                faturasTodasMap.set(key, bucket);
+              }
+            });
+
+            const faturasTodas = Array.from(faturasTodasMap.values()).sort((a, b) => a.ordem - b.ordem);
+            const faturasProjetadas = faturasTodas.filter((fatura) => fatura.ordem >= proximaFaturaOrdem);
+            const ultimaFaturaComMovimento = [...faturasTodas]
+              .filter((fatura) => fatura.totalLiquido > 0)
+              .sort((a, b) => b.ordem - a.ordem)[0] || null;
+            const resumoFallback = {
+              key: getFaturaKey(proximaFaturaMes, proximaFaturaAno),
+              label: getFaturaLabel(proximaFaturaMes, proximaFaturaAno),
+              mes: proximaFaturaMes,
+              ano: proximaFaturaAno,
+              ordem: proximaFaturaOrdem,
+              despesas: 0,
+              estornos: 0,
+              totalLiquido: 0,
+              comprasCount: 0,
+              parceladasCount: 0,
+              avulsasCount: 0,
+              totalParcelado: 0,
+              totalAvulso: 0,
+              itensCount: 0,
+            };
+            const resumoEmFoco = faturasProjetadas[0] || ultimaFaturaComMovimento || resumoFallback;
+            const exibindoHistorico = faturasProjetadas.length === 0 && Boolean(ultimaFaturaComMovimento);
+            const faturasParaResumo = faturasProjetadas.length > 0 ? faturasProjetadas : faturasTodas.filter((fatura) => fatura.totalLiquido > 0);
+            const totalFaturasProjetadas = faturasParaResumo.reduce((acc, fatura) => acc + fatura.totalLiquido, 0);
+            const totalParceladoProjetado = faturasParaResumo.reduce((acc, fatura) => acc + fatura.totalParcelado, 0);
+            const maiorFaturaProjetada = faturasParaResumo.reduce((acc, fatura) => Math.max(acc, fatura.totalLiquido), 0);
+            const limite = Number(cartao.limite || 0);
             const limiteDisponivel = Math.max(0, limite - limiteUsado);
             const percentualUsado = limite > 0 ? Math.min(100, (limiteUsado / limite) * 100) : 0;
-            
-            return (
-              <div key={cartao.id} className="relative overflow-hidden rounded-3xl border border-slate-700/60 bg-gradient-to-b from-slate-900/90 via-[#07122d] to-[#050b1c] p-5 md:p-6 shadow-xl shadow-black/25">
-                <div className="pointer-events-none absolute -top-20 right-0 h-56 w-56 rounded-full bg-cyan-500/10 blur-3xl" />
-                <div className="pointer-events-none absolute -bottom-24 left-8 h-60 w-60 rounded-full bg-blue-500/10 blur-3xl" />
+            const projecaoAberta = projecoesAbertas[cartao.id] ?? false;
+            const quantidadeMesesBase = projecaoAberta ? 6 : 4;
+            const timelineFuturo = Array.from({ length: quantidadeMesesBase }, (_, index) => {
+              const zeroBasedMonth = (proximaFaturaMes - 1) + index;
+              const ano = proximaFaturaAno + Math.floor(zeroBasedMonth / 12);
+              const mes = (zeroBasedMonth % 12) + 1;
+              const key = getFaturaKey(mes, ano);
 
-                <div className="relative z-10 mb-5 flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <p className="text-xs uppercase tracking-[0.22em] text-slate-400">Cartão de crédito</p>
-                    <h3 className="mt-1 text-xl font-semibold text-slate-100">{cartao.name || 'Sem nome'}</h3>
-                    <p className="mt-1 text-sm text-slate-400">
-                      Fecha dia {cartao.dia_fechamento || '--'} • Vence dia {cartao.dia_vencimento || '--'}
-                    </p>
-                  </div>
-                  <div className="flex gap-2">
+              return (
+                faturasProjetadas.find((fatura) => fatura.key === key) || {
+                  ...createFaturaBucket(mes, ano, getFaturaOrdem(mes, ano)),
+                }
+              );
+            });
+            const timelineHistorico = [...faturasTodas]
+              .filter((fatura) => fatura.totalLiquido > 0)
+              .sort((a, b) => b.ordem - a.ordem)
+              .slice(0, quantidadeMesesBase)
+              .sort((a, b) => a.ordem - b.ordem);
+            const timelineFaturas = faturasProjetadas.length > 0
+              ? timelineFuturo
+              : (timelineHistorico.length > 0 ? timelineHistorico : timelineFuturo);
+            const referenciasDisponiveisMap = new Map<string, typeof resumoFallback>();
+            [...faturasTodas, ...timelineFuturo].forEach((fatura) => {
+              referenciasDisponiveisMap.set(fatura.key, fatura);
+            });
+            if (!referenciasDisponiveisMap.has(resumoFallback.key)) {
+              referenciasDisponiveisMap.set(resumoFallback.key, resumoFallback);
+            }
+            const referenciaSelecionadaState = referenciasSelecionadas[cartao.id];
+            const [anoState, mesState] = String(referenciaSelecionadaState || `${resumoEmFoco.ano}-${String(resumoEmFoco.mes).padStart(2, '0')}`)
+              .split('-')
+              .map(Number);
+            if (Number.isFinite(anoState) && Number.isFinite(mesState)) {
+              const keyAtual = getFaturaKey(mesState, anoState);
+              if (!referenciasDisponiveisMap.has(keyAtual)) {
+                referenciasDisponiveisMap.set(
+                  keyAtual,
+                  createFaturaBucket(mesState, anoState, getFaturaOrdem(mesState, anoState))
+                );
+              }
+
+              const anteriorState = shiftFaturaReferencia(mesState, anoState, -1);
+              const keyAnterior = getFaturaKey(anteriorState.mes, anteriorState.ano);
+              if (!referenciasDisponiveisMap.has(keyAnterior)) {
+                referenciasDisponiveisMap.set(
+                  keyAnterior,
+                  createFaturaBucket(anteriorState.mes, anteriorState.ano, getFaturaOrdem(anteriorState.mes, anteriorState.ano))
+                );
+              }
+            }
+            const referenciasDisponiveis = Array.from(referenciasDisponiveisMap.values())
+              .sort((a, b) => b.ordem - a.ordem);
+            const referenciaSelecionadaKey = referenciasSelecionadas[cartao.id];
+            const referenciaSelecionada = referenciasDisponiveis.find((fatura) => fatura.key === referenciaSelecionadaKey)
+              || referenciasDisponiveis.find((fatura) => fatura.key === resumoEmFoco.key)
+              || resumoEmFoco;
+            const referenciaSelecionadaEhFutura = referenciaSelecionada.ordem >= proximaFaturaOrdem;
+            const indiceReferenciaSelecionada = referenciasDisponiveis.findIndex((fatura) => fatura.key === referenciaSelecionada.key);
+            const referenciaMaisNova = indiceReferenciaSelecionada > 0 ? referenciasDisponiveis[indiceReferenciaSelecionada - 1] : null;
+            const referenciaMaisAntiga =
+              indiceReferenciaSelecionada >= 0 && indiceReferenciaSelecionada < referenciasDisponiveis.length - 1
+                ? referenciasDisponiveis[indiceReferenciaSelecionada + 1]
+                : null;
+            const previewFaturas = timelineFaturas.slice(0, 4);
+            const linhasProjecaoBase = projecaoAberta ? timelineFaturas : previewFaturas;
+            const linhasProjecaoMap = new Map(linhasProjecaoBase.map((fatura) => [fatura.key, fatura]));
+            linhasProjecaoMap.set(referenciaSelecionada.key, referenciaSelecionada);
+            const linhasProjecao = Array.from(linhasProjecaoMap.values()).sort((a, b) => a.ordem - b.ordem);
+            const podeExpandirProjecao = timelineFaturas.length > previewFaturas.length;
+            const corCartao = cartao.cor || '#2563eb';
+            const statusProjecao = faturasProjetadas.length > 0
+              ? `${faturasProjetadas.length} faturas futuras com valor`
+              : ultimaFaturaComMovimento
+                ? 'Mostrando últimas faturas'
+                : 'Sem compras futuras';
+            const mostrarDetalhes = cartaoDetalhesAberto === cartao.id;
+            const lancamentosCartaoCount = transacoesCartao.filter((transacao) => !isPagamentoFatura(transacao.descricao)).length;
+            const lancamentosReferenciaSelecionada = transacoesCartao
+              .filter((transacao) => !isPagamentoFatura(transacao.descricao))
+              .filter((transacao) =>
+                transacaoPertenceReferenciaResumo(
+                  transacao,
+                  diaFechamento,
+                  diaVencimento,
+                  referenciaSelecionada.mes,
+                  referenciaSelecionada.ano,
+                ),
+              )
+              .sort((a, b) => {
+                const dataA = parseToDateUTC(a.data || a.created_at)?.getTime() ?? 0;
+                const dataB = parseToDateUTC(b.data || b.created_at)?.getTime() ?? 0;
+                return dataB - dataA;
+              });
+            const contaVinculadaLabel = cartao.banco || 'Conta vinculada não informada';
+            const totalGastoCartao = faturasTodas.reduce((acc, fatura) => acc + fatura.totalLiquido, 0);
+            const totalDespesasHistoricas = faturasTodas.reduce((acc, fatura) => acc + fatura.despesas, 0);
+            const totalDespesasReferencia = lancamentosReferenciaSelecionada
+              .filter((transacao) => transacao.tipo === 'despesa')
+              .reduce((acc, transacao) => acc + Math.abs(Number(transacao.valor) || 0), 0);
+            const categoriasMap = new Map<string, { nome: string; total: number; quantidade: number }>();
+
+            lancamentosReferenciaSelecionada.forEach((transacao) => {
+              if (transacao.tipo !== 'despesa') return;
+
+              const nomeCategoria = transacao.categorias?.nome || 'Sem categoria';
+              const valorAbs = Math.abs(Number(transacao.valor) || 0);
+              const categoriaAtual = categoriasMap.get(nomeCategoria) || { nome: nomeCategoria, total: 0, quantidade: 0 };
+              categoriaAtual.total += valorAbs;
+              categoriaAtual.quantidade += 1;
+              categoriasMap.set(nomeCategoria, categoriaAtual);
+            });
+
+            const categoriasMaisGasto = Array.from(categoriasMap.values())
+              .sort((a, b) => b.total - a.total)
+              .slice(0, 6);
+            const referenciaAnteriorInfo = shiftFaturaReferencia(referenciaSelecionada.mes, referenciaSelecionada.ano, -1);
+            const referenciaAnterior = referenciasDisponiveisMap.get(getFaturaKey(referenciaAnteriorInfo.mes, referenciaAnteriorInfo.ano))
+              || createFaturaBucket(
+                referenciaAnteriorInfo.mes,
+                referenciaAnteriorInfo.ano,
+                getFaturaOrdem(referenciaAnteriorInfo.mes, referenciaAnteriorInfo.ano)
+              );
+            const quantidadeResumoMensal = projecaoAberta ? 6 : 4;
+            const linhasResumoMensalMap = new Map<string, typeof resumoFallback>();
+            linhasResumoMensalMap.set(referenciaAnterior.key, referenciaAnterior);
+            for (let index = 0; index < quantidadeResumoMensal; index += 1) {
+              const referenciaInfo = shiftFaturaReferencia(referenciaSelecionada.mes, referenciaSelecionada.ano, index);
+              const key = getFaturaKey(referenciaInfo.mes, referenciaInfo.ano);
+              const bucket = referenciasDisponiveisMap.get(key)
+                || createFaturaBucket(
+                  referenciaInfo.mes,
+                  referenciaInfo.ano,
+                  getFaturaOrdem(referenciaInfo.mes, referenciaInfo.ano)
+                );
+              linhasResumoMensalMap.set(bucket.key, bucket);
+            }
+            const linhasResumoMensal = Array.from(linhasResumoMensalMap.values()).sort((a, b) => a.ordem - b.ordem);
+
+            return (
+              <div key={cartao.id} className="group relative overflow-hidden rounded-[28px] border border-slate-800/80 bg-slate-950/80 p-4 shadow-lg shadow-black/20 transition-all duration-200 hover:-translate-y-1 hover:border-slate-700">
+                <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-cyan-400/35 to-transparent" />
+                <div className="absolute left-0 top-5 bottom-5 w-[3px] rounded-r-full opacity-80" style={{ background: `linear-gradient(180deg, ${corCartao}, ${adjustColor(corCartao, -25)})` }} />
+
+                <div className="space-y-4 pl-2">
+                  <button
+                    type="button"
+                    onClick={() => handleOpenCartaoDetalhes(cartao.id, resumoEmFoco.key)}
+                    className="block w-full text-left"
+                  >
+                    <div
+                      className="relative w-full overflow-hidden rounded-[26px] border border-white/12 p-6 text-white shadow-lg shadow-black/20 transition-transform duration-200 group-hover:scale-[1.01]"
+                      style={{
+                        background: `linear-gradient(145deg, ${corCartao} 0%, ${adjustColor(corCartao, -12)} 55%, #081226 100%)`,
+                      }}
+                    >
+                      <div className="absolute -right-12 -top-14 h-32 w-32 rounded-full bg-white/10 blur-2xl" />
+                      <div className="absolute left-8 top-16 h-24 w-24 rounded-full bg-black/10 blur-2xl" />
+                      <div className="relative z-10 flex min-h-[245px] flex-col justify-between gap-8">
+                        <div className="flex items-start justify-between">
+                          <div>
+                            <p className="text-[10px] uppercase tracking-[0.28em] text-white/65">Cartão de crédito</p>
+                            <p className="mt-3 text-[1.9rem] font-semibold leading-tight">{cartao.name || 'Sem nome'}</p>
+                            <p className="mt-3 text-sm text-white/70">Fecha dia {cartao.dia_fechamento || '--'} • Vence dia {cartao.dia_vencimento || '--'}</p>
+                          </div>
+                          <div className="h-12 w-16 rounded-2xl bg-gradient-to-br from-yellow-200 via-yellow-400 to-yellow-600 shadow-md" />
+                        </div>
+
+                        <div>
+                          <p className="text-[10px] uppercase tracking-[0.24em] text-white/65">Conta vinculada</p>
+                          <p className="mt-2 text-base font-medium text-white/90">{contaVinculadaLabel}</p>
+                        </div>
+
+                        <div className="flex items-center justify-between gap-3 text-sm text-white/70">
+                          <span className="rounded-full border border-white/15 bg-white/8 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[0.18em]">
+                            {resumoEmFoco.label}
+                          </span>
+                          <span className="truncate">{lancamentosCartaoCount} lançamentos</span>
+                        </div>
+                      </div>
+                    </div>
+                  </button>
+
+                  <div className="grid grid-cols-3 gap-2">
+                    <Button
+                      size="sm"
+                      onClick={() => handleOpenCartaoDetalhes(cartao.id, resumoEmFoco.key)}
+                      className="h-10 rounded-xl bg-cyan-600 px-4 text-white hover:bg-cyan-700"
+                    >
+                      Resumo
+                    </Button>
                     <Button
                       size="sm"
                       variant="outline"
                       onClick={() => handleOpenFaturas(cartao.id)}
-                      className="h-8 border-slate-600/70 bg-slate-800/60 hover:bg-slate-700/70 text-slate-100"
+                      className="h-10 rounded-xl border-slate-700 bg-slate-900 px-4 text-slate-100 hover:bg-slate-800"
                     >
                       Faturas
                     </Button>
                     <Button
                       size="sm"
                       onClick={() => handleEditCartao(cartao)}
-                      className="h-8 bg-blue-600 hover:bg-blue-700 text-white"
+                      className="h-10 rounded-xl bg-blue-600 px-4 text-white hover:bg-blue-700"
                     >
                       Editar
                     </Button>
                   </div>
                 </div>
 
-                <div className="relative z-10 flex flex-wrap gap-4">
-                  <div
-                    className="relative min-w-[300px] flex-1 basis-[340px] overflow-hidden rounded-2xl border border-white/15 p-5 text-white cursor-pointer min-h-[220px]"
-                    style={{
-                      background: `linear-gradient(135deg, ${cartao.cor || '#2563eb'} 0%, ${adjustColor(cartao.cor || '#2563eb', -20)} 100%)`,
-                    }}
-                    onClick={() => handleOpenFaturas(cartao.id)}
-                  >
-                    <div className="absolute -right-20 -top-20 h-48 w-48 rounded-full bg-white/10 blur-2xl" />
-                    <div className="relative z-10 flex h-full flex-col justify-between">
-                      <div className="flex items-center justify-between">
-                        <div className="h-8 w-10 rounded-md bg-gradient-to-br from-yellow-300 via-yellow-400 to-yellow-600 shadow-lg" />
-                        <span className="text-xs uppercase tracking-widest text-white/80">crédito</span>
-                      </div>
-                      <p className="text-base font-mono tracking-[0.28em] text-white/90">•••• •••• •••• ••••</p>
-                      <div className="grid grid-cols-2 gap-3 text-sm">
-                        <div className="min-w-0">
-                          <p className="text-[11px] uppercase tracking-wider text-white/70">Disponível</p>
-                          <p className="font-semibold leading-tight [overflow-wrap:anywhere]">{formatCurrency(limiteDisponivel)}</p>
+                <Dialog
+                  open={mostrarDetalhes}
+                  onOpenChange={(open) => {
+                    if (!open) {
+                      setCartaoDetalhesAberto(null);
+                      resetEdicaoLancamento();
+                    }
+                  }}
+                >
+                  <DialogContent className="flex max-w-6xl flex-col overflow-hidden border-slate-700/70 bg-slate-950/95 p-0 text-slate-100 backdrop-blur-xl sm:max-h-[88vh]">
+                    <div className="border-b border-slate-800 px-6 py-5">
+                      <div className="flex flex-wrap items-start justify-between gap-4">
+                        <div>
+                          <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">Resumo do cartão</p>
+                          <h3 className="mt-2 text-2xl font-semibold text-slate-50">{cartao.name || 'Sem nome'}</h3>
+                          <p className="mt-2 text-sm text-slate-400">
+                            Fecha dia {cartao.dia_fechamento || '--'} • Vence dia {cartao.dia_vencimento || '--'} • {contaVinculadaLabel}
+                          </p>
                         </div>
-                        <div className="min-w-0 text-right">
-                          <p className="text-[11px] uppercase tracking-wider text-white/70">Limite</p>
-                          <p className="font-semibold leading-tight [overflow-wrap:anywhere]">{formatCurrency(limite)}</p>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="rounded-full border border-slate-700 bg-slate-900 px-3 py-1 text-xs text-slate-300">
+                            {referenciaSelecionadaEhFutura ? 'Projeção futura' : 'Fatura fechada'}
+                          </span>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            disabled={!referenciaMaisAntiga}
+                            onClick={() => referenciaMaisAntiga && setReferenciasSelecionadas((prev) => ({ ...prev, [cartao.id]: referenciaMaisAntiga.key }))}
+                            className="h-9 rounded-xl border-slate-700 bg-slate-900 px-3 text-slate-200 hover:bg-slate-800 disabled:opacity-40"
+                          >
+                            Mes anterior
+                          </Button>
+                          <Select
+                            value={referenciaSelecionada.key}
+                            onValueChange={(value) => setReferenciasSelecionadas((prev) => ({ ...prev, [cartao.id]: value }))}
+                          >
+                            <SelectTrigger className="h-9 w-[180px] rounded-xl border-slate-700 bg-slate-900 text-slate-100">
+                              <SelectValue placeholder="Selecione a referencia" />
+                            </SelectTrigger>
+                            <SelectContent className="border-slate-700 bg-slate-950 text-slate-100">
+                              {referenciasDisponiveis.map((fatura) => (
+                                <SelectItem key={`${cartao.id}-${fatura.key}-option`} value={fatura.key}>
+                                  {fatura.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            disabled={!referenciaMaisNova}
+                            onClick={() => referenciaMaisNova && setReferenciasSelecionadas((prev) => ({ ...prev, [cartao.id]: referenciaMaisNova.key }))}
+                            className="h-9 rounded-xl border-slate-700 bg-slate-900 px-3 text-slate-200 hover:bg-slate-800 disabled:opacity-40"
+                          >
+                            Mes seguinte
+                          </Button>
                         </div>
                       </div>
                     </div>
-                  </div>
 
-                  <div className="min-w-[280px] flex-1 basis-[320px]">
-                    <div className="flex flex-wrap gap-3">
-                      <div className="min-w-[190px] flex-1 rounded-xl border border-red-500/35 bg-red-500/10 p-3.5 overflow-hidden">
-                        <div className="flex items-start justify-between gap-2">
-                          <p className="text-xs font-semibold uppercase tracking-wider text-red-300">Saldo em aberto</p>
-                          <p className="text-xs text-slate-400">{qtdDespesasProximaFatura} despesas</p>
+                    <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-6 py-5">
+                      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+                        <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4">
+                          <p className="text-[10px] uppercase tracking-[0.18em] text-slate-500">Fatura em foco</p>
+                          <p className="mt-2 text-2xl font-semibold text-slate-50">{formatCurrency(referenciaSelecionada.totalLiquido)}</p>
+                          <p className="mt-1 text-xs text-slate-500">{referenciaSelecionada.label} • {referenciaSelecionada.comprasCount} compras</p>
                         </div>
-                        <p className="mt-1 text-[clamp(1.8rem,1.35vw,2.2rem)] font-bold text-red-400 leading-tight tracking-tight whitespace-nowrap">{formatCurrency(faturaAberta)}</p>
-                        <p className="text-[11px] text-slate-400">Próxima fatura</p>
+                        <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4">
+                          <p className="text-[10px] uppercase tracking-[0.18em] text-slate-500">Total gasto no cartão</p>
+                          <p className="mt-2 text-2xl font-semibold text-slate-50">{formatCurrency(totalGastoCartao)}</p>
+                          <p className="mt-1 text-xs text-slate-500">{lancamentosCartaoCount} lançamentos lançados</p>
+                        </div>
+                        <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4">
+                          <p className="text-[10px] uppercase tracking-[0.18em] text-slate-500">Limite disponível</p>
+                          <p className="mt-2 text-2xl font-semibold text-emerald-300">{formatCurrency(limiteDisponivel)}</p>
+                          <p className="mt-1 text-xs text-slate-500">de {formatCurrency(limite)} totais</p>
+                        </div>
+                        <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4">
+                          <p className="text-[10px] uppercase tracking-[0.18em] text-slate-500">Limite total</p>
+                          <p className="mt-2 text-2xl font-semibold text-slate-50">{formatCurrency(limite)}</p>
+                          <p className="mt-1 text-xs text-slate-500">{percentualUsado.toFixed(0)}% comprometido</p>
+                        </div>
+                        <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4">
+                          <p className="text-[10px] uppercase tracking-[0.18em] text-slate-500">Parcelado futuro</p>
+                          <p className="mt-2 text-2xl font-semibold text-cyan-300">{formatCurrency(totalParceladoProjetado)}</p>
+                          <p className="mt-1 text-xs text-slate-500">{statusProjecao}</p>
+                        </div>
                       </div>
 
-                      <div className="min-w-[190px] flex-1 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-3.5 overflow-hidden">
-                        <p className="text-xs font-semibold uppercase tracking-wider text-emerald-300">Disponível</p>
-                        <p className="mt-1 text-[clamp(1.8rem,1.35vw,2.2rem)] font-bold text-emerald-300 leading-tight tracking-tight whitespace-nowrap">{formatCurrency(limiteDisponivel)}</p>
-                        <p className="text-[11px] text-slate-400">Limite total - limite usado</p>
-                      </div>
-
-                      <div className="w-full min-w-0 rounded-xl border border-slate-700/70 bg-slate-900/70 p-3.5">
-                      <div className="mb-2 flex items-center justify-between">
-                        <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Limite usado</p>
-                        <p className="text-xs font-bold text-slate-300">{percentualUsado.toFixed(0)}%</p>
-                      </div>
-                      <div className="mb-2 h-2.5 w-full rounded-full bg-slate-700/60">
-                        <div
-                          className={`h-2.5 rounded-full transition-all ${percentualUsado > 80 ? 'bg-red-500' : percentualUsado > 50 ? 'bg-yellow-500' : 'bg-blue-500'}`}
-                          style={{ width: `${percentualUsado}%` }}
-                        />
-                      </div>
-                      <p className="text-sm font-semibold text-slate-200 [overflow-wrap:anywhere]">
-                        {formatCurrency(limiteUsado)} <span className="text-xs font-normal text-slate-500">de {formatCurrency(limite)}</span>
-                      </p>
-                    </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="relative z-10 mt-3">
-                  {(() => {
-                    // Detecta parcelas pelo padrão XX/XX na descrição (ex: "Netflix 3/12")
-                    const parcelaRegex = /(\d{1,2})\/(\d{1,2})\s*$/;
-                    const transacoesParceladasPendentes = transacoesCartao.filter(t => {
-                      const desc = (t.descricao || '').trim();
-                      return parcelaRegex.test(desc) && t.pago !== true;
-                    });
-                    
-                    if (transacoesParceladasPendentes.length === 0) return null;
-                    
-                    const nomesMeses = ['Jan', 'Fev', 'Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago', 'Set', 'Out', 'Nov', 'Dez'];
-                    const gruposPorFatura = new Map<string, { label: string; ordem: number; transacoes: typeof transacoesCartao }>();
-                    
-                    transacoesParceladasPendentes.forEach(t => {
-                      const mes = Number(t.fatura_mes || 0);
-                      const ano = Number(t.fatura_ano || 0);
-                      const temFatura = mes >= 1 && mes <= 12 && ano > 0;
-                      const key = temFatura ? `${ano}-${mes}` : 'sem-fatura';
-                      const label = temFatura ? `${nomesMeses[mes - 1]}/${String(ano).slice(-2)}` : 'Sem referência de fatura';
-                      const ordem = temFatura ? (ano * 100 + mes) : 999999;
-                      
-                      const existing = gruposPorFatura.get(key);
-                      if (existing) {
-                        existing.transacoes.push(t);
-                      } else {
-                        gruposPorFatura.set(key, { label, ordem, transacoes: [t] });
-                      }
-                    });
-                    
-                    const faturasOrdenadas = Array.from(gruposPorFatura.values()).sort((a, b) => a.ordem - b.ordem);
-                    const totalParceladoPendente = transacoesParceladasPendentes.reduce((acc, t) => acc + Math.abs(t.valor || 0), 0);
-                    const isOpen = parcelamentosAbertos[cartao.id] || false;
-                    
-                    return (
-                      <div className="mt-1">
-                        <button
-                          onClick={() => setParcelamentosAbertos(prev => ({ ...prev, [cartao.id]: !prev[cartao.id] }))}
-                          className="w-full p-3 rounded-xl bg-blue-500/10 border border-blue-500/30 hover:bg-blue-500/20 transition-colors flex items-center justify-between cursor-pointer"
-                        >
-                          <div className="flex items-center gap-2">
-                            <svg className="w-3.5 h-3.5 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-                            </svg>
-                            <span className="text-sm text-blue-300 font-semibold">Ver Parcelamentos</span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs text-slate-400 font-semibold">{faturasOrdenadas.length} {faturasOrdenadas.length === 1 ? 'fatura' : 'faturas'}</span>
-                            <svg className={`w-3.5 h-3.5 text-blue-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                            </svg>
-                          </div>
-                        </button>
-                        
-                        {isOpen && (
-                          <div className="mt-2 p-3 rounded-lg bg-blue-500/5 border border-blue-500/20 animate-in slide-in-from-top-2 duration-200">
-                            <div className="flex items-center justify-between mb-2">
-                              <p className="text-xs text-slate-500">{transacoesParceladasPendentes.length} parcelas pendentes</p>
-                              <p className="text-sm font-bold text-blue-400">{formatCurrency(totalParceladoPendente)}</p>
+                      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
+                        <div className="flex flex-col rounded-2xl border border-slate-800 bg-slate-900/80">
+                          <div className="border-b border-slate-800 px-4 py-4">
+                            <div className="flex flex-wrap items-center justify-between gap-3">
+                              <div>
+                                <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">Faturas do cartão</p>
+                                <h4 className="mt-1 text-xl font-semibold text-slate-100">Linha do tempo das faturas</h4>
+                                <p className="mt-1 text-sm text-slate-400">Mostrando o mês anterior, a referência em foco e os próximos meses.</p>
+                              </div>
+                              {podeExpandirProjecao && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => setProjecoesAbertas(prev => ({ ...prev, [cartao.id]: !prev[cartao.id] }))}
+                                  className="h-9 rounded-xl border-slate-700 bg-slate-950 px-4 text-slate-200 hover:bg-slate-900"
+                                >
+                                  {projecaoAberta ? 'Ver menos' : 'Ver mais'}
+                                </Button>
+                              )}
                             </div>
-                            <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
-                              {faturasOrdenadas.map((fatura, i) => {
-                                const gruposParcelados = new Map<string, { descricao: string, totalParcelas: number, parcelaAtual: number, valorParcela: number }>();
-                                fatura.transacoes.forEach((t) => {
-                                  const desc = (t.descricao || '').trim();
-                                  const match = desc.match(parcelaRegex);
-                                  const parcelaAtual = match ? parseInt(match[1]) : 1;
-                                  const totalParcelas = match ? parseInt(match[2]) : 1;
-                                  const descBase = desc.replace(/\s*\d{1,2}\/\d{1,2}\s*$/, '').trim();
-                                  const existing = gruposParcelados.get(descBase);
-                                  if (existing) {
-                                    if (parcelaAtual > existing.parcelaAtual) existing.parcelaAtual = parcelaAtual;
-                                  } else {
-                                    gruposParcelados.set(descBase, {
-                                      descricao: descBase,
-                                      totalParcelas,
-                                      parcelaAtual,
-                                      valorParcela: Math.abs(t.valor || 0),
-                                    });
-                                  }
-                                });
-                                const comprasFatura = Array.from(gruposParcelados.values());
-                                const subtotalFatura = fatura.transacoes.reduce((acc, t) => acc + Math.abs(t.valor || 0), 0);
+                          </div>
 
-                                return (
-                                  <div key={`${fatura.label}-${i}`} className="rounded-md border border-slate-700/40 bg-slate-900/30 p-2">
-                                    <div className="mb-1.5 flex items-center justify-between">
-                                      <p className="text-xs font-semibold text-blue-300">{fatura.label}</p>
-                                      <p className="text-xs font-semibold text-slate-300">{formatCurrency(subtotalFatura)}</p>
+                          <div className="px-4 py-4">
+                            <div className="space-y-3">
+                              {linhasResumoMensal.map((fatura) => (
+                                <button
+                                  type="button"
+                                  key={`${cartao.id}-${fatura.key}-row`}
+                                  onClick={() => setReferenciasSelecionadas((prev) => ({ ...prev, [cartao.id]: fatura.key }))}
+                                  className={`w-full rounded-2xl border p-4 text-left transition-colors hover:bg-slate-900/90 ${fatura.key === referenciaSelecionada.key ? 'border-cyan-500/50 bg-slate-900 ring-1 ring-cyan-500/30' : 'border-slate-800 bg-slate-950/70'}`}
+                                >
+                                  <div className="flex flex-wrap items-start justify-between gap-4">
+                                    <div className="min-w-0">
+                                      <div className="flex flex-wrap items-center gap-2">
+                                        <p className="text-lg font-semibold text-slate-100">{fatura.label}</p>
+                                        {fatura.key === referenciaSelecionada.key ? (
+                                          <span className="rounded-full border border-cyan-500/30 bg-cyan-500/10 px-2 py-0.5 text-[11px] font-medium text-cyan-200">
+                                            Em foco
+                                          </span>
+                                        ) : null}
+                                      </div>
+                                      <p className="mt-2 text-sm text-slate-400">
+                                        {fatura.comprasCount} compras • Parcelado {formatCurrency(fatura.totalParcelado)} • Avulso {formatCurrency(fatura.totalAvulso)}
+                                      </p>
+                                      <p className="mt-1 text-xs text-slate-500">
+                                        {fatura.totalLiquido === 0 ? 'Sem movimento nesta referência' : `Estornos: ${formatCurrency(fatura.estornos)}`}
+                                      </p>
                                     </div>
-                                    <div className="space-y-1">
-                                      {comprasFatura.map((g, idx) => (
-                                        <div key={`${g.descricao}-${idx}`} className="flex items-center justify-between text-xs py-1 border-b border-slate-700/30 last:border-0">
-                                          <div className="flex items-center gap-1.5 min-w-0 flex-1">
-                                            <span className="text-blue-400/70">•</span>
-                                            <span className="text-slate-400 truncate">{g.descricao || 'Compra parcelada'}</span>
-                                          </div>
-                                          <div className="flex items-center gap-2 flex-shrink-0 ml-2">
-                                            <span className="text-blue-300 font-mono text-[10px] bg-blue-500/15 px-1.5 py-0.5 rounded">{g.parcelaAtual}/{g.totalParcelas}</span>
-                                            <span className="text-slate-300 font-semibold">{formatCurrency(g.valorParcela)}</span>
-                                          </div>
-                                        </div>
-                                      ))}
+                                    <div className="text-right">
+                                      <p className="text-[10px] uppercase tracking-[0.18em] text-slate-500">Total da fatura</p>
+                                      <p className="mt-2 text-2xl font-semibold text-slate-50">{formatCurrency(fatura.totalLiquido)}</p>
                                     </div>
                                   </div>
-                                );
-                              })}
+                                </button>
+                              ))}
                             </div>
                           </div>
-                        )}
+                        </div>
+
+                        <div className="flex h-fit flex-col rounded-2xl border border-slate-800 bg-slate-900/80 xl:sticky xl:top-0">
+                          <div className="border-b border-slate-800 px-4 py-4">
+                            <div>
+                              <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">Leitura rápida</p>
+                              <h4 className="mt-1 text-lg font-semibold text-slate-100">Resumo geral do cartão</h4>
+                              <p className="mt-1 text-sm text-slate-400">Visão consolidada para entender o comportamento deste cartão.</p>
+                            </div>
+                          </div>
+
+                          <div className="p-4">
+                            <div className="space-y-3">
+                              <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-4">
+                                <p className="text-[10px] uppercase tracking-[0.18em] text-slate-500">Resumo da referência em foco</p>
+                                <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                                  <div>
+                                    <p className="text-xs text-slate-500">Total</p>
+                                    <p className="mt-1 text-lg font-semibold text-slate-100">{formatCurrency(referenciaSelecionada.totalLiquido)}</p>
+                                  </div>
+                                  <div>
+                                    <p className="text-xs text-slate-500">Compras</p>
+                                    <p className="mt-1 text-lg font-semibold text-slate-100">{referenciaSelecionada.comprasCount}</p>
+                                  </div>
+                                  <div>
+                                    <p className="text-xs text-slate-500">Parcelado</p>
+                                    <p className="mt-1 text-lg font-semibold text-cyan-300">{formatCurrency(referenciaSelecionada.totalParcelado)}</p>
+                                  </div>
+                                  <div>
+                                    <p className="text-xs text-slate-500">Avulso</p>
+                                    <p className="mt-1 text-lg font-semibold text-violet-300">{formatCurrency(referenciaSelecionada.totalAvulso)}</p>
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-4">
+                                <p className="text-[10px] uppercase tracking-[0.18em] text-slate-500">Indicadores gerais</p>
+                                <div className="mt-3 space-y-3 text-sm">
+                                  <div className="flex items-center justify-between gap-3">
+                                    <span className="text-slate-400">Maior fatura prevista</span>
+                                    <span className="font-semibold text-slate-100">{formatCurrency(maiorFaturaProjetada)}</span>
+                                  </div>
+                                  <div className="flex items-center justify-between gap-3">
+                                    <span className="text-slate-400">Despesas lançadas</span>
+                                    <span className="font-semibold text-slate-100">{formatCurrency(totalDespesasHistoricas)}</span>
+                                  </div>
+                                  <div className="flex items-center justify-between gap-3">
+                                    <span className="text-slate-400">Total projetado</span>
+                                    <span className="font-semibold text-cyan-300">{formatCurrency(totalFaturasProjetadas)}</span>
+                                  </div>
+                                  <div className="flex items-center justify-between gap-3">
+                                    <span className="text-slate-400">Conta vinculada</span>
+                                    <span className="max-w-[180px] text-right font-semibold text-slate-100">{contaVinculadaLabel}</span>
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-4">
+                                <div className="flex items-center justify-between gap-3">
+                                  <div>
+                                    <p className="text-[10px] uppercase tracking-[0.18em] text-slate-500">Categorias com mais gasto</p>
+                                    <p className="mt-1 text-sm text-slate-400">Ranking da referência {referenciaSelecionada.label}, não do cartão inteiro.</p>
+                                  </div>
+                                </div>
+
+                                {categoriasMaisGasto.length === 0 ? (
+                                  <div className="mt-4 rounded-xl border border-dashed border-slate-800 bg-slate-900/70 p-4 text-sm text-slate-400">
+                                    Ainda não há gastos categorizados em {referenciaSelecionada.label}.
+                                  </div>
+                                ) : (
+                                  <div className="mt-4 space-y-3">
+                                    {categoriasMaisGasto.map((categoria) => {
+                                      const percentualCategoria = totalDespesasReferencia > 0
+                                        ? (categoria.total / totalDespesasReferencia) * 100
+                                        : 0;
+
+                                      return (
+                                        <div key={`${cartao.id}-${categoria.nome}`} className="space-y-2">
+                                          <div className="flex items-center justify-between gap-3">
+                                            <div className="min-w-0">
+                                              <p className="truncate font-medium text-slate-100">{categoria.nome}</p>
+                                              <p className="text-xs text-slate-500">{categoria.quantidade} lançamentos</p>
+                                            </div>
+                                            <div className="text-right">
+                                              <p className="font-semibold text-slate-100">{formatCurrency(categoria.total)}</p>
+                                              <p className="text-xs text-slate-500">{percentualCategoria.toFixed(0)}% do gasto</p>
+                                            </div>
+                                          </div>
+                                          <div className="h-2 overflow-hidden rounded-full bg-slate-800">
+                                            <div
+                                              className="h-full rounded-full bg-gradient-to-r from-cyan-400 to-blue-500"
+                                              style={{ width: `${Math.min(100, percentualCategoria)}%` }}
+                                            />
+                                          </div>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
                       </div>
-                    );
-                  })()}
-                </div>
+                    </div>
+                  </DialogContent>
+                </Dialog>
               </div>
             );
           })}
