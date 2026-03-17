@@ -1547,8 +1547,6 @@ export default function Cartoes({ isModal = false }) {
                 return dataB - dataA;
               });
             const contaVinculadaLabel = cartao.banco || 'Conta vinculada não informada';
-            const totalGastoCartao = faturasTodas.reduce((acc, fatura) => acc + fatura.totalLiquido, 0);
-            const totalDespesasHistoricas = faturasTodas.reduce((acc, fatura) => acc + fatura.despesas, 0);
             const totalDespesasReferencia = lancamentosReferenciaSelecionada
               .filter((transacao) => transacao.tipo === 'despesa')
               .reduce((acc, transacao) => acc + Math.abs(Number(transacao.valor) || 0), 0);
@@ -1590,6 +1588,17 @@ export default function Cartoes({ isModal = false }) {
               linhasResumoMensalMap.set(bucket.key, bucket);
             }
             const linhasResumoMensal = Array.from(linhasResumoMensalMap.values()).sort((a, b) => a.ordem - b.ordem);
+            const categoriaPrincipal = categoriasMaisGasto[0] || null;
+            const ticketMedioReferencia = referenciaSelecionada.comprasCount > 0
+              ? referenciaSelecionada.totalLiquido / referenciaSelecionada.comprasCount
+              : 0;
+            const percentualParceladoReferencia = referenciaSelecionada.totalLiquido > 0
+              ? (referenciaSelecionada.totalParcelado / referenciaSelecionada.totalLiquido) * 100
+              : 0;
+            const variacaoVsAnterior = referenciaAnterior.totalLiquido > 0
+              ? ((referenciaSelecionada.totalLiquido - referenciaAnterior.totalLiquido) / referenciaAnterior.totalLiquido) * 100
+              : null;
+            const deltaVsAnterior = referenciaSelecionada.totalLiquido - referenciaAnterior.totalLiquido;
 
             return (
               <div key={cartao.id} className="group relative overflow-hidden rounded-[28px] border border-slate-800/80 bg-slate-950/80 p-4 shadow-lg shadow-black/20 transition-all duration-200 hover:-translate-y-1 hover:border-slate-700">
@@ -1724,16 +1733,11 @@ export default function Cartoes({ isModal = false }) {
                     </div>
 
                     <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-6 py-5">
-                      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+                      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                         <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4">
                           <p className="text-[10px] uppercase tracking-[0.18em] text-slate-500">Fatura em foco</p>
                           <p className="mt-2 text-2xl font-semibold text-slate-50">{formatCurrency(referenciaSelecionada.totalLiquido)}</p>
                           <p className="mt-1 text-xs text-slate-500">{referenciaSelecionada.label} • {referenciaSelecionada.comprasCount} compras</p>
-                        </div>
-                        <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4">
-                          <p className="text-[10px] uppercase tracking-[0.18em] text-slate-500">Total gasto no cartão</p>
-                          <p className="mt-2 text-2xl font-semibold text-slate-50">{formatCurrency(totalGastoCartao)}</p>
-                          <p className="mt-1 text-xs text-slate-500">{lancamentosCartaoCount} lançamentos lançados</p>
                         </div>
                         <div className="rounded-2xl border border-slate-800 bg-slate-900/80 p-4">
                           <p className="text-[10px] uppercase tracking-[0.18em] text-slate-500">Limite disponível</p>
@@ -1845,72 +1849,128 @@ export default function Cartoes({ isModal = false }) {
                               </div>
 
                               <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-4">
-                                <p className="text-[10px] uppercase tracking-[0.18em] text-slate-500">Indicadores gerais</p>
-                                <div className="mt-3 space-y-3 text-sm">
-                                  <div className="flex items-center justify-between gap-3">
-                                    <span className="text-slate-400">Maior fatura prevista</span>
-                                    <span className="font-semibold text-slate-100">{formatCurrency(maiorFaturaProjetada)}</span>
+                                <p className="text-[10px] uppercase tracking-[0.18em] text-slate-500">Leitura da referência</p>
+                                <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                                  <div className="rounded-lg border border-slate-800 bg-slate-900/70 p-3">
+                                    <p className="text-xs text-slate-500">Fatura anterior</p>
+                                    <p className="mt-1 text-lg font-semibold text-slate-100">
+                                      {formatCurrency(referenciaAnterior.totalLiquido)}
+                                    </p>
+                                    <p className="mt-1 text-xs text-slate-500">{referenciaAnterior.label}</p>
                                   </div>
-                                  <div className="flex items-center justify-between gap-3">
-                                    <span className="text-slate-400">Despesas lançadas</span>
-                                    <span className="font-semibold text-slate-100">{formatCurrency(totalDespesasHistoricas)}</span>
+                                  <div className="rounded-lg border border-slate-800 bg-slate-900/70 p-3">
+                                    <p className="text-xs text-slate-500">Variação vs anterior</p>
+                                    <p className={`mt-1 text-lg font-semibold ${
+                                      deltaVsAnterior > 0
+                                        ? 'text-rose-300'
+                                        : deltaVsAnterior < 0
+                                          ? 'text-emerald-300'
+                                          : 'text-slate-100'
+                                    }`}>
+                                      {deltaVsAnterior >= 0 ? '+' : '-'}{formatCurrency(Math.abs(deltaVsAnterior))}
+                                    </p>
+                                    <p className="mt-1 text-xs text-slate-500">
+                                      {variacaoVsAnterior == null
+                                        ? 'Sem base anterior para comparar'
+                                        : `${Math.abs(variacaoVsAnterior).toFixed(0)}% ${variacaoVsAnterior >= 0 ? 'acima' : 'abaixo'}`}
+                                    </p>
                                   </div>
-                                  <div className="flex items-center justify-between gap-3">
-                                    <span className="text-slate-400">Total projetado</span>
-                                    <span className="font-semibold text-cyan-300">{formatCurrency(totalFaturasProjetadas)}</span>
+                                  <div className="rounded-lg border border-slate-800 bg-slate-900/70 p-3">
+                                    <p className="text-xs text-slate-500">Ticket médio</p>
+                                    <p className="mt-1 text-lg font-semibold text-slate-100">
+                                      {formatCurrency(ticketMedioReferencia)}
+                                    </p>
+                                    <p className="mt-1 text-xs text-slate-500">{referenciaSelecionada.comprasCount} compras na referência</p>
                                   </div>
-                                  <div className="flex items-center justify-between gap-3">
-                                    <span className="text-slate-400">Conta vinculada</span>
-                                    <span className="max-w-[180px] text-right font-semibold text-slate-100">{contaVinculadaLabel}</span>
+                                  <div className="rounded-lg border border-slate-800 bg-slate-900/70 p-3">
+                                    <p className="text-xs text-slate-500">Peso do parcelado</p>
+                                    <p className="mt-1 text-lg font-semibold text-cyan-300">
+                                      {percentualParceladoReferencia.toFixed(0)}%
+                                    </p>
+                                    <p className="mt-1 text-xs text-slate-500">
+                                      {formatCurrency(referenciaSelecionada.totalParcelado)} de {formatCurrency(referenciaSelecionada.totalLiquido)}
+                                    </p>
                                   </div>
-                                </div>
-                              </div>
-
-                              <div className="rounded-xl border border-slate-800 bg-slate-950/70 p-4">
-                                <div className="flex items-center justify-between gap-3">
-                                  <div>
-                                    <p className="text-[10px] uppercase tracking-[0.18em] text-slate-500">Categorias com mais gasto</p>
-                                    <p className="mt-1 text-sm text-slate-400">Ranking da referência {referenciaSelecionada.label}, não do cartão inteiro.</p>
-                                  </div>
-                                </div>
-
-                                {categoriasMaisGasto.length === 0 ? (
-                                  <div className="mt-4 rounded-xl border border-dashed border-slate-800 bg-slate-900/70 p-4 text-sm text-slate-400">
-                                    Ainda não há gastos categorizados em {referenciaSelecionada.label}.
-                                  </div>
-                                ) : (
-                                  <div className="mt-4 space-y-3">
-                                    {categoriasMaisGasto.map((categoria) => {
-                                      const percentualCategoria = totalDespesasReferencia > 0
-                                        ? (categoria.total / totalDespesasReferencia) * 100
-                                        : 0;
-
-                                      return (
-                                        <div key={`${cartao.id}-${categoria.nome}`} className="space-y-2">
-                                          <div className="flex items-center justify-between gap-3">
-                                            <div className="min-w-0">
-                                              <p className="truncate font-medium text-slate-100">{categoria.nome}</p>
-                                              <p className="text-xs text-slate-500">{categoria.quantidade} lançamentos</p>
-                                            </div>
-                                            <div className="text-right">
-                                              <p className="font-semibold text-slate-100">{formatCurrency(categoria.total)}</p>
-                                              <p className="text-xs text-slate-500">{percentualCategoria.toFixed(0)}% do gasto</p>
-                                            </div>
-                                          </div>
-                                          <div className="h-2 overflow-hidden rounded-full bg-slate-800">
-                                            <div
-                                              className="h-full rounded-full bg-gradient-to-r from-cyan-400 to-blue-500"
-                                              style={{ width: `${Math.min(100, percentualCategoria)}%` }}
-                                            />
-                                          </div>
+                                  <div className="rounded-lg border border-slate-800 bg-slate-900/70 p-3 sm:col-span-2">
+                                    <p className="text-xs text-slate-500">Categoria principal</p>
+                                    {categoriaPrincipal ? (
+                                      <>
+                                        <div className="mt-1 flex items-center justify-between gap-3">
+                                          <p className="text-lg font-semibold text-slate-100">{categoriaPrincipal.nome}</p>
+                                          <p className="text-sm font-semibold text-slate-100">{formatCurrency(categoriaPrincipal.total)}</p>
                                         </div>
-                                      );
-                                    })}
+                                        <p className="mt-1 text-xs text-slate-500">
+                                          {categoriaPrincipal.quantidade} lançamentos • {totalDespesasReferencia > 0 ? ((categoriaPrincipal.total / totalDespesasReferencia) * 100).toFixed(0) : '0'}% do gasto da referência
+                                        </p>
+                                      </>
+                                    ) : (
+                                      <p className="mt-1 text-sm text-slate-400">Sem categoria dominante nesta referência.</p>
+                                    )}
                                   </div>
-                                )}
+                                </div>
                               </div>
+
                             </div>
                           </div>
+                        </div>
+                      </div>
+
+                      <div className="rounded-2xl border border-slate-800 bg-slate-900/80">
+                        <div className="border-b border-slate-800 px-4 py-4">
+                          <div className="flex flex-wrap items-center justify-between gap-3">
+                            <div>
+                              <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-500">Categorias com mais gasto</p>
+                              <h4 className="mt-1 text-xl font-semibold text-slate-100">Ranking da referência {referenciaSelecionada.label}</h4>
+                              <p className="mt-1 text-sm text-slate-400">Distribuição dos gastos por categoria somente deste mês de fatura.</p>
+                            </div>
+                            {categoriaPrincipal ? (
+                              <div className="rounded-xl border border-cyan-500/25 bg-cyan-500/10 px-4 py-3 text-right">
+                                <p className="text-[10px] uppercase tracking-[0.18em] text-cyan-200/80">Categoria líder</p>
+                                <p className="mt-1 text-lg font-semibold text-cyan-100">{categoriaPrincipal.nome}</p>
+                                <p className="text-sm text-cyan-200/80">{formatCurrency(categoriaPrincipal.total)}</p>
+                              </div>
+                            ) : null}
+                          </div>
+                        </div>
+
+                        <div className="p-4">
+                          {categoriasMaisGasto.length === 0 ? (
+                            <div className="rounded-xl border border-dashed border-slate-800 bg-slate-950/70 p-4 text-sm text-slate-400">
+                              Ainda não há gastos categorizados em {referenciaSelecionada.label}.
+                            </div>
+                          ) : (
+                            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                              {categoriasMaisGasto.map((categoria) => {
+                                const percentualCategoria = totalDespesasReferencia > 0
+                                  ? (categoria.total / totalDespesasReferencia) * 100
+                                  : 0;
+
+                                return (
+                                  <div
+                                    key={`${cartao.id}-${categoria.nome}`}
+                                    className="rounded-xl border border-slate-800 bg-slate-950/70 p-4"
+                                  >
+                                    <div className="flex items-start justify-between gap-3">
+                                      <div className="min-w-0">
+                                        <p className="truncate text-lg font-semibold text-slate-100">{categoria.nome}</p>
+                                        <p className="mt-1 text-xs text-slate-500">{categoria.quantidade} lançamentos</p>
+                                      </div>
+                                      <div className="text-right">
+                                        <p className="font-semibold text-slate-100">{formatCurrency(categoria.total)}</p>
+                                        <p className="text-xs text-slate-500">{percentualCategoria.toFixed(0)}% do gasto</p>
+                                      </div>
+                                    </div>
+                                    <div className="mt-4 h-2 overflow-hidden rounded-full bg-slate-800">
+                                      <div
+                                        className="h-full rounded-full bg-gradient-to-r from-cyan-400 to-blue-500"
+                                        style={{ width: `${Math.min(100, percentualCategoria)}%` }}
+                                      />
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>
