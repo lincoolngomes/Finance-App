@@ -29,6 +29,20 @@ export function LoginForm({ onForgotPassword }: LoginFormProps) {
   const { signIn, signUp } = useAuth()
   const navigate = useNavigate()
 
+  const buildSupabaseConnectionMessage = () => {
+    if (import.meta.env.DEV) {
+      return (
+        `Falha ao conectar (${SUPABASE_RUNTIME_MODE}). URL ativa: ${SUPABASE_URL}. ` +
+        'Reinicie o Vite após alterar o .env.local.'
+      )
+    }
+
+    return (
+      `Falha ao conectar (${SUPABASE_RUNTIME_MODE}). URL ativa: ${SUPABASE_URL}. ` +
+      'Verifique a VITE_SUPABASE_URL e a VITE_SUPABASE_ANON_KEY do deploy no VPS e publique uma nova build.'
+    )
+  }
+
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault()
     setSignupLoading(true)
@@ -104,9 +118,7 @@ export function LoginForm({ onForgotPassword }: LoginFormProps) {
         if (isConnectionError) {
           toast({
             title: '⚠️ Erro de Conexão com Supabase',
-            description:
-              `Falha ao conectar (${SUPABASE_RUNTIME_MODE}). URL ativa: ${SUPABASE_URL}. ` +
-              'Reinicie o Vite após alterar o .env.local.',
+            description: buildSupabaseConnectionMessage(),
             variant: 'destructive',
             duration: 10000,
           })
@@ -129,9 +141,7 @@ export function LoginForm({ onForgotPassword }: LoginFormProps) {
       if (isConnectionError) {
         toast({
           title: '⚠️ Erro de Conexão com Supabase',
-          description:
-            `Falha ao conectar (${SUPABASE_RUNTIME_MODE}). URL ativa: ${SUPABASE_URL}. ` +
-            'Reinicie o Vite após alterar o .env.local.',
+          description: buildSupabaseConnectionMessage(),
           variant: 'destructive',
           duration: 10000,
         })
