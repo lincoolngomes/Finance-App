@@ -10,6 +10,15 @@ const SUPABASE_EXTERNAL_URL =
 const SUPABASE_ANON_KEY =
   import.meta.env.VITE_SUPABASE_ANON_KEY || DEFAULT_SUPABASE_ANON_KEY
 
+const getSupabaseProjectRef = (value: string) => {
+  try {
+    const hostname = new URL(value).hostname
+    return hostname.split('.')[0] || 'financeapp'
+  } catch {
+    return 'financeapp'
+  }
+}
+
 const isSupabaseCloudUrl = (value: string) => {
   try {
     return new URL(value).hostname.endsWith('.supabase.co')
@@ -49,6 +58,7 @@ const supabaseUrl = runtimeConfig.url
 
 export const SUPABASE_URL = supabaseUrl
 export const SUPABASE_RUNTIME_MODE = runtimeConfig.mode
+export const SUPABASE_AUTH_STORAGE_KEY = `sb-${getSupabaseProjectRef(SUPABASE_EXTERNAL_URL)}-auth-token`
 
 const isLocalHostRuntime =
   typeof window !== 'undefined' &&
@@ -123,6 +133,7 @@ export const supabase = createClient(supabaseUrl, SUPABASE_ANON_KEY, {
   auth: {
     persistSession: true,
     autoRefreshToken: true,
+    storageKey: SUPABASE_AUTH_STORAGE_KEY,
   },
   global: {
     fetch: supabaseFetch,

@@ -5,7 +5,7 @@ import { Input } from '/src/components/ui/input'
 import { Label } from '/src/components/ui/label'
 import { useAuth } from '/src/hooks/useAuth'
 import { toast } from '/src/hooks/use-toast'
-import { Loader2 } from 'lucide-react'
+import { Eye, EyeOff, Loader2 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 
 interface LoginFormProps {
@@ -15,11 +15,13 @@ interface LoginFormProps {
 export function LoginForm({ onForgotPassword }: LoginFormProps) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const [showSignup, setShowSignup] = useState(false)
   const [signupNome, setSignupNome] = useState('')
   const [signupEmail, setSignupEmail] = useState('')
   const [signupPassword, setSignupPassword] = useState('')
+  const [showSignupPassword, setShowSignupPassword] = useState(false)
   const [signupTelefone, setSignupTelefone] = useState('')
   const [signupCpf, setSignupCpf] = useState('')
   const [signupNascimento, setSignupNascimento] = useState('')
@@ -31,9 +33,11 @@ export function LoginForm({ onForgotPassword }: LoginFormProps) {
     e.preventDefault()
     setSignupLoading(true)
     try {
+      const normalizedSignupEmail = signupEmail.trim().toLowerCase()
+
       // Signup com user_metadata (nome, telefone, cpf, nascimento)
       const { data, error } = await supabase.auth.signUp({
-        email: signupEmail,
+        email: normalizedSignupEmail,
         password: signupPassword,
         options: {
           data: {
@@ -58,7 +62,7 @@ export function LoginForm({ onForgotPassword }: LoginFormProps) {
           await supabase.from('profiles').upsert({
             id: userId,
             nome: signupNome,
-            email: signupEmail,
+            email: normalizedSignupEmail,
             phone: signupTelefone,
             cpf: signupCpf,
             nascimento: signupNascimento,
@@ -69,7 +73,7 @@ export function LoginForm({ onForgotPassword }: LoginFormProps) {
           description: 'Verifique seu e-mail para confirmar o cadastro.',
         })
         setShowSignup(false)
-        setEmail(signupEmail)
+        setEmail(normalizedSignupEmail)
         setPassword('')
       }
     } catch (error: any) {
@@ -87,7 +91,7 @@ export function LoginForm({ onForgotPassword }: LoginFormProps) {
     setLoading(true)
 
     try {
-      const { error } = await signIn(email, password)
+      const { error } = await signIn(email.trim().toLowerCase(), password)
 
       if (error) {
         const errorMessage = error?.message || ''
@@ -210,15 +214,27 @@ export function LoginForm({ onForgotPassword }: LoginFormProps) {
           </div>
           <div className="space-y-2">
             <Label htmlFor="signup-password" className="text-sm font-medium">Senha</Label>
-            <Input
-              id="signup-password"
-              type="password"
-              placeholder="••••••••"
-              value={signupPassword}
-              onChange={e => setSignupPassword(e.target.value)}
-              required
-              className="h-11"
-            />
+            <div className="relative">
+              <Input
+                id="signup-password"
+                type={showSignupPassword ? 'text' : 'password'}
+                placeholder="••••••••"
+                value={signupPassword}
+                onChange={e => setSignupPassword(e.target.value)}
+                required
+                className="h-11 pr-12"
+              />
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="absolute right-1 top-1 h-9 w-9 text-muted-foreground hover:text-foreground"
+                onClick={() => setShowSignupPassword((current) => !current)}
+                aria-label={showSignupPassword ? 'Ocultar senha' : 'Mostrar senha'}
+              >
+                {showSignupPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </Button>
+            </div>
           </div>
           <Button
             type="submit"
@@ -265,15 +281,27 @@ export function LoginForm({ onForgotPassword }: LoginFormProps) {
               <Label htmlFor="password" className="text-sm font-medium">
                 Senha
               </Label>
-              <Input
-                id="password"
-                type="password"
-                placeholder="••••••••"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                className="h-11"
-              />
+              <div className="relative">
+                <Input
+                  id="password"
+                  type={showPassword ? 'text' : 'password'}
+                  placeholder="••••••••"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  className="h-11 pr-12"
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="absolute right-1 top-1 h-9 w-9 text-muted-foreground hover:text-foreground"
+                  onClick={() => setShowPassword((current) => !current)}
+                  aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}
+                >
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </Button>
+              </div>
             </div>
             <Button
               type="submit"

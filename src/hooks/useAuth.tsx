@@ -1,7 +1,7 @@
 
 import { useState, useEffect, createContext, useContext } from 'react'
 import { User, Session } from '@supabase/supabase-js'
-import { supabase } from '../lib/supabase'
+import { supabase, SUPABASE_AUTH_STORAGE_KEY } from '../lib/supabase'
 import { buildProfileFromUser, isGeneratedProfileName } from '../utils/profile-display'
 
 interface AuthContextType {
@@ -33,22 +33,13 @@ const normalizeAuthError = (err: unknown) => {
   }
 }
 
-const getLocalStorageSessionKey = () => {
-  try {
-    const host = new URL(import.meta.env.VITE_SUPABASE_URL || '').hostname
-    return `sb-${host.split('.')[0]}-auth-token`
-  } catch {
-    return 'sb-127-auth-token'
-  }
-}
-
 const readSessionFromStorage = (): Session | null => {
   if (typeof window === 'undefined') {
     return null
   }
 
   try {
-    const raw = window.localStorage.getItem(getLocalStorageSessionKey())
+    const raw = window.localStorage.getItem(SUPABASE_AUTH_STORAGE_KEY)
     if (!raw) {
       return null
     }
@@ -193,15 +184,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   const signIn = async (email: string, password: string) => {
+    const normalizedEmail = email.trim().toLowerCase()
+
     try {
       let res = await supabase.auth.signInWithPassword({
-        email,
+        email: normalizedEmail,
         password,
       })
 
       if (res.error && isLocalDevSupabase && shouldAutoCreateLocalUser(res.error.message || '')) {
         const signup = await supabase.auth.signUp({
-          email,
+          email: normalizedEmail,
           password,
           options: {
             emailRedirectTo: undefined,
@@ -212,7 +205,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           if (signup.data.user?.id) {
             const profilePatch = buildProfileFromUser(
               {
-                email,
+                email: normalizedEmail,
                 user_metadata: signup.data.user.user_metadata,
               },
               null
@@ -221,7 +214,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             await supabase.from('profiles').upsert(
               {
                 id: signup.data.user.id,
-                email: profilePatch.email || email,
+                email: profilePatch.email || normalizedEmail,
                 nome: profilePatch.nome,
                 phone: profilePatch.phone || null,
                 cpf: profilePatch.cpf || null,
@@ -233,7 +226,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
           if (!signup.data.session) {
             res = await supabase.auth.signInWithPassword({
-              email,
+              email: normalizedEmail,
               password,
             })
           } else {
@@ -255,9 +248,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
 
   const signUp = async (email: string, password: string) => {
+    const normalizedEmail = email.trim().toLowerCase()
+
     try {
       const res = await supabase.auth.signUp({
-        email,
+        email: normalizedEmail,
         password,
       })
       return { error: res.error }
@@ -271,7 +266,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   const resetPassword = async (email: string) => {
-    const { error } = await supabase.auth.resetPasswordForEmail(email)
+    const normalizedEmail = email.trim().toLowerCase()
+    const { error } = await supabase.auth.resetPasswordForEmail(normalizedEmail)
     return { error }
   }
 
