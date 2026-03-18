@@ -27,6 +27,8 @@ import { Edit, Trash2, TrendingUp, TrendingDown, ArrowUpDown, Download, Clock, D
 import * as XLSX from 'xlsx'
 import { formatCurrency } from '/src/utils/currency'
 import { categorizar, normalizar } from '/src/utils/categorizacao'
+import { calculateSaldoGlobalContas } from '/src/utils/account-balance'
+import { reconcileImportTransactions } from '/src/utils/transaction-import'
 import { addMonths, format, parse } from 'date-fns'
 import { useSearchParams } from 'react-router-dom'
 
@@ -78,6 +80,36 @@ const createInitialFormData = () => ({
 const getTransactionStatus = (isPago: boolean, metodo?: string) => {
   if (isPago) return 'pago'
   return metodo === 'cartao_credito' ? 'pendente_fatura' : 'pendente'
+}
+
+const resolveLiquidacaoTransacao = ({
+  metodo,
+  isPago,
+  forcePending = false,
+}: {
+  metodo?: string
+  isPago?: boolean
+  forcePending?: boolean
+}) => {
+  if (metodo === 'cartao_credito') {
+    return {
+      pago: false,
+      status: 'pendente_fatura',
+    }
+  }
+
+  if (forcePending) {
+    return {
+      pago: false,
+      status: 'pendente',
+    }
+  }
+
+  const pago = Boolean(isPago)
+  return {
+    pago,
+    status: getTransactionStatus(pago, metodo),
+  }
 }
 
 const isTransacaoPaga = (transacao: { pago?: boolean | null }) => transacao.pago === true
@@ -878,10 +910,51 @@ const Transacoes: React.FC = () => {
       }
 
       lancamentosComCategoriaId.sort((a, b) => new Date(b.data).getTime() - new Date(a.data).getTime());
+      const { data: transacoesExistentes } = await supabase
+        .from('transacoes')
+        .select('id, conta_id, cartao_id, categoria_id, data, descricao, valor, tipo, pago, status')
+        .eq('user_id', user.id)
+        .is('cartao_id', null)
 
-      const { data, error } = await supabase.from('transacoes').insert(lancamentosComCategoriaId).select();
-      if (error) {
-        return { success: false, message: 'Erro ao importar: ' + error.message };
+      const {
+        unicas: lancamentosUnicos,
+        updates: lancamentosParaAtualizar,
+        skippedDuplicates,
+        adoptedOrphans,
+        reactivatedPending,
+      } = reconcileImportTransactions(
+        lancamentosComCategoriaId,
+        transacoesExistentes || [],
+        contaId,
+      )
+
+      let totalConciliadas = 0
+      for (const updateRow of lancamentosParaAtualizar) {
+        const { error: updateError } = await supabase
+          .from('transacoes')
+          .update(updateRow.changes)
+          .eq('id', updateRow.id)
+          .eq('user_id', user.id)
+
+        if (!updateError) totalConciliadas += 1
+      }
+
+      if (lancamentosUnicos.length === 0 && totalConciliadas === 0) {
+        return {
+          success: true,
+          count: 0,
+          accountName: contas.find(c => c.id === contaId)?.nome || contaId,
+          message: `Nenhum lançamento novo para importar. ${skippedDuplicates} duplicata(s) ignorada(s).`
+        }
+      }
+
+      let data = []
+      if (lancamentosUnicos.length > 0) {
+        const insertResult = await supabase.from('transacoes').insert(lancamentosUnicos).select();
+        if (insertResult.error) {
+          return { success: false, message: 'Erro ao importar: ' + insertResult.error.message };
+        }
+        data = insertResult.data || []
       }
 
       let totalRecategorizadas = 0;
@@ -919,9 +992,9 @@ const Transacoes: React.FC = () => {
       const conta = contas.find(c => c.id === contaId);
       return {
         success: true,
-        count: (data || []).length,
+        count: (data || []).length + totalConciliadas,
         accountName: conta ? conta.nome : contaId,
-        message: `✓ Importação realizada com sucesso!${totalRecategorizadas > 0 ? ` ${totalRecategorizadas} transações recategorizadas pelas regras.` : ''}`
+        message: `✓ Importação realizada com sucesso!${data.length > 0 ? ` ${data.length} lançamento(s) novo(s).` : ''}${adoptedOrphans > 0 ? ` ${adoptedOrphans} lançamento(s) órfão(s) vinculados à conta.` : ''}${reactivatedPending > 0 ? ` ${reactivatedPending} pendência(s) conciliada(s) com o extrato.` : ''}${skippedDuplicates > 0 ? ` ${skippedDuplicates} duplicata(s) ignorada(s).` : ''}${totalRecategorizadas > 0 ? ` ${totalRecategorizadas} transações recategorizadas pelas regras.` : ''}`
       };
     } catch (e: any) {
       return { success: false, message: `Erro ao importar: ${e.message || e}` };
@@ -934,34 +1007,15 @@ const Transacoes: React.FC = () => {
   // Memo para saldo GLOBAL (não depende de filtros visuais)
   // SALDO: usa TODAS as transações de CONTAS (sem cartão de crédito), independente de filtros
   const saldoReal = useMemo(() => {
-    // Soma do saldo inicial de todas as contas (respeitando sinal — pode ser negativo)
-    // Tenta: saldo_inicial → saldoInicial → saldo (campo original da tabela)
-    const totalSaldoInicial = contas.reduce((acc, conta) => {
-      const s = conta.saldo_inicial ?? conta.saldoInicial ?? conta.saldo ?? 0
-      const n = Number(s)
-      return acc + (isNaN(n) ? 0 : n)
-    }, 0)
-
-    // SALDO: usa 'transacoes' (GLOBAL), não 'filteredTransacoes' — filtros visuais não devem afetar o saldo
-    const transacoesContaPagas = transacoes.filter(t => !t.cartao_id && isTransacaoPaga(t))
-    const receitasGlobais = transacoesContaPagas
-      .filter(t => t.tipo === 'receita')
-      .reduce((acc, t) => acc + Math.abs(Number(t.valor) || 0), 0)
-    const despesasGlobais = transacoesContaPagas
-      .filter(t => t.tipo === 'despesa')
-      .reduce((acc, t) => acc + Math.abs(Number(t.valor) || 0), 0)
-
-    // Saldo = saldo inicial + receitas - despesas (apenas de contas, cartão não afeta, sem filtros)
-    const saldo = totalSaldoInicial + receitasGlobais - despesasGlobais
+    const saldo = calculateSaldoGlobalContas(contas, transacoes)
     console.log('💰 SALDO DEBUG:', {
       contas: contas.map(c => ({ id: c.id, nome: c.nome, saldo_inicial: c.saldo_inicial, saldoInicial: c.saldoInicial, saldo: c.saldo, TODOS_CAMPOS: Object.keys(c) })),
-      totalSaldoInicial,
       totalTransacoes: transacoes.length,
-      transacoesContaPagas: transacoesContaPagas.length,
-      receitasGlobais,
-      despesasGlobais,
       saldo,
-      amostraTransacoes: transacoesContaPagas.slice(0, 5).map(t => ({ id: t.id, desc: t.descricao, valor: t.valor, tipo: t.tipo, cartao_id: t.cartao_id, pago: t.pago }))
+      amostraTransacoes: transacoes
+        .filter(t => !t.cartao_id && isTransacaoPaga(t))
+        .slice(0, 5)
+        .map(t => ({ id: t.id, desc: t.descricao, valor: t.valor, tipo: t.tipo, cartao_id: t.cartao_id, pago: t.pago }))
     })
     return saldo
   }, [transacoes, contas])
@@ -1124,47 +1178,6 @@ const Transacoes: React.FC = () => {
     }
 
     try {
-      // Define status automaticamente conforme data e método
-      let status = formData.status;
-      let metodo = formData.metodo;
-      
-      // Função para determinar status baseado na data
-      const determinarStatusPorData = (dataStr) => {
-        try {
-          const hoje = new Date();
-          hoje.setHours(0, 0, 0, 0);
-          
-          let data;
-          // Se for string em formato yyyy-mm-dd
-          if (/^\d{4}-\d{2}-\d{2}$/.test(dataStr)) {
-            data = new Date(dataStr + 'T00:00:00');
-          } else {
-            data = new Date(dataStr);
-          }
-          
-          data.setHours(0, 0, 0, 0);
-          
-          // Se data > hoje → pendente, senão pago
-          return data > hoje ? 'pendente' : 'pago';
-        } catch {
-          return 'pago'; // Padrão é pago se der erro
-        }
-      };
-      
-      if (!status) {
-        if (formData.metodo === 'cartao_credito') {
-          status = 'pendente_fatura';
-        } else if (formData.metodo === 'pix' || formData.metodo === 'debito' || formData.metodo === 'transferencia') {
-          // Determina status baseado na data
-          status = determinarStatusPorData(formData.quando);
-        } else {
-          // Para outros métodos, também verifica a data
-          status = formData.quando ? determinarStatusPorData(formData.quando) : '';
-        }
-      }
-      if (!metodo) {
-        metodo = '';
-      }
       // Normaliza campos UUID vazios para null (Postgres não aceita '')
       const normalizeUuid = (v: any) => {
         if (v === undefined || v === null) return null
@@ -1173,6 +1186,10 @@ const Transacoes: React.FC = () => {
       }
 
       const valorNormalizado = Math.abs(Number(formData.valor) || 0)
+      const liquidacaoBase = resolveLiquidacaoTransacao({
+        metodo: formData.metodo,
+        isPago: formData.isPago,
+      })
 
       const transacaoData = {
         data: formData.quando || null,
@@ -1183,8 +1200,8 @@ const Transacoes: React.FC = () => {
         observacao: formData.detalhes || null,
         tipo: formData.tipo || null,
         categoria_id: normalizeUuid(formData.category_id),
-        pago: formData.isPago !== undefined ? formData.isPago : true,
-        status: getTransactionStatus(Boolean(formData.isPago), formData.metodo),
+        pago: liquidacaoBase.pago,
+        status: liquidacaoBase.status,
         conta_id: formData.metodo === 'cartao_credito' ? null : normalizeUuid(formData.account_id),
         cartao_id: formData.metodo === 'cartao_credito' ? normalizeUuid(formData.account_id) : null,
         user_id: user?.id || null,
@@ -1224,10 +1241,19 @@ const Transacoes: React.FC = () => {
           for (let i = 0; i < repetirMeses; i++) {
             // Calcula a data da próxima transação
             const dataFormatada = format(addMonths(dataBase, i), 'yyyy-MM-dd')
+            const liquidacaoRecorrente = i === 0
+              ? liquidacaoBase
+              : resolveLiquidacaoTransacao({
+                  metodo: formData.metodo,
+                  isPago: false,
+                  forcePending: true,
+                })
             
             transacoes.push({
               ...payload,
               data: dataFormatada,
+              pago: liquidacaoRecorrente.pago,
+              status: liquidacaoRecorrente.status,
             });
           }
           

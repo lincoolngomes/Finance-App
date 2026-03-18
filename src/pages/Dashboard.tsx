@@ -8,6 +8,7 @@ import { DashboardFilters } from '/src/components/dashboard/DashboardFilters'
 import { DashboardCharts } from '/src/components/dashboard/DashboardCharts'
 import { GerenciarFaturasModal } from '/src/components/faturas/GerenciarFaturasModal'
 import { getTransactionMonth, enrichCardTransactions } from '/src/utils/dateParser'
+import { calculateSaldoGlobalContas } from '/src/utils/account-balance'
 import {
   getInvestmentImpact,
   isInvestmentTransaction,
@@ -330,25 +331,7 @@ export default function Dashboard() {
   // Calcular estatísticas
   // Saldo atual (global) — não deve depender do filtro de mês/ano
   const saldoAtual = useMemo(() => {
-    // Soma do saldo inicial de todas as contas (respeitando sinal — pode ser negativo)
-    // Tenta: saldo_inicial → saldoInicial → saldo (campo original da tabela)
-    const totalSaldoInicial = contas.reduce((acc, conta) => {
-      const s = conta.saldo_inicial ?? conta.saldoInicial ?? conta.saldo ?? 0
-      const n = Number(s)
-      return acc + (isNaN(n) ? 0 : n)
-    }, 0)
-
-    // SALDO: apenas transações de CONTAS (sem cartão de crédito)
-    const transacoesConta = transacoes.filter(t => !t.cartao_id && isTransacaoPaga(t))
-    const totalReceitas = transacoesConta
-      .filter(t => t.tipo === 'receita')
-      .reduce((acc, t) => acc + Math.abs(Number(t.valor) || 0), 0)
-    const totalDespesas = transacoesConta
-      .filter(t => t.tipo === 'despesa')
-      .reduce((acc, t) => acc + Math.abs(Number(t.valor) || 0), 0)
-
-    // Saldo = saldo inicial + receitas - despesas (apenas contas, cartão não afeta)
-    return totalSaldoInicial + totalReceitas - totalDespesas
+    return calculateSaldoGlobalContas(contas, transacoes)
   }, [transacoes, contas])
 
   const stats = useMemo(() => {

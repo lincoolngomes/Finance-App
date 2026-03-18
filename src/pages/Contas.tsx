@@ -59,6 +59,8 @@ import Papa from 'papaparse';
 import { ImportCategoryCombobox, type ImportCategoryOption } from '/src/components/importers/ImportCategoryCombobox';
 import { REGRAS_PADRAO } from "../utils/categorizacao";
 import { isDefaultCategory } from '/src/constants/defaultCategories';
+import { calculateContaBalance } from '/src/utils/account-balance';
+import { reconcileImportTransactions } from '/src/utils/transaction-import';
 // Modal de importação de extrato bancário
 
 
@@ -1263,10 +1265,52 @@ export default function ContasPage() {
       if (Array.isArray(lancamentos)) {
         lancamentos.sort((a, b) => new Date(b.data || b.quando) - new Date(a.data || a.quando));
       }
+      const { data: transacoesExistentes } = await supabase
+        .from('transacoes')
+        .select('id, conta_id, cartao_id, categoria_id, data, descricao, valor, tipo, pago, status')
+        .eq('user_id', user.id)
+        .is('cartao_id', null);
+
+      const {
+        unicas: lancamentosUnicos,
+        updates: lancamentosParaAtualizar,
+        skippedDuplicates,
+        adoptedOrphans,
+        reactivatedPending,
+      } = reconcileImportTransactions(
+        lancamentosComCategoriaId,
+        transacoesExistentes || [],
+        contaId,
+      );
+
+      let totalConciliadas = 0;
+      for (const updateRow of lancamentosParaAtualizar) {
+        const { error: updateError } = await supabase
+          .from('transacoes')
+          .update(updateRow.changes)
+          .eq('id', updateRow.id)
+          .eq('user_id', user.id);
+
+        if (!updateError) totalConciliadas += 1;
+      }
+
+      if (lancamentosUnicos.length === 0 && totalConciliadas === 0) {
+        return {
+          success: true,
+          count: 0,
+          accountName: contas.find(c => c.id === contaId)?.nome || contaId,
+          message: `Nenhum lançamento novo para importar. ${skippedDuplicates} duplicata(s) ignorada(s).`
+        };
+      }
+
       // Insere em lote
-      const { data, error } = await supabase.from('transacoes').insert(lancamentosComCategoriaId).select();
-      if (error) {
-        return { success: false, message: 'Erro ao importar: ' + error.message };
+      let data = [];
+      if (lancamentosUnicos.length > 0) {
+        const insertResult = await supabase.from('transacoes').insert(lancamentosUnicos).select();
+        if (insertResult.error) {
+          return { success: false, message: 'Erro ao importar: ' + insertResult.error.message };
+        }
+        data = insertResult.data || [];
       }
 
       let totalRecategorizadas = 0;
@@ -1305,9 +1349,9 @@ export default function ContasPage() {
       const conta = contas.find(c => c.id === contaId);
       return {
         success: true,
-        count: (data || []).length,
+        count: (data || []).length + totalConciliadas,
         accountName: conta ? conta.nome : contaId,
-        message: `✓ Importação realizada com sucesso!${totalRecategorizadas > 0 ? ` ${totalRecategorizadas} transações recategorizadas pelas regras.` : ''}`
+        message: `✓ Importação realizada com sucesso!${data.length > 0 ? ` ${data.length} lançamento(s) novo(s).` : ''}${adoptedOrphans > 0 ? ` ${adoptedOrphans} lançamento(s) órfão(s) vinculados à conta.` : ''}${reactivatedPending > 0 ? ` ${reactivatedPending} pendência(s) conciliada(s) com o extrato.` : ''}${skippedDuplicates > 0 ? ` ${skippedDuplicates} duplicata(s) ignorada(s).` : ''}${totalRecategorizadas > 0 ? ` ${totalRecategorizadas} transações recategorizadas pelas regras.` : ''}`
       };
     } catch (e) {
       return { success: false, message: `Erro ao importar: ${e.message || e}` };
@@ -1354,40 +1398,7 @@ export default function ContasPage() {
         <div className="space-y-4">
           {getContasImportaveis(contas)
             .map((conta) => {
-              const parseValorSeguro = (raw: any) => {
-                if (typeof raw === 'number') return raw;
-                if (raw === null || raw === undefined) return 0;
-                const s = String(raw).trim();
-                if (!s) return 0;
-                // Aceita formatos: 1234.56, 1.234,56, -R$ 130,00
-                if (s.includes(',')) {
-                  const normalized = s.replace(/[^\d,.-]/g, '').replace(/\./g, '').replace(',', '.');
-                  const n = parseFloat(normalized);
-                  return isNaN(n) ? 0 : n;
-                }
-                const n = parseFloat(s.replace(/[^\d.-]/g, ''));
-                return isNaN(n) ? 0 : n;
-              };
-
-              const saldoInicial = Number(conta.saldo_inicial ?? conta.saldoInicial ?? conta.saldo ?? 0) || 0;
-              const transacoesConta = transacoes.filter(
-                t =>
-                  (t.conta_id === conta.id ||
-                    t.account_id === conta.id ||
-                    t.accountId === conta.id) &&
-                  !t.cartao_id
-              );
-              const movimentacaoAplicada = transacoesConta.reduce((acc, t) => {
-                const valorNum = parseValorSeguro(t.valor);
-                const tipo = (t.tipo || '').toLowerCase();
-
-                // Mesmo critério da tela de Transações: saldo inicial + receitas - despesas.
-                if (valorNum < 0) return acc + valorNum;
-                if (tipo === 'despesa') return acc - Math.abs(valorNum);
-                if (tipo === 'receita') return acc + Math.abs(valorNum);
-                return acc + valorNum;
-              }, 0);
-              const saldoTotal = saldoInicial + movimentacaoAplicada;
+              const { saldoInicial, saldoTotal } = calculateContaBalance(conta, transacoes);
 
               return (
                 <Card key={conta.id} className="overflow-hidden border border-slate-800/80 bg-gradient-to-b from-slate-900/70 to-slate-900/40 hover:border-slate-700/80 transition-colors">
