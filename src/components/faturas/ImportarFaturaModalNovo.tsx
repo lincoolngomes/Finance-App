@@ -72,6 +72,7 @@ export function ImportarFaturaModalNovo({ open, onClose, onImport, cartoes, init
   const [criarParcelasFuturas, setCriarParcelasFuturas] = useState(true);
   const [modoImportacao, setModoImportacao] = useState<'ambas' | 'somente_parceladas' | 'somente_nao_parceladas'>('ambas');
   const [usarSemCategoria, setUsarSemCategoria] = useState(false);
+  const [selectedTransactionIds, setSelectedTransactionIds] = useState<string[]>([]);
   const [draftRestored, setDraftRestored] = useState(false);
   const [categoriasDespesa, setCategoriasDespesa] = useState<string[]>([
     'Alimentação', 'Transporte', 'Compras', 'Assinaturas', 'Saúde', 'Combustível', 'Lazer', 'Academia', 'Vestuário',
@@ -208,7 +209,14 @@ export function ImportarFaturaModalNovo({ open, onClose, onImport, cartoes, init
       if (draft.mesReferencia) setMesReferencia(draft.mesReferencia);
       if (draft.anoReferencia) setAnoReferencia(draft.anoReferencia);
       if (typeof draft.step === 'number') setStep(draft.step);
-      if (Array.isArray(draft.transacoes)) setTransacoes(draft.transacoes);
+      if (Array.isArray(draft.transacoes)) {
+        setTransacoes(draft.transacoes);
+        if (Array.isArray(draft.selectedTransactionIds)) {
+          setSelectedTransactionIds(draft.selectedTransactionIds);
+        } else {
+          setSelectedTransactionIds(draft.transacoes.map((transacao: Transacao) => transacao.uid));
+        }
+      }
       if (typeof draft.criarParcelasFuturas === 'boolean') setCriarParcelasFuturas(draft.criarParcelasFuturas);
       if (draft.modoImportacao === 'ambas' || draft.modoImportacao === 'somente_parceladas' || draft.modoImportacao === 'somente_nao_parceladas') {
         setModoImportacao(draft.modoImportacao);
@@ -293,6 +301,7 @@ export function ImportarFaturaModalNovo({ open, onClose, onImport, cartoes, init
         userId: user?.id || null,
         step,
         transacoes,
+        selectedTransactionIds,
         cartaoSelecionado,
       mesReferencia,
       anoReferencia,
@@ -315,7 +324,15 @@ export function ImportarFaturaModalNovo({ open, onClose, onImport, cartoes, init
     sortOrder,
     criarParcelasFuturas,
     modoImportacao,
+    selectedTransactionIds,
   ]);
+
+  useEffect(() => {
+    setSelectedTransactionIds((current) => {
+      const validIds = new Set(transacoes.map((transacao) => transacao.uid));
+      return current.filter((id) => validIds.has(id));
+    });
+  }, [transacoes]);
 
   // Recategorizar transações quando as regras mudarem OU quando entrar no step 2
   useEffect(() => {
@@ -771,6 +788,7 @@ export function ImportarFaturaModalNovo({ open, onClose, onImport, cartoes, init
             .filter((t: Transacao | null): t is Transacao => t !== null);
 
           setTransacoes(dados);
+          setSelectedTransactionIds(dados.map((transacao) => transacao.uid));
           setResumoPdf(null);
           setStep(2);
           setSortBy('');
@@ -853,6 +871,7 @@ export function ImportarFaturaModalNovo({ open, onClose, onImport, cartoes, init
         }
 
         setTransacoes(dados);
+        setSelectedTransactionIds(dados.map((transacao) => transacao.uid));
         setResumoPdf(resumoExtraido);
         setStep(2);
         setSortBy('');
@@ -957,6 +976,43 @@ export function ImportarFaturaModalNovo({ open, onClose, onImport, cartoes, init
     return sorted;
   };
 
+  const isParcelada = (transacao: Transacao) => {
+    if (transacao.total_parcelas && Number(transacao.total_parcelas) > 1) return true;
+    return /(\d{1,2})\s*\/\s*(\d{1,2})\s*$/.test((transacao.estabelecimento || '').trim());
+  };
+
+  const transacoesSelecionadas = useMemo(
+    () => transacoes.filter((transacao) => selectedTransactionIds.includes(transacao.uid)),
+    [transacoes, selectedTransactionIds],
+  );
+
+  const transacoesSelecionadasParaImportacao = useMemo(() => {
+    return transacoesSelecionadas.filter((transacao) => {
+      if (modoImportacao === 'somente_parceladas') return isParcelada(transacao);
+      if (modoImportacao === 'somente_nao_parceladas') return !isParcelada(transacao);
+      return true;
+    });
+  }, [modoImportacao, transacoesSelecionadas]);
+
+  const sortedLancamentos = useMemo(() => getSortedLancamentos(), [transacoes, sortBy, sortOrder]);
+  const allSelected = sortedLancamentos.length > 0 && sortedLancamentos.every((transacao) => selectedTransactionIds.includes(transacao.uid));
+  const selectedCount = transacoesSelecionadas.length;
+  const importCount = transacoesSelecionadasParaImportacao.length;
+
+  const toggleTransactionSelection = (uid: string, checked: boolean) => {
+    setSelectedTransactionIds((current) => {
+      if (checked) {
+        if (current.includes(uid)) return current;
+        return [...current, uid];
+      }
+      return current.filter((id) => id !== uid);
+    });
+  };
+
+  const toggleSelectAllTransactions = (checked: boolean) => {
+    setSelectedTransactionIds(checked ? transacoes.map((transacao) => transacao.uid) : []);
+  };
+
   const renderSortIndicator = (field: string) => {
     if (sortBy !== field) return '';
     return sortOrder === 'asc' ? ' ↑' : ' ↓';
@@ -964,19 +1020,10 @@ export function ImportarFaturaModalNovo({ open, onClose, onImport, cartoes, init
 
   const handleRemoveTransaction = (uid: string) => {
     setTransacoes(trans => trans.filter(t => t.uid !== uid));
+    setSelectedTransactionIds((current) => current.filter((id) => id !== uid));
   };
 
   const handleImport = async () => {
-    const isParcelada = (t: Transacao) => {
-      if (t.total_parcelas && Number(t.total_parcelas) > 1) return true;
-      return /(\d{1,2})\s*\/\s*(\d{1,2})\s*$/.test((t.estabelecimento || '').trim());
-    };
-    const transacoesSelecionadas = transacoes.filter(t => {
-      if (modoImportacao === 'somente_parceladas') return isParcelada(t);
-      if (modoImportacao === 'somente_nao_parceladas') return !isParcelada(t);
-      return true;
-    });
-
     if (!cartaoSelecionado) {
       toast({
         title: 'Erro',
@@ -986,7 +1033,16 @@ export function ImportarFaturaModalNovo({ open, onClose, onImport, cartoes, init
       return;
     }
 
-    if (transacoesSelecionadas.length === 0) {
+    if (selectedCount === 0) {
+      toast({
+        title: 'Erro',
+        description: 'Selecione pelo menos uma transação para importar',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    if (transacoesSelecionadasParaImportacao.length === 0) {
       toast({
         title: 'Erro',
         description: 'Nenhuma transação atende ao filtro de importação selecionado',
@@ -995,15 +1051,15 @@ export function ImportarFaturaModalNovo({ open, onClose, onImport, cartoes, init
       return;
     }
 
-    const pendentesCategoria = transacoesSelecionadas.filter((t) => {
+    const pendentesCategoria = transacoesSelecionadasParaImportacao.filter((t) => {
       if (t.tipo === 'pagamento' || t.tipo === 'estorno') return false;
       return !String(t.categoria || '').trim();
     });
     
     // Se o toggle "Usar Sem categoria" está ativado, aplica "Sem categoria" aos itens pendentes
-    let transacoesParaImportar = transacoesSelecionadas;
+    let transacoesParaImportar = transacoesSelecionadasParaImportacao;
     if (usarSemCategoria && pendentesCategoria.length > 0) {
-      transacoesParaImportar = transacoesSelecionadas.map(t => {
+      transacoesParaImportar = transacoesSelecionadasParaImportacao.map(t => {
         if (t.tipo === 'pagamento' || t.tipo === 'estorno') return t;
         if (!String(t.categoria || '').trim()) {
           return { ...t, categoria: 'Sem categoria' };
@@ -1031,7 +1087,7 @@ export function ImportarFaturaModalNovo({ open, onClose, onImport, cartoes, init
       );
       setImportFeedback(result || {
         success: true,
-        message: `Importação realizada com sucesso! ${transacoesSelecionadas.length} transações importadas.`
+        message: `Importação realizada com sucesso! ${transacoesParaImportar.length} transações importadas.`
       });
       
       setTimeout(() => {
@@ -1063,6 +1119,7 @@ export function ImportarFaturaModalNovo({ open, onClose, onImport, cartoes, init
     setSortOrder('asc');
     setCriarParcelasFuturas(true);
     setModoImportacao('ambas');
+    setSelectedTransactionIds([]);
     const cartao = (cartoes || []).find((c: any) => c.id === cartaoSelecionado) || (cartoes || [])[0];
     if (cartao) {
       const ref = getDefaultFaturaVencimento(cartao, new Date());
@@ -1281,9 +1338,9 @@ export function ImportarFaturaModalNovo({ open, onClose, onImport, cartoes, init
 
               <div className="mb-6">
                 {(() => {
-                  const despesas = transacoes.filter(t => t.tipo === 'despesa');
-                  const estornos = transacoes.filter(t => t.tipo === 'estorno');
-                  const pagamentos = transacoes.filter(t => t.tipo === 'pagamento');
+                  const despesas = transacoesSelecionadasParaImportacao.filter(t => t.tipo === 'despesa');
+                  const estornos = transacoesSelecionadasParaImportacao.filter(t => t.tipo === 'estorno');
+                  const pagamentos = transacoesSelecionadasParaImportacao.filter(t => t.tipo === 'pagamento');
                   const totalDespesas = despesas.reduce((s, t) => s + t.valor, 0);
                   const totalEstornos = estornos.reduce((s, t) => s + t.valor, 0);
                   const totalPagamentos = pagamentos.reduce((s, t) => s + t.valor, 0);
@@ -1296,8 +1353,9 @@ export function ImportarFaturaModalNovo({ open, onClose, onImport, cartoes, init
                   return (
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
                       <div className="p-4 bg-slate-500/10 border border-slate-500/30 rounded-xl">
-                        <p className="text-sm text-slate-400 font-medium">Transações</p>
-                        <p className="text-2xl font-bold text-slate-100 mt-1">{transacoes.length}</p>
+                        <p className="text-sm text-slate-400 font-medium">Selecionadas</p>
+                        <p className="text-2xl font-bold text-slate-100 mt-1">{importCount}</p>
+                        <p className="text-xs text-slate-400/70 mt-0.5">{selectedCount} marcadas de {transacoes.length} lidas</p>
                       </div>
                       <div className="p-4 bg-red-500/10 border border-red-500/30 rounded-xl">
                         <p className="text-sm text-red-400 font-medium">Despesas</p>
@@ -1338,10 +1396,29 @@ export function ImportarFaturaModalNovo({ open, onClose, onImport, cartoes, init
                 <p className="text-xs text-slate-400 mt-2">
                   Se houver saldo financiado da fatura anterior no banco, o "Total desta fatura" pode diferir deste valor importado.
                 </p>
+                {(selectedCount !== importCount || selectedCount !== transacoes.length) && (
+                  <p className="text-xs text-amber-300 mt-2">
+                    A prévia acima considera apenas as transações marcadas e compatíveis com o filtro de importação.
+                  </p>
+                )}
               </div>
 
               <div className="mb-24">
-                <h3 className="text-sm font-semibold mb-4 text-slate-200">Prévia das transações</h3>
+                <div className="mb-4 flex items-center justify-between gap-4">
+                  <div>
+                    <h3 className="text-sm font-semibold text-slate-200">Prévia das transações</h3>
+                    <p className="mt-1 text-xs text-slate-400">Marque só o que deve entrar na importação.</p>
+                  </div>
+                  <label className="flex items-center gap-2 text-sm text-slate-300 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={allSelected}
+                      onChange={(e) => toggleSelectAllTransactions(e.target.checked)}
+                      className="h-4 w-4 rounded border-slate-600 bg-slate-800 text-blue-500 focus:ring-blue-500/20"
+                    />
+                    Selecionar tudo
+                  </label>
+                </div>
                 <div
                   className="overflow-y-auto border border-slate-700/50 rounded-xl shadow-lg"
                   style={{ maxHeight: '450px' }}
@@ -1351,6 +1428,15 @@ export function ImportarFaturaModalNovo({ open, onClose, onImport, cartoes, init
                   <table className="w-full text-sm">
                     <thead className="sticky top-0">
                       <tr className="bg-gradient-to-r from-slate-800/80 to-slate-900/80 border-b border-slate-700/50">
+                        <th className="px-1 py-2 text-center font-semibold text-slate-300 w-14">
+                          <input
+                            type="checkbox"
+                            checked={allSelected}
+                            onChange={(e) => toggleSelectAllTransactions(e.target.checked)}
+                            className="h-4 w-4 rounded border-slate-600 bg-slate-800 text-blue-500 focus:ring-blue-500/20"
+                            aria-label="Selecionar todas as transações"
+                          />
+                        </th>
                         <th className="px-1 py-2 text-left font-semibold text-slate-300 w-32 cursor-pointer hover:bg-slate-700/50 transition" onClick={() => handleSort('quando')}>Data{renderSortIndicator('quando')}</th>
                         <th className="px-1 py-2 text-left font-semibold text-slate-300 flex-1 min-w-80 cursor-pointer hover:bg-slate-700/50 transition" onClick={() => handleSort('estabelecimento')}>Descrição{renderSortIndicator('estabelecimento')}</th>
                         <th className="px-1 py-2 text-right font-semibold text-slate-300 w-36 cursor-pointer hover:bg-slate-700/50 transition" onClick={() => handleSort('valor')}>Valor{renderSortIndicator('valor')}</th>
@@ -1358,8 +1444,19 @@ export function ImportarFaturaModalNovo({ open, onClose, onImport, cartoes, init
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-700/50">
-                      {getSortedLancamentos().map((t, idx) => (
-                        <tr key={t.uid} className={`border-b border-slate-700/30 hover:bg-slate-800/40 transition ${t.tipo === 'pagamento' ? 'bg-purple-500/5' : t.tipo === 'estorno' ? 'bg-green-500/5' : idx % 2 === 0 ? 'bg-slate-900/20' : ''}`}>
+                      {sortedLancamentos.map((t, idx) => {
+                        const isSelected = selectedTransactionIds.includes(t.uid);
+                        return (
+                        <tr key={t.uid} className={`border-b border-slate-700/30 hover:bg-slate-800/40 transition ${!isSelected ? 'opacity-55' : ''} ${t.tipo === 'pagamento' ? 'bg-purple-500/5' : t.tipo === 'estorno' ? 'bg-green-500/5' : idx % 2 === 0 ? 'bg-slate-900/20' : ''}`}>
+                          <td className="px-1 py-2 text-center">
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={(e) => toggleTransactionSelection(t.uid, e.target.checked)}
+                              className="h-4 w-4 rounded border-slate-600 bg-slate-800 text-blue-500 focus:ring-blue-500/20"
+                              aria-label={`Selecionar transação ${t.estabelecimento}`}
+                            />
+                          </td>
                           <td className="px-1 py-2">
                             <input
                               type="text"
@@ -1422,7 +1519,7 @@ export function ImportarFaturaModalNovo({ open, onClose, onImport, cartoes, init
                             })()}
                           </td>
                         </tr>
-                      ))}
+                      )})}
                     </tbody>
                   </table>
                 </div>
@@ -1439,9 +1536,9 @@ export function ImportarFaturaModalNovo({ open, onClose, onImport, cartoes, init
                 <button
                   className="px-6 py-2.5 rounded-lg bg-gradient-to-r from-blue-600 to-blue-500 text-white font-semibold hover:from-blue-700 hover:to-blue-600 transition flex items-center gap-2 disabled:opacity-50"
                   onClick={handleImport}
-                  disabled={loading || transacoes.length === 0}
+                  disabled={loading || transacoes.length === 0 || importCount === 0}
                 >
-                  {loading ? 'Importando...' : 'Importar'}
+                  {loading ? 'Importando...' : `Importar ${importCount > 0 ? `(${importCount})` : ''}`}
                 </button>
               </div>
             </>
