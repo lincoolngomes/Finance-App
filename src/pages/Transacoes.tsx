@@ -213,6 +213,20 @@ const Transacoes: React.FC = () => {
   const getLancamentoDateRaw = (transacao?: { data?: string | null; created_at?: string | null } | null) =>
     transacao?.data || transacao?.created_at || null
 
+  const getRecentLancamentoDateRaw = (
+    transacao?: { data?: string | null; created_at?: string | null } | null,
+  ) => transacao?.created_at || transacao?.data || null
+
+  const parseDateTimeToTime = (dateStr?: string | null) => {
+    if (!dateStr) return 0
+
+    const dt = new Date(String(dateStr))
+    if (!Number.isNaN(dt.getTime())) return dt.getTime()
+
+    const normalized = parseToDate(dateStr)
+    return normalized ? normalized.getTime() : 0
+  }
+
   const getParcelaInfo = (
     transacao?: {
       descricao?: string | null
@@ -338,6 +352,7 @@ const Transacoes: React.FC = () => {
       const now = new Date()
       return new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()))
     })()
+    const agoraMs = Date.now()
 
     if (viewMode === 'mes') {
       // Filtro por mês/ano selecionado
@@ -359,15 +374,17 @@ const Transacoes: React.FC = () => {
       // Em "Últimos lançamentos", manter compras normais de cartão visíveis,
       // mas esconder parcelas futuras para não poluir a lista recente.
       filtered = filtered.filter(t => {
-        const dt = parseToDate(getLancamentoDateRaw(t))
         if (t.cartao_id) {
+          const dt = parseToDate(getLancamentoDateRaw(t))
           const parcelaInfo = getParcelaInfo(t)
           if (!parcelaInfo) return true
           if (!dt) return true
           return dt.getTime() <= hojeNormalizado.getTime()
         }
-        if (!dt) return true
-        return dt.getTime() <= hojeNormalizado.getTime()
+
+        const recentTimestamp = parseDateTimeToTime(getRecentLancamentoDateRaw(t))
+        if (!recentTimestamp) return true
+        return recentTimestamp <= agoraMs
       })
     }
     
@@ -380,7 +397,9 @@ const Transacoes: React.FC = () => {
     const getSortValue = (t: any, field: SortField) => {
       switch (field) {
         case 'data':
-          return parseDateToTime(getLancamentoDateRaw(t))
+          return viewMode === 'ultimos'
+            ? parseDateTimeToTime(getRecentLancamentoDateRaw(t))
+            : parseDateToTime(getLancamentoDateRaw(t))
         case 'descricao':
           return (t.descricao || t.observacao || '').toString().toLowerCase()
         case 'categoria':
@@ -406,6 +425,12 @@ const Transacoes: React.FC = () => {
           compare = aVal - bVal
         } else {
           compare = String(aVal).localeCompare(String(bVal), 'pt-BR')
+        }
+
+        if (compare === 0 && criterion.field === 'data') {
+          const aCreatedAt = parseDateTimeToTime(a.created_at)
+          const bCreatedAt = parseDateTimeToTime(b.created_at)
+          compare = aCreatedAt - bCreatedAt
         }
 
         if (compare !== 0) {
@@ -443,6 +468,8 @@ const Transacoes: React.FC = () => {
         .eq('user_id', user.id);
       if (contasError) throw contasError;
       setContas(contasData || []);
+      const contasBancarias = (contasData || []).filter(isContaImportavel)
+      const contaFallbackId = contasBancarias.length === 1 ? contasBancarias[0].id : null
 
       // Busca categorias
       const { data: categoriasData, error: categoriasError } = await supabase
@@ -463,7 +490,8 @@ const Transacoes: React.FC = () => {
         .from('transacoes')
         .select('*')
         .eq('user_id', user.id)
-        .order('data', { ascending: false });
+        .order('data', { ascending: false })
+        .order('created_at', { ascending: false });
       
       if (error) throw error;
       
@@ -485,10 +513,11 @@ const Transacoes: React.FC = () => {
 
       // Fazer o "join" manualmente e aplicar categorização retroativa
       const idsParaAtualizar: { id: string, categoria_id: string }[] = [];
+      const idsParaVincularConta: { id: string, conta_id: string }[] = [];
       const mapped = (data || []).map(t => {
         let categoriaId = t.categoria_id;
         let categoria = categoriaId ? categoriasData?.find(c => c.id === categoriaId) : null;
-        const conta = contasData?.find(c => c.id === t.conta_id);
+        let conta = contasData?.find(c => c.id === t.conta_id);
         const cartao = cartoesData?.find(c => c.id === t.cartao_id);
         
         // Aplicar categorização retroativa se não tem categoria
@@ -503,6 +532,19 @@ const Transacoes: React.FC = () => {
               idsParaAtualizar.push({ id: t.id, categoria_id: catLocal.id });
             }
           }
+        }
+
+        const descricaoNormalizada = normalizar(String(t.descricao || ''))
+        const categoriaNormalizada = normalizar(String(categoria?.nome || ''))
+        const pareceInvestimento =
+          categoriaNormalizada.includes('invest') ||
+          descricaoNormalizada.includes('aplicacao') ||
+          descricaoNormalizada.includes('aplicação') ||
+          descricaoNormalizada.includes('resgate')
+
+        if (!conta && !t.conta_id && !t.cartao_id && contaFallbackId && pareceInvestimento) {
+          conta = contasData?.find(c => c.id === contaFallbackId) || null
+          idsParaVincularConta.push({ id: t.id, conta_id: contaFallbackId })
         }
         
         // Derivar status sempre a partir de "pago" para evitar divergência com valor salvo no banco.
@@ -530,6 +572,17 @@ const Transacoes: React.FC = () => {
           supabase.from('transacoes').update({ categoria_id: catId }).eq('id', id).then();
         }
         console.log(`🔄 Categorizando retroativamente ${uniqueUpdates.size} transações...`);
+      }
+
+      if (idsParaVincularConta.length > 0) {
+        const uniqueAccountUpdates = new Map<string, string>();
+        idsParaVincularConta.forEach(u => {
+          if (u.conta_id) uniqueAccountUpdates.set(u.id, u.conta_id);
+        });
+        for (const [id, contaId] of uniqueAccountUpdates) {
+          supabase.from('transacoes').update({ conta_id: contaId }).eq('id', id).then();
+        }
+        console.log(`🏦 Vinculando conta retroativamente em ${uniqueAccountUpdates.size} transações...`);
       }
       
       console.log('✅ Transações carregadas:', mapped);
@@ -1177,6 +1230,18 @@ const Transacoes: React.FC = () => {
       return
     }
 
+    if (!formData.account_id) {
+      toast({
+        title: 'Erro de validação',
+        description:
+          formData.metodo === 'cartao_credito'
+            ? 'Selecione o cartão antes de salvar a transação.'
+            : 'Selecione a conta antes de salvar a transação.',
+        variant: 'destructive',
+      })
+      return
+    }
+
     try {
       // Normaliza campos UUID vazios para null (Postgres não aceita '')
       const normalizeUuid = (v: any) => {
@@ -1716,8 +1781,10 @@ const Transacoes: React.FC = () => {
       const [y, m, d] = dateString.split('-');
       return `${d}/${m}/${y}`;
     }
-    // Se vier yyyy-mm-ddTHH:MM:SS, pega só a data
+    // Se vier timestamp ISO, respeita o timezone/local para não virar "dia futuro"
     if (/^\d{4}-\d{2}-\d{2}T/.test(dateString)) {
+      const date = new Date(dateString);
+      if (!isNaN(date.getTime())) return date.toLocaleDateString('pt-BR');
       const [datePart] = dateString.split('T');
       const [y, m, d] = datePart.split('-');
       return `${d}/${m}/${y}`;
@@ -2279,7 +2346,9 @@ const Transacoes: React.FC = () => {
           <>
             {filteredTransacoes.slice(0, displayCount).map((transacao) => {
               const dataFormatada = (() => {
-                const dateStr = getLancamentoDateRaw(transacao);
+                const dateStr = viewMode === 'ultimos'
+                  ? getRecentLancamentoDateRaw(transacao)
+                  : getLancamentoDateRaw(transacao);
                 if (!dateStr) return '-';
                 return formatDate(dateStr);
               })()
@@ -2443,7 +2512,9 @@ const Transacoes: React.FC = () => {
           <>
             {filteredTransacoes.slice(0, displayCount).map((transacao) => {
             const dataFormatada = (() => {
-              const dateStr = getLancamentoDateRaw(transacao);
+              const dateStr = viewMode === 'ultimos'
+                ? getRecentLancamentoDateRaw(transacao)
+                : getLancamentoDateRaw(transacao);
               if (!dateStr) return '-';
               return formatDate(dateStr);
             })()

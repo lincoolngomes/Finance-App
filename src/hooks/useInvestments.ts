@@ -95,6 +95,17 @@ export interface ResumoInvestimentos {
   }[]
 }
 
+type MovimentoFinanceiroInvestimento = {
+  tipo: 'aplicacao' | 'resgate'
+  contaId: string
+  data: string
+  valor: number
+  codigo?: string
+  nome?: string
+  instituicao?: string
+  observacoes?: string
+}
+
 function contarDiasUteis(inicio: Date, fim: Date): number {
   const dataInicio = new Date(inicio.getFullYear(), inicio.getMonth(), inicio.getDate())
   const dataFim = new Date(fim.getFullYear(), fim.getMonth(), fim.getDate())
@@ -172,6 +183,125 @@ export const useInvestments = () => {
     }
   })
   const [mesReferencia, setMesReferencia] = useState<Date>(new Date())
+
+  const normalizeText = (value?: string | null) =>
+    String(value || '')
+      .normalize('NFD')
+      .replace(/\p{Diacritic}/gu, '')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .toLowerCase()
+
+  const buildDescricaoMovimentacaoInvestimento = ({
+    tipo,
+    codigo,
+    nome,
+  }: Pick<MovimentoFinanceiroInvestimento, 'tipo' | 'codigo' | 'nome'>) => {
+    const referenciaBase = String(nome || codigo || 'Investimento').trim()
+    const referencia = referenciaBase ? referenciaBase.toLocaleUpperCase('pt-BR') : 'INVESTIMENTO'
+    return `${tipo === 'resgate' ? 'RESGATE' : 'APLICACAO'} ${referencia}`.trim()
+  }
+
+  const ensureCategoriaInvestimento = async (tipoMovimento: MovimentoFinanceiroInvestimento['tipo']) => {
+    if (!user?.id) throw new Error('Usuario nao autenticado')
+
+    const categoriaPadrao =
+      tipoMovimento === 'resgate'
+        ? { nome: 'Investimentos', tipo: 'receita' as const, aliases: ['Resgate Investimento'] }
+        : {
+            nome: 'Investimento',
+            tipo: 'despesa' as const,
+            aliases: ['Aplicacao Investimento', 'Aplicação Investimento', 'Investimentos'],
+          }
+
+    const { data: categorias, error } = await supabase
+      .from('categorias')
+      .select('id, nome, tipo')
+      .eq('user_id', user.id)
+      .eq('tipo', categoriaPadrao.tipo)
+
+    if (error) throw error
+
+    const nomesPreferenciais = [categoriaPadrao.nome, ...categoriaPadrao.aliases].map(normalizeText)
+    const categoriaExistente =
+      (categorias || []).find((categoria) => nomesPreferenciais.includes(normalizeText(categoria.nome))) ||
+      (categorias || []).find((categoria) => normalizeText(categoria.nome).includes('investimento'))
+
+    if (categoriaExistente?.id) {
+      return categoriaExistente.id as string
+    }
+
+    const { data: categoriaCriada, error: insertError } = await supabase
+      .from('categorias')
+      .insert({
+        user_id: user.id,
+        nome: categoriaPadrao.nome,
+        tipo: categoriaPadrao.tipo,
+      })
+      .select('id')
+      .single()
+
+    if (insertError) throw insertError
+
+    return categoriaCriada.id as string
+  }
+
+  const registrarMovimentacaoFinanceiraInvestimento = async (
+    dados: MovimentoFinanceiroInvestimento,
+  ) => {
+    if (!user?.id) throw new Error('Usuario nao autenticado')
+
+    const valor = Number(dados.valor || 0)
+    if (!dados.contaId) throw new Error('Selecione a conta vinculada a essa movimentacao.')
+    if (!Number.isFinite(valor) || valor <= 0) {
+      throw new Error('Informe um valor valido para a movimentacao financeira.')
+    }
+
+    const categoriaId = await ensureCategoriaInvestimento(dados.tipo)
+    const observacoes = [
+      dados.observacoes?.trim(),
+      dados.instituicao?.trim() ? `Instituicao: ${dados.instituicao.trim()}` : '',
+    ]
+      .filter(Boolean)
+      .join(' • ')
+
+    const payload = {
+      data: dados.data || null,
+      descricao: buildDescricaoMovimentacaoInvestimento(dados),
+      valor: Math.abs(valor),
+      observacao: observacoes || null,
+      tipo: dados.tipo === 'resgate' ? 'receita' : 'despesa',
+      categoria_id: categoriaId,
+      pago: true,
+      status: 'pago',
+      conta_id: dados.contaId,
+      user_id: user.id,
+    }
+
+    const { data, error } = await supabase
+      .from('transacoes')
+      .insert(payload)
+      .select('id')
+      .single()
+
+    if (error) throw error
+
+    return data
+  }
+
+  const removerMovimentacaoFinanceiraInvestimento = async (id?: string | number | null) => {
+    if (!user?.id || id === undefined || id === null) return
+
+    const { error } = await supabase
+      .from('transacoes')
+      .delete()
+      .eq('id', id)
+      .eq('user_id', user.id)
+
+    if (error) {
+      console.error('Erro ao desfazer movimentacao financeira do investimento:', error)
+    }
+  }
 
   // Buscar investimentos com useCallback para evitar recriação
   const fetchInvestimentos = useCallback(async () => {
@@ -1296,6 +1426,8 @@ export const useInvestments = () => {
     adicionarTransacao,
     atualizarInvestimento,
     deletarInvestimento,
+    registrarMovimentacaoFinanceiraInvestimento,
+    removerMovimentacaoFinanceiraInvestimento,
     getResumo,
     lastUpdatedAt
   }

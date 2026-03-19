@@ -1,50 +1,29 @@
-import { useState, useMemo, useEffect, useRef } from 'react'
-import { useInvestments, Investimento } from '/src/hooks/useInvestments'
-import { useSincronizacaoFundos } from '/src/hooks/useSincronizacaoFundos'
-import { formatCurrency } from '/src/utils/currency'
-import { buscarIndicesEconomicos, IndicesEconomicos } from '/src/utils/indices-economicos'
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '/src/components/ui/card'
-import { Button } from '/src/components/ui/button'
-import { Badge } from '/src/components/ui/badge'
-import { Input } from '/src/components/ui/input'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '/src/components/ui/select'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '/src/components/ui/tabs'
-import { Progress } from '/src/components/ui/progress'
-import { Skeleton } from '/src/components/ui/skeleton'
-import { 
-  TrendingUp, 
-  TrendingDown, 
-  Wallet, 
-  PiggyBank, 
-  Calendar, 
-  Building2, 
-  Plus, 
-  Search,
-  ChevronDown,
-  ChevronUp,
-  Pencil,
-  Trash2,
-  BarChart3,
-  PieChart,
-  Clock,
-  Percent,
-  DollarSign,
-  AlertCircle,
-  CheckCircle2,
-  RefreshCcw,
-  Filter,
-  ArrowUpRight,
+import { useEffect, useMemo, useState } from 'react'
+import { differenceInDays, format, parseISO } from 'date-fns'
+import { ptBR } from 'date-fns/locale'
+import {
   ArrowDownRight,
-  Banknote,
-  Receipt,
-  CheckSquare,
-  Circle,
-  Download
+  Building2,
+  Calendar,
+  Clock3,
+  Download,
+  Landmark,
+  Pencil,
+  PiggyBank,
+  Plus,
+  RefreshCcw,
+  Search,
+  Trash2,
+  TrendingDown,
+  TrendingUp,
+  Wallet,
+  type LucideIcon,
 } from 'lucide-react'
+
 import { AddTransactionDialog } from '/src/components/investments/AddTransactionDialog'
 import { EditInvestmentDialog } from '/src/components/investments/EditInvestmentDialog'
-import { ResgateDialog } from '/src/components/investments/ResgateDialog'
 import { ImportB3Dialog } from '/src/components/investments/ImportB3Dialog'
+import { ResgateDialog } from '/src/components/investments/ResgateDialog'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -54,1529 +33,1136 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from "/src/components/ui/alert-dialog"
+} from '/src/components/ui/alert-dialog'
+import { Badge } from '/src/components/ui/badge'
+import { Button } from '/src/components/ui/button'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '/src/components/ui/card'
+import { Input } from '/src/components/ui/input'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '/src/components/ui/select'
+import { Skeleton } from '/src/components/ui/skeleton'
 import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "/src/components/ui/tooltip"
-import { PieChart as RechartsPie, Pie, Cell, ResponsiveContainer, Legend, Tooltip as RechartsTooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts'
-import { format, differenceInDays, addDays, isPast, isWithinInterval, parseISO } from 'date-fns'
-import { ptBR } from 'date-fns/locale'
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '/src/components/ui/table'
+import { useInvestments, type Investimento } from '/src/hooks/useInvestments'
+import { cn } from '/src/lib/utils'
+import { formatCurrency } from '/src/utils/currency'
 
-// Cores para gráficos
-const COLORS = [
-  '#10B981', // emerald
-  '#3B82F6', // blue
-  '#F59E0B', // amber
-  '#EF4444', // red
-  '#8B5CF6', // violet
-  '#EC4899', // pink
-  '#06B6D4', // cyan
-  '#84CC16', // lime
-]
-
-// Labels amigáveis para tipos de investimento
 const TIPO_LABELS: Record<string, string> = {
-  acao: 'Ações',
+  acao: 'Acoes',
   fii: 'FIIs',
   etf: 'ETFs',
-  renda_fixa: 'Renda Fixa',
+  renda_fixa: 'Renda fixa',
   tesouro_direto: 'Tesouro Direto',
   cri: 'CRI',
   cra: 'CRA',
-  debenture: 'Debêntures',
-  cripto: 'Criptomoedas',
+  debenture: 'Debentures',
+  cripto: 'Cripto',
   fundo: 'Fundos',
-  previdencia: 'Previdência',
+  previdencia: 'Previdencia',
 }
 
-// Labels para liquidez
 const LIQUIDEZ_LABELS: Record<string, string> = {
-  diaria: 'Diária',
+  diaria: 'Liquidez diaria',
   no_vencimento: 'No vencimento',
-  carencia_90: 'Carência 90 dias',
-  carencia_180: 'Carência 180 dias',
-  carencia_360: 'Carência 360 dias',
+  carencia_90: 'Carencia 90 dias',
+  carencia_180: 'Carencia 180 dias',
+  carencia_360: 'Carencia 360 dias',
+}
+
+const RENTABILIDADE_LABELS: Record<string, string> = {
+  pos: 'Pos-fixado',
+  pre: 'Pre-fixado',
+  ipca: 'IPCA+',
+  hibrido: 'Hibrido',
+}
+
+const FIXED_INCOME_TYPES = ['renda_fixa', 'tesouro_direto', 'cri', 'cra', 'debenture']
+const QUOTED_TYPES = ['acao', 'fii', 'etf', 'cripto']
+const DISTRIBUTION_COLORS = ['bg-emerald-500', 'bg-sky-500', 'bg-amber-500', 'bg-rose-500', 'bg-indigo-500']
+
+type SortOption = 'maior_posicao' | 'maior_aporte' | 'melhor_resultado' | 'proximo_vencimento' | 'recentes'
+
+interface GrupoInvestimento {
+  id: string
+  codigo: string
+  nome: string
+  tipo: string
+  instituicao?: string
+  aplicacoes: Investimento[]
+  totalInvestido: number
+  valorAtual: number
+  resultado: number
+  resultadoPercentual: number
+  dataMaisRecente?: string
+  proximoVencimento?: string
+  temLiquidezDiaria: boolean
+  quantidadeAplicacoes: number
+}
+
+function toDate(value?: string | null) {
+  if (!value) return null
+
+  const parsed = /^\d{4}-\d{2}-\d{2}$/.test(value) ? parseISO(value) : new Date(value)
+  return Number.isNaN(parsed.getTime()) ? null : parsed
+}
+
+function formatDate(value?: string | null) {
+  const parsed = toDate(value)
+  if (!parsed) return '-'
+  return format(parsed, 'dd/MM/yyyy', { locale: ptBR })
+}
+
+function formatDateTime(value?: Date | null) {
+  if (!value) return 'Sem atualizacao registrada'
+  return format(value, "dd/MM/yyyy 'as' HH:mm", { locale: ptBR })
+}
+
+function getTimestamp(value?: string | null, fallback = Number.POSITIVE_INFINITY) {
+  return toDate(value)?.getTime() ?? fallback
+}
+
+function getTipoLabel(tipo?: string) {
+  if (!tipo) return 'Investimento'
+  return TIPO_LABELS[tipo] || tipo
+}
+
+function getTipoAgrupado(tipo?: string) {
+  return tipo === 'tesouro_direto' ? 'renda_fixa' : tipo || 'outro'
+}
+
+function getQuantidadeLabel(value?: number) {
+  return new Intl.NumberFormat('pt-BR', {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 6,
+  }).format(value || 0)
+}
+
+function getTaxaLabel(inv: Investimento) {
+  if (!inv.taxa_percentual) return null
+
+  if (inv.tipo_rentabilidade === 'pos') return `${inv.taxa_percentual}% do CDI`
+  if (inv.tipo_rentabilidade === 'ipca') return `IPCA + ${inv.taxa_percentual}%`
+  return `${inv.taxa_percentual}% a.a.`
+}
+
+function getDaysToDue(value?: string | null) {
+  const parsed = toDate(value)
+  if (!parsed) return null
+  return differenceInDays(parsed, new Date())
+}
+
+function getDueBadge(value?: string | null) {
+  const days = getDaysToDue(value)
+  if (days === null) return null
+
+  if (days < 0) {
+    return {
+      label: `Vencido ha ${Math.abs(days)} dia${Math.abs(days) === 1 ? '' : 's'}`,
+      className:
+        'border-red-200 bg-red-50 text-red-700 dark:border-red-900/70 dark:bg-red-950/40 dark:text-red-300',
+    }
+  }
+
+  if (days === 0) {
+    return {
+      label: 'Vence hoje',
+      className:
+        'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900/70 dark:bg-amber-950/40 dark:text-amber-300',
+    }
+  }
+
+  if (days <= 30) {
+    return {
+      label: `Vence em ${days} dias`,
+      className:
+        'border-amber-200 bg-amber-50 text-amber-700 dark:border-amber-900/70 dark:bg-amber-950/40 dark:text-amber-300',
+    }
+  }
+
+  return null
+}
+
+function formatPercent(value: number) {
+  return `${value >= 0 ? '+' : ''}${value.toFixed(2)}%`
+}
+
+function getInvestmentIcon(tipo: string): LucideIcon {
+  if (QUOTED_TYPES.includes(tipo)) return TrendingUp
+  if (FIXED_INCOME_TYPES.includes(tipo)) return Landmark
+  return PiggyBank
+}
+
+function getResultColor(value: number) {
+  return value >= 0 ? 'text-emerald-600' : 'text-red-600'
+}
+
+function getDisplayInstitution(value?: string) {
+  return value || 'Nao informado'
 }
 
 export default function Investimentos() {
-  const { investimentos, loading, fetchInvestimentos, deletarInvestimento, adicionarInvestimento, atualizarInvestimento, getResumo, lastUpdatedAt } = useInvestments()
-  const { statusSincronizacoes, sincronizarFundo, sincronizarTodosFundos, iniciarSincronizacaoAutomatica } = useSincronizacaoFundos()
-  
-  // Estados de diálogos
+  const { investimentos, loading, fetchInvestimentos, deletarInvestimento, lastUpdatedAt } = useInvestments()
+
+  const [searchTerm, setSearchTerm] = useState('')
+  const [filterTipo, setFilterTipo] = useState('todos')
+  const [sortBy, setSortBy] = useState<SortOption>('maior_posicao')
+  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null)
+
   const [addDialogOpen, setAddDialogOpen] = useState(false)
   const [editDialogOpen, setEditDialogOpen] = useState(false)
   const [resgateDialogOpen, setResgateDialogOpen] = useState(false)
   const [importB3DialogOpen, setImportB3DialogOpen] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [investimentoSelecionado, setInvestimentoSelecionado] = useState<Investimento | null>(null)
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
-  
-  // Estados de filtros
-  const [searchTerm, setSearchTerm] = useState('')
-  const [filterTipo, setFilterTipo] = useState<string>('todos')
-  const [filterInstituicao, setFilterInstituicao] = useState<string>('todas')
-  const [filterLiquidez, setFilterLiquidez] = useState<string>('todas')
-  const [expandedId, setExpandedId] = useState<string | null>(null)
-  const [expandedLastros, setExpandedLastros] = useState<Set<string>>(new Set())
-  const [indices, setIndices] = useState<IndicesEconomicos | null>(null)
-  const [indicesLoading, setIndicesLoading] = useState(false)
-  const [indicesError, setIndicesError] = useState<string | null>(null)
-  const indicesFetchingRef = useRef(false)
-  
-  // Iniciar sincronização automática de fundos ao montar o componente
-  useEffect(() => {
-    iniciarSincronizacaoAutomatica(60) // Sincroniza a cada 60 minutos
-  }, [iniciarSincronizacaoAutomatica])
 
-  const carregarIndices = async () => {
-    if (indicesFetchingRef.current) return
-    try {
-      indicesFetchingRef.current = true
-      setIndicesLoading(true)
-      setIndicesError(null)
-      const dados = await buscarIndicesEconomicos()
-      const temAlgumIndice = [dados.cdi12m, dados.ipca12m, dados.dolar12m].some(
-        (valor) => typeof valor === 'number'
-      )
-      if (!temAlgumIndice) {
-        setIndices(null)
-        setIndicesError('Não foi possível carregar os índices. Verifique o deploy da função bacen-proxy.')
-        return
-      }
-      setIndices(dados)
-    } catch (error: any) {
-      setIndicesError(error?.message || 'Não foi possível carregar os índices')
-    } finally {
-      indicesFetchingRef.current = false
-      setIndicesLoading(false)
-    }
-  }
+  const investimentosAtivos = useMemo(
+    () => investimentos.filter((investimento) => investimento.ativo),
+    [investimentos]
+  )
 
-  useEffect(() => {
-    carregarIndices()
-  }, [])
-  
-  // Resumo calculado
-  const resumo = useMemo(() => getResumo(), [investimentos])
-  
-  // Interface para grupo de investimentos
-  interface GrupoInvestimento {
-    codigo: string
-    nome: string
-    tipo: string
-    tipo_rentabilidade?: string
-    instituicao?: string
-    lastros: Investimento[]
-    valor_total_investido: number
-    valor_atual_total: number
-    rentabilidade_total: number
-    rentabilidade_percentual: number
-    quantidade_lastros: number
-  }
-  
-  // Agrupar investimentos por código
-  const investimentosAgrupados = useMemo(() => {
-    console.log('🔍 [Investimentos.tsx] investimentos no useMemo:', investimentos)
-    console.log('🔍 [Investimentos.tsx] loading:', loading)
-    // Mostrar investimentos ativos (sem filtrar por quantidade, para permitir visualizar mesmo com 0)
-    const ativos = investimentos.filter(inv => inv.ativo)
-    
-    // Criar mapa de grupos
-    const grupos = new Map<string, GrupoInvestimento>()
-    
-    ativos.forEach(inv => {
-      const key = `${inv.codigo}-${inv.tipo}`
-      
-      if (!grupos.has(key)) {
-        grupos.set(key, {
-          codigo: inv.codigo,
-          nome: inv.nome,
-          tipo: inv.tipo,
-          tipo_rentabilidade: inv.tipo_rentabilidade,
-          instituicao: inv.instituicao,
-          lastros: [],
-          valor_total_investido: 0,
-          valor_atual_total: 0,
-          rentabilidade_total: 0,
-          rentabilidade_percentual: 0,
-          quantidade_lastros: 0,
+  const grupos = useMemo(() => {
+    const grouped = new Map<string, GrupoInvestimento>()
+
+    investimentosAtivos.forEach((investimento) => {
+      const id = `${investimento.tipo}-${investimento.codigo}`
+      const valorAtual = Number(investimento.valor_atual ?? investimento.valor_total ?? 0)
+      const valorInvestido = Number(investimento.valor_total || 0)
+
+      if (!grouped.has(id)) {
+        grouped.set(id, {
+          id,
+          codigo: investimento.codigo,
+          nome: investimento.nome,
+          tipo: investimento.tipo,
+          instituicao: investimento.instituicao || undefined,
+          aplicacoes: [],
+          totalInvestido: 0,
+          valorAtual: 0,
+          resultado: 0,
+          resultadoPercentual: 0,
+          dataMaisRecente: investimento.data_aplicacao || investimento.data_primeira_compra || investimento.created_at,
+          proximoVencimento: investimento.data_vencimento,
+          temLiquidezDiaria: investimento.liquidez === 'diaria',
+          quantidadeAplicacoes: 0,
         })
       }
-      
-      const grupo = grupos.get(key)!
-      grupo.lastros.push(inv)
-      grupo.valor_total_investido += inv.valor_total
-      grupo.valor_atual_total += (inv.valor_atual || 0)
-      grupo.quantidade_lastros++
+
+      const grupo = grouped.get(id)!
+      grupo.aplicacoes.push(investimento)
+      grupo.totalInvestido += valorInvestido
+      grupo.valorAtual += valorAtual
+      grupo.quantidadeAplicacoes += 1
+      grupo.temLiquidezDiaria = grupo.temLiquidezDiaria || investimento.liquidez === 'diaria'
+
+      const dataAtual = toDate(grupo.dataMaisRecente)
+      const dataInvestimento = toDate(
+        investimento.data_aplicacao || investimento.data_primeira_compra || investimento.created_at
+      )
+      if (!dataAtual || (dataInvestimento && dataInvestimento > dataAtual)) {
+        grupo.dataMaisRecente =
+          investimento.data_aplicacao || investimento.data_primeira_compra || investimento.created_at
+      }
+
+      const vencimentoAtual = toDate(grupo.proximoVencimento)
+      const vencimentoInvestimento = toDate(investimento.data_vencimento)
+      if (!vencimentoAtual || (vencimentoInvestimento && vencimentoInvestimento < vencimentoAtual)) {
+        grupo.proximoVencimento = investimento.data_vencimento
+      }
+
+      if (grupo.instituicao !== investimento.instituicao) {
+        grupo.instituicao =
+          grupo.instituicao && investimento.instituicao
+            ? 'Diversas instituicoes'
+            : grupo.instituicao || investimento.instituicao || undefined
+      }
     })
-    
-    // Calcular rentabilidade de cada grupo
-    grupos.forEach(grupo => {
-      grupo.rentabilidade_total = grupo.valor_atual_total - grupo.valor_total_investido
-      grupo.rentabilidade_percentual = grupo.valor_total_investido > 0
-        ? (grupo.rentabilidade_total / grupo.valor_total_investido) * 100
-        : 0
-      
-      // Ordenar lastros por data de aplicação (mais recente primeiro)
-      grupo.lastros.sort((a, b) => {
-        const dataA = a.data_aplicacao || a.created_at
-        const dataB = b.data_aplicacao || b.created_at
-        return new Date(dataB).getTime() - new Date(dataA).getTime()
+
+    return Array.from(grouped.values()).map((grupo) => {
+      const aplicacoes = [...grupo.aplicacoes].sort((a, b) => {
+        const dateA = getTimestamp(a.data_aplicacao || a.data_primeira_compra || a.created_at, 0)
+        const dateB = getTimestamp(b.data_aplicacao || b.data_primeira_compra || b.created_at, 0)
+        return dateB - dateA
       })
-    })
-    
-    return Array.from(grupos.values())
-  }, [investimentos])
-  
-  // Função de ordenação inteligente
-  const ordenarGrupos = (grupos: GrupoInvestimento[]) => {
-    // Ordem de prioridade dos tipos
-    const ordemTipos: Record<string, number> = {
-      'renda_fixa': 1,
-      'tesouro_direto': 2,
-      'cri': 3,
-      'cra': 4,
-      'debenture': 5,
-      'acao': 6,
-      'fii': 7,
-      'etf': 8,
-      'cripto': 9,
-      'fundo': 10,
-      'previdencia': 11,
-    }
-    
-    // Ordem de rentabilidade dentro da renda fixa
-    const ordemRentabilidade: Record<string, number> = {
-      'pos': 1,
-      'pre': 2,
-      'ipca': 3,
-      'hibrido': 4,
-    }
-    
-    return grupos.sort((a, b) => {
-      // 1. Ordenar por tipo de investimento
-      const ordemA = ordemTipos[a.tipo] || 999
-      const ordemB = ordemTipos[b.tipo] || 999
-      
-      if (ordemA !== ordemB) {
-        return ordemA - ordemB
+
+      const resultado = grupo.valorAtual - grupo.totalInvestido
+      const resultadoPercentual =
+        grupo.totalInvestido > 0 ? (resultado / grupo.totalInvestido) * 100 : 0
+
+      return {
+        ...grupo,
+        aplicacoes,
+        resultado,
+        resultadoPercentual,
       }
-      
-      // 2. Se for renda fixa, ordenar por tipo de rentabilidade
-      const isRendaFixa = ['renda_fixa', 'tesouro_direto', 'cri', 'cra', 'debenture'].includes(a.tipo)
-      
-      if (isRendaFixa && a.tipo_rentabilidade && b.tipo_rentabilidade) {
-        const rentA = ordemRentabilidade[a.tipo_rentabilidade] || 999
-        const rentB = ordemRentabilidade[b.tipo_rentabilidade] || 999
-        
-        if (rentA !== rentB) {
-          return rentA - rentB
-        }
-      }
-      
-      // 3. Por último, ordenar por valor (maior primeiro)
-      return b.valor_atual_total - a.valor_atual_total
     })
-  }
-  
-  // Investimentos agrupados e filtrados
-  const gruposFiltrados = useMemo(() => {
-    const filtrados = investimentosAgrupados.filter(grupo => {
-      const matchSearch = searchTerm === '' || 
-        grupo.codigo.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        grupo.nome.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (grupo.instituicao || '').toLowerCase().includes(searchTerm.toLowerCase())
-      
-      const matchTipo = filterTipo === 'todos' || grupo.tipo === filterTipo
-      const matchInstituicao = filterInstituicao === 'todas' || grupo.instituicao === filterInstituicao
-      const matchLiquidez = filterLiquidez === 'todas' || grupo.lastros.some(l => l.liquidez === filterLiquidez)
-      
-      return matchSearch && matchTipo && matchInstituicao && matchLiquidez
+  }, [investimentosAtivos])
+
+  const totalInvestido = useMemo(
+    () => investimentosAtivos.reduce((total, investimento) => total + Number(investimento.valor_total || 0), 0),
+    [investimentosAtivos]
+  )
+
+  const valorAtualTotal = useMemo(
+    () =>
+      investimentosAtivos.reduce(
+        (total, investimento) => total + Number(investimento.valor_atual ?? investimento.valor_total ?? 0),
+        0
+      ),
+    [investimentosAtivos]
+  )
+
+  const resultadoTotal = valorAtualTotal - totalInvestido
+  const resultadoPercentualTotal = totalInvestido > 0 ? (resultadoTotal / totalInvestido) * 100 : 0
+
+  const liquidezDiaria = useMemo(
+    () =>
+      investimentosAtivos
+        .filter((investimento) => investimento.liquidez === 'diaria')
+        .reduce((total, investimento) => total + Number(investimento.valor_atual ?? investimento.valor_total ?? 0), 0),
+    [investimentosAtivos]
+  )
+
+  const vencimentosProximos = useMemo(
+    () =>
+      investimentosAtivos
+        .filter((investimento) => {
+          const days = getDaysToDue(investimento.data_vencimento)
+          return days !== null && days >= 0 && days <= 30
+        })
+        .sort((a, b) => getTimestamp(a.data_vencimento) - getTimestamp(b.data_vencimento)),
+    [investimentosAtivos]
+  )
+
+  const vencidos = useMemo(
+    () =>
+      investimentosAtivos
+        .filter((investimento) => {
+          const days = getDaysToDue(investimento.data_vencimento)
+          return days !== null && days < 0
+        })
+        .sort((a, b) => getTimestamp(a.data_vencimento) - getTimestamp(b.data_vencimento)),
+    [investimentosAtivos]
+  )
+
+  const distribuicaoPorTipo = useMemo(() => {
+    const totals = new Map<string, number>()
+
+    investimentosAtivos.forEach((investimento) => {
+      const tipo = getTipoAgrupado(investimento.tipo)
+      const valor = Number(investimento.valor_atual ?? investimento.valor_total ?? 0)
+      totals.set(tipo, (totals.get(tipo) || 0) + valor)
     })
-    
-    return ordenarGrupos(filtrados)
-  }, [investimentosAgrupados, searchTerm, filterTipo, filterInstituicao, filterLiquidez])
-  
-  // Lista de instituições únicas
-  const instituicoesUnicas = useMemo(() => {
-    const instituicoes = new Set<string>()
-    investimentos.forEach(inv => {
-      if (inv.instituicao) instituicoes.add(inv.instituicao)
-    })
-    return Array.from(instituicoes).sort()
-  }, [investimentos])
-  
-  // Dados para gráfico de pizza (distribuição por tipo)
-  const dadosGraficoPizza = useMemo(() => {
-    return resumo.porTipo
-      .filter(item => item.valor > 0)
-      .map(item => ({
-        name: TIPO_LABELS[item.tipo] || item.tipo,
-        value: item.valor,
-        percentual: item.percentual,
-      }))
-      .sort((a, b) => b.value - a.value)
-  }, [resumo.porTipo])
-  
-  // Dados para gráfico de distribuição por instituição
-  const dadosGraficoInstituicao = useMemo(() => {
-    return resumo.porInstituicao
-      .filter(item => item.valor > 0)
-      .map(item => ({
-        name: item.instituicao,
-        valor: item.valor,
-        percentual: item.percentual,
+
+    return Array.from(totals.entries())
+      .map(([tipo, valor]) => ({
+        tipo,
+        valor,
+        percentual: valorAtualTotal > 0 ? (valor / valorAtualTotal) * 100 : 0,
       }))
       .sort((a, b) => b.valor - a.valor)
-      .slice(0, 8) // Limitar a 8 instituições
-  }, [resumo.porInstituicao])
-  
-  // Investimentos com liquidez diária
-  const investimentosLiquidezDiaria = useMemo(() => {
-    return investimentos
-      .filter(inv => inv.ativo && inv.quantidade > 0 && inv.liquidez === 'diaria')
-      .reduce((total, inv) => total + (inv.valor_atual || 0), 0)
-  }, [investimentos])
-  
-  // Investimentos com vencimento próximo (30 dias)
-  const investimentosVencimentoProximo = useMemo(() => {
-    const hoje = new Date()
-    const em30dias = addDays(hoje, 30)
-    
-    return investimentos
-      .filter(inv => {
-        if (!inv.data_vencimento || !inv.ativo) return false
-        const vencimento = new Date(inv.data_vencimento)
-        return isWithinInterval(vencimento, { start: hoje, end: em30dias })
-      })
-      .sort((a, b) => new Date(a.data_vencimento!).getTime() - new Date(b.data_vencimento!).getTime())
-  }, [investimentos])
-  
-  // Investimentos vencidos
-  const investimentosVencidos = useMemo(() => {
-    return investimentos.filter(inv => {
-      if (!inv.data_vencimento || !inv.ativo) return false
-      return isPast(new Date(inv.data_vencimento))
+  }, [investimentosAtivos, valorAtualTotal])
+
+  const distribuicaoPorInstituicao = useMemo(() => {
+    const totals = new Map<string, number>()
+
+    investimentosAtivos.forEach((investimento) => {
+      const instituicao = investimento.instituicao || 'Nao informado'
+      const valor = Number(investimento.valor_atual ?? investimento.valor_total ?? 0)
+      totals.set(instituicao, (totals.get(instituicao) || 0) + valor)
     })
-  }, [investimentos])
-  
-  // Handlers
-  const handleEdit = (inv: Investimento) => {
-    setInvestimentoSelecionado(inv)
+
+    return Array.from(totals.entries())
+      .map(([instituicao, valor]) => ({
+        instituicao,
+        valor,
+        percentual: valorAtualTotal > 0 ? (valor / valorAtualTotal) * 100 : 0,
+      }))
+      .sort((a, b) => b.valor - a.valor)
+      .slice(0, 5)
+  }, [investimentosAtivos, valorAtualTotal])
+
+  const gruposFiltrados = useMemo(() => {
+    const termo = searchTerm.trim().toLowerCase()
+
+    const filtered = grupos.filter((grupo) => {
+      const matchesSearch =
+        !termo ||
+        grupo.codigo.toLowerCase().includes(termo) ||
+        grupo.nome.toLowerCase().includes(termo) ||
+        getDisplayInstitution(grupo.instituicao).toLowerCase().includes(termo)
+
+      const matchesTipo = filterTipo === 'todos' || grupo.tipo === filterTipo
+
+      return matchesSearch && matchesTipo
+    })
+
+    return filtered.sort((a, b) => {
+      if (sortBy === 'maior_aporte') return b.totalInvestido - a.totalInvestido
+      if (sortBy === 'melhor_resultado') return b.resultadoPercentual - a.resultadoPercentual
+      if (sortBy === 'proximo_vencimento') {
+        const dueA = getTimestamp(a.proximoVencimento)
+        const dueB = getTimestamp(b.proximoVencimento)
+
+        if (!Number.isFinite(dueA) && !Number.isFinite(dueB)) return b.valorAtual - a.valorAtual
+        if (!Number.isFinite(dueA)) return 1
+        if (!Number.isFinite(dueB)) return -1
+        return dueA - dueB
+      }
+      if (sortBy === 'recentes') {
+        return (
+          getTimestamp(b.dataMaisRecente, 0) - getTimestamp(a.dataMaisRecente, 0)
+        )
+      }
+      return b.valorAtual - a.valorAtual
+    })
+  }, [filterTipo, grupos, searchTerm, sortBy])
+
+  useEffect(() => {
+    if (gruposFiltrados.length === 0) {
+      setSelectedGroupId(null)
+      return
+    }
+
+    if (!selectedGroupId || !gruposFiltrados.some((grupo) => grupo.id === selectedGroupId)) {
+      setSelectedGroupId(gruposFiltrados[0].id)
+    }
+  }, [gruposFiltrados, selectedGroupId])
+
+  const selectedGroup = gruposFiltrados.find((grupo) => grupo.id === selectedGroupId) || null
+  const maiorPosicao = grupos.length > 0 ? [...grupos].sort((a, b) => b.valorAtual - a.valorAtual)[0] : null
+  const proximoVencimentoDestaque = [...vencimentosProximos, ...vencidos][0] || null
+
+  const handleEdit = (investimento: Investimento) => {
+    setInvestimentoSelecionado(investimento)
     setEditDialogOpen(true)
   }
-  
-  const handleDelete = (inv: Investimento) => {
-    setInvestimentoSelecionado(inv)
+
+  const handleDelete = (investimento: Investimento) => {
+    setInvestimentoSelecionado(investimento)
     setDeleteDialogOpen(true)
   }
-  
-  const handleResgate = (inv: Investimento) => {
-    setSelectedIds(new Set([inv.id]))
+
+  const handleResgate = (investimento?: Investimento) => {
+    setInvestimentoSelecionado(investimento || null)
     setResgateDialogOpen(true)
   }
-  
+
+  const handleRefresh = async () => {
+    await fetchInvestimentos()
+  }
+
+  const limparFiltros = () => {
+    setSearchTerm('')
+    setFilterTipo('todos')
+    setSortBy('maior_posicao')
+  }
+
   const confirmDelete = async () => {
-    // Se há selecionados, deletar múltiplos
-    if (selectedIds.size > 0) {
-      for (const id of selectedIds) {
-        await deletarInvestimento(id)
-      }
-      setSelectedIds(new Set())
-      setDeleteDialogOpen(false)
-    } 
-    // Caso contrário, deletar um individual
-    else if (investimentoSelecionado) {
-      await deletarInvestimento(investimentoSelecionado.id)
-      setDeleteDialogOpen(false)
-      setInvestimentoSelecionado(null)
-    }
+    if (!investimentoSelecionado) return
+    await deletarInvestimento(investimentoSelecionado.id)
+    setDeleteDialogOpen(false)
+    setInvestimentoSelecionado(null)
   }
-  
-  const toggleExpand = (id: string) => {
-    setExpandedId(expandedId === id ? null : id)
-  }
-  
-  const toggleLastros = (codigo: string) => {
-    const newSet = new Set(expandedLastros)
-    if (newSet.has(codigo)) {
-      newSet.delete(codigo)
-    } else {
-      newSet.add(codigo)
-    }
-    setExpandedLastros(newSet)
-  }
-  
-  // Formatador de data
-  const formatDate = (dateStr?: string) => {
-    if (!dateStr) return '-'
-    const parsed = /^\d{4}-\d{2}-\d{2}$/.test(dateStr) ? parseISO(dateStr) : new Date(dateStr)
-    return format(parsed, "dd/MM/yyyy", { locale: ptBR })
-  }
-  
-  // Calcular dias até vencimento
-  const getDiasAteVencimento = (dataVencimento?: string) => {
-    if (!dataVencimento) return null
-    const venc = /^\d{4}-\d{2}-\d{2}$/.test(dataVencimento) ? parseISO(dataVencimento) : new Date(dataVencimento)
-    const dias = differenceInDays(venc, new Date())
-    return dias
-  }
-  
-  // Renderizar badge de status do vencimento
-  const renderVencimentoBadge = (inv: Investimento) => {
-    if (!inv.data_vencimento) return null
-    
-    const dias = getDiasAteVencimento(inv.data_vencimento)
-    if (dias === null) return null
-    
-    if (dias < 0) {
-      return <Badge variant="destructive" className="ml-2">Vencido</Badge>
-    } else if (dias <= 30) {
-      return <Badge variant="secondary" className="ml-2 bg-amber-500 text-white">Vence em {dias} dias</Badge>
-    } else if (dias <= 90) {
-      return <Badge variant="secondary" className="ml-2">Vence em {dias} dias</Badge>
-    }
-    return null
-  }
-  
-  // Renderizar ícone do tipo
-  const renderTipoIcon = (tipo: string) => {
-    switch (tipo) {
-      case 'acao':
-      case 'fii':
-      case 'etf':
-        return <TrendingUp className="h-4 w-4" />
-      case 'renda_fixa':
-      case 'tesouro_direto':
-      case 'cri':
-      case 'cra':
-      case 'debenture':
-        return <Banknote className="h-4 w-4" />
-      case 'cripto':
-        return <DollarSign className="h-4 w-4" />
-      case 'fundo':
-      case 'previdencia':
-        return <PiggyBank className="h-4 w-4" />
-      default:
-        return <Wallet className="h-4 w-4" />
-    }
-  }
-  
+
   if (loading) {
     return (
-      <div className="container mx-auto p-6 space-y-6">
-        <div className="flex justify-between items-center">
-          <Skeleton className="h-10 w-48" />
-          <Skeleton className="h-10 w-32" />
+      <div className="container mx-auto space-y-6 p-6">
+        <div className="flex flex-col gap-3">
+          <Skeleton className="h-8 w-48" />
+          <Skeleton className="h-5 w-96 max-w-full" />
         </div>
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          {[1, 2, 3, 4].map(i => (
-            <Skeleton key={i} className="h-32" />
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          {Array.from({ length: 4 }).map((_, index) => (
+            <Skeleton key={index} className="h-28 rounded-2xl" />
           ))}
         </div>
-        <Skeleton className="h-96" />
+        <Skeleton className="h-[420px] rounded-2xl" />
+        <Skeleton className="h-[320px] rounded-2xl" />
       </div>
     )
   }
-  
-  const handleRefreshAll = async () => {
-    await Promise.all([
-      fetchInvestimentos(),
-      carregarIndices()
-    ])
-  }
-
-  const formatarAtualizacao = (data?: Date | null) => {
-    if (!data) return 'Sem atualização registrada'
-    return format(data, "dd 'de' MMMM 'de' yyyy 'às' HH:mm", { locale: ptBR })
-  }
 
   return (
-    <TooltipProvider>
-      <div className="container mx-auto p-6 space-y-6">
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight">Investimentos</h1>
-            <p className="text-muted-foreground">
-              Acompanhe sua carteira e rentabilidade
-            </p>
-            <p className="text-xs text-muted-foreground mt-2">
-              Última atualização dos investimentos: <span className="font-medium text-foreground/80">{formatarAtualizacao(lastUpdatedAt)}</span>
-            </p>
-          </div>
-          <div className="flex gap-2 flex-wrap">
-            <Button variant="outline" size="sm" onClick={() => setImportB3DialogOpen(true)}>
-              <Download className="h-4 w-4 mr-2" />
-              Importar B3
-            </Button>
-            <Button variant="outline" size="sm" onClick={handleRefreshAll}>
-              <RefreshCcw className="h-4 w-4 mr-2" />
-              Atualizar
-            </Button>
-            <Button onClick={() => setAddDialogOpen(true)}>
-              <Plus className="h-4 w-4 mr-2" />
-              Nova aplicação
-            </Button>
-            <Button onClick={() => setResgateDialogOpen(true)} variant="outline">
-              <ArrowDownRight className="h-4 w-4 mr-2" />
-              Registrar resgate
-            </Button>
-          </div>
+    <div className="container mx-auto space-y-6 p-6">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <div className="space-y-2">
+          <h1 className="text-3xl font-semibold tracking-tight">Investimentos</h1>
+          <p className="max-w-2xl text-sm text-muted-foreground">
+            Veja rapidamente quanto foi aportado, quanto a carteira vale hoje e onde seu dinheiro esta concentrado.
+          </p>
+          <p className="text-xs text-muted-foreground">
+            Ultima atualizacao: <span className="font-medium text-foreground">{formatDateTime(lastUpdatedAt)}</span>
+          </p>
         </div>
 
-        {/* Painel de Índices Econômicos */}
-        <Card className="border-0 shadow-md">
-          <CardHeader className="flex flex-col md:flex-row md:items-center md:justify-between gap-2">
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" size="sm" onClick={() => setImportB3DialogOpen(true)}>
+            <Download className="mr-2 h-4 w-4" />
+            Importar B3
+          </Button>
+          <Button variant="outline" size="sm" onClick={handleRefresh}>
+            <RefreshCcw className="mr-2 h-4 w-4" />
+            Atualizar
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => handleResgate()}>
+            <ArrowDownRight className="mr-2 h-4 w-4" />
+            Registrar resgate
+          </Button>
+          <Button size="sm" onClick={() => setAddDialogOpen(true)}>
+            <Plus className="mr-2 h-4 w-4" />
+            Nova aplicacao
+          </Button>
+        </div>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <Card className="border-border/70">
+          <CardContent className="p-5">
+            <div className="flex items-center justify-between">
+              <p className="text-sm text-muted-foreground">Total investido</p>
+              <PiggyBank className="h-4 w-4 text-muted-foreground" />
+            </div>
+            <p className="mt-3 text-2xl font-semibold">{formatCurrency(totalInvestido)}</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {investimentosAtivos.length} aplicacao(oes) em aberto
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card className="border-border/70">
+          <CardContent className="p-5">
+            <div className="flex items-center justify-between">
+              <p className="text-sm text-muted-foreground">Valor atual</p>
+              <Wallet className="h-4 w-4 text-muted-foreground" />
+            </div>
+            <p className="mt-3 text-2xl font-semibold">{formatCurrency(valorAtualTotal)}</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {grupos.length} posicao(oes) consolidadas
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card className="border-border/70">
+          <CardContent className="p-5">
+            <div className="flex items-center justify-between">
+              <p className="text-sm text-muted-foreground">Resultado total</p>
+              {resultadoTotal >= 0 ? (
+                <TrendingUp className="h-4 w-4 text-emerald-600" />
+              ) : (
+                <TrendingDown className="h-4 w-4 text-red-600" />
+              )}
+            </div>
+            <p className={cn('mt-3 text-2xl font-semibold', getResultColor(resultadoTotal))}>
+              {formatCurrency(resultadoTotal)}
+            </p>
+            <p className={cn('mt-1 text-xs', getResultColor(resultadoTotal))}>
+              {formatPercent(resultadoPercentualTotal)} sobre o valor investido
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card className="border-border/70">
+          <CardContent className="p-5">
+            <div className="flex items-center justify-between">
+              <p className="text-sm text-muted-foreground">Liquidez diaria</p>
+              <Clock3 className="h-4 w-4 text-muted-foreground" />
+            </div>
+            <p className="mt-3 text-2xl font-semibold">{formatCurrency(liquidezDiaria)}</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {vencidos.length > 0 ? `${vencidos.length} vencido(s) precisam revisao` : 'Sem alertas de vencimento atrasado'}
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <Badge variant="secondary">{grupos.length} posicoes</Badge>
+        {maiorPosicao && (
+          <Badge variant="outline">
+            Maior posicao: {maiorPosicao.codigo} ({formatCurrency(maiorPosicao.valorAtual)})
+          </Badge>
+        )}
+        {proximoVencimentoDestaque ? (
+          <Badge variant="outline" className={cn(getDueBadge(proximoVencimentoDestaque.data_vencimento)?.className)}>
+            Proximo vencimento: {proximoVencimentoDestaque.codigo} em {formatDate(proximoVencimentoDestaque.data_vencimento)}
+          </Badge>
+        ) : (
+          <Badge variant="outline">Nenhum vencimento proximo</Badge>
+        )}
+      </div>
+
+      <Card className="border-border/70 shadow-sm">
+        <CardHeader className="space-y-4">
+          <div className="flex flex-col gap-2 lg:flex-row lg:items-end lg:justify-between">
             <div>
-              <CardTitle>Índices Econômicos (12 meses)</CardTitle>
+              <CardTitle className="text-xl">Carteira consolidada</CardTitle>
               <CardDescription>
-                CDI, IPCA e Dólar acumulados nos últimos 12 meses.
+                Uma linha por ativo para facilitar a leitura do valor investido, saldo atual e resultado.
               </CardDescription>
             </div>
-            <div className="text-xs text-muted-foreground">
-              Última atualização dos índices: <span className="font-medium text-foreground/80">{formatarAtualizacao(indices?.atualizadoEm)}</span>
+            <div className="text-sm text-muted-foreground">
+              {gruposFiltrados.length} posicao(oes) e {formatCurrency(gruposFiltrados.reduce((total, grupo) => total + grupo.valorAtual, 0))} filtrados
+            </div>
+          </div>
+
+          <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_180px_190px_auto]">
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={searchTerm}
+                onChange={(event) => setSearchTerm(event.target.value)}
+                placeholder="Buscar por codigo, nome ou instituicao"
+                className="pl-10"
+              />
+            </div>
+
+            <Select value={filterTipo} onValueChange={setFilterTipo}>
+              <SelectTrigger>
+                <SelectValue placeholder="Tipo" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Todos os tipos</SelectItem>
+                {Object.entries(TIPO_LABELS).map(([tipo, label]) => (
+                  <SelectItem key={tipo} value={tipo}>
+                    {label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Select value={sortBy} onValueChange={(value) => setSortBy(value as SortOption)}>
+              <SelectTrigger>
+                <SelectValue placeholder="Ordenar" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="maior_posicao">Maior posicao</SelectItem>
+                <SelectItem value="maior_aporte">Maior aporte</SelectItem>
+                <SelectItem value="melhor_resultado">Melhor resultado</SelectItem>
+                <SelectItem value="proximo_vencimento">Proximo vencimento</SelectItem>
+                <SelectItem value="recentes">Aplicacoes recentes</SelectItem>
+              </SelectContent>
+            </Select>
+
+            <Button
+              variant="outline"
+              onClick={limparFiltros}
+              disabled={!searchTerm && filterTipo === 'todos' && sortBy === 'maior_posicao'}
+            >
+              Limpar
+            </Button>
+          </div>
+        </CardHeader>
+
+        <CardContent>
+          {gruposFiltrados.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-border/70 px-6 py-16 text-center">
+              <Wallet className="mx-auto h-12 w-12 text-muted-foreground" />
+              <h3 className="mt-4 text-lg font-semibold">Nenhum investimento encontrado</h3>
+              <p className="mt-2 text-sm text-muted-foreground">
+                Ajuste os filtros ou adicione uma nova aplicacao para montar sua carteira.
+              </p>
+              <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
+                <Button onClick={() => setAddDialogOpen(true)}>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Nova aplicacao
+                </Button>
+                {(searchTerm || filterTipo !== 'todos') && (
+                  <Button variant="outline" onClick={limparFiltros}>
+                    Limpar filtros
+                  </Button>
+                )}
+              </div>
+            </div>
+          ) : (
+            <>
+              <div className="hidden md:block">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Ativo</TableHead>
+                      <TableHead>Instituicao</TableHead>
+                      <TableHead className="text-right">Investido</TableHead>
+                      <TableHead className="text-right">Atual</TableHead>
+                      <TableHead className="text-right">Resultado</TableHead>
+                      <TableHead className="text-right">Rent.</TableHead>
+                      <TableHead className="w-[160px] text-right">Acoes</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {gruposFiltrados.map((grupo) => {
+                      const Icon = getInvestmentIcon(grupo.tipo)
+                      const badgeVencimento = getDueBadge(grupo.proximoVencimento)
+                      const isSelected = selectedGroupId === grupo.id
+
+                      return (
+                        <TableRow
+                          key={grupo.id}
+                          onClick={() => setSelectedGroupId(grupo.id)}
+                          className={cn('cursor-pointer', isSelected && 'bg-muted/50 hover:bg-muted/50')}
+                        >
+                          <TableCell>
+                            <div className="flex items-start gap-3">
+                              <div className="rounded-xl border border-border/60 bg-muted/30 p-2.5">
+                                <Icon className="h-4 w-4 text-foreground" />
+                              </div>
+                              <div className="min-w-0">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <span className="font-semibold">{grupo.codigo}</span>
+                                  <Badge variant="outline">{getTipoLabel(grupo.tipo)}</Badge>
+                                  {grupo.quantidadeAplicacoes > 1 && (
+                                    <Badge variant="secondary">{grupo.quantidadeAplicacoes} aplicacoes</Badge>
+                                  )}
+                                  {badgeVencimento && (
+                                    <Badge variant="outline" className={badgeVencimento.className}>
+                                      {badgeVencimento.label}
+                                    </Badge>
+                                  )}
+                                </div>
+                                <p className="mt-1 max-w-[320px] truncate text-sm text-muted-foreground">
+                                  {grupo.nome}
+                                </p>
+                                <p className="mt-1 text-xs text-muted-foreground">
+                                  Ultimo aporte em {formatDate(grupo.dataMaisRecente)}
+                                </p>
+                              </div>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div className="max-w-[180px] truncate text-sm">
+                              {getDisplayInstitution(grupo.instituicao)}
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-right font-medium">
+                            {formatCurrency(grupo.totalInvestido)}
+                          </TableCell>
+                          <TableCell className="text-right font-medium">
+                            {formatCurrency(grupo.valorAtual)}
+                          </TableCell>
+                          <TableCell className={cn('text-right font-medium', getResultColor(grupo.resultado))}>
+                            {formatCurrency(grupo.resultado)}
+                          </TableCell>
+                          <TableCell className={cn('text-right font-medium', getResultColor(grupo.resultadoPercentual))}>
+                            {formatPercent(grupo.resultadoPercentual)}
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex justify-end gap-2" onClick={(event) => event.stopPropagation()}>
+                              {grupo.aplicacoes.length === 1 && (
+                                <Button variant="outline" size="sm" onClick={() => handleResgate(grupo.aplicacoes[0])}>
+                                  <ArrowDownRight className="h-4 w-4" />
+                                </Button>
+                              )}
+                              <Button variant="outline" size="sm" onClick={() => setSelectedGroupId(grupo.id)}>
+                                Ver
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      )
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+
+              <div className="space-y-3 md:hidden">
+                {gruposFiltrados.map((grupo) => {
+                  const Icon = getInvestmentIcon(grupo.tipo)
+                  const badgeVencimento = getDueBadge(grupo.proximoVencimento)
+                  const isSelected = selectedGroupId === grupo.id
+
+                  return (
+                    <button
+                      key={grupo.id}
+                      type="button"
+                      onClick={() => setSelectedGroupId(grupo.id)}
+                      className={cn(
+                        'w-full rounded-2xl border p-4 text-left transition-colors',
+                        isSelected ? 'border-primary bg-muted/40' : 'border-border/70 bg-card'
+                      )}
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-start gap-3">
+                          <div className="rounded-xl border border-border/60 bg-muted/30 p-2.5">
+                            <Icon className="h-4 w-4 text-foreground" />
+                          </div>
+                          <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="font-semibold">{grupo.codigo}</span>
+                              <Badge variant="outline">{getTipoLabel(grupo.tipo)}</Badge>
+                            </div>
+                            <p className="mt-1 truncate text-sm text-muted-foreground">{grupo.nome}</p>
+                          </div>
+                        </div>
+
+                        <span className={cn('text-sm font-semibold', getResultColor(grupo.resultadoPercentual))}>
+                          {formatPercent(grupo.resultadoPercentual)}
+                        </span>
+                      </div>
+
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {grupo.quantidadeAplicacoes > 1 && (
+                          <Badge variant="secondary">{grupo.quantidadeAplicacoes} aplicacoes</Badge>
+                        )}
+                        {badgeVencimento && (
+                          <Badge variant="outline" className={badgeVencimento.className}>
+                            {badgeVencimento.label}
+                          </Badge>
+                        )}
+                      </div>
+
+                      <div className="mt-4 grid grid-cols-2 gap-3">
+                        <div className="rounded-xl border border-border/60 bg-background p-3">
+                          <p className="text-xs text-muted-foreground">Investido</p>
+                          <p className="mt-1 font-semibold">{formatCurrency(grupo.totalInvestido)}</p>
+                        </div>
+                        <div className="rounded-xl border border-border/60 bg-background p-3">
+                          <p className="text-xs text-muted-foreground">Atual</p>
+                          <p className="mt-1 font-semibold">{formatCurrency(grupo.valorAtual)}</p>
+                        </div>
+                      </div>
+                    </button>
+                  )
+                })}
+              </div>
+            </>
+          )}
+        </CardContent>
+      </Card>
+
+      {selectedGroup && (
+        <Card className="border-border/70 shadow-sm">
+          <CardHeader className="space-y-4">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+              <div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <CardTitle className="text-xl">{selectedGroup.codigo}</CardTitle>
+                  <Badge variant="outline">{getTipoLabel(selectedGroup.tipo)}</Badge>
+                  {selectedGroup.quantidadeAplicacoes > 1 && (
+                    <Badge variant="secondary">{selectedGroup.quantidadeAplicacoes} aplicacoes</Badge>
+                  )}
+                </div>
+                <CardDescription className="mt-1">
+                  {selectedGroup.nome} - {getDisplayInstitution(selectedGroup.instituicao)}
+                </CardDescription>
+              </div>
+
+              <div className="text-sm text-muted-foreground">
+                Posicao selecionada para detalhes e operacoes
+              </div>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              <div className="rounded-2xl border border-border/60 bg-muted/20 p-4">
+                <p className="text-xs text-muted-foreground">Investido</p>
+                <p className="mt-2 text-xl font-semibold">{formatCurrency(selectedGroup.totalInvestido)}</p>
+              </div>
+              <div className="rounded-2xl border border-border/60 bg-muted/20 p-4">
+                <p className="text-xs text-muted-foreground">Atual</p>
+                <p className="mt-2 text-xl font-semibold">{formatCurrency(selectedGroup.valorAtual)}</p>
+              </div>
+              <div className="rounded-2xl border border-border/60 bg-muted/20 p-4">
+                <p className="text-xs text-muted-foreground">Resultado</p>
+                <p className={cn('mt-2 text-xl font-semibold', getResultColor(selectedGroup.resultado))}>
+                  {formatCurrency(selectedGroup.resultado)}
+                </p>
+              </div>
+              <div className="rounded-2xl border border-border/60 bg-muted/20 p-4">
+                <p className="text-xs text-muted-foreground">Rentabilidade</p>
+                <p className={cn('mt-2 text-xl font-semibold', getResultColor(selectedGroup.resultadoPercentual))}>
+                  {formatPercent(selectedGroup.resultadoPercentual)}
+                </p>
+              </div>
             </div>
           </CardHeader>
-          <CardContent>
-            {indicesError ? (
-              <div className="flex items-center justify-between gap-4 rounded-md border border-red-200/60 bg-red-50/60 px-3 py-2 text-sm text-red-600 dark:border-red-900/50 dark:bg-red-950/40 dark:text-red-300">
-                <div className="flex items-center gap-2">
-                  <AlertCircle className="h-4 w-4" />
-                  {indicesError}
+
+          <CardContent className="space-y-4">
+            {selectedGroup.aplicacoes.map((investimento, index) => {
+              const resultado = Number(
+                investimento.rentabilidade ??
+                  (investimento.valor_atual ?? investimento.valor_total ?? 0) - (investimento.valor_total || 0)
+              )
+              const percentual =
+                investimento.rentabilidade_percentual ??
+                ((investimento.valor_total || 0) > 0
+                  ? (resultado / Number(investimento.valor_total || 0)) * 100
+                  : 0)
+              const badgeVencimento = getDueBadge(investimento.data_vencimento)
+
+              return (
+                <div key={investimento.id} className="rounded-2xl border border-border/70 p-4">
+                  <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                    <div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Badge variant="secondary">
+                          {selectedGroup.quantidadeAplicacoes > 1 ? `Aplicacao ${index + 1}` : 'Aplicacao'}
+                        </Badge>
+                        {investimento.tipo_rentabilidade && (
+                          <Badge variant="outline">{RENTABILIDADE_LABELS[investimento.tipo_rentabilidade]}</Badge>
+                        )}
+                        {investimento.liquidez && (
+                          <Badge variant="outline">{LIQUIDEZ_LABELS[investimento.liquidez] || investimento.liquidez}</Badge>
+                        )}
+                        {badgeVencimento && (
+                          <Badge variant="outline" className={badgeVencimento.className}>
+                            {badgeVencimento.label}
+                          </Badge>
+                        )}
+                        {investimento.isento_ir && <Badge variant="outline">Isento de IR</Badge>}
+                      </div>
+
+                      <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+                        <span className="inline-flex items-center gap-1.5">
+                          <Building2 className="h-3.5 w-3.5" />
+                          {getDisplayInstitution(investimento.instituicao)}
+                        </span>
+                        <span className="inline-flex items-center gap-1.5">
+                          <Calendar className="h-3.5 w-3.5" />
+                          Aplicado em {formatDate(investimento.data_aplicacao || investimento.data_primeira_compra || investimento.created_at)}
+                        </span>
+                        {investimento.data_vencimento && (
+                          <span className="inline-flex items-center gap-1.5">
+                            <Clock3 className="h-3.5 w-3.5" />
+                            Vencimento em {formatDate(investimento.data_vencimento)}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap gap-2">
+                      <Button variant="outline" size="sm" onClick={() => handleResgate(investimento)}>
+                        <ArrowDownRight className="mr-2 h-4 w-4" />
+                        Resgatar
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={() => handleEdit(investimento)}>
+                        <Pencil className="mr-2 h-4 w-4" />
+                        Editar
+                      </Button>
+                      <Button variant="destructive" size="sm" onClick={() => handleDelete(investimento)}>
+                        <Trash2 className="mr-2 h-4 w-4" />
+                        Excluir
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+                    <div className="rounded-xl border border-border/60 bg-muted/20 p-3">
+                      <p className="text-xs text-muted-foreground">Investido</p>
+                      <p className="mt-1 font-semibold">{formatCurrency(investimento.valor_total || 0)}</p>
+                    </div>
+                    <div className="rounded-xl border border-border/60 bg-muted/20 p-3">
+                      <p className="text-xs text-muted-foreground">Atual</p>
+                      <p className="mt-1 font-semibold">
+                        {formatCurrency(investimento.valor_atual ?? investimento.valor_total ?? 0)}
+                      </p>
+                    </div>
+                    <div className="rounded-xl border border-border/60 bg-muted/20 p-3">
+                      <p className="text-xs text-muted-foreground">Resultado</p>
+                      <p className={cn('mt-1 font-semibold', getResultColor(resultado))}>
+                        {formatCurrency(resultado)}
+                      </p>
+                    </div>
+                    <div className="rounded-xl border border-border/60 bg-muted/20 p-3">
+                      <p className="text-xs text-muted-foreground">Rentabilidade</p>
+                      <p className={cn('mt-1 font-semibold', getResultColor(percentual))}>
+                        {formatPercent(percentual)}
+                      </p>
+                    </div>
+                    <div className="rounded-xl border border-border/60 bg-muted/20 p-3">
+                      <p className="text-xs text-muted-foreground">Quantidade</p>
+                      <p className="mt-1 font-semibold">{getQuantidadeLabel(investimento.quantidade)}</p>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    {getTaxaLabel(investimento) && (
+                      <Badge variant="outline">{getTaxaLabel(investimento)}</Badge>
+                    )}
+                    {QUOTED_TYPES.includes(investimento.tipo) && investimento.preco_medio > 0 && (
+                      <Badge variant="outline">Preco medio: {formatCurrency(investimento.preco_medio)}</Badge>
+                    )}
+                    {QUOTED_TYPES.includes(investimento.tipo) && investimento.cotacao_atual ? (
+                      <Badge variant="outline">Cotacao: {formatCurrency(investimento.cotacao_atual)}</Badge>
+                    ) : null}
+                  </div>
+
+                  {investimento.observacoes && (
+                    <div className="mt-4 rounded-xl border border-border/60 bg-muted/20 p-3">
+                      <p className="text-xs text-muted-foreground">Observacoes</p>
+                      <p className="mt-1 text-sm">{investimento.observacoes}</p>
+                    </div>
+                  )}
                 </div>
-                <Button variant="outline" size="sm" onClick={carregarIndices}>
-                  Tentar novamente
-                </Button>
-              </div>
+              )
+            })}
+          </CardContent>
+        </Card>
+      )}
+
+      <div className="grid gap-6 xl:grid-cols-3">
+        <Card className="border-border/70 shadow-sm">
+          <CardHeader>
+            <CardTitle className="text-lg">Alocacao por classe</CardTitle>
+            <CardDescription>Distribuicao da carteira no valor atual.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {distribuicaoPorTipo.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Nenhuma classe disponivel.</p>
             ) : (
-              <div className="grid gap-4 md:grid-cols-3">
-                <Card className="border border-border/60">
-                  <CardContent className="pt-5">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">CDI 12m</p>
-                        <p className="text-2xl font-bold mt-2 text-blue-600">
-                          {indicesLoading || indices?.cdi12m == null ? '—' : `${indices.cdi12m.toFixed(2)}%`}
-                        </p>
+              <div className="space-y-4">
+                {distribuicaoPorTipo.map((item, index) => (
+                  <div key={item.tipo} className="space-y-2">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-2">
+                        <span className={cn('h-2.5 w-2.5 rounded-full', DISTRIBUTION_COLORS[index % DISTRIBUTION_COLORS.length])} />
+                        <p className="text-sm font-medium">{getTipoLabel(item.tipo)}</p>
                       </div>
-                      <BarChart3 className="h-5 w-5 text-blue-500/70" />
-                    </div>
-                  </CardContent>
-                </Card>
-                <Card className="border border-border/60">
-                  <CardContent className="pt-5">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">IPCA 12m</p>
-                        <p className="text-2xl font-bold mt-2 text-amber-600">
-                          {indicesLoading || indices?.ipca12m == null ? '—' : `${indices.ipca12m.toFixed(2)}%`}
-                        </p>
+                      <div className="text-right">
+                        <p className="text-sm font-semibold">{formatCurrency(item.valor)}</p>
+                        <p className="text-xs text-muted-foreground">{item.percentual.toFixed(1)}%</p>
                       </div>
-                      <PieChart className="h-5 w-5 text-amber-500/70" />
                     </div>
-                  </CardContent>
-                </Card>
-                <Card className="border border-border/60">
-                  <CardContent className="pt-5">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Dólar 12m</p>
-                        <p className="text-2xl font-bold mt-2 text-emerald-600">
-                          {indicesLoading || indices?.dolar12m == null ? '—' : `${indices.dolar12m.toFixed(2)}%`}
-                        </p>
-                      </div>
-                      <DollarSign className="h-5 w-5 text-emerald-500/70" />
+                    <div className="h-2 rounded-full bg-muted">
+                      <div
+                        className={cn('h-2 rounded-full', DISTRIBUTION_COLORS[index % DISTRIBUTION_COLORS.length])}
+                        style={{ width: `${item.percentual}%` }}
+                      />
                     </div>
-                  </CardContent>
-                </Card>
+                  </div>
+                ))}
               </div>
             )}
           </CardContent>
         </Card>
-        
-        {/* Cards de Resumo */}
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          {/* Patrimônio Total */}
-          <Card className="bg-gradient-to-br from-emerald-50 to-teal-50 dark:from-emerald-950 dark:to-teal-950 border-emerald-200 dark:border-emerald-800">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-emerald-700 dark:text-emerald-300">
-                Patrimônio Total
-              </CardTitle>
-              <Wallet className="h-4 w-4 text-emerald-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-emerald-900 dark:text-emerald-100">
-                {formatCurrency(resumo.valorTotal)}
-              </div>
-              <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-1">
-                {resumo.quantidadeAtivos} ativos na carteira
-              </p>
-            </CardContent>
-          </Card>
-          
-          {/* Rentabilidade */}
-          <Card className={`bg-gradient-to-br ${resumo.rentabilidadeTotal >= 0 ? 'from-green-50 to-emerald-50 dark:from-green-950 dark:to-emerald-950 border-green-200 dark:border-green-800' : 'from-red-50 to-rose-50 dark:from-red-950 dark:to-rose-950 border-red-200 dark:border-red-800'}`}>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className={`text-sm font-medium ${resumo.rentabilidadeTotal >= 0 ? 'text-green-700 dark:text-green-300' : 'text-red-700 dark:text-red-300'}`}>
-                Rentabilidade
-              </CardTitle>
-              {resumo.rentabilidadeTotal >= 0 ? (
-                <ArrowUpRight className="h-4 w-4 text-green-600" />
-              ) : (
-                <ArrowDownRight className="h-4 w-4 text-red-600" />
-              )}
-            </CardHeader>
-            <CardContent>
-              <div className={`text-2xl font-bold ${resumo.rentabilidadeTotal >= 0 ? 'text-green-900 dark:text-green-100' : 'text-red-900 dark:text-red-100'}`}>
-                {formatCurrency(resumo.rentabilidadeTotal)}
-              </div>
-              <p className={`text-xs mt-1 ${resumo.rentabilidadeTotal >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
-                {resumo.rentabilidadePercentual >= 0 ? '+' : ''}{resumo.rentabilidadePercentual.toFixed(2)}% total
-              </p>
-            </CardContent>
-          </Card>
-          
-          {/* Liquidez Diária */}
-          <Card className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950 dark:to-indigo-950 border-blue-200 dark:border-blue-800">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-blue-700 dark:text-blue-300">
-                Liquidez Diária
-              </CardTitle>
-              <Clock className="h-4 w-4 text-blue-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-blue-900 dark:text-blue-100">
-                {formatCurrency(investimentosLiquidezDiaria)}
-              </div>
-              <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
-                Disponível para resgate imediato
-              </p>
-            </CardContent>
-          </Card>
-          
-          {/* Vencimentos Próximos */}
-          <Card className={`bg-gradient-to-br ${investimentosVencimentoProximo.length > 0 ? 'from-amber-50 to-orange-50 dark:from-amber-950 dark:to-orange-950 border-amber-200 dark:border-amber-800' : 'from-gray-50 to-slate-50 dark:from-gray-950 dark:to-slate-950 border-gray-200 dark:border-gray-800'}`}>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className={`text-sm font-medium ${investimentosVencimentoProximo.length > 0 ? 'text-amber-700 dark:text-amber-300' : 'text-gray-700 dark:text-gray-300'}`}>
-                Vencimentos Próximos
-              </CardTitle>
-              <Calendar className="h-4 w-4 text-amber-600" />
-            </CardHeader>
-            <CardContent>
-              <div className={`text-2xl font-bold ${investimentosVencimentoProximo.length > 0 ? 'text-amber-900 dark:text-amber-100' : 'text-gray-900 dark:text-gray-100'}`}>
-                {investimentosVencimentoProximo.length}
-              </div>
-              <p className={`text-xs mt-1 ${investimentosVencimentoProximo.length > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-gray-600 dark:text-gray-400'}`}>
-                {investimentosVencimentoProximo.length > 0 
-                  ? `Próximos 30 dias` 
-                  : 'Nenhum vencimento próximo'}
-              </p>
-            </CardContent>
-          </Card>
-        </div>
-        
-        {/* Alertas de Vencimento */}
-        {(investimentosVencidos.length > 0 || investimentosVencimentoProximo.length > 0) && (
-          <Card className="border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-950/50">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-lg flex items-center gap-2 text-amber-700 dark:text-amber-300">
-                <AlertCircle className="h-5 w-5" />
-                Atenção aos Vencimentos
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              {investimentosVencidos.map(inv => (
-                <div key={inv.id} className="flex items-center justify-between p-3 bg-red-100 dark:bg-red-900/30 rounded-lg">
-                  <div className="flex items-center gap-3">
-                    <AlertCircle className="h-4 w-4 text-red-600" />
-                    <div>
-                      <p className="font-medium">{inv.codigo} - {inv.nome}</p>
-                      <p className="text-sm text-muted-foreground">Vencido em {formatDate(inv.data_vencimento)}</p>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <p className="font-semibold">{formatCurrency(inv.valor_atual || 0)}</p>
-                    <Button variant="outline" size="sm" onClick={() => handleResgate(inv)}>
-                      Resgatar
-                    </Button>
-                  </div>
-                </div>
-              ))}
-              {investimentosVencimentoProximo.map(inv => (
-                <div key={inv.id} className="flex items-center justify-between p-3 bg-amber-100 dark:bg-amber-900/30 rounded-lg">
-                  <div className="flex items-center gap-3">
-                    <Clock className="h-4 w-4 text-amber-600" />
-                    <div>
-                      <p className="font-medium">{inv.codigo} - {inv.nome}</p>
-                      <p className="text-sm text-muted-foreground">
-                        Vence em {getDiasAteVencimento(inv.data_vencimento)} dias ({formatDate(inv.data_vencimento)})
-                      </p>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <p className="font-semibold">{formatCurrency(inv.valor_atual || 0)}</p>
-                  </div>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
-        )}
-        
-        {/* Tabs de Visualização */}
-        <Tabs defaultValue="lista" className="space-y-4">
-          <TabsList className="grid w-full grid-cols-4 lg:w-auto lg:inline-flex">
-            <TabsTrigger value="lista" className="flex items-center gap-2">
-              <BarChart3 className="h-4 w-4" />
-              Lista
-            </TabsTrigger>
-            <TabsTrigger value="distribuicao" className="flex items-center gap-2">
-              <PieChart className="h-4 w-4" />
-              Distribuição
-            </TabsTrigger>
-            <TabsTrigger value="vencimentos" className="flex items-center gap-2">
-              <Calendar className="h-4 w-4" />
-              Vencimentos
-            </TabsTrigger>
-            <TabsTrigger value="extrato" className="flex items-center gap-2">
-              <Banknote className="h-4 w-4" />
-              Extrato
-            </TabsTrigger>
-          </TabsList>
-          
-          {/* Tab Lista */}
-          <TabsContent value="lista" className="space-y-4">
-            {/* Filtros */}
-            <Card>
-              <CardContent className="pt-6">
-                <div className="flex flex-col md:flex-row gap-4">
-                  <div className="flex-1">
-                    <div className="relative">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                      <Input
-                        placeholder="Buscar por código, nome ou instituição..."
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        className="pl-10"
-                      />
-                    </div>
-                  </div>
-                  <Select value={filterTipo} onValueChange={setFilterTipo}>
-                    <SelectTrigger className="w-full md:w-40">
-                      <SelectValue placeholder="Tipo" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="todos">Todos os tipos</SelectItem>
-                      {Object.entries(TIPO_LABELS).map(([key, label]) => (
-                        <SelectItem key={key} value={key}>{label}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Select value={filterInstituicao} onValueChange={setFilterInstituicao}>
-                    <SelectTrigger className="w-full md:w-40">
-                      <SelectValue placeholder="Instituição" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="todas">Todas instituições</SelectItem>
-                      {instituicoesUnicas.map(inst => (
-                        <SelectItem key={inst} value={inst}>{inst}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Select value={filterLiquidez} onValueChange={setFilterLiquidez}>
-                    <SelectTrigger className="w-full md:w-40">
-                      <SelectValue placeholder="Liquidez" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="todas">Todas liquidez</SelectItem>
-                      {Object.entries(LIQUIDEZ_LABELS).map(([key, label]) => (
-                        <SelectItem key={key} value={key}>{label}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </CardContent>
-            </Card>
-            
-            {/* Seleção em massa e ações */}
-            {gruposFiltrados.length > 0 && (
-              <div className="flex items-center justify-between px-1 py-2">
-                {(() => {
-                  const totalLastros = gruposFiltrados.reduce((sum, g) => sum + g.lastros.length, 0)
-                  return (
-                    <button
-                      onClick={() => {
-                        if (selectedIds.size === totalLastros) {
-                          setSelectedIds(new Set())
-                        } else {
-                          setSelectedIds(new Set(gruposFiltrados.flatMap(g => g.lastros.map(l => l.id))))
-                        }
-                      }}
-                      className="flex items-center gap-2 text-xs text-muted-foreground opacity-50 hover:opacity-100 transition-opacity"
-                    >
-                      {selectedIds.size === totalLastros ? (
-                        <CheckCircle2 className="h-4 w-4 text-primary" />
-                      ) : selectedIds.size > 0 ? (
-                        <CheckSquare className="h-4 w-4 text-primary opacity-60" />
-                      ) : (
-                        <Circle className="h-4 w-4" />
-                      )}
-                      <span>{selectedIds.size === totalLastros ? 'Desmarcar todos' : 'Selecionar todos'}</span>
-                    </button>
-                  )
-                })()}
 
-                {selectedIds.size > 0 && (
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-muted-foreground">
-                      {selectedIds.size} selecionado(s)
-                    </span>
-                    <Button
-                      variant="destructive"
-                      size="sm"
-                      onClick={() => setDeleteDialogOpen(true)}
-                    >
-                      <Trash2 className="h-4 w-4 mr-2" />
-                      Excluir
-                    </Button>
+        <Card className="border-border/70 shadow-sm">
+          <CardHeader>
+            <CardTitle className="text-lg">Instituicoes</CardTitle>
+            <CardDescription>Onde a carteira esta mais concentrada.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {distribuicaoPorInstituicao.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Nenhuma instituicao com saldo.</p>
+            ) : (
+              <div className="space-y-3">
+                {distribuicaoPorInstituicao.map((item) => (
+                  <div key={item.instituicao} className="rounded-xl border border-border/60 p-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium">{item.instituicao}</p>
+                        <p className="text-xs text-muted-foreground">{item.percentual.toFixed(1)}% da carteira</p>
+                      </div>
+                      <p className="text-sm font-semibold">{formatCurrency(item.valor)}</p>
+                    </div>
                   </div>
-                )}
+                ))}
               </div>
             )}
-            
-            {/* Lista de Investimentos */}
-            <div className="space-y-3">
-              {gruposFiltrados.length === 0 ? (
-                <Card>
-                  <CardContent className="py-12 text-center">
-                    <Wallet className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                    <h3 className="text-lg font-semibold mb-2">Nenhum investimento encontrado</h3>
-                    <p className="text-muted-foreground mb-4">
-                      {searchTerm || filterTipo !== 'todos' || filterInstituicao !== 'todas'
-                        ? 'Tente ajustar os filtros de busca'
-                        : 'Comece adicionando seu primeiro investimento'}
-                    </p>
-                    <Button onClick={() => setAddDialogOpen(true)}>
-                      <Plus className="h-4 w-4 mr-2" />
-                      Adicionar investimento
-                    </Button>
-                  </CardContent>
-                </Card>
-              ) : (
-                gruposFiltrados.map((grupo) => {
-                  const grupoKey = `${grupo.codigo}-${grupo.tipo}`
-                  const mostrarLastros = expandedLastros.has(grupoKey)
-                  const temMultiplosLastros = grupo.quantidade_lastros > 1
-                  
-                  return (
-                    <Card 
-                      key={grupoKey} 
-                      className={`transition-all hover:shadow-md ${expandedId === grupoKey ? 'ring-2 ring-primary' : ''}`}
-                    >
-                      <CardContent className="p-4">
-                        {/* Linha principal do grupo */}
-                        <div 
-                          className="flex items-center justify-between"
-                        >
-                          <div className="flex items-center gap-3 flex-1">
-                            {/* Checkbox - ícone sutil */}
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                const novoSet = new Set(selectedIds)
-                                const isChecked = grupo.lastros.every(inv => selectedIds.has(inv.id))
-                                if (!isChecked) {
-                                  grupo.lastros.forEach(inv => novoSet.add(inv.id))
-                                } else {
-                                  grupo.lastros.forEach(inv => novoSet.delete(inv.id))
-                                }
-                                setSelectedIds(novoSet)
-                              }}
-                              className="flex-shrink-0 opacity-50 hover:opacity-100 transition-opacity p-0 h-5 w-5 flex items-center justify-center rounded"
-                            >
-                              {grupo.lastros.every(inv => selectedIds.has(inv.id)) ? (
-                                <CheckCircle2 className="h-5 w-5 text-primary" />
-                              ) : (
-                                <Circle className="h-5 w-5 text-muted-foreground" />
-                              )}
-                            </button>
-                            
-                            {/* Área expansível */}
-                            <div 
-                              className="flex items-center gap-4 flex-1 cursor-pointer"
-                              onClick={() => toggleExpand(grupoKey)}
-                            >
-                            {/* Ícone do tipo */}
-                            <div className={`p-2 rounded-lg ${
-                              ['acao', 'fii', 'etf'].includes(grupo.tipo) 
-                                ? 'bg-blue-100 dark:bg-blue-900 text-blue-600' 
-                                : grupo.tipo === 'cripto'
-                                ? 'bg-amber-100 dark:bg-amber-900 text-amber-600'
-                                : 'bg-emerald-100 dark:bg-emerald-900 text-emerald-600'
-                            }`}>
-                              {renderTipoIcon(grupo.tipo)}
-                            </div>
-                            
-                            {/* Informações */}
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2">
-                                <h3 className="font-semibold truncate">{grupo.codigo}</h3>
-                                <Badge variant="outline" className="text-xs">
-                                  {TIPO_LABELS[grupo.tipo] || grupo.tipo}
-                                </Badge>
-                                {temMultiplosLastros && (
-                                  <Badge variant="secondary" className="text-xs">
-                                    {grupo.quantidade_lastros} aplicações
-                                  </Badge>
-                                )}
-                                {grupo.lastros[0] && renderVencimentoBadge(grupo.lastros[0])}
-                              </div>
-                              <p className="text-sm text-muted-foreground truncate">
-                                {grupo.nome}
-                                {grupo.instituicao && ` • ${grupo.instituicao}`}
-                              </p>
-                            </div>
-                            </div>
-                          </div>
-                          
-                          {/* Valores consolidados */}
-                          <div className="flex items-center gap-6">
-                            <div className="text-right">
-                              <p className="font-semibold">{formatCurrency(grupo.valor_atual_total)}</p>
-                              <p className={`text-sm ${grupo.rentabilidade_total >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                {grupo.rentabilidade_total >= 0 ? '+' : ''}{formatCurrency(grupo.rentabilidade_total)}
-                                <span className="ml-1">
-                                  ({grupo.rentabilidade_percentual >= 0 ? '+' : ''}{grupo.rentabilidade_percentual.toFixed(2)}%)
-                                </span>
-                              </p>
-                            </div>
-                            
-                            {expandedId === grupoKey ? (
-                              <ChevronUp className="h-5 w-5 text-muted-foreground cursor-pointer" onClick={() => toggleExpand(grupoKey)} />
-                            ) : (
-                              <ChevronDown className="h-5 w-5 text-muted-foreground cursor-pointer" onClick={() => toggleExpand(grupoKey)} />
-                            )}
-                          </div>
-                        </div>
-                        
-                        {/* Detalhes expandidos do grupo */}
-                        {expandedId === grupoKey && (
-                          <div className="mt-4 pt-4 border-t space-y-4">
-                            {/* Totalizadores */}
-                            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                              <div>
-                                <p className="text-xs text-muted-foreground">Total Investido</p>
-                                <p className="font-medium">{formatCurrency(grupo.valor_total_investido)}</p>
-                              </div>
-                              <div>
-                                <p className="text-xs text-muted-foreground">Valor Atual</p>
-                                <p className="font-medium">{formatCurrency(grupo.valor_atual_total)}</p>
-                              </div>
-                              <div>
-                                <p className="text-xs text-muted-foreground">Rentabilidade</p>
-                                <p className={`font-medium ${grupo.rentabilidade_total >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                  {formatCurrency(grupo.rentabilidade_total)}
-                                </p>
-                              </div>
-                              <div>
-                                <p className="text-xs text-muted-foreground">Qtd. Aplicações</p>
-                                <p className="font-medium">{grupo.quantidade_lastros}</p>
-                              </div>
-                            </div>
-                            
-                            {/* Botão para mostrar lastros (se tiver múltiplos) */}
-                            {temMultiplosLastros && (
-                              <div className="flex justify-center">
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    toggleLastros(grupoKey)
-                                  }}
-                                  className="gap-2"
-                                >
-                                  {mostrarLastros ? (
-                                    <>
-                                      <ChevronUp className="h-4 w-4" />
-                                      Ocultar lastros
-                                    </>
-                                  ) : (
-                                    <>
-                                      <ChevronDown className="h-4 w-4" />
-                                      Ver {grupo.quantidade_lastros} lastros
-                                    </>
-                                  )}
-                                </Button>
-                              </div>
-                            )}
-                            
-                            {/* Lista de lastros individuais */}
-                            {(mostrarLastros || !temMultiplosLastros) && (
-                              <div className="space-y-3 bg-muted/20 rounded-lg p-4">
-                                <h4 className="text-sm font-semibold text-muted-foreground mb-3">
-                                  {temMultiplosLastros ? 'Lastros individuais' : 'Detalhes da aplicação'}
-                                </h4>
-                                {grupo.lastros.map((inv, index) => (
-                                  <div key={inv.id} className="bg-background rounded-lg p-3 space-y-3 border">
-                                    {/* Cabeçalho do lastro */}
-                                    {temMultiplosLastros && (
-                                      <div className="flex items-center justify-between pb-2 border-b">
-                                        <Badge variant="outline">Aplicação {index + 1}</Badge>
-                                        {inv.data_aplicacao && (
-                                          <span className="text-xs text-muted-foreground">
-                                            Aplicado em {formatDate(inv.data_aplicacao)}
-                                          </span>
-                                        )}
-                                      </div>
-                                    )}
-                                    
-                                    {/* Informações do lastro */}
-                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                                      <div>
-                                        <p className="text-xs text-muted-foreground">Valor Investido</p>
-                                        <p className="font-medium">{formatCurrency(inv.valor_total)}</p>
-                                      </div>
-                                      <div>
-                                        <p className="text-xs text-muted-foreground">Valor Atual</p>
-                                        <p className="font-medium">{formatCurrency(inv.valor_atual || 0)}</p>
-                                      </div>
-                                      {inv.data_aplicacao && (
-                                        <div>
-                                          <p className="text-xs text-muted-foreground">Data Aplicação</p>
-                                          <p className="font-medium">{formatDate(inv.data_aplicacao)}</p>
-                                        </div>
-                                      )}
-                                      {inv.data_vencimento && (
-                                        <div>
-                                          <p className="text-xs text-muted-foreground">Vencimento</p>
-                                          <p className="font-medium">{formatDate(inv.data_vencimento)}</p>
-                                        </div>
-                                      )}
-                                    </div>
-                                    
-                                    {/* Informações específicas de renda fixa */}
-                                    {['renda_fixa', 'tesouro_direto', 'cri', 'cra', 'debenture'].includes(inv.tipo) && (
-                                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                                        {inv.tipo_rentabilidade && (
-                                          <div>
-                                            <p className="text-xs text-muted-foreground">Rentabilidade</p>
-                                            <p className="font-medium capitalize">
-                                              {inv.tipo_rentabilidade === 'pos' ? 'Pós-fixado' : 
-                                               inv.tipo_rentabilidade === 'pre' ? 'Pré-fixado' : 
-                                               inv.tipo_rentabilidade === 'ipca' ? 'IPCA+' : 'Híbrido'}
-                                            </p>
-                                          </div>
-                                        )}
-                                        {inv.taxa_percentual && (
-                                          <div>
-                                            <p className="text-xs text-muted-foreground">Taxa</p>
-                                            <p className="font-medium">
-                                              {inv.tipo_rentabilidade === 'pos' 
-                                                ? `${inv.taxa_percentual}% do CDI`
-                                                : inv.tipo_rentabilidade === 'ipca'
-                                                ? `IPCA + ${inv.taxa_percentual}%`
-                                                : `${inv.taxa_percentual}% a.a.`}
-                                            </p>
-                                          </div>
-                                        )}
-                                        {inv.liquidez && (
-                                          <div>
-                                            <p className="text-xs text-muted-foreground">Liquidez</p>
-                                            <p className="font-medium">{LIQUIDEZ_LABELS[inv.liquidez] || inv.liquidez}</p>
-                                          </div>
-                                        )}
-                                        {inv.dias_aplicado !== undefined && (
-                                          <div>
-                                            <p className="text-xs text-muted-foreground">Dias Investido</p>
-                                            <p className="font-medium">{inv.dias_aplicado} dias</p>
-                                          </div>
-                                        )}
-                                        {inv.isento_ir !== undefined && (
-                                          <div>
-                                            <p className="text-xs text-muted-foreground">Isento de IR</p>
-                                            <p className="font-medium flex items-center gap-1">
-                                              {inv.isento_ir ? (
-                                                <>
-                                                  <CheckCircle2 className="h-4 w-4 text-green-600" />
-                                                  Sim
-                                                </>
-                                              ) : (
-                                                <>
-                                                  <AlertCircle className="h-4 w-4 text-amber-600" />
-                                                  Não
-                                                </>
-                                              )}
-                                            </p>
-                                          </div>
-                                        )}
-                                        {inv.ir_retido !== undefined && inv.ir_retido > 0 && (
-                                          <div>
-                                            <p className="text-xs text-muted-foreground">IR Provisionado</p>
-                                            <p className="font-medium text-red-600">{formatCurrency(inv.ir_retido)}</p>
-                                          </div>
-                                        )}
-                                        {inv.valor_bruto !== undefined && (
-                                          <div>
-                                            <p className="text-xs text-muted-foreground">Valor Bruto</p>
-                                            <p className="font-medium">{formatCurrency(inv.valor_bruto)}</p>
-                                          </div>
-                                        )}
-                                      </div>
-                                    )}
-                                    
-                                    {/* Informações de ações/FIIs */}
-                                    {['acao', 'fii', 'etf', 'cripto'].includes(inv.tipo) && (
-                                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                                        <div>
-                                          <p className="text-xs text-muted-foreground">Quantidade</p>
-                                          <p className="font-medium">{inv.quantidade.toLocaleString('pt-BR')}</p>
-                                        </div>
-                                        <div>
-                                          <p className="text-xs text-muted-foreground">Preço Médio</p>
-                                          <p className="font-medium">{formatCurrency(inv.preco_medio)}</p>
-                                        </div>
-                                        {inv.cotacao_atual && (
-                                          <div>
-                                            <p className="text-xs text-muted-foreground">Cotação Atual</p>
-                                            <p className="font-medium">{formatCurrency(inv.cotacao_atual)}</p>
-                                          </div>
-                                        )}
-                                      </div>
-                                    )}
-                                    
-                                    {/* Barra de progresso de rentabilidade */}
-                                    {inv.rentabilidade_percentual !== undefined && (
-                                      <div>
-                                        <div className="flex justify-between text-sm mb-1">
-                                          <span className="text-muted-foreground">Rentabilidade</span>
-                                          <span className={inv.rentabilidade_percentual >= 0 ? 'text-green-600' : 'text-red-600'}>
-                                            {inv.rentabilidade_percentual >= 0 ? '+' : ''}{inv.rentabilidade_percentual.toFixed(2)}%
-                                          </span>
-                                        </div>
-                                        <Progress 
-                                          value={Math.min(Math.abs(inv.rentabilidade_percentual), 100)} 
-                                          className={`h-2 ${inv.rentabilidade_percentual >= 0 ? '[&>div]:bg-green-500' : '[&>div]:bg-red-500'}`}
-                                        />
-                                      </div>
-                                    )}
-                                    
-                                    {/* Observações */}
-                                    {inv.observacoes && (
-                                      <div className="bg-muted/30 rounded-lg p-3">
-                                        <p className="text-xs text-muted-foreground mb-1">Observações</p>
-                                        <p className="text-sm">{inv.observacoes}</p>
-                                      </div>
-                                    )}
-                                    
-                                    {/* Ações do lastro individual */}
-                                    <div className="flex justify-end gap-2 pt-2 border-t">
-                                      <Button variant="outline" size="sm" onClick={(e) => {
-                                        e.stopPropagation()
-                                        handleResgate(inv)
-                                      }}>
-                                        <DollarSign className="h-4 w-4 mr-2" />
-                                        Resgatar
-                                      </Button>
-                                      <Button variant="outline" size="sm" onClick={(e) => {
-                                        e.stopPropagation()
-                                        handleEdit(inv)
-                                      }}>
-                                        <Pencil className="h-4 w-4 mr-2" />
-                                        Editar
-                                      </Button>
-                                      <Button variant="destructive" size="sm" onClick={(e) => {
-                                        e.stopPropagation()
-                                        handleDelete(inv)
-                                      }}>
-                                        <Trash2 className="h-4 w-4 mr-2" />
-                                        Excluir
-                                      </Button>
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </CardContent>
-                    </Card>
-                  )
-                })
-              )}
-            </div>
-          </TabsContent>
-          
-          {/* Tab Distribuição */}
-          <TabsContent value="distribuicao" className="space-y-4">
-            <div className="grid gap-4 md:grid-cols-2">
-              {/* Gráfico de Pizza - Distribuição por Tipo */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg">Distribuição por Classe</CardTitle>
-                  <CardDescription>Alocação da carteira por tipo de ativo</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  {dadosGraficoPizza.length > 0 ? (
-                    <div className="space-y-4">
-                      {/* Grid de Cards ao invés de gráfico */}
-                      <div className="grid grid-cols-2 gap-2">
-                        {dadosGraficoPizza.map((item, index) => (
-                          <div 
-                            key={item.name} 
-                            className="p-3 rounded-lg border-2 space-y-2"
-                            style={{ borderColor: COLORS[index % COLORS.length] + '40', backgroundColor: COLORS[index % COLORS.length] + '10' }}
-                          >
-                            <div className="flex items-center gap-1">
-                              <div 
-                                className="w-2 h-2 rounded-full flex-shrink-0" 
-                                style={{ backgroundColor: COLORS[index % COLORS.length] }}
-                              />
-                              <p className="text-xs font-semibold text-muted-foreground truncate">{item.name}</p>
-                            </div>
-                            <div className="space-y-0.5">
-                              <p className="text-lg font-bold" style={{ color: COLORS[index % COLORS.length] }}>
-                                {item.percentual.toFixed(1)}%
-                              </p>
-                              <p className="text-xs text-muted-foreground">
-                                {formatCurrency(item.value)}
-                              </p>
-                            </div>
-                            <div className="w-full bg-muted rounded-full h-1 overflow-hidden">
-                              <div 
-                                className="h-full transition-all"
-                                style={{ width: `${item.percentual}%`, backgroundColor: COLORS[index % COLORS.length] }}
-                              />
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="h-48 flex items-center justify-center text-muted-foreground">
-                      Sem dados para exibir
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-              
-              {/* Distribuição por Instituição */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg">Por Instituição</CardTitle>
-                  <CardDescription>Distribuição por corretora/banco</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  {dadosGraficoInstituicao.length > 0 ? (
-                    <div className="space-y-3">
-                      {dadosGraficoInstituicao.map((item, index) => (
-                        <div key={item.name} className="space-y-2">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2 flex-1 min-w-0">
-                              <div 
-                                className="w-3 h-3 rounded-full flex-shrink-0" 
-                                style={{ backgroundColor: COLORS[index % COLORS.length] }}
-                              />
-                              <p className="text-sm font-medium truncate">{item.name}</p>
-                            </div>
-                            <div className="text-right flex-shrink-0 ml-2">
-                              <p className="text-sm font-bold">{formatCurrency(item.valor)}</p>
-                              <p className="text-xs text-muted-foreground">{item.percentual.toFixed(1)}%</p>
-                            </div>
-                          </div>
-                          <div className="w-full bg-muted rounded-full h-2 overflow-hidden">
-                            <div 
-                              className="h-full transition-all"
-                              style={{ width: `${item.percentual}%`, backgroundColor: COLORS[index % COLORS.length] }}
-                            />
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="h-48 flex items-center justify-center text-muted-foreground">
-                      Sem dados para exibir
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </div>
-            
-            {/* Tabela detalhada de alocação */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Detalhamento Completo da Alocação</CardTitle>
-                <CardDescription>Valores e percentuais por classe de ativo</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {resumo.porTipo
-                    .filter(item => item.valor > 0)
-                    .sort((a, b) => b.valor - a.valor)
-                    .map((item, index) => (
-                      <div key={item.tipo} className="space-y-2">
-                        <div className="flex justify-between items-center">
-                          <div className="flex items-center gap-3">
-                            <div 
-                              className="w-3 h-3 rounded-full flex-shrink-0" 
-                              style={{ backgroundColor: COLORS[index % COLORS.length] }}
-                            />
-                            <div>
-                              <p className="font-semibold text-sm">{TIPO_LABELS[item.tipo] || item.tipo}</p>
-                              <p className="text-xs text-muted-foreground">{formatCurrency(item.valor)}</p>
-                            </div>
-                          </div>
-                          <div className="text-right">
-                            <p className="font-bold text-sm">{item.percentual.toFixed(1)}%</p>
-                          </div>
-                        </div>
-                        <Progress 
-                          value={item.percentual} 
-                          className="h-2.5"
-                        />
-                      </div>
-                    ))}
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-          
-          {/* Tab Vencimentos */}
-          <TabsContent value="vencimentos" className="space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Calendário de Vencimentos</CardTitle>
-                <CardDescription>Investimentos de renda fixa ordenados por data de vencimento</CardDescription>
-              </CardHeader>
-              <CardContent>
-                {investimentos.filter(inv => inv.data_vencimento && inv.ativo && inv.quantidade > 0).length > 0 ? (
-                  <div className="space-y-3">
-                    {investimentos
-                      .filter(inv => inv.data_vencimento && inv.ativo && inv.quantidade > 0)
-                      .sort((a, b) => new Date(a.data_vencimento!).getTime() - new Date(b.data_vencimento!).getTime())
-                      .map(inv => {
-                        const dias = getDiasAteVencimento(inv.data_vencimento)
-                        const isVencido = dias !== null && dias < 0
-                        const isProximo = dias !== null && dias >= 0 && dias <= 30
-                        
-                        return (
-                          <div 
-                            key={inv.id} 
-                            className={`flex items-center justify-between p-4 rounded-lg border ${
-                              isVencido 
-                                ? 'bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-800'
-                                : isProximo
-                                ? 'bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800'
-                                : 'bg-muted/30'
-                            }`}
-                          >
-                            <div className="flex items-center gap-4">
-                              <div className={`p-2 rounded-lg ${
-                                isVencido 
-                                  ? 'bg-red-100 dark:bg-red-900 text-red-600'
-                                  : isProximo
-                                  ? 'bg-amber-100 dark:bg-amber-900 text-amber-600'
-                                  : 'bg-emerald-100 dark:bg-emerald-900 text-emerald-600'
-                              }`}>
-                                <Calendar className="h-4 w-4" />
-                              </div>
-                              <div>
-                                <div className="flex items-center gap-2">
-                                  <h4 className="font-semibold">{inv.codigo}</h4>
-                                  <Badge variant="outline" className="text-xs">
-                                    {TIPO_LABELS[inv.tipo] || inv.tipo}
-                                  </Badge>
-                                </div>
-                                <p className="text-sm text-muted-foreground">{inv.nome}</p>
-                                {inv.instituicao && (
-                                  <p className="text-xs text-muted-foreground">{inv.instituicao}</p>
-                                )}
-                              </div>
-                            </div>
-                            <div className="text-right">
-                              <p className="font-semibold">{formatCurrency(inv.valor_atual || 0)}</p>
-                              <p className="text-sm text-muted-foreground">
-                                {formatDate(inv.data_vencimento)}
-                              </p>
-                              <p className={`text-xs ${
-                                isVencido 
-                                  ? 'text-red-600 font-medium'
-                                  : isProximo
-                                  ? 'text-amber-600 font-medium'
-                                  : 'text-muted-foreground'
-                              }`}>
-                                {isVencido 
-                                  ? `Vencido há ${Math.abs(dias!)} dias`
-                                  : `${dias} dias restantes`}
-                              </p>
-                            </div>
-                          </div>
-                        )
-                      })}
-                  </div>
-                ) : (
-                  <div className="text-center py-12">
-                    <Calendar className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                    <h3 className="text-lg font-semibold mb-2">Nenhum vencimento cadastrado</h3>
-                    <p className="text-muted-foreground">
-                      Adicione investimentos de renda fixa com data de vencimento
-                    </p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
-          
-          {/* Tab Extrato */}
-          <TabsContent value="extrato" className="space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-lg">Extrato de Investimentos</CardTitle>
-                <CardDescription>Todos os movimentos de aplicações e resgates</CardDescription>
-              </CardHeader>
-              <CardContent>
-                {investimentos.length > 0 ? (
-                  <div className="space-y-3">
-                    {investimentos
-                      .filter(inv => inv.ativo || inv.quantidade === 0) // Mostrar ativos e resgatados
-                      .sort((a, b) => new Date(b.data_aplicacao || b.data_primeira_compra || b.created_at).getTime() - new Date(a.data_aplicacao || a.data_primeira_compra || a.created_at).getTime())
-                      .map(inv => {
-                        const isResgate = inv.quantidade === 0
-                        const dataMovimento = inv.data_aplicacao || inv.data_primeira_compra || inv.created_at
-                        
-                        return (
-                          <div 
-                            key={inv.id} 
-                            className="flex items-center justify-between p-4 rounded-lg border border-muted bg-card hover:bg-accent/50 transition-colors"
-                          >
-                            <div className="flex items-center gap-4">
-                              <div className={`p-2 rounded-lg ${
-                                isResgate 
-                                  ? 'bg-red-100 dark:bg-red-900 text-red-600'
-                                  : 'bg-emerald-100 dark:bg-emerald-900 text-emerald-600'
-                              }`}>
-                                {isResgate ? (
-                                  <ArrowDownRight className="h-4 w-4" />
-                                ) : (
-                                  <ArrowUpRight className="h-4 w-4" />
-                                )}
-                              </div>
-                              <div>
-                                <div className="flex items-center gap-2">
-                                  <h4 className="font-semibold">{inv.codigo}</h4>
-                                  <Badge variant="outline" className="text-xs">
-                                    {isResgate ? 'Resgate' : 'Aplicação'}
-                                  </Badge>
-                                  <Badge variant="outline" className="text-xs">
-                                    {TIPO_LABELS[inv.tipo] || inv.tipo}
-                                  </Badge>
-                                </div>
-                                <p className="text-sm text-muted-foreground">{inv.nome}</p>
-                                {inv.instituicao && (
-                                  <p className="text-xs text-muted-foreground">{inv.instituicao}</p>
-                                )}
-                              </div>
-                            </div>
-                            <div className="text-right">
-                              <p className={`font-semibold text-lg ${
-                                isResgate ? 'text-red-600' : 'text-emerald-600'
-                              }`}>
-                                {isResgate ? '-' : '+'}{formatCurrency(inv.valor_total)}
-                              </p>
-                              <p className="text-sm text-muted-foreground">
-                                {formatDate(dataMovimento)}
-                              </p>
-                              {inv.quantidade > 0 && (
-                                <p className="text-xs text-muted-foreground">
-                                  Saldo: {inv.quantidade.toFixed(2)} unidades
-                                </p>
-                              )}
-                            </div>
-                          </div>
-                        )
-                      })}
-                  </div>
-                ) : (
-                  <div className="text-center py-12">
-                    <Banknote className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                    <h3 className="text-lg font-semibold mb-2">Nenhum movimento registrado</h3>
-                    <p className="text-muted-foreground">
-                      Adicione investimentos para visualizar o extrato
-                    </p>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
-        </Tabs>
-        
-        {/* Diálogos */}
-        <AddTransactionDialog 
-          open={addDialogOpen} 
-          onClose={() => setAddDialogOpen(false)} 
-        />
-        
-        <EditInvestmentDialog
-          open={editDialogOpen}
-          onClose={() => {
-            setEditDialogOpen(false)
-            setInvestimentoSelecionado(null)
-          }}
-          investimento={investimentoSelecionado}
-        />
-        
-        <ResgateDialog
-          open={resgateDialogOpen}
-          onClose={() => {
-            setResgateDialogOpen(false)
-            setSelectedIds(new Set())
-          }}
-          selectedIds={selectedIds}
-        />
+          </CardContent>
+        </Card>
 
-        <ImportB3Dialog
-          open={importB3DialogOpen}
-          onOpenChange={setImportB3DialogOpen}
-          onSuccess={async () => {
-            await fetchInvestimentos()
-          }}
-        />
-        
-        {/* Diálogo de confirmação de exclusão */}
-        <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Confirmar exclusão</AlertDialogTitle>
-              <AlertDialogDescription>
-                {selectedIds.size > 0 ? (
-                  <>
-                    Tem certeza que deseja excluir <strong>{selectedIds.size} investimento(s)</strong>?<br/>
-                    Esta ação não pode ser desfeita.
-                  </>
-                ) : (
-                  <>
-                    Tem certeza que deseja excluir o investimento{' '}
-                    <strong>{investimentoSelecionado?.codigo} - {investimentoSelecionado?.nome}</strong>?<br/>
-                    Esta ação não pode ser desfeita.
-                  </>
-                )}
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Cancelar</AlertDialogCancel>
-              <AlertDialogAction 
-                onClick={confirmDelete}
-                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              >
-                Excluir {selectedIds.size > 0 && `(${selectedIds.size})`}
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
+        <Card className="border-border/70 shadow-sm">
+          <CardHeader>
+            <CardTitle className="text-lg">Vencimentos</CardTitle>
+            <CardDescription>Os itens que merecem atencao agora.</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {vencidos.length === 0 && vencimentosProximos.length === 0 ? (
+              <div className="rounded-2xl border border-dashed border-border/70 px-4 py-10 text-center">
+                <Calendar className="mx-auto h-10 w-10 text-muted-foreground" />
+                <p className="mt-3 text-sm font-medium">Nenhum vencimento proximo</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Seus titulos com data de vencimento aparecerao aqui.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {[...vencidos, ...vencimentosProximos].slice(0, 5).map((investimento) => {
+                  const badge = getDueBadge(investimento.data_vencimento)
+                  return (
+                    <div key={investimento.id} className="rounded-xl border border-border/60 p-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-semibold">{investimento.codigo}</p>
+                          <p className="truncate text-xs text-muted-foreground">{investimento.nome}</p>
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            {formatDate(investimento.data_vencimento)} - {getDisplayInstitution(investimento.instituicao)}
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-sm font-semibold">
+                            {formatCurrency(investimento.valor_atual ?? investimento.valor_total ?? 0)}
+                          </p>
+                          {badge && (
+                            <Badge variant="outline" className={cn('mt-2', badge.className)}>
+                              {badge.label}
+                            </Badge>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </CardContent>
+        </Card>
       </div>
-    </TooltipProvider>
+
+      <AddTransactionDialog open={addDialogOpen} onClose={() => setAddDialogOpen(false)} />
+
+      <EditInvestmentDialog
+        open={editDialogOpen}
+        onClose={() => {
+          setEditDialogOpen(false)
+          setInvestimentoSelecionado(null)
+        }}
+        investimento={investimentoSelecionado}
+      />
+
+      <ResgateDialog
+        open={resgateDialogOpen}
+        onClose={() => {
+          setResgateDialogOpen(false)
+          setInvestimentoSelecionado(null)
+        }}
+        selectedIds={investimentoSelecionado ? new Set([investimentoSelecionado.id]) : undefined}
+      />
+
+      <ImportB3Dialog
+        open={importB3DialogOpen}
+        onOpenChange={setImportB3DialogOpen}
+        onSuccess={async () => {
+          await fetchInvestimentos()
+        }}
+      />
+
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Excluir investimento</AlertDialogTitle>
+            <AlertDialogDescription>
+              Tem certeza que deseja excluir{' '}
+              <strong>
+                {investimentoSelecionado?.codigo} - {investimentoSelecionado?.nome}
+              </strong>
+              ? Esta acao nao pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDelete}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
   )
 }

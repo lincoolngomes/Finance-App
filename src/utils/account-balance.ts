@@ -156,7 +156,10 @@ export function calculateSaldoGlobalContas(
         transacao.accountId ||
         null
 
-      if (!contaIdTransacao) return false
+      // Lancamentos de conta antigos ou criados sem conta vinculada ainda
+      // precisam impactar o saldo global, mesmo sem compor o saldo individual
+      // de uma conta especifica.
+      if (!contaIdTransacao) return true
       return contaIds.has(contaIdTransacao)
     })
     .reduce((acc, transacao) => acc + getImpactoSaldoTransacao(transacao), 0)

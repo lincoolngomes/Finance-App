@@ -126,7 +126,7 @@ export function TransactionFormDialog({
             <BankSelector
               value={formData.account_id}
               onValueChange={value => onFormDataChange({ ...formData, account_id: value })}
-              placeholder="Selecione a conta (opcional)"
+              placeholder="Selecione a conta"
             />
           </div>
           {formData.metodo === 'cartao_credito' && (
@@ -135,7 +135,7 @@ export function TransactionFormDialog({
               <CardSelector
                 value={formData.account_id}
                 onValueChange={value => onFormDataChange({ ...formData, account_id: value })}
-                placeholder="Selecione o cartão (opcional)"
+                placeholder="Selecione o cartão"
               />
             </div>
           )}

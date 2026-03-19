@@ -4,7 +4,9 @@ import { Button } from '/src/components/ui/button'
 import { Input } from '/src/components/ui/input'
 import { Label } from '/src/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '/src/components/ui/select'
+import { BankSelector } from '/src/components/accounts/BankAndCardSelector'
 import { useInvestments, Investimento } from '/src/hooks/useInvestments'
+import { toast } from '/src/hooks/use-toast'
 import { formatCurrency, parseValorBR, formatarValorBR } from '/src/utils/currency'
 
 interface ResgateDialogProps {
@@ -14,17 +16,23 @@ interface ResgateDialogProps {
 }
 
 export const ResgateDialog = ({ open, onClose, selectedIds }: ResgateDialogProps) => {
-  const { investimentos, adicionarTransacao } = useInvestments()
+  const {
+    investimentos,
+    atualizarInvestimento,
+    registrarMovimentacaoFinanceiraInvestimento,
+    removerMovimentacaoFinanceiraInvestimento,
+  } = useInvestments()
   const [loading, setLoading] = useState(false)
   
   const [investimentoSelecionado, setInvestimentoSelecionado] = useState<string>('')
+  const [contaDestinoId, setContaDestinoId] = useState('')
   const [valorResgate, setValorResgate] = useState('')
   const [dataResgate, setDataResgate] = useState(new Date().toISOString().split('T')[0])
   
   // Investimentos disponíveis para resgate (apenas ativos com saldo)
   // Se há IDs selecionados, filtrar apenas esses, senão mostrar todos disponíveis
   const investimentosDisponiveis = investimentos.filter(inv => 
-    inv.ativo && inv.quantidade > 0 && inv.valor_atual > 0 &&
+    inv.ativo && inv.quantidade > 0 && Number(inv.valor_atual ?? inv.valor_total ?? 0) > 0 &&
     (!selectedIds || selectedIds.size === 0 || selectedIds.has(inv.id))
   )
   
@@ -39,6 +47,7 @@ export const ResgateDialog = ({ open, onClose, selectedIds }: ResgateDialogProps
   useEffect(() => {
     if (!open) {
       setInvestimentoSelecionado('')
+      setContaDestinoId('')
       setValorResgate('')
     }
   }, [open])
@@ -63,13 +72,24 @@ export const ResgateDialog = ({ open, onClose, selectedIds }: ResgateDialogProps
     }
     
     // Calcular dias investidos
-    const dataAplicacao = new Date(investimentoAtual.data_aplicacao || '')
+    const dataBase =
+      investimentoAtual.data_aplicacao ||
+      investimentoAtual.data_primeira_compra ||
+      investimentoAtual.created_at
+    const dataAplicacao = new Date(dataBase || '')
     const dataResgateDate = new Date(dataResgate)
-    const diasInvestido = Math.floor((dataResgateDate.getTime() - dataAplicacao.getTime()) / (1000 * 60 * 60 * 24))
+    const diasInvestido = Number.isNaN(dataAplicacao.getTime())
+      ? 0
+      : Math.max(
+          0,
+          Math.floor((dataResgateDate.getTime() - dataAplicacao.getTime()) / (1000 * 60 * 60 * 24))
+        )
     
     // Calcular proporção do resgate
-    const proporcao = valor / saldoAtual
+    const proporcao = Math.min(1, valor / saldoAtual)
     const valorInvestidoProporcional = valorInvestido * proporcao
+    const valorInvestidoRestante = Math.max(0, valorInvestido - valorInvestidoProporcional)
+    const quantidadeRestante = Math.max(0, investimentoAtual.quantidade * (1 - proporcao))
     
     // Calcular lucro
     const lucro = valor - valorInvestidoProporcional
@@ -107,7 +127,11 @@ export const ResgateDialog = ({ open, onClose, selectedIds }: ResgateDialogProps
     const valorLiquido = valor - valorIR
     
     // Novo saldo do investimento
-    const novoSaldo = saldoAtual - valor
+    const novoSaldo = Math.max(0, saldoAtual - valor)
+    const valorAtualManualRestante =
+      investimentoAtual.tipo_marcacao === 'manual' && investimentoAtual.valor_atual_manual
+        ? Math.max(0, investimentoAtual.valor_atual_manual * (1 - proporcao))
+        : undefined
     
     return {
       valor,
@@ -121,7 +145,10 @@ export const ResgateDialog = ({ open, onClose, selectedIds }: ResgateDialogProps
       valorIR,
       valorLiquido,
       novoSaldo,
-      isento: investimentoAtual.isento_ir || false
+      isento: investimentoAtual.isento_ir || false,
+      quantidadeRestante,
+      valorInvestidoRestante,
+      valorAtualManualRestante
     }
   }
   
@@ -131,26 +158,63 @@ export const ResgateDialog = ({ open, onClose, selectedIds }: ResgateDialogProps
     e.preventDefault()
     
     if (!investimentoAtual || !resultado || resultado.erro) return
+    if (!contaDestinoId) {
+      toast({
+        title: 'Selecione a conta de destino',
+        description: 'O valor do resgate precisa voltar para uma conta para atualizar o saldo.',
+        variant: 'destructive',
+      })
+      return
+    }
     
     setLoading(true)
+
+    let lancamentoFinanceiroId: string | number | null = null
     
     try {
-      // Adicionar transação de resgate (venda)
-      const sucesso = await adicionarTransacao({
-        investimento_id: investimentoAtual.id,
-        tipo_transacao: 'venda',
-        quantidade: investimentoAtual.quantidade * (resultado.valor / resultado.saldoAtual), // Quantidade proporcional
-        preco_unitario: resultado.valor / (investimentoAtual.quantidade * (resultado.valor / resultado.saldoAtual)),
-        valor_total: resultado.valor,
-        taxa: 0,
-        data_transacao: new Date(dataResgate).toISOString(),
-        observacoes: `Resgate - IR: R$ ${resultado.valorIR.toFixed(2)} (${resultado.aliquotaIR}%)`
+      const observacoesFinanceiras = [
+        resultado.valorIR > 0 ? `IR retido: ${formatCurrency(resultado.valorIR)}` : '',
+      ]
+        .filter(Boolean)
+        .join(' • ')
+
+      const lancamentoFinanceiro = await registrarMovimentacaoFinanceiraInvestimento({
+        tipo: 'resgate',
+        contaId: contaDestinoId,
+        data: dataResgate,
+        valor: resultado.valorLiquido,
+        codigo: investimentoAtual.codigo,
+        nome: investimentoAtual.nome,
+        instituicao: investimentoAtual.instituicao,
+        observacoes: observacoesFinanceiras,
+      })
+
+      lancamentoFinanceiroId = lancamentoFinanceiro?.id ?? null
+
+      const sucesso = await atualizarInvestimento(investimentoAtual.id, {
+        quantidade: resultado.quantidadeRestante,
+        preco_medio: investimentoAtual.preco_medio,
+        valor_total: resultado.valorInvestidoRestante,
+        valor_atual_manual:
+          typeof resultado.valorAtualManualRestante === 'number'
+            ? Number(resultado.valorAtualManualRestante.toFixed(2))
+            : undefined,
+        ativo: resultado.novoSaldo > 0.01,
       })
       
       if (sucesso) {
         resetForm()
         onClose()
+      } else {
+        await removerMovimentacaoFinanceiraInvestimento(lancamentoFinanceiroId)
       }
+    } catch (error: any) {
+      await removerMovimentacaoFinanceiraInvestimento(lancamentoFinanceiroId)
+      toast({
+        title: 'Erro ao registrar resgate',
+        description: error?.message || 'Nao foi possivel registrar o resgate.',
+        variant: 'destructive',
+      })
     } finally {
       setLoading(false)
     }
@@ -158,6 +222,7 @@ export const ResgateDialog = ({ open, onClose, selectedIds }: ResgateDialogProps
   
   const resetForm = () => {
     setInvestimentoSelecionado('')
+    setContaDestinoId('')
     setValorResgate('')
     setDataResgate(new Date().toISOString().split('T')[0])
   }
@@ -180,7 +245,7 @@ export const ResgateDialog = ({ open, onClose, selectedIds }: ResgateDialogProps
               <SelectContent>
                 {investimentosDisponiveis.map(inv => (
                   <SelectItem key={inv.id} value={inv.id}>
-                    {inv.codigo} - {inv.nome} ({formatCurrency(inv.valor_atual || 0)})
+                    {inv.codigo} - {inv.nome} ({formatCurrency(inv.valor_atual ?? inv.valor_total ?? 0)})
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -202,7 +267,7 @@ export const ResgateDialog = ({ open, onClose, selectedIds }: ResgateDialogProps
                     required
                   />
                   <p className="text-xs text-muted-foreground mt-1">
-                    Saldo disponível: {formatCurrency(investimentoAtual.valor_atual || 0)}
+                    Saldo disponível: {formatCurrency(investimentoAtual.valor_atual ?? investimentoAtual.valor_total ?? 0)}
                   </p>
                 </div>
                 
@@ -216,6 +281,15 @@ export const ResgateDialog = ({ open, onClose, selectedIds }: ResgateDialogProps
                     required
                   />
                 </div>
+              </div>
+
+              <div>
+                <Label htmlFor="contaDestino">Conta de destino *</Label>
+                <BankSelector
+                  value={contaDestinoId}
+                  onValueChange={setContaDestinoId}
+                  placeholder="Selecione a conta que vai receber o resgate"
+                />
               </div>
               
               {/* Resumo do resgate */}

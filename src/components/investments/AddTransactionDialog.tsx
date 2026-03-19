@@ -5,8 +5,10 @@ import { Input } from '/src/components/ui/input'
 import { Label } from '/src/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '/src/components/ui/select'
 import { Textarea } from '/src/components/ui/textarea'
+import { BankSelector } from '/src/components/accounts/BankAndCardSelector'
 import { useInvestments } from '/src/hooks/useInvestments'
 import { useSincronizacaoFundos } from '/src/hooks/useSincronizacaoFundos'
+import { toast } from '/src/hooks/use-toast'
 import { formatCurrency, parseValorBR, formatarValorBR, formatCurrencyInput } from '/src/utils/currency'
 import { buscarFundoCVM, buscarCotaAtualizadaFundo, validarCNPJ } from '/src/utils/cvm'
 import { AlertCircle, CheckCircle2, Loader2 } from 'lucide-react'
@@ -17,7 +19,12 @@ interface AddTransactionDialogProps {
 }
 
 export const AddTransactionDialog = ({ open, onClose }: AddTransactionDialogProps) => {
-  const { getOrCreateInvestimento, adicionarTransacao } = useInvestments()
+  const {
+    getOrCreateInvestimento,
+    adicionarTransacao,
+    registrarMovimentacaoFinanceiraInvestimento,
+    removerMovimentacaoFinanceiraInvestimento,
+  } = useInvestments()
   const { sincronizarFundo } = useSincronizacaoFundos()
   const [loading, setLoading] = useState(false)
   const [step, setStep] = useState<'tipo' | 'investimento' | 'transacao'>('tipo')
@@ -27,6 +34,7 @@ export const AddTransactionDialog = ({ open, onClose }: AddTransactionDialogProp
   const [codigo, setCodigo] = useState('')
   const [nome, setNome] = useState('')
   const [instituicao, setInstituicao] = useState('')
+  const [contaId, setContaId] = useState('')
   const [quantidade, setQuantidade] = useState('')
   const [precoUnitario, setPrecoUnitario] = useState('')
   const [taxa, setTaxa] = useState('')
@@ -154,6 +162,15 @@ export const AddTransactionDialog = ({ open, onClose }: AddTransactionDialogProp
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+
+    if (!contaId) {
+      toast({
+        title: 'Selecione a conta de origem',
+        description: 'Essa aplicacao precisa debitar uma conta para refletir no saldo.',
+        variant: 'destructive',
+      })
+      return
+    }
     
     // Validação: Para fundos e previdência, o fundo PRECISA ser encontrado na CVM
     if (['fundo', 'previdencia'].includes(tipoAtivo)) {
@@ -164,6 +181,8 @@ export const AddTransactionDialog = ({ open, onClose }: AddTransactionDialogProp
     }
     
     setLoading(true)
+
+    let lancamentoFinanceiroId: string | number | null = null
 
     try {
       // Calcular quantidade e valor_total ANTES de criar investimento
@@ -191,6 +210,19 @@ export const AddTransactionDialog = ({ open, onClose }: AddTransactionDialogProp
         preco = parseValorBR(precoUnitario)
         valorTotal = qtd * preco
       }
+
+      const lancamentoFinanceiro = await registrarMovimentacaoFinanceiraInvestimento({
+        tipo: 'aplicacao',
+        contaId,
+        data: dataTransacao,
+        valor: valorTotal,
+        codigo: codigo.toUpperCase(),
+        nome,
+        instituicao,
+        observacoes,
+      })
+
+      lancamentoFinanceiroId = lancamentoFinanceiro?.id ?? null
 
       // 1. Criar ou buscar investimento COM TODOS OS DADOS
       const dadosInvestimento: any = {
@@ -232,6 +264,7 @@ export const AddTransactionDialog = ({ open, onClose }: AddTransactionDialogProp
       const investimento = await getOrCreateInvestimento(dadosInvestimento)
 
       if (!investimento) {
+        await removerMovimentacaoFinanceiraInvestimento(lancamentoFinanceiroId)
         setLoading(false)
         return
       }
@@ -252,11 +285,24 @@ export const AddTransactionDialog = ({ open, onClose }: AddTransactionDialogProp
       if (sucesso) {
         // Se for fundo, sincroniza automaticamente com CVM
         if (['fundo', 'previdencia'].includes(tipoAtivo) && fundoEncontrado) {
-          await sincronizarFundo(investimento)
+          try {
+            await sincronizarFundo(investimento)
+          } catch (error) {
+            console.error('Erro ao sincronizar fundo apos a aplicacao:', error)
+          }
         }
         resetForm()
         onClose()
+      } else {
+        await removerMovimentacaoFinanceiraInvestimento(lancamentoFinanceiroId)
       }
+    } catch (error: any) {
+      await removerMovimentacaoFinanceiraInvestimento(lancamentoFinanceiroId)
+      toast({
+        title: 'Erro ao registrar aplicacao',
+        description: error?.message || 'Nao foi possivel registrar a aplicacao financeira.',
+        variant: 'destructive',
+      })
     } finally {
       setLoading(false)
     }
@@ -291,6 +337,7 @@ export const AddTransactionDialog = ({ open, onClose }: AddTransactionDialogProp
     setCodigo('')
     setNome('')
     setInstituicao('')
+    setContaId('')
     setQuantidade('')
     setPrecoUnitario('')
     setTaxa('')
@@ -333,7 +380,6 @@ export const AddTransactionDialog = ({ open, onClose }: AddTransactionDialogProp
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="compra">💰 Aplicação</SelectItem>
-                  <SelectItem value="venda">💵 Resgate</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -414,6 +460,15 @@ export const AddTransactionDialog = ({ open, onClose }: AddTransactionDialogProp
                 placeholder="Ex: Clear, XP, Binance..."
                 value={instituicao}
                 onChange={(e) => setInstituicao(e.target.value)}
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="contaOrigem">Conta de origem *</Label>
+              <BankSelector
+                value={contaId}
+                onValueChange={setContaId}
+                placeholder="Selecione a conta que vai sair o valor"
               />
             </div>
 
