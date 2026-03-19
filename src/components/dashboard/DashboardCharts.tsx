@@ -647,8 +647,8 @@ export function DashboardCharts({
         <Card className="overflow-hidden border-0">
           <CardHeader className="pb-3">
             <div className="flex items-center gap-3">
-              <div className="p-2.5 rounded-lg bg-blue-500/10">
-                <CreditCard className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+              <div className="rounded-lg bg-red-500/10 p-2.5">
+                <CreditCard className="h-5 w-5 text-red-600 dark:text-red-400" />
               </div>
               <div>
                 <CardTitle className="text-lg font-semibold">Faturas do Cartão</CardTitle>
@@ -662,37 +662,39 @@ export function DashboardCharts({
                 {cartaoFaturas.map((fatura, index) => {
                   const isMesAtual = index === 0
                   const percParcelado = fatura.total > 0 ? Math.round((fatura.parcelado / fatura.total) * 100) : 0
+                  const avulsoRatio = fatura.total > 0 ? (fatura.avulso / fatura.total) * 100 : 0
                   return (
                     <div
                       key={index}
-                      className="space-y-1.5 cursor-pointer hover:bg-accent/50 p-2 rounded-lg transition-colors"
+                      className={`space-y-1.5 cursor-pointer rounded-lg p-2 transition-colors ${
+                        isMesAtual ? 'bg-red-500/5 hover:bg-red-500/10' : 'hover:bg-accent/50'
+                      }`}
                       onClick={() => onOpenFatura?.(String(fatura.mes).padStart(2, '0'), String(fatura.ano))}
                     >
                       <div className="flex items-center justify-between">
-                        <span className={`text-xs font-medium ${isMesAtual ? 'text-blue-600 dark:text-blue-400' : 'text-muted-foreground'}`}>{fatura.label}</span>
+                        <span className={`text-xs font-medium ${isMesAtual ? 'text-red-600 dark:text-red-400' : 'text-muted-foreground'}`}>{fatura.label}</span>
                         <div className="flex items-center gap-2">
                           {fatura.parcelado > 0 && fatura.avulso > 0 && (
-                            <span className="text-[10px] text-cyan-500 font-medium">{percParcelado}% parcelas</span>
+                            <span className="text-[10px] font-semibold text-amber-400">{percParcelado}% parcelas</span>
                           )}
                           {fatura.total > 0 ? (
-                            <span className={`text-base font-bold ${isMesAtual ? 'text-blue-600 dark:text-blue-400' : 'text-foreground'}`}>{formatValue(fatura.total)}</span>
+                            <span className={`text-base font-bold ${isMesAtual ? 'text-red-600 dark:text-red-400' : 'text-red-700 dark:text-rose-100'}`}>{formatValue(fatura.total)}</span>
                           ) : (
                             <span className="text-xs text-muted-foreground">—</span>
                           )}
                         </div>
                       </div>
-                      {/* Barra degradê contínua */}
-                      <div className="relative h-2 bg-muted rounded-full overflow-hidden">
+                      <div className="relative h-2 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700/70">
                         {fatura.total > 0 && (
                           <div
                             className="absolute h-full rounded-full transition-all duration-500 ease-out"
                             style={{
                               width: `${(fatura.total / maiorFatura) * 100}%`,
                               background: fatura.parcelado > 0 && fatura.avulso > 0
-                                ? `linear-gradient(90deg, #3b82f6 0%, #6366f1 ${(fatura.avulso / fatura.total) * 100}%, #06b6d4 ${(fatura.avulso / fatura.total) * 100}%, #14b8a6 100%)`
+                                ? `linear-gradient(90deg, #ef4444 0%, #f43f5e ${avulsoRatio}%, #f97316 ${avulsoRatio}%, #f59e0b 100%)`
                                 : fatura.parcelado > 0
-                                  ? 'linear-gradient(90deg, #06b6d4 0%, #14b8a6 100%)'
-                                  : 'linear-gradient(90deg, #3b82f6 0%, #6366f1 100%)'
+                                  ? 'linear-gradient(90deg, #f97316 0%, #f59e0b 100%)'
+                                  : 'linear-gradient(90deg, #ef4444 0%, #f43f5e 100%)'
                             }}
                           />
                         )}
