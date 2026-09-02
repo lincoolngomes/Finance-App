@@ -5,14 +5,20 @@ export interface DefaultCategory {
   tipo: DefaultCategoryType;
 }
 
-export const DEFAULT_CATEGORIES: DefaultCategory[] = [
+export const DEFAULT_INCOME_CATEGORIES: DefaultCategory[] = [
   { nome: 'Aluguel', tipo: 'receita' },
+  { nome: 'Benefícios', tipo: 'receita' },
   { nome: 'Investimentos', tipo: 'receita' },
   { nome: 'Recompensas', tipo: 'receita' },
+  { nome: 'Reembolsos', tipo: 'receita' },
   { nome: 'Renda Extra', tipo: 'receita' },
+  { nome: 'Rendimentos', tipo: 'receita' },
   { nome: 'Salário', tipo: 'receita' },
   { nome: 'Transferência', tipo: 'receita' },
   { nome: 'Vendas', tipo: 'receita' },
+];
+
+export const DEFAULT_EXPENSE_CATEGORIES: DefaultCategory[] = [
   { nome: 'Academia', tipo: 'despesa' },
   { nome: 'Água', tipo: 'despesa' },
   { nome: 'Alimentação', tipo: 'despesa' },
@@ -20,6 +26,7 @@ export const DEFAULT_CATEGORIES: DefaultCategory[] = [
   { nome: 'Assinaturas', tipo: 'despesa' },
   { nome: 'Carro', tipo: 'despesa' },
   { nome: 'Celular', tipo: 'despesa' },
+  { nome: 'Combustível', tipo: 'despesa' },
   { nome: 'Compras', tipo: 'despesa' },
   { nome: 'Condomínio', tipo: 'despesa' },
   { nome: 'Casa', tipo: 'despesa' },
@@ -27,14 +34,26 @@ export const DEFAULT_CATEGORIES: DefaultCategory[] = [
   { nome: 'Educação', tipo: 'despesa' },
   { nome: 'Energia', tipo: 'despesa' },
   { nome: 'Farmácia', tipo: 'despesa' },
+  { nome: 'Impostos e Taxas', tipo: 'despesa' },
   { nome: 'Internet', tipo: 'despesa' },
   { nome: 'Investimento', tipo: 'despesa' },
   { nome: 'Lazer', tipo: 'despesa' },
+  { nome: 'Moradia', tipo: 'despesa' },
   { nome: 'Necessidades', tipo: 'despesa' },
+  { nome: 'Pagamento de Fatura', tipo: 'despesa' },
   { nome: 'Salão / Barbearia', tipo: 'despesa' },
   { nome: 'Saúde', tipo: 'despesa' },
+  { nome: 'Seguros', tipo: 'despesa' },
+  { nome: 'Serviços', tipo: 'despesa' },
   { nome: 'Transporte', tipo: 'despesa' },
   { nome: 'Transferência', tipo: 'despesa' },
+  { nome: 'Utilidades', tipo: 'despesa' },
+  { nome: 'Vestuário', tipo: 'despesa' },
+];
+
+export const DEFAULT_CATEGORIES: DefaultCategory[] = [
+  ...DEFAULT_INCOME_CATEGORIES,
+  ...DEFAULT_EXPENSE_CATEGORIES,
 ];
 
 const normalizeText = (value: string) =>

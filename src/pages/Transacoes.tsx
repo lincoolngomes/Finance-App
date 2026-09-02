@@ -23,7 +23,7 @@ import { useAuth } from '/src/hooks/useAuth'
 import { useCategories } from '/src/hooks/useCategories'
 // import { useAccountsMap } from '/src/hooks/useAccountsMap'
 import { toast } from '/src/hooks/use-toast'
-import { Edit, Trash2, TrendingUp, TrendingDown, ArrowUpDown, Download, Clock, DollarSign, Wallet } from 'lucide-react'
+import { Edit, Trash2, TrendingUp, TrendingDown, ArrowUpDown, Download, Clock, DollarSign, Wallet, AlertTriangle } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import { formatCurrency } from '/src/utils/currency'
 import { categorizar, normalizar } from '/src/utils/categorizacao'
@@ -444,6 +444,16 @@ const Transacoes: React.FC = () => {
     return filtered;
   }, [transacoes, accountFilter, typeFilter, categoryFilter, dateFrom, dateTo, searchTerm, sortCriteria, hideCardTransactions, filterMonth, filterYear, advFilters, viewMode]);
 
+  const transacoesSemCategoria = useMemo(
+    () => transacoes.filter((t) => !t.categoria_id),
+    [transacoes]
+  );
+
+  const handleCategorizarPendentes = () => {
+    setSelectedIds(transacoesSemCategoria.map((t) => t.id));
+    setMassCategoryDialogOpen(true);
+  };
+
   // Variáveis auxiliares para seleção em massa (após filteredTransacoes)
   const isAllSelected = filteredTransacoes.length > 0 && selectedIds.length === filteredTransacoes.length;
   const isIndeterminate = selectedIds.length > 0 && selectedIds.length < filteredTransacoes.length;
@@ -522,10 +532,14 @@ const Transacoes: React.FC = () => {
         
         // Aplicar categorização retroativa se não tem categoria
         if (!categoriaId && t.descricao) {
-          const nomeCategoria = categorizar(t.descricao, regrasTexto);
+          const nomeCategoria = categorizar(t.descricao, regrasTexto, t.tipo);
           if (nomeCategoria) {
             // Buscar no array local
-            const catLocal = categoriasData?.find(c => c.nome?.toLowerCase() === nomeCategoria.toLowerCase());
+            const tipoCategoria = t.tipo === 'receita' ? 'receita' : 'despesa';
+            const catLocal = categoriasData?.find(c =>
+              c.nome?.toLowerCase() === nomeCategoria.toLowerCase() &&
+              c.tipo === tipoCategoria
+            );
             if (catLocal) {
               categoriaId = catLocal.id;
               categoria = catLocal;
@@ -614,21 +628,6 @@ const Transacoes: React.FC = () => {
     const faturaAno = anoReferencia ? parseInt(anoReferencia, 10) : null;
     const criarParcelasFuturas = options?.criarParcelasFuturas ?? true;
     let totalParcelasFuturasCriadas = 0;
-
-    const faltandoCategoria = (transacoesImportadas || []).filter((t: any) => {
-      const tipoTransacao = (t?.tipo === 'pagamento' || t?.tipo === 'estorno') ? 'receita' : 'despesa';
-      if (tipoTransacao !== 'despesa') return false;
-      const categoriaRegra = categorizar(String(t?.estabelecimento || ''), regrasTexto || '');
-      const categoriaAtual = String(t?.categoria || '').trim();
-      return !categoriaRegra && !categoriaAtual;
-    });
-
-    if (faltandoCategoria.length > 0) {
-      return {
-        success: false,
-        message: `Existem ${faltandoCategoria.length} lançamento(s) sem categoria. Preencha antes de importar.`,
-      };
-    }
 
     let suportaCamposParcela = true;
     const toIsoDate = (date: Date) => {
@@ -756,7 +755,7 @@ const Transacoes: React.FC = () => {
       const tipoCategoria = tipoTransacao === 'despesa' ? 'despesa' : 'receita';
       const categoriaPorRegra = (t.tipo === 'pagamento' || t.tipo === 'estorno')
         ? CATEGORIA_PAGAMENTO_FATURA
-        : categorizar(t.estabelecimento || '', regrasTexto || '');
+        : categorizar(t.estabelecimento || '', regrasTexto || '', 'despesa');
       const nomeCategoriaFinal = (categoriaPorRegra || String(t.categoria || '').trim()).trim();
       const categoriaId = await getOrCreateCategoriaId(nomeCategoriaFinal, tipoCategoria);
       const parsedData = parseDataParaBanco(t.quando);
@@ -855,9 +854,9 @@ const Transacoes: React.FC = () => {
       for (const row of transacoesCartaoExistentes) {
         const descricao = String(row?.descricao || '').trim();
         if (!descricao) continue;
-        const categoriaPorRegra = categorizar(descricao, regrasTexto || '');
-        if (!categoriaPorRegra) continue;
         const tipoCategoria = row?.tipo === 'receita' ? 'receita' : 'despesa';
+        const categoriaPorRegra = categorizar(descricao, regrasTexto || '', tipoCategoria);
+        if (!categoriaPorRegra) continue;
         const categoriaId = await getOrCreateCategoriaId(categoriaPorRegra, tipoCategoria);
         if (categoriaId && categoriaId !== row?.categoria_id) {
           atualizacoes.push({ id: row.id, categoria_id: categoriaId });
@@ -884,13 +883,6 @@ const Transacoes: React.FC = () => {
   const handleImportLancamentos = async (lancamentos: any[], contaId: string, regras: string) => {
     if (!user || !user.id) {
       return { success: false, message: 'Usuário não autenticado.' };
-    }
-    const pendentesCategoria = (lancamentos || []).filter((l) => !String(l?.categoria || '').trim());
-    if (pendentesCategoria.length > 0) {
-      return {
-        success: false,
-        message: `Existem ${pendentesCategoria.length} lançamento(s) sem categoria. Preencha antes de importar.`,
-      };
     }
     try {
       async function getOrCreateCategoriaId(nomeCategoria: string, tipoCategoria: 'receita' | 'despesa') {
@@ -928,7 +920,10 @@ const Transacoes: React.FC = () => {
 
       function parseDataBRtoISO(dataBR: string) {
         if (!dataBR) return null;
-        const [dia, mes, ano] = dataBR.split('/');
+        const texto = String(dataBR).trim();
+        if (/^\d{4}-\d{2}-\d{2}$/.test(texto)) return texto;
+        const [dia, mes, ano] = texto.split('/');
+        if (!dia || !mes || !ano) return null;
         return `${ano}-${mes.padStart(2, '0')}-${dia.padStart(2, '0')}`;
       }
 
@@ -945,7 +940,7 @@ const Transacoes: React.FC = () => {
         const valorNum = parseValorBR(l.valor);
         const tipo: 'receita' | 'despesa' = valorNum >= 0 ? 'receita' : 'despesa';
         const descricao = l.estabelecimento || l.descricao || '';
-        const categoriaPorRegra = categorizar(descricao, regras || '');
+        const categoriaPorRegra = categorizar(descricao, regras || '', tipo);
         const nomeCategoria = String(categoriaPorRegra || l.categoria || '').trim();
         const categoriaId = await getOrCreateCategoriaId(nomeCategoria, tipo);
 
@@ -1022,9 +1017,9 @@ const Transacoes: React.FC = () => {
         for (const row of transacoesContaExistentes) {
           const descricao = String(row?.descricao || '').trim();
           if (!descricao) continue;
-          const categoriaPorRegra = categorizar(descricao, regras || '');
-          if (!categoriaPorRegra) continue;
           const tipoCategoria: 'receita' | 'despesa' = row?.tipo === 'receita' ? 'receita' : 'despesa';
+          const categoriaPorRegra = categorizar(descricao, regras || '', tipoCategoria);
+          if (!categoriaPorRegra) continue;
           const categoriaId = await getOrCreateCategoriaId(categoriaPorRegra, tipoCategoria);
           if (categoriaId && categoriaId !== row?.categoria_id) {
             atualizacoes.push({ id: row.id, categoria_id: categoriaId });
@@ -1151,6 +1146,20 @@ const Transacoes: React.FC = () => {
 
     const nextParams = new URLSearchParams(searchParams)
     nextParams.delete('nova')
+    setSearchParams(nextParams, { replace: true })
+  }, [searchParams, setSearchParams])
+
+  useEffect(() => {
+    const wantsExtrato = searchParams.get('importarExtrato') === '1'
+    const wantsFatura = searchParams.get('importarFatura') === '1'
+    if (!wantsExtrato && !wantsFatura) return
+
+    if (wantsExtrato) setImportarExtratoOpen(true)
+    if (wantsFatura) setImportarFaturaOpen(true)
+
+    const nextParams = new URLSearchParams(searchParams)
+    nextParams.delete('importarExtrato')
+    nextParams.delete('importarFatura')
     setSearchParams(nextParams, { replace: true })
   }, [searchParams, setSearchParams])
 
@@ -2020,6 +2029,25 @@ const Transacoes: React.FC = () => {
           + Nova Transação
         </Button>
       </div>
+
+      {transacoesSemCategoria.length > 0 && (
+        <div className="flex flex-col gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-400" />
+            <p className="text-sm text-amber-200">
+              Você tem <strong>{transacoesSemCategoria.length}</strong> transaç{transacoesSemCategoria.length === 1 ? 'ão' : 'ões'} sem categoria.
+              Categorize em massa ou clique em cada uma pra editar individualmente.
+            </p>
+          </div>
+          <Button
+            size="sm"
+            className="w-full shrink-0 bg-amber-500 text-amber-950 hover:bg-amber-400 sm:w-auto"
+            onClick={handleCategorizarPendentes}
+          >
+            Categorizar em massa
+          </Button>
+        </div>
+      )}
 
       {/* Cards de Resumo */}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">

@@ -41,24 +41,24 @@ export function AppSidebar() {
 
   const rotinaItems = [
     { title: 'Início', url: '/dashboard', icon: Home },
-    { title: 'Transações', url: '/transacoes', icon: ArrowLeftRight },
+    { title: 'Transações', url: '/transacoes', icon: ArrowLeftRight, tour: 'transacoes' },
     { title: 'Calendário', url: '/calendario', icon: CalendarDays },
-    { title: 'Orçamentos', url: '/orcamentos', icon: Target },
+    { title: 'Orçamentos', url: '/orcamentos', icon: Target, tour: 'orcamentos' },
     { title: 'Lembretes', url: '/lembretes', icon: Bell },
   ]
 
   const analiseItems = [
-    { title: 'Investimentos', url: '/investimentos', icon: TrendingUp },
+    { title: 'Investimentos', url: '/investimentos', icon: TrendingUp, tour: 'investimentos' },
     { title: 'Bens e Dívidas', url: '/patrimonio', icon: Scale },
-    { title: 'Relatórios', url: '/relatorios', icon: FileText },
+    { title: 'Relatórios', url: '/relatorios', icon: FileText, tour: 'relatorios' },
     { title: 'WhatsApp', url: '/whatsapp', icon: MessageCircle },
   ]
 
   // Items de configuração (Cartões, Contas, Categorias)
   const configItems = [
-    { title: 'Cartões', url: '/cartoes', icon: CreditCard },
-    { title: 'Contas', url: '/contas', icon: Landmark },
-    { title: 'Categorias', url: '/categorias', icon: Tags },
+    { title: 'Cartões', url: '/cartoes', icon: CreditCard, tour: 'cartoes' },
+    { title: 'Contas', url: '/contas', icon: Landmark, tour: 'contas' },
+    { title: 'Categorias', url: '/categorias', icon: Tags, tour: 'categorias' },
   ]
 
   // Items apenas para admin
@@ -122,7 +122,7 @@ export function AppSidebar() {
                         : 'hover:bg-accent dark:hover:bg-slate-800'
                     }`}
                   >
-                    <NavLink to={item.url} end onClick={handleMobileItemClick}>
+                    <NavLink to={item.url} end onClick={handleMobileItemClick} data-tour={item.tour}>
                       <item.icon className="h-4 w-4" />
                       <span>{item.title}</span>
                     </NavLink>
@@ -149,7 +149,7 @@ export function AppSidebar() {
                         : 'hover:bg-accent dark:hover:bg-slate-800'
                     }`}
                   >
-                    <NavLink to={item.url} end onClick={handleMobileItemClick}>
+                    <NavLink to={item.url} end onClick={handleMobileItemClick} data-tour={item.tour}>
                       <item.icon className="h-4 w-4" />
                       <span>{item.title}</span>
                     </NavLink>
@@ -168,7 +168,7 @@ export function AppSidebar() {
                         : 'hover:bg-red-50 dark:hover:bg-red-900/20 text-red-600 dark:text-red-400'
                     }`}
                   >
-                    <NavLink to={item.url} end onClick={handleMobileItemClick}>
+                    <NavLink to={item.url} end onClick={handleMobileItemClick} data-tour={item.tour}>
                       <item.icon className="h-4 w-4" />
                       <span>{item.title}</span>
                     </NavLink>
@@ -195,7 +195,7 @@ export function AppSidebar() {
                         : 'hover:bg-accent dark:hover:bg-slate-800'
                     }`}
                   >
-                    <NavLink to={item.url} end onClick={handleMobileItemClick}>
+                    <NavLink to={item.url} end onClick={handleMobileItemClick} data-tour={item.tour}>
                       <item.icon className="h-4 w-4" />
                       <span>{item.title}</span>
                     </NavLink>

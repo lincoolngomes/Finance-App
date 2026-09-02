@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../lib/supabase';
 import { useAuth } from './useAuth';
 import { toast } from 'sonner';
+import { DEFAULT_CATEGORIES, getDefaultCategoryKey } from '../constants/defaultCategories';
 
 const normalizeCategoryName = (value: string) =>
   String(value || '')
@@ -45,7 +46,31 @@ export function useCategories() {
         throw error;
       }
 
-      const rows = (data || []) as Category[];
+      let rows = (data || []) as Category[];
+      const existingKeys = new Set(rows.map(getDefaultCategoryKey));
+      const missingDefaults = DEFAULT_CATEGORIES.filter(
+        (category) => !existingKeys.has(getDefaultCategoryKey(category))
+      );
+
+      if (missingDefaults.length > 0) {
+        const { data: createdDefaults, error: defaultsError } = await supabase
+          .from('categorias')
+          .insert(
+            missingDefaults.map((category) => ({
+              user_id: user.id,
+              nome: category.nome,
+              tipo: category.tipo,
+            }))
+          )
+          .select('id, nome, tags, tipo, created_at, user_id');
+
+        if (defaultsError) {
+          console.warn('Não foi possível completar as categorias padrão:', defaultsError);
+        } else if (createdDefaults) {
+          rows = [...rows, ...(createdDefaults as Category[])];
+        }
+      }
+
       const deduped = new Map<string, Category>();
 
       for (const row of rows) {

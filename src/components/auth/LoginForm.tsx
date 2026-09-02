@@ -22,6 +22,8 @@ export function LoginForm({ onForgotPassword }: LoginFormProps) {
   const [signupEmail, setSignupEmail] = useState('')
   const [signupPassword, setSignupPassword] = useState('')
   const [showSignupPassword, setShowSignupPassword] = useState(false)
+  const [signupConfirmPassword, setSignupConfirmPassword] = useState('')
+  const [showSignupConfirmPassword, setShowSignupConfirmPassword] = useState(false)
   const [signupTelefone, setSignupTelefone] = useState('')
   const [signupCpf, setSignupCpf] = useState('')
   const [signupNascimento, setSignupNascimento] = useState('')
@@ -45,6 +47,16 @@ export function LoginForm({ onForgotPassword }: LoginFormProps) {
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault()
+
+    if (signupPassword !== signupConfirmPassword) {
+      toast({
+        title: 'As senhas não coincidem',
+        description: 'Verifique os campos de senha e confirmação de senha.',
+        variant: 'destructive',
+      })
+      return
+    }
+
     setSignupLoading(true)
     try {
       const normalizedSignupEmail = signupEmail.trim().toLowerCase()
@@ -89,6 +101,8 @@ export function LoginForm({ onForgotPassword }: LoginFormProps) {
         setShowSignup(false)
         setEmail(normalizedSignupEmail)
         setPassword('')
+        setSignupPassword('')
+        setSignupConfirmPassword('')
       }
     } catch (error: any) {
       toast({
@@ -245,6 +259,34 @@ export function LoginForm({ onForgotPassword }: LoginFormProps) {
                 {showSignupPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
               </Button>
             </div>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="signup-confirm-password" className="text-sm font-medium">Confirmar senha</Label>
+            <div className="relative">
+              <Input
+                id="signup-confirm-password"
+                type={showSignupConfirmPassword ? 'text' : 'password'}
+                placeholder="••••••••"
+                value={signupConfirmPassword}
+                onChange={e => setSignupConfirmPassword(e.target.value)}
+                required
+                className="h-11 pr-12"
+                aria-invalid={signupConfirmPassword.length > 0 && signupConfirmPassword !== signupPassword}
+              />
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="absolute right-1 top-1 h-9 w-9 text-muted-foreground hover:text-foreground"
+                onClick={() => setShowSignupConfirmPassword((current) => !current)}
+                aria-label={showSignupConfirmPassword ? 'Ocultar senha' : 'Mostrar senha'}
+              >
+                {showSignupConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </Button>
+            </div>
+            {signupConfirmPassword.length > 0 && signupConfirmPassword !== signupPassword && (
+              <p className="text-xs text-destructive">As senhas não coincidem.</p>
+            )}
           </div>
           <Button
             type="submit"

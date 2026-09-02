@@ -1,5 +1,6 @@
 
 import React, { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { supabase } from '/src/lib/supabase';
 import { useAuth } from '/src/hooks/useAuth';
 import { Button } from '/src/components/ui/button';
@@ -609,6 +610,20 @@ export default function Cartoes({ isModal = false }) {
   const [deleteCartaoLoading, setDeleteCartaoLoading] = useState(false);
   const [deleteCartaoTarget, setDeleteCartaoTarget] = useState<any | null>(null);
   const [deleteCartaoTransacoesCount, setDeleteCartaoTransacoesCount] = useState(0);
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  useEffect(() => {
+    if (loading) return;
+    if (searchParams.get('configurarCartao') !== '1') return;
+    if (cartoes.length === 0) return;
+
+    setEditCartao(cartoes[0]);
+    setEditOpen(true);
+
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.delete('configurarCartao');
+    setSearchParams(nextParams, { replace: true });
+  }, [searchParams, setSearchParams, cartoes, loading]);
 
   function handleOpenCartaoDetalhes(cardId: string, defaultKey?: string) {
     setCartaoDetalhesAberto(cardId);
@@ -839,7 +854,7 @@ export default function Cartoes({ isModal = false }) {
     const faltandoCategoria = (transacoes || []).filter((t: any) => {
       const tipoTransacao = (t?.tipo === 'pagamento' || t?.tipo === 'estorno') ? 'receita' : 'despesa';
       if (tipoTransacao !== 'despesa') return false;
-      const categoriaRegra = categorizar(String(t?.estabelecimento || ''), regrasTexto || '');
+      const categoriaRegra = categorizar(String(t?.estabelecimento || ''), regrasTexto || '', 'despesa');
       const categoriaAtual = String(t?.categoria || '').trim();
       return !categoriaRegra && !categoriaAtual;
     });
@@ -985,7 +1000,7 @@ export default function Cartoes({ isModal = false }) {
       const tipoCategoria = tipoTransacao === 'despesa' ? 'despesa' : 'receita';
       const categoriaPorRegra = (t.tipo === 'pagamento' || t.tipo === 'estorno')
         ? CATEGORIA_PAGAMENTO_FATURA
-        : categorizar(t.estabelecimento || '', regrasTexto || '');
+        : categorizar(t.estabelecimento || '', regrasTexto || '', 'despesa');
       const nomeCategoriaFinal = (categoriaPorRegra || String(t.categoria || '').trim()).trim();
       const categoriaId = await getOrCreateCategoriaId(nomeCategoriaFinal, tipoCategoria);
       const parsedData = parseDataParaBanco(t.quando);
@@ -1097,9 +1112,9 @@ export default function Cartoes({ isModal = false }) {
       for (const row of transacoesCartaoExistentes) {
         const descricao = String(row?.descricao || '').trim();
         if (!descricao) continue;
-        const categoriaPorRegra = categorizar(descricao, regrasTexto || '');
-        if (!categoriaPorRegra) continue;
         const tipoCategoria = row?.tipo === 'receita' ? 'receita' : 'despesa';
+        const categoriaPorRegra = categorizar(descricao, regrasTexto || '', tipoCategoria);
+        if (!categoriaPorRegra) continue;
         const categoriaId = await getOrCreateCategoriaId(categoriaPorRegra, tipoCategoria);
         if (categoriaId && categoriaId !== row?.categoria_id) {
           atualizacoes.push({ id: row.id, categoria_id: categoriaId });

@@ -2,7 +2,7 @@
 import { SidebarProvider, SidebarInset, useSidebar } from '../ui/sidebar'
 import { AppSidebar } from './AppSidebar'
 import { ThemeToggle } from '../ui/theme-toggle'
-import { Menu, X, Bell, User, LogOut, Tag, Plus } from 'lucide-react'
+import { Menu, X, Bell, User, LogOut, Tag, Plus, UploadCloud, HelpCircle } from 'lucide-react'
 import { Button } from '../ui/button'
 import { Avatar, AvatarFallback, AvatarImage } from '../ui/avatar'
 import { useAuth } from '../../hooks/useAuth'
@@ -11,6 +11,8 @@ import { useState, useEffect } from 'react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '../ui/dialog'
 import { supabase } from '../../lib/supabase'
 import Categorias from '../../pages/Categorias'
+import { GuidedTour } from '../onboarding/GuidedTour'
+import { ImportarDadosModal } from '../importers/ImportarDadosModal'
 
 interface AppLayoutProps {
   children: React.ReactNode
@@ -39,7 +41,24 @@ export function AppLayout({ children, userName }: AppLayoutProps) {
   const [categoriasOpen, setCategoriasOpen] = useState(false)
   const [userDropdownOpen, setUserDropdownOpen] = useState(false)
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
+  const [tutorialOpen, setTutorialOpen] = useState(false)
+  const [importarDadosOpen, setImportarDadosOpen] = useState(false)
   const { user, logout } = useAuth()
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !user?.id) return
+    const seenKey = `financeapp_tutorial_seen_${user.id}`
+    if (!window.localStorage.getItem(seenKey)) {
+      setTutorialOpen(true)
+    }
+  }, [user?.id])
+
+  const handleFinishTutorial = () => {
+    if (user?.id) {
+      window.localStorage.setItem(`financeapp_tutorial_seen_${user.id}`, '1')
+    }
+    setTutorialOpen(false)
+  }
 
   useEffect(() => {
     const fetchAvatar = async () => {
@@ -106,6 +125,28 @@ export function AppLayout({ children, userName }: AppLayoutProps) {
               </h1>
             </div>
             <div className="flex shrink-0 items-center gap-2 sm:gap-4">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="hidden sm:inline-flex"
+                data-tour="importar-dados"
+                onClick={() => setImportarDadosOpen(true)}
+              >
+                <UploadCloud className="mr-2 h-4 w-4" />
+                Importar dados
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                className="sm:hidden h-9 w-9"
+                data-tour="importar-dados"
+                onClick={() => setImportarDadosOpen(true)}
+                aria-label="Importar dados"
+              >
+                <UploadCloud className="h-5 w-5 text-muted-foreground" />
+              </Button>
               {/* Botão Notificações */}
               <div className="relative group">
                 <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full hover:bg-accent">
@@ -122,10 +163,11 @@ export function AppLayout({ children, userName }: AppLayoutProps) {
 
               {/* Botão Usuário */}
               <div className="relative">
-                <Button 
-                  variant="ghost" 
-                  size="icon" 
+                <Button
+                  variant="ghost"
+                  size="icon"
                   className="h-9 w-9 rounded-full hover:bg-accent p-0 overflow-hidden"
+                  data-tour="avatar"
                   onClick={() => setUserDropdownOpen(!userDropdownOpen)}
                   onBlur={(e) => {
                     // Só fecha se o clique foi fora do dropdown
@@ -153,7 +195,7 @@ export function AppLayout({ children, userName }: AppLayoutProps) {
                       <User className="h-4 w-4" />
                       Perfil
                     </button>
-                    <button 
+                    <button
                       className="w-full flex items-center gap-3 px-4 py-3 text-sm text-foreground hover:bg-accent"
                       onClick={() => {
                         setCategoriasOpen(true)
@@ -163,7 +205,17 @@ export function AppLayout({ children, userName }: AppLayoutProps) {
                       <Tag className="h-4 w-4" />
                       Categorias
                     </button>
-                    <button 
+                    <button
+                      className="w-full flex items-center gap-3 px-4 py-3 text-sm text-foreground hover:bg-accent"
+                      onClick={() => {
+                        setUserDropdownOpen(false)
+                        setTutorialOpen(true)
+                      }}
+                    >
+                      <HelpCircle className="h-4 w-4" />
+                      Ver tutorial
+                    </button>
+                    <button
                       className="w-full flex items-center gap-3 px-4 py-3 text-sm text-red-600 hover:bg-accent last:rounded-b-lg"
                       onClick={handleLogout}
                     >
@@ -189,6 +241,7 @@ export function AppLayout({ children, userName }: AppLayoutProps) {
         type="button"
         onClick={handleOpenNovaTransacao}
         className="fixed bottom-4 right-4 z-40 h-12 w-12 rounded-full shadow-lg sm:bottom-5 sm:right-5 sm:h-11 sm:w-auto sm:px-4"
+        data-tour="nova-transacao"
         aria-label="Adicionar transação"
       >
         <Plus className="h-5 w-5 sm:mr-2" />
@@ -201,6 +254,10 @@ export function AppLayout({ children, userName }: AppLayoutProps) {
           <Categorias />
         </DialogContent>
       </Dialog>
+
+      <GuidedTour open={tutorialOpen} onFinish={handleFinishTutorial} />
+
+      <ImportarDadosModal open={importarDadosOpen} onOpenChange={setImportarDadosOpen} />
     </SidebarProvider>
   )
 }

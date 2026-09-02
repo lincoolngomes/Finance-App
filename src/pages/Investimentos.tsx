@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { differenceInDays, format, parseISO } from 'date-fns'
 import { ptBR } from 'date-fns/locale'
 import {
@@ -219,6 +220,18 @@ export default function Investimentos() {
   const [importB3DialogOpen, setImportB3DialogOpen] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [investimentoSelecionado, setInvestimentoSelecionado] = useState<Investimento | null>(null)
+
+  const [searchParams, setSearchParams] = useSearchParams()
+
+  useEffect(() => {
+    if (searchParams.get('importarB3') !== '1') return
+
+    setImportB3DialogOpen(true)
+
+    const nextParams = new URLSearchParams(searchParams)
+    nextParams.delete('importarB3')
+    setSearchParams(nextParams, { replace: true })
+  }, [searchParams, setSearchParams])
 
   const investimentosAtivos = useMemo(
     () => investimentos.filter((investimento) => investimento.ativo),

@@ -170,7 +170,8 @@ export default function Dashboard() {
               *,
               categorias (
                 id,
-                nome
+                nome,
+                tipo
               )
             `)
             .eq('user_id', user?.id)
@@ -190,7 +191,7 @@ export default function Dashboard() {
             .eq('user_id', user?.id),
           supabase
             .from('categorias')
-            .select('id, nome')
+            .select('id, nome, tipo')
             .eq('user_id', user?.id)
         ])
 
@@ -213,22 +214,28 @@ export default function Dashboard() {
           const { categorizar, REGRAS_PADRAO } = await import('/src/utils/categorizacao');
           const regrasTexto = localStorage.getItem('regrasFatura') || REGRAS_PADRAO;
           
-          const categoriasMap = new Map((categoriasData || []).map(c => [c.nome?.toLowerCase(), c]));
+          const getCategoriaKey = (nome: string, tipo: string) =>
+            `${tipo}:${String(nome || '').trim().toLowerCase()}`;
+          const categoriasMap = new Map(
+            (categoriasData || []).map(c => [getCategoriaKey(c.nome, c.tipo), c])
+          );
           
           for (const t of transacoesData) {
             if (!t.categoria_id && t.descricao) {
-              const nomeCategoria = categorizar(t.descricao, regrasTexto);
+              const nomeCategoria = categorizar(t.descricao, regrasTexto, t.tipo);
               if (nomeCategoria) {
-                let cat = categoriasMap.get(nomeCategoria.toLowerCase());
+                const tipoCategoria = t.tipo === 'receita' ? 'receita' : 'despesa';
+                const categoriaKey = getCategoriaKey(nomeCategoria, tipoCategoria);
+                let cat = categoriasMap.get(categoriaKey);
                 if (!cat) {
                   const { data: newCat } = await supabase
                     .from('categorias')
-                    .insert({ user_id: user?.id, nome: nomeCategoria })
-                    .select('id, nome')
+                    .insert({ user_id: user?.id, nome: nomeCategoria, tipo: tipoCategoria })
+                    .select('id, nome, tipo')
                     .maybeSingle();
                   if (newCat) {
                     cat = newCat;
-                    categoriasMap.set(nomeCategoria.toLowerCase(), newCat);
+                    categoriasMap.set(categoriaKey, newCat);
                   }
                 }
                 if (cat) {

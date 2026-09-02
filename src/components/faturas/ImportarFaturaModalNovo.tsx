@@ -7,7 +7,11 @@ import { toast } from '/src/hooks/use-toast';
 import { ImportCategoryCombobox, type ImportCategoryOption } from '/src/components/importers/ImportCategoryCombobox';
 import { normalizar, categorizar, REGRAS_PADRAO } from '/src/utils/categorizacao';
 import { formatCurrency } from '/src/utils/currency';
-import { isDefaultCategory, resolveCategoryType } from '/src/constants/defaultCategories';
+import {
+  DEFAULT_EXPENSE_CATEGORIES,
+  isDefaultCategory,
+  resolveCategoryType,
+} from '/src/constants/defaultCategories';
 
 interface Transacao {
   uid: string;
@@ -56,6 +60,7 @@ export function ImportarFaturaModalNovo({ open, onClose, onImport, cartoes, init
   const [regrasTexto, setRegrasTexto] = useState(REGRAS_PADRAO);
   const [regrasHydrated, setRegrasHydrated] = useState(false);
   const [csvFile, setCsvFile] = useState<File | null>(null);
+  const [isDraggingFile, setIsDraggingFile] = useState(false);
   const [transacoes, setTransacoes] = useState<Transacao[]>([]);
   const [parseError, setParseError] = useState("");
   const [cartaoSelecionado, setCartaoSelecionado] = useState(initialCardId || cartoes?.[0]?.id || '');
@@ -71,12 +76,11 @@ export function ImportarFaturaModalNovo({ open, onClose, onImport, cartoes, init
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('asc');
   const [criarParcelasFuturas, setCriarParcelasFuturas] = useState(true);
   const [modoImportacao, setModoImportacao] = useState<'ambas' | 'somente_parceladas' | 'somente_nao_parceladas'>('ambas');
-  const [usarSemCategoria, setUsarSemCategoria] = useState(false);
   const [selectedTransactionIds, setSelectedTransactionIds] = useState<string[]>([]);
   const [draftRestored, setDraftRestored] = useState(false);
   const [categoriasDespesa, setCategoriasDespesa] = useState<string[]>([
-    'Alimentação', 'Transporte', 'Compras', 'Assinaturas', 'Saúde', 'Combustível', 'Lazer', 'Academia', 'Vestuário',
-    'Educação', 'Serviços', 'Utilidades', 'Sem categoria'
+    ...DEFAULT_EXPENSE_CATEGORIES.map((categoria) => categoria.nome),
+    'Sem categoria',
   ]);
   const [categoriasReceita, setCategoriasReceita] = useState<string[]>([CATEGORIA_PAGAMENTO_FATURA]);
 
@@ -119,7 +123,9 @@ export function ImportarFaturaModalNovo({ open, onClose, onImport, cartoes, init
         categoriasReceita.map(c => normalizar(c))
       );
       const categoriasRegrasValidas = categoriasExtraidasDasRegras.filter(
-        c => !categoriasReceitaNorm.has(normalizar(c))
+        c =>
+          !categoriasReceitaNorm.has(normalizar(c)) &&
+          resolveCategoryType({ nome: c, tipo: null }) !== 'receita'
       );
       const todasCategorias = new Set([...categoriasDespesa, ...categoriasRegrasValidas]);
       return normalizarListaCategorias(
@@ -348,7 +354,7 @@ export function ImportarFaturaModalNovo({ open, onClose, onImport, cartoes, init
       // Só recategoriza se não foi definido manualmente
       if (t.categoriaManual) return t;
       
-      const categoriaRegra = categorizar(t.estabelecimento, regrasTexto);
+      const categoriaRegra = categorizar(t.estabelecimento, regrasTexto, 'despesa');
       return {
         ...t,
         categoria: categoriaRegra || '',
@@ -356,10 +362,11 @@ export function ImportarFaturaModalNovo({ open, onClose, onImport, cartoes, init
     }));
   }, [regrasTexto, step, regrasHydrated]);
 
-  const detectarTipoArquivo = (file: File): 'csv' | 'pdf' | null => {
+  const detectarTipoArquivo = (file: File): 'csv' | 'pdf' | 'xlsx' | null => {
     const nome = (file?.name || '').toLowerCase();
     if (nome.endsWith('.csv')) return 'csv';
     if (nome.endsWith('.pdf')) return 'pdf';
+    if (nome.endsWith('.xlsx') || nome.endsWith('.xls')) return 'xlsx';
     return null;
   };
 
@@ -711,13 +718,12 @@ export function ImportarFaturaModalNovo({ open, onClose, onImport, cartoes, init
     };
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const processarArquivoSelecionado = (file: File | null | undefined) => {
     setParseError("");
     setResumoPdf(null);
-    const file = e.target.files?.[0];
     if (file) {
       if (!detectarTipoArquivo(file)) {
-        setParseError("Apenas arquivos CSV ou PDF são aceitos");
+        setParseError("Apenas arquivos CSV, XLSX ou PDF são aceitos");
         return;
       }
 
@@ -735,6 +741,10 @@ export function ImportarFaturaModalNovo({ open, onClose, onImport, cartoes, init
     }
   };
 
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    processarArquivoSelecionado(e.target.files?.[0]);
+  };
+
   const handleParse = () => {
     if (!csvFile) {
       setParseError("Selecione um arquivo");
@@ -744,11 +754,11 @@ export function ImportarFaturaModalNovo({ open, onClose, onImport, cartoes, init
     setParseError('');
     const tipoArquivo = detectarTipoArquivo(csvFile);
     if (!tipoArquivo) {
-      setParseError('Formato inválido. Use CSV ou PDF');
+      setParseError('Formato inválido. Use CSV, XLSX ou PDF');
       return;
     }
 
-    if (tipoArquivo === 'csv') {
+    if (tipoArquivo === 'csv' || tipoArquivo === 'xlsx') {
       const getCsvValue = (row: Record<string, unknown>, aliases: string[]): string => {
         const aliasSet = new Set(aliases.map((a) => normalizar(a)));
 
@@ -762,6 +772,40 @@ export function ImportarFaturaModalNovo({ open, onClose, onImport, cartoes, init
 
         return '';
       };
+
+      if (tipoArquivo === 'xlsx') {
+        (async () => {
+          try {
+            const XLSX = await import('xlsx');
+            const buffer = await csvFile.arrayBuffer();
+            const workbook = XLSX.read(buffer, { type: 'array', cellDates: true });
+            const sheet = workbook.Sheets[workbook.SheetNames[0]];
+            const rows: any[] = XLSX.utils.sheet_to_json(sheet, { defval: '', raw: false });
+            const dados: Transacao[] = rows
+              .map((row: any, index: number) => {
+                const quando = getCsvValue(row, ['data', 'date', 'quando']);
+                const estabelecimento = getCsvValue(row, ['descricao', 'description', 'estabelecimento', 'historico']);
+                const valorStr = getCsvValue(row, ['valor', 'amount']) || '0';
+                const valorRaw = parseValorMonetario(valorStr);
+                return criarTransacaoNormalizada(quando, estabelecimento, valorRaw, index);
+              })
+              .filter((t: Transacao | null): t is Transacao => t !== null);
+            if (dados.length === 0) {
+              setParseError('Nenhuma transacao encontrada no arquivo XLSX.');
+              return;
+            }
+            setTransacoes(dados);
+            setSelectedTransactionIds(dados.map((transacao) => transacao.uid));
+            setResumoPdf(null);
+            setStep(2);
+            setSortBy('');
+            setSortOrder('asc');
+          } catch (error: any) {
+            setParseError(`Erro ao processar XLSX: ${error?.message || error}`);
+          }
+        })();
+        return;
+      }
 
       Papa.parse(csvFile, {
         header: true,
@@ -994,10 +1038,48 @@ export function ImportarFaturaModalNovo({ open, onClose, onImport, cartoes, init
     });
   }, [modoImportacao, transacoesSelecionadas]);
 
+  const pendentesCategoriaCount = useMemo(
+    () =>
+      transacoesSelecionadasParaImportacao.filter(
+        (t) => t.tipo !== 'pagamento' && t.tipo !== 'estorno' && !String(t.categoria || '').trim()
+      ).length,
+    [transacoesSelecionadasParaImportacao]
+  );
+
   const sortedLancamentos = useMemo(() => getSortedLancamentos(), [transacoes, sortBy, sortOrder]);
   const allSelected = sortedLancamentos.length > 0 && sortedLancamentos.every((transacao) => selectedTransactionIds.includes(transacao.uid));
   const selectedCount = transacoesSelecionadas.length;
   const importCount = transacoesSelecionadasParaImportacao.length;
+
+  const [categoriaEmMassa, setCategoriaEmMassa] = useState('');
+  const tiposSelecionados = useMemo(
+    () =>
+      new Set(
+        transacoesSelecionadas.map((t) => ((t.tipo === 'pagamento' || t.tipo === 'estorno') ? 'receita' : 'despesa'))
+      ),
+    [transacoesSelecionadas]
+  );
+  const tipoUnicoSelecionado = tiposSelecionados.size === 1 ? Array.from(tiposSelecionados)[0] : null;
+  const opcoesCategoriaEmMassa = tipoUnicoSelecionado === 'receita'
+    ? categoriasReceitaDropdown
+    : tipoUnicoSelecionado === 'despesa'
+      ? categoriasDespesaDropdown
+      : [];
+
+  useEffect(() => {
+    setCategoriaEmMassa('');
+  }, [tipoUnicoSelecionado]);
+
+  const handleAplicarCategoriaEmMassa = () => {
+    if (!categoriaEmMassa || !tipoUnicoSelecionado) return;
+    setTransacoes((prev) =>
+      prev.map((t) =>
+        selectedTransactionIds.includes(t.uid)
+          ? { ...t, categoria: categoriaEmMassa, categoriaManual: true }
+          : t
+      )
+    );
+  };
 
   const toggleTransactionSelection = (uid: string, checked: boolean) => {
     setSelectedTransactionIds((current) => {
@@ -1051,29 +1133,7 @@ export function ImportarFaturaModalNovo({ open, onClose, onImport, cartoes, init
       return;
     }
 
-    const pendentesCategoria = transacoesSelecionadasParaImportacao.filter((t) => {
-      if (t.tipo === 'pagamento' || t.tipo === 'estorno') return false;
-      return !String(t.categoria || '').trim();
-    });
-    
-    // Se o toggle "Usar Sem categoria" está ativado, aplica "Sem categoria" aos itens pendentes
-    let transacoesParaImportar = transacoesSelecionadasParaImportacao;
-    if (usarSemCategoria && pendentesCategoria.length > 0) {
-      transacoesParaImportar = transacoesSelecionadasParaImportacao.map(t => {
-        if (t.tipo === 'pagamento' || t.tipo === 'estorno') return t;
-        if (!String(t.categoria || '').trim()) {
-          return { ...t, categoria: 'Sem categoria' };
-        }
-        return t;
-      });
-    } else if (pendentesCategoria.length > 0) {
-      toast({
-        title: 'Categoria pendente',
-        description: `${pendentesCategoria.length} lançamento(s) sem categoria. Preencha antes de importar.`,
-        variant: 'destructive'
-      });
-      return;
-    }
+    const transacoesParaImportar = transacoesSelecionadasParaImportacao;
 
     setLoading(true);
     try {
@@ -1150,8 +1210,8 @@ export function ImportarFaturaModalNovo({ open, onClose, onImport, cartoes, init
                 </svg>
               </div>
               <div>
-                <h2 className="text-2xl font-bold text-white">Importar Fatura do Cartão</h2>
-                <p className="text-sm text-slate-400 mt-1">Carregue suas transações com inteligência de categorização</p>
+                <h2 className="text-2xl font-bold text-white">Importar fatura do cartão</h2>
+                <p className="text-sm text-slate-400 mt-1">Envie um arquivo CSV, XLSX ou PDF e categorizamos os lançamentos para você</p>
               </div>
             </div>
             <button
@@ -1164,10 +1224,15 @@ export function ImportarFaturaModalNovo({ open, onClose, onImport, cartoes, init
             </button>
           </div>
 
-          <div className="flex gap-2 mb-8">
-            {[1, 2, 3].map(s => (
-              <div key={s} className={`flex-1 h-1.5 rounded-full transition-all ${step >= s ? 'bg-gradient-to-r from-blue-500 to-blue-400' : 'bg-slate-800'}`}></div>
-            ))}
+          <div className="mb-8">
+            <div className="flex gap-2">
+              {[1, 2].map(s => (
+                <div key={s} className={`flex-1 h-1.5 rounded-full transition-all ${step >= s ? 'bg-gradient-to-r from-blue-500 to-blue-400' : 'bg-slate-800'}`}></div>
+              ))}
+            </div>
+            <p className="mt-2 text-xs font-medium text-slate-400">
+              Passo {step} de 2 — {step === 1 ? 'Enviar arquivo' : 'Revisar e confirmar lançamentos'}
+            </p>
           </div>
 
           {step === 1 && (
@@ -1265,13 +1330,32 @@ export function ImportarFaturaModalNovo({ open, onClose, onImport, cartoes, init
                 )}
 
                 <div>
-                  <label className="block text-sm font-semibold text-slate-200 mb-3">Arquivo da fatura (CSV ou PDF)</label>
-                  <input
-                    type="file"
-                    accept=".csv,.pdf"
-                    onChange={handleFileChange}
-                    className="w-full px-4 py-4 rounded-xl border-2 border-dashed border-slate-600 hover:border-slate-500 bg-slate-800/30 text-slate-100 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-gradient-to-r file:from-blue-500 file:to-blue-600 file:text-white hover:file:from-blue-600 hover:file:to-blue-700 cursor-pointer transition"
-                  />
+                  <label className="block text-sm font-semibold text-slate-200 mb-3">
+                    Arquivo da fatura
+                    <span className="ml-2 font-normal text-slate-400">(CSV, XLSX ou PDF)</span>
+                  </label>
+                  <div
+                    onDragOver={(e) => { e.preventDefault(); setIsDraggingFile(true); }}
+                    onDragLeave={() => setIsDraggingFile(false)}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      setIsDraggingFile(false);
+                      processarArquivoSelecionado(e.dataTransfer.files?.[0]);
+                    }}
+                    className={`relative rounded-xl border-2 border-dashed transition ${
+                      isDraggingFile ? 'border-blue-500 bg-blue-500/10' : 'border-slate-600 hover:border-slate-500 bg-slate-800/30'
+                    }`}
+                  >
+                    <input
+                      type="file"
+                      accept=".csv,.xlsx,.xls,.pdf"
+                      onChange={handleFileChange}
+                      className="w-full px-4 py-4 text-slate-100 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-gradient-to-r file:from-blue-500 file:to-blue-600 file:text-white hover:file:from-blue-600 hover:file:to-blue-700 cursor-pointer"
+                    />
+                    <p className="pointer-events-none px-4 pb-3 text-xs text-slate-400">
+                      Ou arraste o arquivo aqui
+                    </p>
+                  </div>
                 </div>
 
                 {csvFile && (
@@ -1312,7 +1396,16 @@ export function ImportarFaturaModalNovo({ open, onClose, onImport, cartoes, init
           {step === 2 && (
             <>
               <div className="mb-6">
-                <label className="block text-sm font-semibold mb-3 text-slate-200">Regras de categorização</label>
+                <div className="mb-3 flex items-center justify-between">
+                  <label className="block text-sm font-semibold text-slate-200">Regras de categorização</label>
+                  <button
+                    type="button"
+                    className="text-xs font-medium text-blue-400 hover:text-blue-300 transition"
+                    onClick={() => setRegrasTexto(REGRAS_PADRAO)}
+                  >
+                    Restaurar regras padrão
+                  </button>
+                </div>
                 <textarea
                   className="w-full px-4 py-3 rounded-xl bg-slate-800/50 border border-slate-700 text-slate-100 text-sm font-mono focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition"
                   style={{ minHeight: 140, maxHeight: 220, overflow: 'auto' }}
@@ -1320,20 +1413,14 @@ export function ImportarFaturaModalNovo({ open, onClose, onImport, cartoes, init
                   onChange={e => setRegrasTexto(e.target.value)}
                 />
                 
-                <div className="mt-4 p-3 rounded-lg border border-slate-700 bg-slate-800/30">
-                  <label className="flex items-center gap-2 text-sm text-slate-300 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={usarSemCategoria}
-                      onChange={(e) => setUsarSemCategoria(e.target.checked)}
-                      className="w-4 h-4 rounded border-slate-600 text-blue-500 focus:ring-blue-500/20"
-                    />
-                    Usar "Sem categoria" para itens não categorizados
-                  </label>
-                  <p className="text-xs text-slate-400 mt-1.5 ml-6">
-                    Marcado: itens sem categoria serão importados como "Sem categoria". Desmarcado: será necessário categorizar todos.
-                  </p>
-                </div>
+                {pendentesCategoriaCount > 0 && (
+                  <div className="mt-4 flex items-start gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-300">
+                    <span>
+                      ⚠ {pendentesCategoriaCount} lançamento(s) sem categoria selecionado(s) para importar.
+                      Eles serão importados sem categoria — você pode categorizá-los depois, a qualquer momento.
+                    </span>
+                  </div>
+                )}
               </div>
 
               <div className="mb-6">
@@ -1419,6 +1506,37 @@ export function ImportarFaturaModalNovo({ open, onClose, onImport, cartoes, init
                     Selecionar tudo
                   </label>
                 </div>
+
+                {selectedCount > 0 && (
+                  <div className="mb-4 flex flex-col gap-2 rounded-xl border border-slate-700 bg-slate-800/30 p-3 sm:flex-row sm:items-center">
+                    <span className="text-xs font-medium text-slate-300 sm:whitespace-nowrap">
+                      Categorizar em massa ({selectedCount} marcada{selectedCount === 1 ? '' : 's'}):
+                    </span>
+                    {tipoUnicoSelecionado ? (
+                      <>
+                        <div className="sm:w-56">
+                          <ImportCategoryCombobox
+                            value={categoriaEmMassa}
+                            options={opcoesCategoriaEmMassa}
+                            onValueChange={setCategoriaEmMassa}
+                          />
+                        </div>
+                        <button
+                          type="button"
+                          className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-xs font-semibold text-white transition disabled:opacity-50"
+                          onClick={handleAplicarCategoriaEmMassa}
+                          disabled={!categoriaEmMassa}
+                        >
+                          Aplicar às marcadas
+                        </button>
+                      </>
+                    ) : (
+                      <span className="text-xs text-amber-400">
+                        Marque transações do mesmo tipo (só despesas ou só pagamentos/estornos) para categorizar em massa.
+                      </span>
+                    )}
+                  </div>
+                )}
                 <div
                   className="overflow-y-auto border border-slate-700/50 rounded-xl shadow-lg"
                   style={{ maxHeight: '450px' }}

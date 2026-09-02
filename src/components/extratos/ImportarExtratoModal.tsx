@@ -2,9 +2,10 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useAuth } from '/src/hooks/useAuth';
 import { supabase } from '/src/lib/supabase';
 import Papa from 'papaparse';
+import * as XLSX from 'xlsx';
 import { ImportCategoryCombobox, type ImportCategoryOption } from '/src/components/importers/ImportCategoryCombobox';
 import { categorizar, normalizar, REGRAS_PADRAO } from '/src/utils/categorizacao';
-import { isDefaultCategory, resolveCategoryType } from '/src/constants/defaultCategories';
+import { DEFAULT_CATEGORIES, isDefaultCategory, resolveCategoryType } from '/src/constants/defaultCategories';
 
 interface Lancamento {
   uid: string;
@@ -31,6 +32,7 @@ export function ImportarExtratoModal({ open, onClose, onImport, contas }: Import
   const [step, setStep] = useState(1);
   const [regrasTexto, setRegrasTexto] = useState(REGRAS_PADRAO);
   const [csvFile, setCsvFile] = useState<File | null>(null);
+  const [isDraggingFile, setIsDraggingFile] = useState(false);
   const [lancamentos, setLancamentos] = useState<Lancamento[]>([]);
   const [selecoesLancamentos, setSelecoesLancamentos] = useState<Record<string, boolean>>({});
   const [parseError, setParseError] = useState("");
@@ -115,37 +117,7 @@ export function ImportarExtratoModal({ open, onClose, onImport, contas }: Import
     return normalizarListaCategorias(categoriasBanco);
   }, [categorias]);
   
-  const categoriasPadrao = [
-    { nome: 'Aluguel', tipo: 'receita' },
-    { nome: 'Investimentos', tipo: 'receita' },
-    { nome: 'Recompensas', tipo: 'receita' },
-    { nome: 'Renda Extra', tipo: 'receita' },
-    { nome: 'Salário', tipo: 'receita' },
-    { nome: 'Transferência', tipo: 'receita' },
-    { nome: 'Vendas', tipo: 'receita' },
-    { nome: 'Academia', tipo: 'despesa' },
-    { nome: 'Água', tipo: 'despesa' },
-    { nome: 'Alimentação', tipo: 'despesa' },
-    { nome: 'Aluguel', tipo: 'despesa' },
-    { nome: 'Assinaturas', tipo: 'despesa' },
-    { nome: 'Carro', tipo: 'despesa' },
-    { nome: 'Celular', tipo: 'despesa' },
-    { nome: 'Compras', tipo: 'despesa' },
-    { nome: 'Condomínio', tipo: 'despesa' },
-    { nome: 'Casa', tipo: 'despesa' },
-    { nome: 'Dívida', tipo: 'despesa' },
-    { nome: 'Educação', tipo: 'despesa' },
-    { nome: 'Energia', tipo: 'despesa' },
-    { nome: 'Farmácia', tipo: 'despesa' },
-    { nome: 'Internet', tipo: 'despesa' },
-    { nome: 'Investimento', tipo: 'despesa' },
-    { nome: 'Lazer', tipo: 'despesa' },
-    { nome: 'Necessidades', tipo: 'despesa' },
-    { nome: 'Salão / Barbearia', tipo: 'despesa' },
-    { nome: 'Saúde', tipo: 'despesa' },
-    { nome: 'Transporte', tipo: 'despesa' },
-    { nome: 'Transferência', tipo: 'despesa' },
-  ];
+  const categoriasPadrao = DEFAULT_CATEGORIES;
 
   // Buscar/criar categorias do usuário ao abrir modal
   useEffect(() => {
@@ -157,7 +129,10 @@ export function ImportarExtratoModal({ open, onClose, onImport, contas }: Import
         .eq('user_id', user.id);
       if (error) existentes = [];
       const faltantes = categoriasPadrao.filter(catPadrao =>
-        !existentes?.some(cat => cat.nome === catPadrao.nome && cat.tipo === catPadrao.tipo)
+        !existentes?.some(cat =>
+          normalizar(cat.nome) === normalizar(catPadrao.nome) &&
+          normalizar(cat.tipo) === normalizar(catPadrao.tipo)
+        )
       );
       if (faltantes.length > 0) {
         await supabase
@@ -179,7 +154,7 @@ export function ImportarExtratoModal({ open, onClose, onImport, contas }: Import
   useEffect(() => {
     if (step === 2 && lancamentos.length > 0) {
       setLancamentos(lancs => lancs.map(l => {
-        const categoriaRegra = categorizar(l.estabelecimento, regrasTexto);
+        const categoriaRegra = categorizar(l.estabelecimento, regrasTexto, l.tipo);
         if (categoriaRegra) {
           return {
             ...l,
@@ -223,6 +198,7 @@ export function ImportarExtratoModal({ open, onClose, onImport, contas }: Import
   const scrollableRef = useRef<HTMLDivElement>(null);
   const selectAllRef = useRef<HTMLInputElement>(null);
   const [importFeedback, setImportFeedback] = useState<any>(null);
+  const [categoriaEmMassa, setCategoriaEmMassa] = useState('');
 
   const lancamentosSelecionados = useMemo(
     () => lancamentos.filter((l) => selecoesLancamentos[l.uid] !== false),
@@ -231,6 +207,36 @@ export function ImportarExtratoModal({ open, onClose, onImport, contas }: Import
   const totalSelecionados = lancamentosSelecionados.length;
   const todosSelecionados = lancamentos.length > 0 && totalSelecionados === lancamentos.length;
   const algunsSelecionados = totalSelecionados > 0 && totalSelecionados < lancamentos.length;
+  const pendentesCategoriaSelecionados = useMemo(
+    () => lancamentosSelecionados.filter((l) => !String(l.categoria || '').trim()).length,
+    [lancamentosSelecionados]
+  );
+
+  const tiposSelecionados = useMemo(
+    () => new Set(lancamentosSelecionados.map((l) => l.tipo)),
+    [lancamentosSelecionados]
+  );
+  const tipoUnicoSelecionado = tiposSelecionados.size === 1 ? Array.from(tiposSelecionados)[0] : null;
+  const opcoesCategoriaEmMassa = tipoUnicoSelecionado === 'receita'
+    ? categoriasReceitaDropdown
+    : tipoUnicoSelecionado === 'despesa'
+      ? categoriasDespesaDropdown
+      : [];
+
+  useEffect(() => {
+    setCategoriaEmMassa('');
+  }, [tipoUnicoSelecionado]);
+
+  const handleAplicarCategoriaEmMassa = () => {
+    if (!categoriaEmMassa || !tipoUnicoSelecionado) return;
+    setLancamentos((prev) =>
+      prev.map((l) =>
+        selecoesLancamentos[l.uid] !== false
+          ? { ...l, categoria: categoriaEmMassa, categoriaManual: true }
+          : l
+      )
+    );
+  };
 
   useEffect(() => {
     if (selectAllRef.current) {
@@ -266,51 +272,184 @@ export function ImportarExtratoModal({ open, onClose, onImport, contas }: Import
     setParseError("");
   };
 
-  const handleParse = () => {
+  const handleFileDrop = (file: File | null | undefined) => {
+    if (!file) return;
+    setCsvFile(file);
     setParseError("");
-    if (!csvFile) return;
-    setLoading(true);
-    Papa.parse(csvFile, {
+  };
+
+  const getFileExtension = (file: File) => {
+    const nome = file.name || '';
+    const ponto = nome.lastIndexOf('.');
+    return ponto >= 0 ? nome.slice(ponto + 1).toLowerCase() : '';
+  };
+
+  function gerarUid() {
+    return Math.random().toString(36).substr(2, 9) + Date.now().toString(36);
+  }
+
+  type LinhaExtrato = { quando: string; estabelecimento: string; valor: number };
+
+  const finalizarLinhas = (linhas: LinhaExtrato[]) => {
+    const parsed: Lancamento[] = linhas
+      .filter((linha) => linha.estabelecimento && !Number.isNaN(linha.valor))
+      .map((linha) => {
+        const tipo: 'receita' | 'despesa' = linha.valor < 0 ? 'despesa' : 'receita';
+        return {
+          uid: gerarUid(),
+          quando: linha.quando,
+          estabelecimento: linha.estabelecimento,
+          valor: linha.valor,
+          tipo,
+          categoria: sanitizarCategoriaPorTipo(categorizar(linha.estabelecimento, regrasTexto, tipo), tipo),
+        };
+      });
+
+    if (parsed.length === 0) {
+      setParseError("Nenhum lançamento encontrado no arquivo.");
+      setSelecoesLancamentos({});
+      return;
+    }
+
+    setLancamentos(parsed);
+    setSelecoesLancamentos(
+      Object.fromEntries(parsed.map((lancamento) => [lancamento.uid, true]))
+    );
+    setStep(2);
+  };
+
+  const parseValorBR = (valor: any) => {
+    if (typeof valor === 'number') return valor;
+    const texto = String(valor ?? '').trim().replace(/[^\d,.-]/g, '');
+    if (!texto) return NaN;
+    const temSeparadorDecimalVirgula = texto.includes(',');
+    const normalizado = temSeparadorDecimalVirgula
+      ? texto.replace(/\./g, '').replace(',', '.')
+      : texto;
+    return Number(normalizado);
+  };
+
+  const parseCsvRows = (file: File) => {
+    Papa.parse(file, {
       header: false,
       delimiter: ";",
       skipEmptyLines: true,
       complete: (results: any) => {
         setLoading(false);
-        function gerarUid() {
-          return Math.random().toString(36).substr(2, 9) + Date.now().toString(36);
-        }
-        const parsed = results.data
-          .filter((row: any[]) => Array.isArray(row) && row.length >= 2 && row[0] && row[1])
-          .map((row: any[]) => {
-            const descricao = row[1] || '';
-            const dataOriginal = row[0] || '';
-            const valor = Number((row[2] || '').replace('.', '').replace(',', '.'));
-            const tipo = valor < 0 ? 'despesa' : 'receita';
-            return {
-              uid: gerarUid(),
-              quando: dataOriginal,
-              estabelecimento: descricao,
-              valor: valor,
-              tipo: tipo,
-              categoria: sanitizarCategoriaPorTipo(categorizar(descricao, regrasTexto), tipo),
-            };
-          });
-        if (parsed.length === 0) {
-          setParseError("Nenhum lançamento encontrado no arquivo CSV.");
-          setSelecoesLancamentos({});
-          return;
-        }
-        setLancamentos(parsed);
-        setSelecoesLancamentos(
-          Object.fromEntries(parsed.map((lancamento) => [lancamento.uid, true]))
-        );
-        setStep(2);
+        const linhas: LinhaExtrato[] = (results.data as any[][])
+          .filter((row) => Array.isArray(row) && row.length >= 2 && row[0] && row[1])
+          .map((row) => ({
+            quando: row[0] || '',
+            estabelecimento: row[1] || '',
+            valor: parseValorBR(row[2]),
+          }));
+        finalizarLinhas(linhas);
       },
       error: (err: any) => {
         setLoading(false);
         setParseError("Erro ao ler o arquivo CSV: " + err.message);
       }
     });
+  };
+
+  const normalizarDataCelulaXlsx = (valor: any) => {
+    if (valor instanceof Date) {
+      const ano = valor.getFullYear();
+      const mes = String(valor.getMonth() + 1).padStart(2, '0');
+      const dia = String(valor.getDate()).padStart(2, '0');
+      return `${ano}-${mes}-${dia}`;
+    }
+    if (typeof valor === 'number') {
+      const parsedDate = XLSX.SSF?.parse_date_code?.(valor);
+      if (parsedDate) {
+        const ano = String(parsedDate.y).padStart(4, '0');
+        const mes = String(parsedDate.m).padStart(2, '0');
+        const dia = String(parsedDate.d).padStart(2, '0');
+        return `${ano}-${mes}-${dia}`;
+      }
+    }
+    return String(valor ?? '').trim();
+  };
+
+  const parseXlsxRows = async (file: File) => {
+    try {
+      const buffer = await file.arrayBuffer();
+      const workbook = XLSX.read(buffer, { type: 'array', cellDates: true });
+      const sheet = workbook.Sheets[workbook.SheetNames[0]];
+      const rows: any[][] = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: true, defval: '' });
+
+      const linhasCandidatas = rows.filter(
+        (row) => Array.isArray(row) && row.length >= 2 && (row[0] || row[0] === 0) && row[1]
+      );
+      const primeiraLinhaEhCabecalho =
+        linhasCandidatas.length > 0 && Number.isNaN(parseValorBR(linhasCandidatas[0][2]));
+      const linhasDados = primeiraLinhaEhCabecalho ? linhasCandidatas.slice(1) : linhasCandidatas;
+
+      const linhas: LinhaExtrato[] = linhasDados.map((row) => ({
+        quando: normalizarDataCelulaXlsx(row[0]),
+        estabelecimento: String(row[1] || '').trim(),
+        valor: parseValorBR(row[2]),
+      }));
+
+      setLoading(false);
+      finalizarLinhas(linhas);
+    } catch (err: any) {
+      setLoading(false);
+      setParseError("Erro ao ler o arquivo XLSX: " + (err?.message || err));
+    }
+  };
+
+  const parseOfxRows = async (file: File) => {
+    try {
+      const texto = await file.text();
+      const blocos = texto.match(/<STMTTRN>[\s\S]*?<\/STMTTRN>/gi) || [];
+
+      const extrairCampo = (bloco: string, tag: string) => {
+        const match = bloco.match(new RegExp(`<${tag}>([^\\r\\n<]+)`, 'i'));
+        return match ? match[1].trim() : '';
+      };
+
+      const linhas: LinhaExtrato[] = blocos.map((bloco) => {
+        const dataBruta = extrairCampo(bloco, 'DTPOSTED');
+        const ano = dataBruta.slice(0, 4);
+        const mes = dataBruta.slice(4, 6);
+        const dia = dataBruta.slice(6, 8);
+        const quando = ano && mes && dia ? `${ano}-${mes}-${dia}` : '';
+        const memo = extrairCampo(bloco, 'MEMO') || extrairCampo(bloco, 'NAME');
+        return {
+          quando,
+          estabelecimento: memo,
+          valor: Number(extrairCampo(bloco, 'TRNAMT')),
+        };
+      });
+
+      setLoading(false);
+
+      if (blocos.length === 0) {
+        setParseError("Nenhuma transação (STMTTRN) encontrada no arquivo OFX.");
+        return;
+      }
+
+      finalizarLinhas(linhas);
+    } catch (err: any) {
+      setLoading(false);
+      setParseError("Erro ao ler o arquivo OFX: " + (err?.message || err));
+    }
+  };
+
+  const handleParse = () => {
+    setParseError("");
+    if (!csvFile) return;
+    setLoading(true);
+
+    const extensao = getFileExtension(csvFile);
+    if (extensao === 'ofx') {
+      void parseOfxRows(csvFile);
+    } else if (extensao === 'xlsx' || extensao === 'xls') {
+      void parseXlsxRows(csvFile);
+    } else {
+      parseCsvRows(csvFile);
+    }
   };
 
   const handleEditLancamento = (lancamento: Lancamento, campo: string, valor: any) => {
@@ -431,14 +570,6 @@ export function ImportarExtratoModal({ open, onClose, onImport, contas }: Import
       return;
     }
 
-    const pendentesCategoria = lancamentosSelecionados.filter((l) => !String(l.categoria || '').trim());
-    if (pendentesCategoria.length > 0) {
-      setImportFeedback({
-        success: false,
-        message: `${pendentesCategoria.length} lançamento(s) sem categoria. Preencha antes de importar.`,
-      });
-      return;
-    }
     setLoading(true);
     try {
       const result = await onImport(lancamentosSelecionados, contaSelecionada, regrasTexto);
@@ -478,8 +609,8 @@ export function ImportarExtratoModal({ open, onClose, onImport, contas }: Import
                 </svg>
               </div>
               <div>
-                <h2 className="text-2xl font-bold text-white">Importar Extrato/CSV</h2>
-                <p className="text-sm text-slate-400 mt-1">Carregue seus lançamentos com inteligência de categorização</p>
+                <h2 className="text-2xl font-bold text-white">Importar extrato bancário</h2>
+                <p className="text-sm text-slate-400 mt-1">Envie um arquivo CSV, OFX ou XLSX e categorizamos os lançamentos para você</p>
               </div>
             </div>
             <button
@@ -492,10 +623,15 @@ export function ImportarExtratoModal({ open, onClose, onImport, contas }: Import
             </button>
           </div>
 
-          <div className="flex gap-2 mb-8">
-            {[1, 2, 3].map(s => (
-              <div key={s} className={`flex-1 h-1.5 rounded-full transition-all ${step >= s ? 'bg-gradient-to-r from-blue-500 to-blue-400' : 'bg-slate-800'}`}></div>
-            ))}
+          <div className="mb-8">
+            <div className="flex gap-2">
+              {[1, 2].map(s => (
+                <div key={s} className={`flex-1 h-1.5 rounded-full transition-all ${step >= s ? 'bg-gradient-to-r from-blue-500 to-blue-400' : 'bg-slate-800'}`}></div>
+              ))}
+            </div>
+            <p className="mt-2 text-xs font-medium text-slate-400">
+              Passo {step} de 2 — {step === 1 ? 'Enviar arquivo' : 'Revisar e confirmar lançamentos'}
+            </p>
           </div>
 
           {step === 1 && (
@@ -521,13 +657,32 @@ export function ImportarExtratoModal({ open, onClose, onImport, contas }: Import
                 </div>
 
                 <div>
-                  <label className="block text-sm font-semibold text-slate-200 mb-3">Arquivo CSV</label>
-                  <input
-                    type="file"
-                    accept=".csv"
-                    onChange={handleFileChange}
-                    className="w-full px-4 py-4 rounded-xl border-2 border-dashed border-slate-600 hover:border-slate-500 bg-slate-800/30 text-slate-100 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-gradient-to-r file:from-blue-500 file:to-blue-600 file:text-white hover:file:from-blue-600 hover:file:to-blue-700 cursor-pointer transition"
-                  />
+                  <label className="block text-sm font-semibold text-slate-200 mb-3">
+                    Extrato bancário
+                    <span className="ml-2 font-normal text-slate-400">(CSV, OFX ou XLSX)</span>
+                  </label>
+                  <div
+                    onDragOver={(e) => { e.preventDefault(); setIsDraggingFile(true); }}
+                    onDragLeave={() => setIsDraggingFile(false)}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      setIsDraggingFile(false);
+                      handleFileDrop(e.dataTransfer.files?.[0]);
+                    }}
+                    className={`relative rounded-xl border-2 border-dashed transition ${
+                      isDraggingFile ? 'border-blue-500 bg-blue-500/10' : 'border-slate-600 hover:border-slate-500 bg-slate-800/30'
+                    }`}
+                  >
+                    <input
+                      type="file"
+                      accept=".csv,.ofx,.xlsx,.xls"
+                      onChange={handleFileChange}
+                      className="w-full px-4 py-4 text-slate-100 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-gradient-to-r file:from-blue-500 file:to-blue-600 file:text-white hover:file:from-blue-600 hover:file:to-blue-700 cursor-pointer"
+                    />
+                    <p className="pointer-events-none px-4 pb-3 text-xs text-slate-400">
+                      Ou arraste o arquivo aqui
+                    </p>
+                  </div>
                 </div>
 
                 {csvFile && (
@@ -568,7 +723,16 @@ export function ImportarExtratoModal({ open, onClose, onImport, contas }: Import
           {step === 2 && (
             <>
               <div className="mb-6">
-                <label className="block text-sm font-semibold mb-3 text-slate-200">Regras de categorização</label>
+                <div className="mb-3 flex items-center justify-between">
+                  <label className="block text-sm font-semibold text-slate-200">Regras de categorização</label>
+                  <button
+                    type="button"
+                    className="text-xs font-medium text-blue-400 hover:text-blue-300 transition"
+                    onClick={() => setRegrasTexto(REGRAS_PADRAO)}
+                  >
+                    Restaurar regras padrão
+                  </button>
+                </div>
                 <textarea
                   className="w-full px-4 py-3 rounded-xl bg-slate-800/50 border border-slate-700 text-slate-100 text-sm font-mono focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition"
                   style={{ minHeight: 140, maxHeight: 220, overflow: 'auto' }}
@@ -604,6 +768,47 @@ export function ImportarExtratoModal({ open, onClose, onImport, contas }: Import
                     </button>
                   </div>
                 </div>
+
+                {totalSelecionados > 0 && (
+                  <div className="mb-4 flex flex-col gap-2 rounded-xl border border-slate-700 bg-slate-800/30 p-3 sm:flex-row sm:items-center">
+                    <span className="text-xs font-medium text-slate-300 sm:whitespace-nowrap">
+                      Categorizar em massa ({totalSelecionados} selecionado{totalSelecionados === 1 ? '' : 's'}):
+                    </span>
+                    {tipoUnicoSelecionado ? (
+                      <>
+                        <div className="sm:w-56">
+                          <ImportCategoryCombobox
+                            value={categoriaEmMassa}
+                            options={opcoesCategoriaEmMassa}
+                            onValueChange={setCategoriaEmMassa}
+                          />
+                        </div>
+                        <button
+                          type="button"
+                          className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-xs font-semibold text-white transition disabled:opacity-50"
+                          onClick={handleAplicarCategoriaEmMassa}
+                          disabled={!categoriaEmMassa}
+                        >
+                          Aplicar aos selecionados
+                        </button>
+                      </>
+                    ) : (
+                      <span className="text-xs text-amber-400">
+                        Selecione lançamentos do mesmo tipo (só receitas ou só despesas) para categorizar em massa.
+                      </span>
+                    )}
+                  </div>
+                )}
+
+                {pendentesCategoriaSelecionados > 0 && (
+                  <div className="mb-4 flex items-start gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-300">
+                    <span>
+                      ⚠ {pendentesCategoriaSelecionados} lançamento(s) sem categoria selecionado(s) para importar.
+                      Eles serão importados sem categoria — você pode categorizá-los depois, a qualquer momento.
+                    </span>
+                  </div>
+                )}
+
                 <div
                   className="overflow-y-auto border border-slate-700/50 rounded-xl shadow-lg"
                   style={{ maxHeight: '450px' }}

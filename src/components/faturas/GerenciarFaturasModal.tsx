@@ -228,7 +228,11 @@ export function GerenciarFaturasModal({
       if (t.categorias?.nome) return t
       
       // Aplica regra de categorização
-      const categoriaRegra = categorizar(t.descricao || t.estabelecimento || '', regrasTexto)
+      const categoriaRegra = categorizar(
+        t.descricao || t.estabelecimento || '',
+        regrasTexto,
+        t.tipo === 'receita' ? 'receita' : 'despesa'
+      )
       if (categoriaRegra) {
         return { ...t, categoria: categoriaRegra }
       }
@@ -806,7 +810,8 @@ export function GerenciarFaturasModal({
 
     const categoriaRegra = categorizar(
       transacao.descricao || transacao.estabelecimento || '',
-      regrasTexto
+      regrasTexto,
+      transacao.tipo === 'receita' ? 'receita' : 'despesa'
     )
 
     return categoriaRegra || transacao.categoria || 'Sem categoria'
@@ -1509,7 +1514,11 @@ export function GerenciarFaturasModal({
                   <div className="px-2.5 py-2.5 sm:px-3.5">
                     <div className="space-y-2">
                       {transacoesOrdenadas.map((transacao) => {
-                        const categoriaRegra = categorizar(transacao.descricao || transacao.estabelecimento || '', regrasTexto)
+                        const categoriaRegra = categorizar(
+                          transacao.descricao || transacao.estabelecimento || '',
+                          regrasTexto,
+                          transacao.tipo === 'receita' ? 'receita' : 'despesa'
+                        )
                         const categoriaFinal = getCategoriaTransacao(transacao)
                         const categoriaVisivel = transacao.categorias?.nome || categoriaRegra || transacao.categoria
                         const isSelected = selectedIds.has(transacao.id)

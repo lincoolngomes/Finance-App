@@ -374,6 +374,7 @@ export function ImportB3Dialog({ open, onOpenChange, onSuccess }: ImportB3Dialog
   const { toast } = useToast()
 
   const [csvFile, setCsvFile] = useState<File | null>(null)
+  const [isDraggingFile, setIsDraggingFile] = useState(false)
   const [loading, setLoading] = useState(false)
   const [step, setStep] = useState<'upload' | 'preview'>('upload')
   const [previewRows, setPreviewRows] = useState<PreviewRow[]>([])
@@ -823,13 +824,14 @@ export function ImportB3Dialog({ open, onOpenChange, onSuccess }: ImportB3Dialog
                 </div>
                 <div className="text-xs text-slate-400 -mt-1">Formatos aceitos: CSV, XLSX, XLS</div>
 
-                <Input
-                  id="b3-csv-file"
-                  type="file"
-                  accept=".csv,.xlsx,.xls,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
-                  disabled={loading}
-                  className="h-11 bg-slate-950/70 border-slate-700 text-slate-200 file:bg-blue-600/90 file:text-white file:border-0 file:rounded-md file:px-3 file:py-2 file:mr-3 hover:file:bg-blue-500"
-                  onChange={(e) => {
+                <div
+                  onDragOver={(e) => { e.preventDefault(); setIsDraggingFile(true) }}
+                  onDragLeave={() => setIsDraggingFile(false)}
+                  onDrop={(e) => {
+                    e.preventDefault()
+                    setIsDraggingFile(false)
+                    const file = e.dataTransfer.files?.[0] || null
+                    if (!file) return
                     resetMessages()
                     setStep('upload')
                     setPreviewRows([])
@@ -838,10 +840,33 @@ export function ImportB3Dialog({ open, onOpenChange, onSuccess }: ImportB3Dialog
                     setSelectedTipoFilter('all')
                     setSearchPreview('')
                     setIgnoredCount(0)
-                    const file = e.target.files?.[0] || null
                     setCsvFile(file)
                   }}
-                />
+                  className={`relative rounded-lg border-2 border-dashed transition ${
+                    isDraggingFile ? 'border-blue-500 bg-blue-500/10' : 'border-slate-700'
+                  }`}
+                >
+                  <Input
+                    id="b3-csv-file"
+                    type="file"
+                    accept=".csv,.xlsx,.xls,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel"
+                    disabled={loading}
+                    className="h-11 border-0 bg-slate-950/70 text-slate-200 file:bg-blue-600/90 file:text-white file:border-0 file:rounded-md file:px-3 file:py-2 file:mr-3 hover:file:bg-blue-500"
+                    onChange={(e) => {
+                      resetMessages()
+                      setStep('upload')
+                      setPreviewRows([])
+                      setSelectedRowIds(new Set())
+                      setSelectedPreviewId(null)
+                      setSelectedTipoFilter('all')
+                      setSearchPreview('')
+                      setIgnoredCount(0)
+                      const file = e.target.files?.[0] || null
+                      setCsvFile(file)
+                    }}
+                  />
+                  <p className="pointer-events-none px-3 pb-2 text-xs text-slate-500">Ou arraste o arquivo aqui</p>
+                </div>
 
                 <div className="text-sm text-slate-300 flex items-center gap-2">
                   <FileSpreadsheet className="w-4 h-4 text-slate-400" />

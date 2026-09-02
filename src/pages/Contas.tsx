@@ -9,31 +9,7 @@
   }
 
   function categorizar(descricao, regrasTexto, tipo = '') {
-    if (!descricao) return '';
-    const descNorm = normalizar(descricao);
-    const regras = (regrasTexto || '')
-      .split('\n')
-      .map(l => l.trim())
-      .filter(l => l && !l.startsWith('#') && l.includes('='));
-    let melhorCategoria = '';
-    let melhorTamanhoTermo = -1;
-    for (const regra of regras) {
-      const idx = regra.indexOf('=');
-      if (idx <= 0 || idx >= regra.length - 1) continue;
-      const termo = regra.slice(0, idx).trim();
-      const categoria = regra.slice(idx + 1).trim();
-      if (!termo || !categoria) continue;
-      const termoNormalizado = normalizar(termo);
-      if (termoNormalizado.length < 2) continue;
-      if (descNorm.includes(termoNormalizado)) {
-        const catNorm = categoria;
-        if (termoNormalizado.length > melhorTamanhoTermo) {
-          melhorTamanhoTermo = termoNormalizado.length;
-          melhorCategoria = catNorm.charAt(0).toUpperCase() + catNorm.slice(1);
-        }
-      }
-    }
-    return melhorCategoria;
+    return categorizarComTipo(descricao, regrasTexto, tipo);
   }
 
   function normalizarTipoConta(conta) {
@@ -53,12 +29,13 @@
     return importaveis.length > 0 ? importaveis : contasArr;
   }
 import React, { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { supabase } from "../lib/supabase";
 import { useAuth } from "../hooks/useAuth";
 import Papa from 'papaparse';
 import { ImportCategoryCombobox, type ImportCategoryOption } from '/src/components/importers/ImportCategoryCombobox';
-import { REGRAS_PADRAO } from "../utils/categorizacao";
-import { isDefaultCategory } from '/src/constants/defaultCategories';
+import { categorizar as categorizarComTipo, REGRAS_PADRAO } from "../utils/categorizacao";
+import { DEFAULT_CATEGORIES, isDefaultCategory } from '/src/constants/defaultCategories';
 import { calculateContaBalance } from '/src/utils/account-balance';
 import { reconcileImportTransactions } from '/src/utils/transaction-import';
 // Modal de importação de extrato bancário
@@ -148,37 +125,7 @@ function ImportarExtratoModal({ open, onClose, onImport, contas }) {
   // Removido: const { user } = typeof window !== 'undefined' && window.useAuth ? window.useAuth() : {};
 
   // Categorias padrão para cada tipo
-  const categoriasPadrao = [
-    { nome: 'Aluguel', tipo: 'receita' },
-    { nome: 'Investimentos', tipo: 'receita' },
-    { nome: 'Recompensas', tipo: 'receita' },
-    { nome: 'Renda Extra', tipo: 'receita' },
-    { nome: 'Salário', tipo: 'receita' },
-    { nome: 'Transferência', tipo: 'receita' },
-    { nome: 'Vendas', tipo: 'receita' },
-    { nome: 'Academia', tipo: 'despesa' },
-    { nome: 'Água', tipo: 'despesa' },
-    { nome: 'Alimentação', tipo: 'despesa' },
-    { nome: 'Aluguel', tipo: 'despesa' },
-    { nome: 'Assinaturas', tipo: 'despesa' },
-    { nome: 'Carro', tipo: 'despesa' },
-    { nome: 'Celular', tipo: 'despesa' },
-    { nome: 'Compras', tipo: 'despesa' },
-    { nome: 'Condomínio', tipo: 'despesa' },
-    { nome: 'Casa', tipo: 'despesa' },
-    { nome: 'Dívida', tipo: 'despesa' },
-    { nome: 'Educação', tipo: 'despesa' },
-    { nome: 'Energia', tipo: 'despesa' },
-    { nome: 'Farmácia', tipo: 'despesa' },
-    { nome: 'Internet', tipo: 'despesa' },
-    { nome: 'Investimento', tipo: 'despesa' },
-    { nome: 'Lazer', tipo: 'despesa' },
-    { nome: 'Necessidades', tipo: 'despesa' },
-    { nome: 'Salão / Barbearia', tipo: 'despesa' },
-    { nome: 'Saúde', tipo: 'despesa' },
-    { nome: 'Transporte', tipo: 'despesa' },
-    { nome: 'Transferência', tipo: 'despesa' },
-  ];
+  const categoriasPadrao = DEFAULT_CATEGORIES;
 
   // Buscar/criar categorias do usuário ao abrir modal
   useEffect(() => {
@@ -192,7 +139,10 @@ function ImportarExtratoModal({ open, onClose, onImport, contas }) {
       if (error) existentes = [];
       // Descobre quais categorias padrão faltam
       const faltantes = categoriasPadrao.filter(catPadrao =>
-        !existentes?.some(cat => cat.nome === catPadrao.nome && cat.tipo === catPadrao.tipo)
+        !existentes?.some(cat =>
+          normalizar(cat.nome) === normalizar(catPadrao.nome) &&
+          normalizar(cat.tipo) === normalizar(catPadrao.tipo)
+        )
       );
       // Cria apenas as faltantes
       if (faltantes.length > 0) {
@@ -1018,6 +968,20 @@ export default function ContasPage() {
   const [deleteContaTarget, setDeleteContaTarget] = useState<any | null>(null);
   const [deleteContaTransacoesCount, setDeleteContaTransacoesCount] = useState(0);
   const { user } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  useEffect(() => {
+    if (loading) return;
+    if (searchParams.get('configurarConta') !== '1') return;
+    if (contas.length === 0) return;
+
+    setEditConta(contas[0]);
+    setEditOpen(true);
+
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.delete('configurarConta');
+    setSearchParams(nextParams, { replace: true });
+  }, [searchParams, setSearchParams, contas, loading]);
 
   async function fetchContas() {
     setLoading(true);
@@ -1226,7 +1190,10 @@ export default function ContasPage() {
         // Conversão de campos do CSV para o schema do banco
         function parseDataBRtoISO(dataBR) {
           if (!dataBR) return null;
-          const [dia, mes, ano] = dataBR.split('/');
+          const texto = String(dataBR).trim();
+          if (/^\d{4}-\d{2}-\d{2}$/.test(texto)) return texto;
+          const [dia, mes, ano] = texto.split('/');
+          if (!dia || !mes || !ano) return null;
           return `${ano}-${mes.padStart(2, '0')}-${dia.padStart(2, '0')}`;
         }
         function parseValorBR(valorStr) {

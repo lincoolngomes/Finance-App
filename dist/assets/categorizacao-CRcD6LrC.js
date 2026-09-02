@@ -1,91 +1,5 @@
-import {
-  getDefaultCategoryTypeByName,
-  type DefaultCategoryType,
-} from '/src/constants/defaultCategories';
-
-// Função utilitária para normalizar strings (remover acentos, etc.)
-export function normalizar(str: string): string {
-  return (str || "")
-    .normalize("NFD")
-    .replace(/\p{Diacritic}/gu, "")
-    .replace(/\s+/g, " ")
-    .trim()
-    .toLowerCase();
-}
-
-type RegraCategoria = {
-  termoNormalizado: string;
-  categoria: string;
-};
-
-function parseRegrasCategorias(regrasTexto: string): RegraCategoria[] {
-  return (regrasTexto || '')
-    .split('\n')
-    .map((linha) => linha.trim())
-    .filter((linha) => linha && !linha.startsWith('#'))
-    .map((linha) => {
-      const idx = linha.indexOf('=');
-      if (idx <= 0 || idx >= linha.length - 1) return null;
-      const termo = linha.slice(0, idx).trim();
-      const categoria = linha.slice(idx + 1).trim();
-      if (!termo || !categoria) return null;
-      // Evita regras muito genéricas como "a = Academia", que categorizam quase tudo.
-      const termoNormalizado = normalizar(termo);
-      if (termoNormalizado.length < 2) return null;
-      return {
-        termoNormalizado,
-        categoria: categoria.charAt(0).toUpperCase() + categoria.slice(1),
-      };
-    })
-    .filter((regra): regra is RegraCategoria => Boolean(regra));
-}
-
-const correspondeAoTermo = (descricaoNormalizada: string, termoNormalizado: string) => {
-  if (termoNormalizado.length > 3 || /\s/.test(termoNormalizado)) {
-    return descricaoNormalizada.includes(termoNormalizado);
-  }
-
-  // Siglas curtas como "BK" e "BR" só valem como palavras completas.
-  // Isso evita, por exemplo, que "BR" dentro de outro nome vire combustível.
-  const descricaoComLimites = ` ${descricaoNormalizada.replace(/[^a-z0-9&]+/g, ' ')} `;
-  return descricaoComLimites.includes(` ${termoNormalizado} `);
-};
-
-// Categorizar uma descrição com base nas regras de texto. Quando o tipo é
-// informado, categorias exclusivamente de entrada/saída não atravessam de lado.
-export function categorizar(
-  descricao: string,
-  regrasTexto: string,
-  tipoLancamento?: DefaultCategoryType | string | null,
-): string {
-  if (!descricao) return '';
-  const descNorm = normalizar(descricao);
-  const tipoNormalizado = normalizar(String(tipoLancamento || ''));
-  const regras = parseRegrasCategorias(regrasTexto);
-  let melhorCategoria = '';
-  let melhorTamanhoTermo = -1;
-
-  for (const regra of regras) {
-    const tipoCategoria = getDefaultCategoryTypeByName(regra.categoria);
-    const categoriaCompativel =
-      !tipoNormalizado ||
-      !tipoCategoria ||
-      tipoCategoria === tipoNormalizado;
-
-    if (categoriaCompativel && correspondeAoTermo(descNorm, regra.termoNormalizado)) {
-      const tamanhoTermo = regra.termoNormalizado.length;
-      // Prioriza regra mais específica (termo mais longo).
-      if (tamanhoTermo > melhorTamanhoTermo) {
-        melhorTamanhoTermo = tamanhoTermo;
-        melhorCategoria = regra.categoria;
-      }
-    }
-  }
-  return melhorCategoria;
-}
-
-// Regras padrão de categorização
-export const REGRAS_PADRAO = `# ===== ENTRADAS =====
+import{$ as u}from"./index-tzVZ_kWR.js";import"./react-vendor-BudMQKA9.js";import"./supabase-DEvIEdQL.js";import"./pdf-export-it0kIn5U.js";import"./ui-BL1_QJ_4.js";import"./charts-D2HwGgrl.js";import"./query-BOHQlbnj.js";import"./router-DMf_6P6h.js";function n(e){return(e||"").normalize("NFD").replace(new RegExp("\\p{Diacritic}","gu"),"").replace(/\s+/g," ").trim().toLowerCase()}function p(e){return(e||"").split(`
+`).map(a=>a.trim()).filter(a=>a&&!a.startsWith("#")).map(a=>{const s=a.indexOf("=");if(s<=0||s>=a.length-1)return null;const i=a.slice(0,s).trim(),r=a.slice(s+1).trim();if(!i||!r)return null;const o=n(i);return o.length<2?null:{termoNormalizado:o,categoria:r.charAt(0).toUpperCase()+r.slice(1)}}).filter(a=>!!a)}const g=(e,a)=>a.length>3||/\s/.test(a)?e.includes(a):` ${e.replace(/[^a-z0-9&]+/g," ")} `.includes(` ${a} `);function U(e,a,s){if(!e)return"";const i=n(e),r=n(String(s||"")),o=p(a);let d="",m=-1;for(const t of o){const c=u(t.categoria);if((!r||!c||c===r)&&g(i,t.termoNormalizado)){const l=t.termoNormalizado.length;l>m&&(m=l,d=t.categoria)}}return d}const x=`# ===== ENTRADAS =====
 
 # Salário
 folha pagamento mensal = Salário
@@ -352,4 +266,4 @@ claro = Utilidades
 tim = Utilidades
 oi = Utilidades
 telephone = Utilidades
-celular = Utilidades`;
+celular = Utilidades`;export{x as REGRAS_PADRAO,U as categorizar,n as normalizar};
